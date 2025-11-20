@@ -51,6 +51,9 @@ export const ProspeccaoForm = () => {
     setLoading(true);
 
     try {
+      // Limpa leads anteriores antes de buscar novos
+      window.dispatchEvent(new CustomEvent("clearLeads"));
+      
       const { data: responseData, error } = await supabase.functions.invoke("buscar-leads", {
         body: {
           cidade: data.cidade,

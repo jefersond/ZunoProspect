@@ -12,15 +12,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ExternalLink, MapPin, Phone, Star, Trash2, ChevronDown, ChevronUp } from "lucide-react";
-import { LeadAnalysis } from "./LeadAnalysis";
+import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
+import { LeadPlanDialog } from "./LeadPlanDialog";
+import { Progress } from "@/components/ui/progress";
 
 export const LeadsList = () => {
   const { toast } = useToast();
   const [leads, setLeads] = useState<LeadProspeccao[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
+  const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const loadLeads = async () => {
     try {
@@ -85,7 +87,17 @@ export const LeadsList = () => {
     const handleReload = () => loadLeads();
     window.addEventListener("reloadLeads", handleReload);
     
-    return () => window.removeEventListener("reloadLeads", handleReload);
+    // Listener para limpar leads antes de nova busca
+    const handleClear = () => {
+      setLeads([]);
+      setLoading(true);
+    };
+    window.addEventListener("clearLeads", handleClear);
+    
+    return () => {
+      window.removeEventListener("reloadLeads", handleReload);
+      window.removeEventListener("clearLeads", handleClear);
+    };
   }, []);
 
   const deleteLead = async (id: string) => {
@@ -108,15 +120,15 @@ export const LeadsList = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      novo: "bg-blue-500",
-      contatado: "bg-yellow-500",
-      qualificado: "bg-green-500",
-      convertido: "bg-success",
-      descartado: "bg-destructive",
-    };
-    return colors[status] || "bg-muted";
+  const openPlanDialog = (lead: LeadProspeccao) => {
+    setSelectedLead(lead);
+    setDialogOpen(true);
+  };
+
+  const getProbabilidadeColor = (prob: number) => {
+    if (prob >= 70) return "text-green-600";
+    if (prob >= 40) return "text-yellow-600";
+    return "text-red-600";
   };
 
   if (loading) {
@@ -142,46 +154,66 @@ export const LeadsList = () => {
   }
 
   return (
-    <Card className="shadow-lg">
-      <CardHeader>
-        <CardTitle>Leads Encontrados ({leads.length})</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Empresa</TableHead>
-                <TableHead>Contato</TableHead>
-                <TableHead>Sinais Digitais</TableHead>
-                <TableHead>Avaliação</TableHead>
-                <TableHead>Nicho/Foco</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {leads.map((lead) => (
-                <>
+    <>
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle>Leads Encontrados ({leads.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Contato</TableHead>
+                  <TableHead>Sinais Digitais</TableHead>
+                  <TableHead className="text-center">Prob. Conversão</TableHead>
+                  <TableHead>Preview Plano</TableHead>
+                  <TableHead className="text-center">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {leads.map((lead) => (
                   <TableRow key={lead.id}>
                     <TableCell>
-                      <div className="space-y-1">
+                      <div className="space-y-1 min-w-[200px]">
                         <p className="font-medium">{lead.nome}</p>
                         {lead.endereco && (
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <MapPin className="h-3 w-3" />
-                            <span className="line-clamp-1">{lead.endereco}</span>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="h-3 w-3 flex-shrink-0" />
+                            <span className="line-clamp-2">{lead.endereco}</span>
+                          </div>
+                        )}
+                        {lead.rating && (
+                          <div className="flex items-center gap-1">
+                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                            <span className="text-xs font-medium">{lead.rating}</span>
+                            <span className="text-xs text-muted-foreground">
+                              ({lead.total_reviews})
+                            </span>
                           </div>
                         )}
                       </div>
                     </TableCell>
+                    
                     <TableCell>
-                      <div className="space-y-1">
+                      <div className="space-y-1 min-w-[150px]">
                         {lead.telefone && (
                           <div className="flex items-center gap-1 text-sm">
-                            <Phone className="h-3 w-3" />
+                            <Phone className="h-3 w-3 flex-shrink-0" />
                             <span>{lead.telefone}</span>
                           </div>
+                        )}
+                        {lead.whatsapp_link && (
+                          <a
+                            href={lead.whatsapp_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-sm text-green-600 hover:underline"
+                          >
+                            <MessageSquare className="h-3 w-3 flex-shrink-0" />
+                            <span>WhatsApp</span>
+                          </a>
                         )}
                         {lead.website && (
                           <a
@@ -190,32 +222,39 @@ export const LeadsList = () => {
                             rel="noopener noreferrer"
                             className="flex items-center gap-1 text-sm text-primary hover:underline"
                           >
-                            <ExternalLink className="h-3 w-3" />
-                            <span>Website</span>
+                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate max-w-[120px]">Site</span>
+                          </a>
+                        )}
+                        {lead.instagram_url && (
+                          <a
+                            href={lead.instagram_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-sm text-pink-600 hover:underline"
+                          >
+                            <Instagram className="h-3 w-3 flex-shrink-0" />
+                            <span>Instagram</span>
                           </a>
                         )}
                       </div>
                     </TableCell>
+                    
                     <TableCell>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1 min-w-[180px]">
                         {lead.sinais.has_whatsapp_on_site && (
                           <Badge variant="outline" className="text-xs bg-green-500/10 text-green-700 border-green-500/20">
                             WhatsApp
                           </Badge>
                         )}
-                        {lead.instagram_url && (
-                          <Badge variant="outline" className="text-xs bg-pink-500/10 text-pink-700 border-pink-500/20">
-                            Instagram
-                          </Badge>
-                        )}
                         {lead.sinais.has_meta_pixel && (
                           <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-500/20">
-                            Meta Pixel
+                            Pixel
                           </Badge>
                         )}
                         {lead.sinais.has_gtag && (
                           <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-700 border-orange-500/20">
-                            Google Analytics
+                            GA
                           </Badge>
                         )}
                         {lead.sinais.has_gtm && (
@@ -223,47 +262,73 @@ export const LeadsList = () => {
                             GTM
                           </Badge>
                         )}
-                        {!lead.sinais.has_whatsapp_on_site && !lead.instagram_url && !lead.sinais.has_meta_pixel && !lead.sinais.has_gtag && !lead.sinais.has_gtm && (
-                          <span className="text-xs text-muted-foreground">-</span>
+                        {!lead.sinais.has_whatsapp_on_site && 
+                         !lead.sinais.has_meta_pixel && 
+                         !lead.sinais.has_gtag && 
+                         !lead.sinais.has_gtm && (
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </div>
                     </TableCell>
+                    
                     <TableCell>
-                      {lead.rating ? (
-                        <div className="flex items-center gap-1">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span className="font-medium">{lead.rating}</span>
-                          <span className="text-sm text-muted-foreground">
-                            ({lead.total_reviews})
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">N/A</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <Badge variant="outline">{lead.nicho}</Badge>
-                        <Badge variant="secondary">{lead.foco}</Badge>
+                      <div className="flex flex-col items-center gap-2 min-w-[120px]">
+                        {lead.probabilidade_conversao > 0 ? (
+                          <>
+                            <div className={`text-2xl font-bold ${getProbabilidadeColor(lead.probabilidade_conversao)}`}>
+                              {lead.probabilidade_conversao}%
+                            </div>
+                            <Progress 
+                              value={lead.probabilidade_conversao} 
+                              className="h-2 w-full"
+                            />
+                          </>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">Aguardando IA</span>
+                        )}
                       </div>
                     </TableCell>
+                    
                     <TableCell>
-                      <Badge className={getStatusColor(lead.status)}>
-                        {lead.status}
-                      </Badge>
+                      <div className="min-w-[250px] max-w-[300px]">
+                        {lead.plano_prospecao_7dias.length > 0 ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs">
+                                Dia 1
+                              </Badge>
+                              <Badge 
+                                variant={lead.plano_prospecao_7dias[0].canal === "whatsapp" ? "default" : "secondary"}
+                                className="text-xs"
+                              >
+                                {lead.plano_prospecao_7dias[0].canal === "whatsapp" ? (
+                                  <MessageSquare className="h-3 w-3 mr-1" />
+                                ) : (
+                                  "📧"
+                                )}
+                                {lead.plano_prospecao_7dias[0].canal}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {lead.plano_prospecao_7dias[0].mensagem}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Plano em geração...</span>
+                        )}
+                      </div>
                     </TableCell>
+                    
                     <TableCell>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 justify-center">
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
-                          onClick={() => setExpandedLeadId(expandedLeadId === lead.id ? null : lead.id)}
+                          onClick={() => openPlanDialog(lead)}
+                          disabled={lead.plano_prospecao_7dias.length === 0}
                         >
-                          {expandedLeadId === lead.id ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          )}
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver Plano
                         </Button>
                         <Button
                           variant="ghost"
@@ -275,24 +340,18 @@ export const LeadsList = () => {
                       </div>
                     </TableCell>
                   </TableRow>
-                  {expandedLeadId === lead.id && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="bg-secondary/20">
-                        <LeadAnalysis
-                          diagnostico={lead.diagnostico_bullets}
-                          probabilidade={lead.probabilidade_conversao}
-                          plano={lead.plano_prospecao_7dias}
-                          geradoEm={lead.ai_analise_gerada_em}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <LeadPlanDialog
+        lead={selectedLead}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
+    </>
   );
 };

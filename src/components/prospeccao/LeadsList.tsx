@@ -28,6 +28,12 @@ interface Lead {
   foco: string;
   status: string;
   created_at: string;
+  whatsapp_on_site: boolean;
+  whatsapp_number: string | null;
+  has_meta_pixel: boolean;
+  has_gtag: boolean;
+  has_gtm: boolean;
+  instagram_url: string | null;
 }
 
 export const LeadsList = () => {
@@ -131,6 +137,7 @@ export const LeadsList = () => {
               <TableRow>
                 <TableHead>Empresa</TableHead>
                 <TableHead>Contato</TableHead>
+                <TableHead>Sinais Digitais</TableHead>
                 <TableHead>Avaliação</TableHead>
                 <TableHead>Nicho/Foco</TableHead>
                 <TableHead>Status</TableHead>
@@ -175,6 +182,38 @@ export const LeadsList = () => {
                           <ExternalLink className="h-3 w-3" />
                           <span>Website</span>
                         </a>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {lead.whatsapp_on_site && (
+                        <Badge variant="outline" className="text-xs bg-green-500/10 text-green-700 border-green-500/20">
+                          WhatsApp
+                        </Badge>
+                      )}
+                      {lead.instagram_url && (
+                        <Badge variant="outline" className="text-xs bg-pink-500/10 text-pink-700 border-pink-500/20">
+                          Instagram
+                        </Badge>
+                      )}
+                      {lead.has_meta_pixel && (
+                        <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-500/20">
+                          Meta Pixel
+                        </Badge>
+                      )}
+                      {lead.has_gtag && (
+                        <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-700 border-orange-500/20">
+                          Google Analytics
+                        </Badge>
+                      )}
+                      {lead.has_gtm && (
+                        <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-700 border-purple-500/20">
+                          GTM
+                        </Badge>
+                      )}
+                      {!lead.whatsapp_on_site && !lead.instagram_url && !lead.has_meta_pixel && !lead.has_gtag && !lead.has_gtm && (
+                        <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </div>
                   </TableCell>

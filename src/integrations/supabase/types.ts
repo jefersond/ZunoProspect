@@ -18,11 +18,17 @@ export type Database = {
         Row: {
           cidade: string
           created_at: string
+          digital_signals: Json | null
           email: string | null
           endereco: string | null
           foco: string
           google_place_id: string | null
+          has_gtag: boolean | null
+          has_gtm: boolean | null
+          has_meta_pixel: boolean | null
           id: string
+          instagram_context: string | null
+          instagram_url: string | null
           latitude: number | null
           longitude: number | null
           nicho: string
@@ -35,15 +41,23 @@ export type Database = {
           updated_at: string
           user_id: string
           website: string | null
+          whatsapp_number: string | null
+          whatsapp_on_site: boolean | null
         }
         Insert: {
           cidade: string
           created_at?: string
+          digital_signals?: Json | null
           email?: string | null
           endereco?: string | null
           foco: string
           google_place_id?: string | null
+          has_gtag?: boolean | null
+          has_gtm?: boolean | null
+          has_meta_pixel?: boolean | null
           id?: string
+          instagram_context?: string | null
+          instagram_url?: string | null
           latitude?: number | null
           longitude?: number | null
           nicho: string
@@ -56,15 +70,23 @@ export type Database = {
           updated_at?: string
           user_id: string
           website?: string | null
+          whatsapp_number?: string | null
+          whatsapp_on_site?: boolean | null
         }
         Update: {
           cidade?: string
           created_at?: string
+          digital_signals?: Json | null
           email?: string | null
           endereco?: string | null
           foco?: string
           google_place_id?: string | null
+          has_gtag?: boolean | null
+          has_gtm?: boolean | null
+          has_meta_pixel?: boolean | null
           id?: string
+          instagram_context?: string | null
+          instagram_url?: string | null
           latitude?: number | null
           longitude?: number | null
           nicho?: string
@@ -77,6 +99,8 @@ export type Database = {
           updated_at?: string
           user_id?: string
           website?: string | null
+          whatsapp_number?: string | null
+          whatsapp_on_site?: boolean | null
         }
         Relationships: []
       }

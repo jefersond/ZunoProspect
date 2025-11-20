@@ -286,6 +286,57 @@ serve(async (req) => {
           if (insertError) {
             console.error("Erro ao inserir lead:", insertError);
           } else {
+            // Após salvar o lead, gera análise de IA
+            try {
+              console.log(`Gerando análise de IA para ${details.name}`);
+              
+              const analiseResponse = await fetch(
+                `${Deno.env.get("SUPABASE_URL")}/functions/v1/analisar-lead-ia`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: req.headers.get("Authorization")!,
+                  },
+                  body: JSON.stringify({
+                    nome: details.name,
+                    nicho: body.nicho,
+                    cidade: body.cidade,
+                    website: details.website || null,
+                    foco: body.foco,
+                    whatsapp_on_site: siteSignals.whatsapp_on_site,
+                    has_meta_pixel: siteSignals.has_meta_pixel,
+                    has_gtag: siteSignals.has_gtag,
+                    has_gtm: siteSignals.has_gtm,
+                    instagram_url: siteSignals.instagram_url,
+                    instagram_context: null,
+                  }),
+                }
+              );
+
+              if (analiseResponse.ok) {
+                const analise = await analiseResponse.json();
+                
+                // Atualiza o lead com a análise de IA
+                await supabaseClient
+                  .from("leads")
+                  .update({
+                    diagnostico_bullets: analise.diagnostico_bullets,
+                    probabilidade_conversao: analise.probabilidade_conversao,
+                    plano_prospeccao: analise.plano_prospeccao_7dias,
+                    ai_analise_gerada_em: new Date().toISOString(),
+                  })
+                  .eq("google_place_id", place.place_id);
+
+                console.log(`Análise de IA gerada para ${details.name}`);
+              } else {
+                console.error("Erro ao gerar análise de IA:", await analiseResponse.text());
+              }
+            } catch (analiseError) {
+              console.error("Erro ao chamar análise de IA:", analiseError);
+              // Não bloqueia o fluxo se análise falhar
+            }
+
             leadsDetails.push({
               nome: details.name,
               endereco: details.formatted_address,

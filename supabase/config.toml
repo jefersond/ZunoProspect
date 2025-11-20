@@ -1,1 +1,7 @@
 project_id = "yklmfcgbtprwhjehipte"
+
+[functions.buscar-leads]
+verify_jwt = true
+
+[functions.analisar-lead-ia]
+verify_jwt = true

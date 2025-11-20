@@ -1,0 +1,170 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Brain, TrendingUp, MessageSquare, Mail } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+
+interface PlanoProspeccaoDia {
+  dia: number;
+  canal: "whatsapp" | "email";
+  mensagem: string;
+  objecao_provavel: string;
+  resposta_sugerida: string;
+  cta: string;
+}
+
+interface LeadAnalysisProps {
+  diagnostico: string[] | null;
+  probabilidade: number | null;
+  plano: PlanoProspeccaoDia[] | null;
+  geradoEm: string | null;
+}
+
+export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm }: LeadAnalysisProps) => {
+  if (!diagnostico || !probabilidade || !plano) {
+    return (
+      <Card className="mt-4">
+        <CardContent className="py-6 text-center text-muted-foreground">
+          Análise de IA ainda não gerada para este lead
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const getProbabilidadeColor = (prob: number) => {
+    if (prob >= 70) return "text-green-600 bg-green-50 border-green-200";
+    if (prob >= 40) return "text-yellow-600 bg-yellow-50 border-yellow-200";
+    return "text-red-600 bg-red-50 border-red-200";
+  };
+
+  return (
+    <div className="space-y-4 mt-4">
+      {/* Diagnóstico e Probabilidade */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Brain className="h-5 w-5 text-primary" />
+              Diagnóstico Digital
+            </CardTitle>
+            {geradoEm && (
+              <CardDescription className="text-xs">
+                Gerado em {new Date(geradoEm).toLocaleDateString('pt-BR')}
+              </CardDescription>
+            )}
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {diagnostico.map((bullet, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-sm">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>{bullet}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Probabilidade de Conversão
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <div
+                className={`text-6xl font-bold ${getProbabilidadeColor(probabilidade).split(' ')[0]}`}
+              >
+                {probabilidade}%
+              </div>
+              <Badge
+                className={`mt-3 ${getProbabilidadeColor(probabilidade)}`}
+                variant="outline"
+              >
+                {probabilidade >= 70
+                  ? "Alta Probabilidade"
+                  : probabilidade >= 40
+                  ? "Probabilidade Média"
+                  : "Baixa Probabilidade"}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Plano de Prospecção 7 Dias */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            Plano de Prospecção 7 Dias
+          </CardTitle>
+          <CardDescription>
+            Cadência multicanal otimizada com copy pronta e respostas para objeções
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            {plano.map((dia) => (
+              <div key={dia.dia} className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="font-semibold">
+                    Dia {dia.dia}
+                  </Badge>
+                  <Badge
+                    variant={dia.canal === "whatsapp" ? "default" : "secondary"}
+                    className="gap-1"
+                  >
+                    {dia.canal === "whatsapp" ? (
+                      <MessageSquare className="h-3 w-3" />
+                    ) : (
+                      <Mail className="h-3 w-3" />
+                    )}
+                    {dia.canal === "whatsapp" ? "WhatsApp" : "Email"}
+                  </Badge>
+                </div>
+
+                <div className="pl-4 space-y-2 text-sm">
+                  <div className="bg-primary/5 p-3 rounded-md border border-primary/10">
+                    <p className="font-medium text-primary mb-1">Mensagem:</p>
+                    <p className="whitespace-pre-wrap">{dia.mensagem}</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded border border-orange-200 dark:border-orange-800">
+                      <p className="font-medium text-orange-700 dark:text-orange-400 text-xs mb-1">
+                        Objeção Provável:
+                      </p>
+                      <p className="text-xs text-orange-900 dark:text-orange-300">
+                        {dia.objecao_provavel}
+                      </p>
+                    </div>
+
+                    <div className="bg-green-50 dark:bg-green-950/20 p-2 rounded border border-green-200 dark:border-green-800">
+                      <p className="font-medium text-green-700 dark:text-green-400 text-xs mb-1">
+                        Resposta Sugerida:
+                      </p>
+                      <p className="text-xs text-green-900 dark:text-green-300">
+                        {dia.resposta_sugerida}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 dark:bg-blue-950/20 p-2 rounded border border-blue-200 dark:border-blue-800">
+                    <p className="font-medium text-blue-700 dark:text-blue-400 text-xs mb-1">
+                      CTA:
+                    </p>
+                    <p className="text-xs text-blue-900 dark:text-blue-300">{dia.cta}</p>
+                  </div>
+                </div>
+
+                {dia.dia < 7 && <Separator className="my-4" />}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};

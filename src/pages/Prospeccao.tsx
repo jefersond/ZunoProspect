@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ProspeccaoForm } from "@/components/prospeccao/ProspeccaoForm";
 import { LeadsList } from "@/components/prospeccao/LeadsList";
 import { LogOut, Search } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Prospeccao = () => {
   const navigate = useNavigate();
@@ -37,10 +38,13 @@ const Prospeccao = () => {
               Prospecção B2B
             </h1>
           </div>
-          <Button variant="outline" size="sm" onClick={handleLogout}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Sair
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button variant="outline" size="sm" onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Sair
+            </Button>
+          </div>
         </div>
       </header>
 

@@ -38,6 +38,8 @@ export type Database = {
           notas: string | null
           plano_prospeccao: Json | null
           probabilidade_conversao: number | null
+          proximidade_ativa: boolean | null
+          raio_km: number | null
           rating: number | null
           status: string | null
           telefone: string | null
@@ -71,6 +73,8 @@ export type Database = {
           notas?: string | null
           plano_prospeccao?: Json | null
           probabilidade_conversao?: number | null
+          proximidade_ativa?: boolean | null
+          raio_km?: number | null
           rating?: number | null
           status?: string | null
           telefone?: string | null
@@ -104,6 +108,8 @@ export type Database = {
           notas?: string | null
           plano_prospeccao?: Json | null
           probabilidade_conversao?: number | null
+          proximidade_ativa?: boolean | null
+          raio_km?: number | null
           rating?: number | null
           status?: string | null
           telefone?: string | null

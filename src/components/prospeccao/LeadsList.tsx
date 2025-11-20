@@ -12,10 +12,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
 import { Progress } from "@/components/ui/progress";
+import { exportLeadsToExcel } from "@/utils/exportToExcel";
 
 export const LeadsList = () => {
   const { toast } = useToast();
@@ -131,6 +132,23 @@ export const LeadsList = () => {
     return "text-red-600";
   };
 
+  const handleExportExcel = () => {
+    try {
+      const fileName = exportLeadsToExcel(leads);
+      toast({
+        title: "Excel exportado!",
+        description: `Arquivo ${fileName} foi baixado com sucesso`,
+      });
+    } catch (error: any) {
+      console.error("Erro ao exportar Excel:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro na exportação",
+        description: error.message || "Não foi possível exportar para Excel",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -157,7 +175,15 @@ export const LeadsList = () => {
     <>
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle>Leads Encontrados ({leads.length})</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Leads Encontrados ({leads.length})</CardTitle>
+            {leads.length > 0 && (
+              <Button onClick={handleExportExcel} variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Exportar Excel
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">

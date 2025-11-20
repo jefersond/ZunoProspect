@@ -127,19 +127,133 @@ serve(async (req) => {
 
     console.log(`Encontrados ${leads.length} leads`);
 
+    // Função para analisar o HTML do site e extrair sinais digitais
+    async function analyzeSiteHTML(websiteUrl: string) {
+      const signals = {
+        whatsapp_on_site: false,
+        whatsapp_number: null as string | null,
+        has_meta_pixel: false,
+        has_gtag: false,
+        has_gtm: false,
+        instagram_url: null as string | null,
+      };
+
+      try {
+        console.log(`Analisando site: ${websiteUrl}`);
+        const siteResponse = await fetch(websiteUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; LeadBot/1.0)',
+          },
+          redirect: 'follow',
+        });
+
+        if (!siteResponse.ok) {
+          console.log(`Erro ao acessar site: ${siteResponse.status}`);
+          return signals;
+        }
+
+        const html = await siteResponse.text();
+        
+        // Detectar WhatsApp
+        const whatsappPatterns = [
+          /wa\.me\/([0-9]+)/i,
+          /api\.whatsapp\.com\/send\?phone=([0-9]+)/i,
+          /web\.whatsapp\.com\/send\?phone=([0-9]+)/i,
+        ];
+        
+        for (const pattern of whatsappPatterns) {
+          const match = html.match(pattern);
+          if (match) {
+            signals.whatsapp_on_site = true;
+            signals.whatsapp_number = match[1];
+            break;
+          }
+        }
+
+        // Se não encontrou nos links, procura por "WhatsApp" próximo a números
+        if (!signals.whatsapp_on_site) {
+          const whatsappContext = /whatsapp[^0-9]{0,50}(\+?[0-9\s\-\(\)]{10,20})/i;
+          const contextMatch = html.match(whatsappContext);
+          if (contextMatch) {
+            signals.whatsapp_on_site = true;
+            signals.whatsapp_number = contextMatch[1].replace(/\D/g, '');
+          }
+        }
+
+        // Detectar Meta Pixel
+        if (/fbq\s*\(\s*['"]init['"]/i.test(html) || /facebook\.com\/tr\?id=/i.test(html)) {
+          signals.has_meta_pixel = true;
+        }
+
+        // Detectar Google Analytics / gtag
+        if (/gtag\s*\(\s*['"]config['"]/i.test(html) || /googletagmanager\.com\/gtag\/js/i.test(html)) {
+          signals.has_gtag = true;
+        }
+
+        // Detectar Google Tag Manager
+        if (/GTM-[A-Z0-9]+/i.test(html) || /googletagmanager\.com\/gtm\.js/i.test(html)) {
+          signals.has_gtm = true;
+        }
+
+        // Detectar Instagram URL
+        const instagramMatch = html.match(/instagram\.com\/([a-zA-Z0-9._]+)/i);
+        if (instagramMatch) {
+          signals.instagram_url = `https://instagram.com/${instagramMatch[1]}`;
+        }
+
+        console.log(`Sinais detectados:`, signals);
+      } catch (error) {
+        console.error(`Erro ao analisar HTML do site ${websiteUrl}:`, error);
+      }
+
+      return signals;
+    }
+
     // Busca detalhes de cada lead e salva no banco
     const leadsDetails = [];
     
     for (const place of leads) {
       try {
-        // Busca detalhes do lugar
-        const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,geometry&key=${GOOGLE_API_KEY}`;
-        
-        const detailsResponse = await fetch(detailsUrl);
-        const detailsData = await detailsResponse.json();
+        let detailsUrl: string;
+        let detailsResponse: Response;
+        let detailsData: any;
+
+        // Se não estiver usando mock, busca detalhes na API real
+        if (GOOGLE_API_KEY) {
+          detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,geometry&key=${GOOGLE_API_KEY}`;
+          detailsResponse = await fetch(detailsUrl);
+          detailsData = await detailsResponse.json();
+        } else {
+          // Mock já tem todos os dados
+          detailsData = {
+            status: "OK",
+            result: place
+          };
+        }
         
         if (detailsData.status === "OK") {
           const details = detailsData.result;
+          
+          // Analisa o site se houver website
+          let siteSignals: {
+            whatsapp_on_site: boolean;
+            whatsapp_number: string | null;
+            has_meta_pixel: boolean;
+            has_gtag: boolean;
+            has_gtm: boolean;
+            instagram_url: string | null;
+          } = {
+            whatsapp_on_site: false,
+            whatsapp_number: null,
+            has_meta_pixel: false,
+            has_gtag: false,
+            has_gtm: false,
+            instagram_url: null,
+          };
+
+          if (details.website) {
+            siteSignals = await analyzeSiteHTML(details.website);
+          }
           
           // Insere no banco (ou atualiza se já existe)
           const { error: insertError } = await supabaseClient.from("leads").upsert(
@@ -158,6 +272,13 @@ serve(async (req) => {
               foco: body.foco,
               status: "novo",
               user_id: user.id,
+              whatsapp_on_site: siteSignals.whatsapp_on_site,
+              whatsapp_number: siteSignals.whatsapp_number,
+              has_meta_pixel: siteSignals.has_meta_pixel,
+              has_gtag: siteSignals.has_gtag,
+              has_gtm: siteSignals.has_gtm,
+              instagram_url: siteSignals.instagram_url,
+              digital_signals: siteSignals,
             },
             { onConflict: "google_place_id" }
           );
@@ -168,6 +289,7 @@ serve(async (req) => {
             leadsDetails.push({
               nome: details.name,
               endereco: details.formatted_address,
+              sinais: siteSignals,
             });
           }
         }

@@ -272,6 +272,8 @@ serve(async (req) => {
               foco: body.foco,
               status: "novo",
               user_id: user.id,
+              proximidade_ativa: body.proximidadeAtiva,
+              raio_km: body.raioKm,
               whatsapp_on_site: siteSignals.whatsapp_on_site,
               whatsapp_number: siteSignals.whatsapp_number,
               has_meta_pixel: siteSignals.has_meta_pixel,

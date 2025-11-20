@@ -12,38 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ExternalLink, MapPin, Phone, Mail, Star, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Star, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { LeadAnalysis } from "./LeadAnalysis";
-
-interface Lead {
-  id: string;
-  nome: string;
-  endereco: string;
-  telefone: string;
-  email: string;
-  website: string;
-  rating: number;
-  total_reviews: number;
-  cidade: string;
-  nicho: string;
-  foco: string;
-  status: string;
-  created_at: string;
-  whatsapp_on_site: boolean;
-  whatsapp_number: string | null;
-  has_meta_pixel: boolean;
-  has_gtag: boolean;
-  has_gtm: boolean;
-  instagram_url: string | null;
-  diagnostico_bullets: string[] | null;
-  probabilidade_conversao: number | null;
-  plano_prospeccao: any[] | null;
-  ai_analise_gerada_em: string | null;
-}
+import type { LeadProspeccao } from "@/types/lead";
 
 export const LeadsList = () => {
   const { toast } = useToast();
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leads, setLeads] = useState<LeadProspeccao[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
 
@@ -56,12 +31,39 @@ export const LeadsList = () => {
 
       if (error) throw error;
       
-      // Cast dos tipos JSON para os tipos corretos
-      const leadsFormatted = (data || []).map(lead => ({
-        ...lead,
-        diagnostico_bullets: lead.diagnostico_bullets as string[] | null,
-        plano_prospeccao: lead.plano_prospeccao as any[] | null,
-      })) as Lead[];
+      // Mapeia os dados do banco para a interface LeadProspeccao
+      const leadsFormatted: LeadProspeccao[] = (data || []).map(lead => ({
+        id: lead.id,
+        placeId: lead.google_place_id,
+        nome: lead.nome,
+        telefone: lead.telefone,
+        whatsapp_link: lead.whatsapp_number 
+          ? `https://wa.me/${lead.whatsapp_number.replace(/\D/g, '')}` 
+          : null,
+        website: lead.website,
+        instagram_url: lead.instagram_url,
+        instagram_context: lead.instagram_context,
+        endereco: lead.endereco,
+        cidade: lead.cidade,
+        nicho: lead.nicho,
+        foco: lead.foco as any, // Cast necessário pois vem como string do banco
+        proximidadeAtiva: lead.proximidade_ativa || false,
+        raioKm: lead.raio_km,
+        sinais: {
+          has_whatsapp_on_site: lead.whatsapp_on_site || false,
+          has_meta_pixel: lead.has_meta_pixel || false,
+          has_gtag: lead.has_gtag || false,
+          has_gtm: lead.has_gtm || false,
+        },
+        diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
+        probabilidade_conversao: lead.probabilidade_conversao || 0,
+        plano_prospecao_7dias: (lead.plano_prospeccao as any[]) || [],
+        rating: lead.rating,
+        total_reviews: lead.total_reviews,
+        status: lead.status || 'novo',
+        created_at: lead.created_at,
+        ai_analise_gerada_em: lead.ai_analise_gerada_em,
+      }));
       
       setLeads(leadsFormatted);
     } catch (error: any) {
@@ -181,12 +183,6 @@ export const LeadsList = () => {
                             <span>{lead.telefone}</span>
                           </div>
                         )}
-                        {lead.email && (
-                          <div className="flex items-center gap-1 text-sm">
-                            <Mail className="h-3 w-3" />
-                            <span className="line-clamp-1">{lead.email}</span>
-                          </div>
-                        )}
                         {lead.website && (
                           <a
                             href={lead.website}
@@ -202,7 +198,7 @@ export const LeadsList = () => {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {lead.whatsapp_on_site && (
+                        {lead.sinais.has_whatsapp_on_site && (
                           <Badge variant="outline" className="text-xs bg-green-500/10 text-green-700 border-green-500/20">
                             WhatsApp
                           </Badge>
@@ -212,22 +208,22 @@ export const LeadsList = () => {
                             Instagram
                           </Badge>
                         )}
-                        {lead.has_meta_pixel && (
+                        {lead.sinais.has_meta_pixel && (
                           <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-500/20">
                             Meta Pixel
                           </Badge>
                         )}
-                        {lead.has_gtag && (
+                        {lead.sinais.has_gtag && (
                           <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-700 border-orange-500/20">
                             Google Analytics
                           </Badge>
                         )}
-                        {lead.has_gtm && (
+                        {lead.sinais.has_gtm && (
                           <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-700 border-purple-500/20">
                             GTM
                           </Badge>
                         )}
-                        {!lead.whatsapp_on_site && !lead.instagram_url && !lead.has_meta_pixel && !lead.has_gtag && !lead.has_gtm && (
+                        {!lead.sinais.has_whatsapp_on_site && !lead.instagram_url && !lead.sinais.has_meta_pixel && !lead.sinais.has_gtag && !lead.sinais.has_gtm && (
                           <span className="text-xs text-muted-foreground">-</span>
                         )}
                       </div>
@@ -285,7 +281,7 @@ export const LeadsList = () => {
                         <LeadAnalysis
                           diagnostico={lead.diagnostico_bullets}
                           probabilidade={lead.probabilidade_conversao}
-                          plano={lead.plano_prospeccao}
+                          plano={lead.plano_prospecao_7dias}
                           geradoEm={lead.ai_analise_gerada_em}
                         />
                       </TableCell>

@@ -16,8 +16,10 @@ export type Database = {
     Tables: {
       leads: {
         Row: {
+          ai_analise_gerada_em: string | null
           cidade: string
           created_at: string
+          diagnostico_bullets: Json | null
           digital_signals: Json | null
           email: string | null
           endereco: string | null
@@ -34,6 +36,8 @@ export type Database = {
           nicho: string
           nome: string
           notas: string | null
+          plano_prospeccao: Json | null
+          probabilidade_conversao: number | null
           rating: number | null
           status: string | null
           telefone: string | null
@@ -45,8 +49,10 @@ export type Database = {
           whatsapp_on_site: boolean | null
         }
         Insert: {
+          ai_analise_gerada_em?: string | null
           cidade: string
           created_at?: string
+          diagnostico_bullets?: Json | null
           digital_signals?: Json | null
           email?: string | null
           endereco?: string | null
@@ -63,6 +69,8 @@ export type Database = {
           nicho: string
           nome: string
           notas?: string | null
+          plano_prospeccao?: Json | null
+          probabilidade_conversao?: number | null
           rating?: number | null
           status?: string | null
           telefone?: string | null
@@ -74,8 +82,10 @@ export type Database = {
           whatsapp_on_site?: boolean | null
         }
         Update: {
+          ai_analise_gerada_em?: string | null
           cidade?: string
           created_at?: string
+          diagnostico_bullets?: Json | null
           digital_signals?: Json | null
           email?: string | null
           endereco?: string | null
@@ -92,6 +102,8 @@ export type Database = {
           nicho?: string
           nome?: string
           notas?: string | null
+          plano_prospeccao?: Json | null
+          probabilidade_conversao?: number | null
           rating?: number | null
           status?: string | null
           telefone?: string | null

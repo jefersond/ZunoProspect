@@ -12,7 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ExternalLink, MapPin, Phone, Mail, Star, Trash2 } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Mail, Star, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { LeadAnalysis } from "./LeadAnalysis";
 
 interface Lead {
   id: string;
@@ -34,12 +35,17 @@ interface Lead {
   has_gtag: boolean;
   has_gtm: boolean;
   instagram_url: string | null;
+  diagnostico_bullets: string[] | null;
+  probabilidade_conversao: number | null;
+  plano_prospeccao: any[] | null;
+  ai_analise_gerada_em: string | null;
 }
 
 export const LeadsList = () => {
   const { toast } = useToast();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
 
   const loadLeads = async () => {
     try {
@@ -49,7 +55,15 @@ export const LeadsList = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setLeads(data || []);
+      
+      // Cast dos tipos JSON para os tipos corretos
+      const leadsFormatted = (data || []).map(lead => ({
+        ...lead,
+        diagnostico_bullets: lead.diagnostico_bullets as string[] | null,
+        plano_prospeccao: lead.plano_prospeccao as any[] | null,
+      })) as Lead[];
+      
+      setLeads(leadsFormatted);
     } catch (error: any) {
       console.error("Erro ao carregar leads:", error);
       toast({
@@ -146,111 +160,138 @@ export const LeadsList = () => {
             </TableHeader>
             <TableBody>
               {leads.map((lead) => (
-                <TableRow key={lead.id}>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <p className="font-medium">{lead.nome}</p>
-                      {lead.endereco && (
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <MapPin className="h-3 w-3" />
-                          <span className="line-clamp-1">{lead.endereco}</span>
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {lead.telefone && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3 w-3" />
-                          <span>{lead.telefone}</span>
-                        </div>
-                      )}
-                      {lead.email && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Mail className="h-3 w-3" />
-                          <span className="line-clamp-1">{lead.email}</span>
-                        </div>
-                      )}
-                      {lead.website && (
-                        <a
-                          href={lead.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-sm text-primary hover:underline"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          <span>Website</span>
-                        </a>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {lead.whatsapp_on_site && (
-                        <Badge variant="outline" className="text-xs bg-green-500/10 text-green-700 border-green-500/20">
-                          WhatsApp
-                        </Badge>
-                      )}
-                      {lead.instagram_url && (
-                        <Badge variant="outline" className="text-xs bg-pink-500/10 text-pink-700 border-pink-500/20">
-                          Instagram
-                        </Badge>
-                      )}
-                      {lead.has_meta_pixel && (
-                        <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-500/20">
-                          Meta Pixel
-                        </Badge>
-                      )}
-                      {lead.has_gtag && (
-                        <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-700 border-orange-500/20">
-                          Google Analytics
-                        </Badge>
-                      )}
-                      {lead.has_gtm && (
-                        <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-700 border-purple-500/20">
-                          GTM
-                        </Badge>
-                      )}
-                      {!lead.whatsapp_on_site && !lead.instagram_url && !lead.has_meta_pixel && !lead.has_gtag && !lead.has_gtm && (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {lead.rating ? (
-                      <div className="flex items-center gap-1">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span className="font-medium">{lead.rating}</span>
-                        <span className="text-sm text-muted-foreground">
-                          ({lead.total_reviews})
-                        </span>
+                <>
+                  <TableRow key={lead.id}>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <p className="font-medium">{lead.nome}</p>
+                        {lead.endereco && (
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <MapPin className="h-3 w-3" />
+                            <span className="line-clamp-1">{lead.endereco}</span>
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">N/A</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <Badge variant="outline">{lead.nicho}</Badge>
-                      <Badge variant="secondary">{lead.foco}</Badge>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(lead.status)}>
-                      {lead.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteLead(lead.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        {lead.telefone && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Phone className="h-3 w-3" />
+                            <span>{lead.telefone}</span>
+                          </div>
+                        )}
+                        {lead.email && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Mail className="h-3 w-3" />
+                            <span className="line-clamp-1">{lead.email}</span>
+                          </div>
+                        )}
+                        {lead.website && (
+                          <a
+                            href={lead.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-sm text-primary hover:underline"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            <span>Website</span>
+                          </a>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {lead.whatsapp_on_site && (
+                          <Badge variant="outline" className="text-xs bg-green-500/10 text-green-700 border-green-500/20">
+                            WhatsApp
+                          </Badge>
+                        )}
+                        {lead.instagram_url && (
+                          <Badge variant="outline" className="text-xs bg-pink-500/10 text-pink-700 border-pink-500/20">
+                            Instagram
+                          </Badge>
+                        )}
+                        {lead.has_meta_pixel && (
+                          <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-500/20">
+                            Meta Pixel
+                          </Badge>
+                        )}
+                        {lead.has_gtag && (
+                          <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-700 border-orange-500/20">
+                            Google Analytics
+                          </Badge>
+                        )}
+                        {lead.has_gtm && (
+                          <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-700 border-purple-500/20">
+                            GTM
+                          </Badge>
+                        )}
+                        {!lead.whatsapp_on_site && !lead.instagram_url && !lead.has_meta_pixel && !lead.has_gtag && !lead.has_gtm && (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {lead.rating ? (
+                        <div className="flex items-center gap-1">
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          <span className="font-medium">{lead.rating}</span>
+                          <span className="text-sm text-muted-foreground">
+                            ({lead.total_reviews})
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">N/A</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <Badge variant="outline">{lead.nicho}</Badge>
+                        <Badge variant="secondary">{lead.foco}</Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getStatusColor(lead.status)}>
+                        {lead.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setExpandedLeadId(expandedLeadId === lead.id ? null : lead.id)}
+                        >
+                          {expandedLeadId === lead.id ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteLead(lead.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  {expandedLeadId === lead.id && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="bg-secondary/20">
+                        <LeadAnalysis
+                          diagnostico={lead.diagnostico_bullets}
+                          probabilidade={lead.probabilidade_conversao}
+                          plano={lead.plano_prospeccao}
+                          geradoEm={lead.ai_analise_gerada_em}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
               ))}
             </TableBody>
           </Table>

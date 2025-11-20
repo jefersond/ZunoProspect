@@ -48,55 +48,80 @@ serve(async (req) => {
     console.log("Buscando leads:", body);
 
     const GOOGLE_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY");
-    if (!GOOGLE_API_KEY) {
-      throw new Error("Google Places API key não configurada");
-    }
-
+    
     let leads = [];
 
-    if (body.proximidadeAtiva && body.raioKm) {
-      // Busca por proximidade
-      console.log("Buscando por proximidade...");
+    // Se não houver API key, retorna dados mockados para teste de UI
+    if (!GOOGLE_API_KEY) {
+      console.log("API key não configurada - retornando dados mockados");
+      
+      const mockLeads = Array.from({ length: Math.min(body.quantidade, 5) }, (_, i) => ({
+        place_id: `mock_place_${i}_${Date.now()}`,
+        name: `${body.nicho.charAt(0).toUpperCase() + body.nicho.slice(1)} ${i + 1} - ${body.cidade}`,
+        formatted_address: `Rua Exemplo ${i + 100}, ${body.cidade}, Brasil`,
+        formatted_phone_number: `(11) 9${1000 + i}-${1000 + i}`,
+        website: i % 2 === 0 ? `https://exemplo${i + 1}.com.br` : null,
+        rating: 3.5 + (i * 0.3),
+        user_ratings_total: 10 + (i * 5),
+        geometry: {
+          location: {
+            lat: -23.5505 + (i * 0.01),
+            lng: -46.6333 + (i * 0.01)
+          }
+        }
+      }));
 
-      // Primeiro, geocodifica a cidade para obter lat/lng
-      const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-        body.cidade
-      )}&key=${GOOGLE_API_KEY}`;
-
-      const geocodeResponse = await fetch(geocodeUrl);
-      const geocodeData = await geocodeResponse.json();
-
-      if (geocodeData.status !== "OK" || !geocodeData.results[0]) {
-        throw new Error("Cidade não encontrada");
-      }
-
-      const location = geocodeData.results[0].geometry.location;
-      console.log("Coordenadas da cidade:", location);
-
-      // Busca empresas próximas
-      const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
-        body.raioKm * 1000
-      }&keyword=${encodeURIComponent(body.nicho)}&key=${GOOGLE_API_KEY}`;
-
-      const nearbyResponse = await fetch(nearbyUrl);
-      const nearbyData = await nearbyResponse.json();
-
-      if (nearbyData.status === "OK") {
-        leads = nearbyData.results.slice(0, body.quantidade);
-      }
+      leads = mockLeads;
     } else {
-      // Busca por texto (cidade + nicho)
-      console.log("Buscando por texto...");
+      // Busca real com Google Places API
+      if (body.proximidadeAtiva && body.raioKm) {
+        // Busca por proximidade (Nearby Search)
+        console.log("Buscando por proximidade (Nearby Search)...");
 
-      const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
-        `${body.nicho} em ${body.cidade}`
-      )}&key=${GOOGLE_API_KEY}`;
+        // Geocodifica a cidade para obter lat/lng do centro
+        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+          body.cidade
+        )}&key=${GOOGLE_API_KEY}`;
 
-      const textResponse = await fetch(textSearchUrl);
-      const textData = await textResponse.json();
+        const geocodeResponse = await fetch(geocodeUrl);
+        const geocodeData = await geocodeResponse.json();
 
-      if (textData.status === "OK") {
-        leads = textData.results.slice(0, body.quantidade);
+        if (geocodeData.status !== "OK" || !geocodeData.results[0]) {
+          throw new Error("Cidade não encontrada");
+        }
+
+        const location = geocodeData.results[0].geometry.location;
+        console.log("Coordenadas do centro da cidade:", location);
+
+        // Nearby Search com keyword (nicho) e raio
+        const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
+          body.raioKm * 1000
+        }&keyword=${encodeURIComponent(body.nicho)}&key=${GOOGLE_API_KEY}`;
+
+        const nearbyResponse = await fetch(nearbyUrl);
+        const nearbyData = await nearbyResponse.json();
+
+        if (nearbyData.status === "OK") {
+          leads = nearbyData.results.slice(0, body.quantidade);
+        } else {
+          console.log("Nearby Search status:", nearbyData.status);
+        }
+      } else {
+        // Busca por texto (Text Search)
+        console.log("Buscando por texto (Text Search)...");
+
+        const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
+          `${body.nicho} ${body.cidade}`
+        )}&key=${GOOGLE_API_KEY}`;
+
+        const textResponse = await fetch(textSearchUrl);
+        const textData = await textResponse.json();
+
+        if (textData.status === "OK") {
+          leads = textData.results.slice(0, body.quantidade);
+        } else {
+          console.log("Text Search status:", textData.status);
+        }
       }
     }
 

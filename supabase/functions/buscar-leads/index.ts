@@ -209,22 +209,17 @@ serve(async (req) => {
       return signals;
     }
 
-    // Busca detalhes de cada lead e salva no banco
-    const leadsDetails = [];
-    
-    for (const place of leads) {
+    // Função para processar um lead
+    async function processLead(place: any) {
       try {
-        let detailsUrl: string;
-        let detailsResponse: Response;
         let detailsData: any;
 
         // Se não estiver usando mock, busca detalhes na API real
         if (GOOGLE_API_KEY) {
-          detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,geometry&key=${GOOGLE_API_KEY}`;
-          detailsResponse = await fetch(detailsUrl);
+          const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,geometry&key=${GOOGLE_API_KEY}`;
+          const detailsResponse = await fetch(detailsUrl);
           detailsData = await detailsResponse.json();
         } else {
-          // Mock já tem todos os dados
           detailsData = {
             status: "OK",
             result: place
@@ -234,15 +229,8 @@ serve(async (req) => {
         if (detailsData.status === "OK") {
           const details = detailsData.result;
           
-          // Analisa o site se houver website
-          let siteSignals: {
-            whatsapp_on_site: boolean;
-            whatsapp_number: string | null;
-            has_meta_pixel: boolean;
-            has_gtag: boolean;
-            has_gtm: boolean;
-            instagram_url: string | null;
-          } = {
+          // Analisa o site se houver website (com timeout)
+          let siteSignals = {
             whatsapp_on_site: false,
             whatsapp_number: null,
             has_meta_pixel: false,
@@ -252,7 +240,21 @@ serve(async (req) => {
           };
 
           if (details.website) {
-            siteSignals = await analyzeSiteHTML(details.website);
+            try {
+              const signalsPromise = analyzeSiteHTML(details.website);
+              const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), 5000)
+              );
+              siteSignals = await Promise.race([signalsPromise, timeoutPromise]) as typeof siteSignals;
+            } catch (error) {
+              console.log(`Timeout ou erro ao analisar site ${details.website}`);
+            }
+          }
+          
+          // Verifica se user existe
+          if (!user) {
+            console.error("Usuário não autenticado");
+            return null;
           }
           
           // Insere no banco (ou atualiza se já existe)
@@ -287,68 +289,54 @@ serve(async (req) => {
 
           if (insertError) {
             console.error("Erro ao inserir lead:", insertError);
-          } else {
-            // Após salvar o lead, gera análise de IA
-            try {
-              console.log(`Gerando análise de IA para ${details.name}`);
-              
-              const analiseResponse = await fetch(
-                `${Deno.env.get("SUPABASE_URL")}/functions/v1/analisar-lead-ia`,
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: req.headers.get("Authorization")!,
-                  },
-                  body: JSON.stringify({
-                    nome: details.name,
-                    nicho: body.nicho,
-                    cidade: body.cidade,
-                    website: details.website || null,
-                    foco: body.foco,
-                    whatsapp_on_site: siteSignals.whatsapp_on_site,
-                    has_meta_pixel: siteSignals.has_meta_pixel,
-                    has_gtag: siteSignals.has_gtag,
-                    has_gtm: siteSignals.has_gtm,
-                    instagram_url: siteSignals.instagram_url,
-                    instagram_context: null,
-                  }),
-                }
-              );
-
-              if (analiseResponse.ok) {
-                const analise = await analiseResponse.json();
-                
-                // Atualiza o lead com a análise de IA
-                await supabaseClient
-                  .from("leads")
-                  .update({
-                    diagnostico_bullets: analise.diagnostico_bullets,
-                    probabilidade_conversao: analise.probabilidade_conversao,
-                    plano_prospeccao: analise.plano_prospeccao_7dias,
-                    ai_analise_gerada_em: new Date().toISOString(),
-                  })
-                  .eq("google_place_id", place.place_id);
-
-                console.log(`Análise de IA gerada para ${details.name}`);
-              } else {
-                console.error("Erro ao gerar análise de IA:", await analiseResponse.text());
-              }
-            } catch (analiseError) {
-              console.error("Erro ao chamar análise de IA:", analiseError);
-              // Não bloqueia o fluxo se análise falhar
-            }
-
-            leadsDetails.push({
-              nome: details.name,
-              endereco: details.formatted_address,
-              sinais: siteSignals,
-            });
+            return null;
           }
+
+          // Agenda análise de IA em background (não aguarda)
+          fetch(
+            `${Deno.env.get("SUPABASE_URL")}/functions/v1/analisar-lead-ia`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: req.headers.get("Authorization")!,
+              },
+              body: JSON.stringify({
+                nome: details.name,
+                nicho: body.nicho,
+                cidade: body.cidade,
+                website: details.website || null,
+                foco: body.foco,
+                whatsapp_on_site: siteSignals.whatsapp_on_site,
+                has_meta_pixel: siteSignals.has_meta_pixel,
+                has_gtag: siteSignals.has_gtag,
+                has_gtm: siteSignals.has_gtm,
+                instagram_url: siteSignals.instagram_url,
+                instagram_context: null,
+              }),
+            }
+          ).catch(err => console.error("Erro ao agendar análise de IA:", err));
+
+          return {
+            nome: details.name,
+            endereco: details.formatted_address,
+            sinais: siteSignals,
+          };
         }
       } catch (error) {
-        console.error("Erro ao buscar detalhes do lead:", error);
+        console.error("Erro ao processar lead:", error);
       }
+      return null;
+    }
+
+    // Processa leads em paralelo (máximo 5 por vez para não sobrecarregar)
+    const leadsDetails = [];
+    const batchSize = 5;
+    
+    for (let i = 0; i < leads.length; i += batchSize) {
+      const batch = leads.slice(i, i + batchSize);
+      const results = await Promise.all(batch.map((place: any) => processLead(place)));
+      leadsDetails.push(...results.filter(r => r !== null));
     }
 
     return new Response(

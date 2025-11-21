@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Search } from "lucide-react";
+import { SearchProgress } from "./SearchProgress";
 
 const formSchema = z.object({
   cidade: z.string().min(1, "Cidade é obrigatória"),
@@ -29,6 +30,8 @@ export const ProspeccaoForm = () => {
   const [loading, setLoading] = useState(false);
   const [proximidadeAtiva, setProximidadeAtiva] = useState(false);
   const [raioKm, setRaioKm] = useState([5]);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [progressMessage, setProgressMessage] = useState("");
 
   const {
     register,
@@ -49,11 +52,33 @@ export const ProspeccaoForm = () => {
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
+    setCurrentStep(1);
+    setProgressMessage("Iniciando busca...");
 
     try {
       // Limpa leads anteriores antes de buscar novos
       window.dispatchEvent(new CustomEvent("clearLeads"));
       
+      // Simula progresso durante a busca
+      const progressInterval = setInterval(() => {
+        setCurrentStep((prev) => {
+          if (prev < 7) {
+            const messages = [
+              "Iniciando busca...",
+              "Buscando empresas no Google Maps...",
+              "Coletando informações de contato...",
+              "Analisando presença digital...",
+              "Processando com IA...",
+              "Gerando planos de prospecção...",
+              "Finalizando...",
+            ];
+            setProgressMessage(messages[prev]);
+            return prev + 1;
+          }
+          return prev;
+        });
+      }, 2000);
+
       const { data: responseData, error } = await supabase.functions.invoke("buscar-leads", {
         body: {
           cidade: data.cidade,
@@ -65,7 +90,12 @@ export const ProspeccaoForm = () => {
         },
       });
 
+      clearInterval(progressInterval);
+
       if (error) throw error;
+
+      setCurrentStep(7);
+      setProgressMessage("Busca concluída!");
 
       toast({
         title: "Busca concluída!",
@@ -74,6 +104,12 @@ export const ProspeccaoForm = () => {
 
       // Recarrega a lista de leads
       window.dispatchEvent(new CustomEvent("reloadLeads"));
+      
+      // Aguarda um pouco antes de resetar o progresso
+      setTimeout(() => {
+        setLoading(false);
+        setCurrentStep(0);
+      }, 1500);
     } catch (error: any) {
       console.error("Erro ao buscar leads:", error);
       toast({
@@ -81,8 +117,8 @@ export const ProspeccaoForm = () => {
         title: "Erro na busca",
         description: error.message || "Não foi possível buscar os leads",
       });
-    } finally {
       setLoading(false);
+      setCurrentStep(0);
     }
   };
 
@@ -98,6 +134,16 @@ export const ProspeccaoForm = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {loading && currentStep > 0 && (
+          <div className="mb-6">
+            <SearchProgress
+              currentStep={currentStep}
+              totalSteps={7}
+              message={progressMessage}
+            />
+          </div>
+        )}
+        
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">

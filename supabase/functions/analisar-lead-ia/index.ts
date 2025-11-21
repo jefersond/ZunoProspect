@@ -41,17 +41,17 @@ serve(async (req) => {
     const leadData: LeadData = await req.json();
     console.log("Analisando lead:", leadData.nome);
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
     let analise: AnaliseResult;
 
-    if (!LOVABLE_API_KEY) {
+    if (!OPENAI_API_KEY) {
       // Mock de análise quando não houver API key
       console.log("API key não configurada - retornando análise mockada");
       analise = generateMockAnalise(leadData);
     } else {
-      // Análise real com IA
-      analise = await analyzeWithAI(leadData, LOVABLE_API_KEY);
+      // Análise real com ChatGPT (OpenAI)
+      analise = await analyzeWithAI(leadData, OPENAI_API_KEY);
     }
 
     return new Response(JSON.stringify(analise), {
@@ -154,14 +154,14 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
 async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
   const prompt = buildAnalysisPrompt(lead);
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: "gpt-5-mini-2025-08-07",
       messages: [
         {
           role: "system",

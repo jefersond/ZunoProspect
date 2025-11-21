@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import Prospeccao from "./pages/Prospeccao";
 import Profile from "./pages/Profile";
 import Dashboard from "./pages/Dashboard";
+import Templates from "./pages/Templates";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/prospeccao" element={<Prospeccao />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/templates" element={<Templates />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

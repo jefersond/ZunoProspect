@@ -14,6 +14,80 @@ export type Database = {
   }
   public: {
     Tables: {
+      campanhas: {
+        Row: {
+          created_at: string
+          data_fim: string | null
+          data_inicio: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      interacoes: {
+        Row: {
+          conteudo: string
+          created_at: string
+          data_interacao: string
+          id: string
+          lead_id: string
+          tipo: string
+          user_id: string
+        }
+        Insert: {
+          conteudo: string
+          created_at?: string
+          data_interacao?: string
+          id?: string
+          lead_id: string
+          tipo: string
+          user_id: string
+        }
+        Update: {
+          conteudo?: string
+          created_at?: string
+          data_interacao?: string
+          id?: string
+          lead_id?: string
+          tipo?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interacoes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           ai_analise_gerada_em: string | null
@@ -119,6 +193,108 @@ export type Database = {
           website?: string | null
           whatsapp_number?: string | null
           whatsapp_on_site?: boolean | null
+        }
+        Relationships: []
+      }
+      leads_campanhas: {
+        Row: {
+          campanha_id: string
+          created_at: string
+          id: string
+          lead_id: string
+          status: string
+        }
+        Insert: {
+          campanha_id: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          status?: string
+        }
+        Update: {
+          campanha_id?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_campanhas_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_campanhas_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          empresa: string | null
+          id: string
+          nome_completo: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          empresa?: string | null
+          id: string
+          nome_completo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          empresa?: string | null
+          id?: string
+          nome_completo?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      templates_mensagens: {
+        Row: {
+          assunto: string | null
+          conteudo: string
+          created_at: string
+          id: string
+          nome: string
+          tags: string[] | null
+          tipo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assunto?: string | null
+          conteudo: string
+          created_at?: string
+          id?: string
+          nome: string
+          tags?: string[] | null
+          tipo: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assunto?: string | null
+          conteudo?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          tags?: string[] | null
+          tipo?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

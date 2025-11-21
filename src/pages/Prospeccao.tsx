@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ProspeccaoForm } from "@/components/prospeccao/ProspeccaoForm";
 import { LeadsList } from "@/components/prospeccao/LeadsList";
-import { LogOut, Search } from "lucide-react";
+import { LogOut, Search, User } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Prospeccao = () => {
@@ -40,6 +40,10 @@ const Prospeccao = () => {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={() => navigate("/profile")}>
+              <User className="mr-2 h-4 w-4" />
+              Perfil
+            </Button>
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
               Sair

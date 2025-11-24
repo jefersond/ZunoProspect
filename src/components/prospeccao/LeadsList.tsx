@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
@@ -185,10 +186,11 @@ export const LeadsList = () => {
             )}
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="w-full">
+            <div className="p-6">
+              <Table>
+                <TableHeader>
                 <TableRow>
                   <TableHead>Empresa</TableHead>
                   <TableHead>Contato</TableHead>
@@ -367,9 +369,11 @@ export const LeadsList = () => {
                     </TableCell>
                   </TableRow>
                 ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableBody>
+              </Table>
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
         </CardContent>
       </Card>
 

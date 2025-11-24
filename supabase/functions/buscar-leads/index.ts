@@ -87,7 +87,8 @@ serve(async (req) => {
         const geocodeData = await geocodeResponse.json();
 
         if (geocodeData.status !== "OK" || !geocodeData.results[0]) {
-          throw new Error("Cidade não encontrada");
+          console.error("Geocode API status:", geocodeData.status);
+          throw new Error(`Cidade "${body.cidade}" não encontrada. Verifique se digitou corretamente o nome da cidade.`);
         }
 
         const location = geocodeData.results[0].geometry.location;
@@ -101,10 +102,11 @@ serve(async (req) => {
         const nearbyResponse = await fetch(nearbyUrl);
         const nearbyData = await nearbyResponse.json();
 
-        if (nearbyData.status === "OK") {
+      if (nearbyData.status === "OK") {
           leads = nearbyData.results.slice(0, body.quantidade);
         } else {
-          console.log("Nearby Search status:", nearbyData.status);
+          console.error("Nearby Search falhou:", nearbyData.status, nearbyData.error_message);
+          throw new Error(`Erro na busca: ${nearbyData.error_message || nearbyData.status}`);
         }
       } else {
         // Busca por texto (Text Search)
@@ -120,7 +122,8 @@ serve(async (req) => {
         if (textData.status === "OK") {
           leads = textData.results.slice(0, body.quantidade);
         } else {
-          console.log("Text Search status:", textData.status);
+          console.error("Text Search falhou:", textData.status, textData.error_message);
+          throw new Error(`Erro na busca: ${textData.error_message || textData.status}`);
         }
       }
     }

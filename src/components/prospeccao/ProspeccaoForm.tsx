@@ -112,10 +112,27 @@ export const ProspeccaoForm = () => {
       }, 1500);
     } catch (error: any) {
       console.error("Erro ao buscar leads:", error);
+      
+      // Extrai a mensagem de erro mais específica
+      let errorMessage = "Não foi possível buscar os leads";
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.context?.body) {
+        try {
+          const errorBody = typeof error.context.body === 'string' 
+            ? JSON.parse(error.context.body) 
+            : error.context.body;
+          errorMessage = errorBody.error || errorMessage;
+        } catch (e) {
+          console.error("Erro ao parsear body do erro:", e);
+        }
+      }
+      
       toast({
         variant: "destructive",
         title: "Erro na busca",
-        description: error.message || "Não foi possível buscar os leads",
+        description: errorMessage,
       });
       setLoading(false);
       setCurrentStep(0);

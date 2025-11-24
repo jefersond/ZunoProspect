@@ -38,29 +38,61 @@ serve(async (req) => {
   }
 
   try {
-    const leadData: LeadData = await req.json();
-    console.log("Analisando lead:", leadData.nome);
+    const leadData: LeadData & { lead_id?: string } = await req.json();
+    console.log("🔍 Analisando lead:", leadData.nome, leadData.lead_id ? `(ID: ${leadData.lead_id})` : "");
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     let analise: AnaliseResult;
 
     if (!OPENAI_API_KEY) {
-      // Mock de análise quando não houver API key
-      console.log("API key não configurada - retornando análise mockada");
+      console.log("⚠️ API key não configurada - retornando análise mockada");
       analise = generateMockAnalise(leadData);
     } else {
-      // Análise real com ChatGPT (OpenAI)
+      console.log("🤖 Iniciando análise com OpenAI...");
       analise = await analyzeWithAI(leadData, OPENAI_API_KEY);
+    }
+
+    // Se temos lead_id e credenciais do Supabase, atualiza o lead no banco
+    if (leadData.lead_id && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      console.log("💾 Atualizando lead no banco...");
+      
+      try {
+        const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+        const { error: updateError } = await supabase
+          .from("leads")
+          .update({
+            diagnostico_bullets: analise.diagnostico_bullets,
+            probabilidade_conversao: analise.probabilidade_conversao,
+            plano_prospeccao: analise.plano_prospeccao_7dias,
+            ai_analise_gerada_em: new Date().toISOString(),
+          })
+          .eq("id", leadData.lead_id);
+
+        if (updateError) {
+          console.error("❌ Erro ao atualizar lead:", updateError);
+        } else {
+          console.log("✅ Lead atualizado com sucesso");
+        }
+      } catch (dbError: any) {
+        console.error("❌ Erro ao conectar com banco:", dbError);
+      }
     }
 
     return new Response(JSON.stringify(analise), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("Erro na análise:", error);
+    console.error("❌ Erro fatal na análise:", error);
     return new Response(
-      JSON.stringify({ error: error.message || "Erro ao analisar lead" }),
+      JSON.stringify({ 
+        error: error.message || "Erro ao analisar lead",
+        details: error.stack,
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -154,14 +186,12 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
 async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
   const prompt = buildAnalysisPrompt(lead);
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  console.log("Iniciando análise com OpenAI para:", lead.nome);
+
+  try {
+    const requestBody = {
       model: "gpt-5-mini-2025-08-07",
+      max_completion_tokens: 4000,
       messages: [
         {
           role: "system",
@@ -219,24 +249,93 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
         },
       ],
       tool_choice: { type: "function", function: { name: "gerar_analise_lead" } },
-    }),
-  });
+    };
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Erro na API de IA:", response.status, errorText);
-    throw new Error(`Erro na API de IA: ${response.status}`);
+    console.log("Enviando requisição para OpenAI...");
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Erro HTTP da OpenAI:", {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+      });
+      
+      let errorMessage = `Erro ${response.status} na API OpenAI`;
+      
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.error?.message) {
+          errorMessage = errorData.error.message;
+        }
+      } catch {
+        errorMessage += `: ${errorText.substring(0, 200)}`;
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    console.log("✅ Resposta recebida da OpenAI");
+
+    if (!data.choices || data.choices.length === 0) {
+      console.error("❌ Resposta sem choices:", data);
+      throw new Error("API retornou resposta vazia");
+    }
+
+    const toolCall = data.choices[0].message.tool_calls?.[0];
+
+    if (!toolCall) {
+      console.error("❌ Sem tool_calls na resposta:", data.choices[0].message);
+      throw new Error("IA não retornou análise estruturada. Tente novamente.");
+    }
+
+    console.log("✅ Tool call recebido, parseando argumentos...");
+    
+    let analise: AnaliseResult;
+    try {
+      analise = JSON.parse(toolCall.function.arguments);
+    } catch (parseError: any) {
+      console.error("❌ Erro ao parsear JSON:", {
+        error: parseError.message,
+        arguments: toolCall.function.arguments,
+      });
+      throw new Error("Erro ao processar resposta da IA");
+    }
+
+    // Validação básica
+    if (!analise.diagnostico_bullets || !Array.isArray(analise.diagnostico_bullets)) {
+      throw new Error("Análise incompleta: diagnóstico inválido");
+    }
+    if (!analise.plano_prospeccao_7dias || analise.plano_prospeccao_7dias.length !== 7) {
+      throw new Error("Análise incompleta: plano deve ter 7 dias");
+    }
+
+    console.log("✅ Análise validada com sucesso");
+    return analise;
+
+  } catch (error: any) {
+    console.error("❌ Erro na função analyzeWithAI:", {
+      message: error.message,
+      stack: error.stack,
+      lead: lead.nome,
+    });
+    
+    // Re-throw com mensagem mais clara
+    if (error.message.includes("API")) {
+      throw error; // Já tem mensagem clara
+    }
+    throw new Error(`Falha ao analisar lead: ${error.message}`);
   }
-
-  const data = await response.json();
-  const toolCall = data.choices[0].message.tool_calls?.[0];
-
-  if (!toolCall) {
-    throw new Error("IA não retornou análise estruturada");
-  }
-
-  const analise = JSON.parse(toolCall.function.arguments);
-  return analise;
 }
 
 function buildAnalysisPrompt(lead: LeadData): string {

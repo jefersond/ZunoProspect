@@ -377,11 +377,15 @@ export const LeadsList = () => {
         </CardContent>
       </Card>
 
-      <LeadPlanDialog
-        lead={selectedLead}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-      />
+          <LeadPlanDialog
+            lead={selectedLead}
+            open={dialogOpen}
+            onOpenChange={setDialogOpen}
+            onLeadUpdate={() => {
+              // Recarrega os leads após reanálise
+              window.location.reload();
+            }}
+          />
     </>
   );
 };

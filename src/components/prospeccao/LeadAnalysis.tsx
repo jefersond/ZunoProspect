@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Brain, TrendingUp, MessageSquare, Mail } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Brain, TrendingUp, MessageSquare, Mail, RefreshCw } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface PlanoProspeccaoDia {
@@ -17,14 +18,27 @@ interface LeadAnalysisProps {
   probabilidade: number | null;
   plano: PlanoProspeccaoDia[] | null;
   geradoEm: string | null;
+  onReanalyze?: () => void;
+  isReanalyzing?: boolean;
 }
 
-export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm }: LeadAnalysisProps) => {
+export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onReanalyze, isReanalyzing }: LeadAnalysisProps) => {
   if (!diagnostico || !probabilidade || !plano) {
     return (
       <Card className="mt-4">
-        <CardContent className="py-6 text-center text-muted-foreground">
-          Análise de IA ainda não gerada para este lead
+        <CardContent className="py-6 text-center space-y-3">
+          <p className="text-muted-foreground">Análise de IA ainda não gerada para este lead</p>
+          {onReanalyze && (
+            <Button
+              onClick={onReanalyze}
+              disabled={isReanalyzing}
+              variant="outline"
+              size="sm"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? 'animate-spin' : ''}`} />
+              {isReanalyzing ? 'Analisando...' : 'Gerar Análise'}
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
@@ -42,15 +56,30 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm }: Le
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Brain className="h-5 w-5 text-primary" />
-              Diagnóstico Digital
-            </CardTitle>
-            {geradoEm && (
-              <CardDescription className="text-xs">
-                Gerado em {new Date(geradoEm).toLocaleDateString('pt-BR')}
-              </CardDescription>
-            )}
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Brain className="h-5 w-5 text-primary" />
+                  Diagnóstico Digital
+                </CardTitle>
+                {geradoEm && (
+                  <CardDescription className="text-xs mt-1">
+                    Gerado em {new Date(geradoEm).toLocaleDateString('pt-BR')}
+                  </CardDescription>
+                )}
+              </div>
+              {onReanalyze && (
+                <Button
+                  onClick={onReanalyze}
+                  disabled={isReanalyzing}
+                  variant="outline"
+                  size="sm"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? 'animate-spin' : ''}`} />
+                  {isReanalyzing ? 'Analisando...' : 'Reanalisar'}
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">

@@ -292,30 +292,75 @@ serve(async (req) => {
             return null;
           }
 
-          // Agenda análise de IA em background (não aguarda)
-          fetch(
-            `${Deno.env.get("SUPABASE_URL")}/functions/v1/analisar-lead-ia`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: req.headers.get("Authorization")!,
-              },
-              body: JSON.stringify({
-                nome: details.name,
-                nicho: body.nicho,
-                cidade: body.cidade,
-                website: details.website || null,
-                foco: body.foco,
-                whatsapp_on_site: siteSignals.whatsapp_on_site,
-                has_meta_pixel: siteSignals.has_meta_pixel,
-                has_gtag: siteSignals.has_gtag,
-                has_gtm: siteSignals.has_gtm,
-                instagram_url: siteSignals.instagram_url,
-                instagram_context: null,
-              }),
+          // Busca o lead recém-criado para obter o ID
+          const { data: leadData, error: selectError } = await supabaseClient
+            .from("leads")
+            .select("id")
+            .eq("google_place_id", place.place_id)
+            .eq("user_id", user.id)
+            .single();
+
+          if (selectError || !leadData) {
+            console.error("Erro ao buscar ID do lead:", selectError);
+          }
+
+          // Agenda análise de IA em background com retry
+          const scheduleAnalysisWithRetry = async (retries = 3) => {
+            for (let attempt = 1; attempt <= retries; attempt++) {
+              try {
+                console.log(`🤖 Agendando análise IA (tentativa ${attempt}/${retries}) para: ${details.name}`);
+                
+                const response = await fetch(
+                  `${Deno.env.get("SUPABASE_URL")}/functions/v1/analisar-lead-ia`,
+                  {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: req.headers.get("Authorization")!,
+                    },
+                    body: JSON.stringify({
+                      lead_id: leadData?.id,
+                      nome: details.name,
+                      nicho: body.nicho,
+                      cidade: body.cidade,
+                      website: details.website || null,
+                      foco: body.foco,
+                      whatsapp_on_site: siteSignals.whatsapp_on_site,
+                      has_meta_pixel: siteSignals.has_meta_pixel,
+                      has_gtag: siteSignals.has_gtag,
+                      has_gtm: siteSignals.has_gtm,
+                      instagram_url: siteSignals.instagram_url,
+                      instagram_context: null,
+                    }),
+                  }
+                );
+
+                if (response.ok) {
+                  console.log(`✅ Análise IA agendada com sucesso para: ${details.name}`);
+                  return;
+                }
+
+                const errorText = await response.text();
+                console.error(`❌ Erro na análise IA (tentativa ${attempt}):`, response.status, errorText);
+                
+                // Se não for o último retry, aguarda antes de tentar novamente
+                if (attempt < retries) {
+                  await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+                }
+              } catch (err: any) {
+                console.error(`❌ Erro ao chamar análise IA (tentativa ${attempt}):`, err.message);
+                if (attempt < retries) {
+                  await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+                }
+              }
             }
-          ).catch(err => console.error("Erro ao agendar análise de IA:", err));
+            console.error(`❌ Falha após ${retries} tentativas de análise IA para: ${details.name}`);
+          };
+
+          // Executa em background
+          scheduleAnalysisWithRetry().catch(err => 
+            console.error("Erro crítico no agendamento de IA:", err)
+          );
 
           return {
             nome: details.name,

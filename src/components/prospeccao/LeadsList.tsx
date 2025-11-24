@@ -26,6 +26,40 @@ export const LeadsList = () => {
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // Função helper para transformar dados do banco
+  const transformLeadFromDb = (lead: any): LeadProspeccao => ({
+    id: lead.id,
+    placeId: lead.google_place_id,
+    nome: lead.nome,
+    telefone: lead.telefone,
+    whatsapp_link: lead.whatsapp_number 
+      ? `https://wa.me/${lead.whatsapp_number.replace(/\D/g, '')}` 
+      : null,
+    website: lead.website,
+    instagram_url: lead.instagram_url,
+    instagram_context: lead.instagram_context,
+    endereco: lead.endereco,
+    cidade: lead.cidade,
+    nicho: lead.nicho,
+    foco: lead.foco as any,
+    proximidadeAtiva: lead.proximidade_ativa || false,
+    raioKm: lead.raio_km,
+    sinais: {
+      has_whatsapp_on_site: lead.whatsapp_on_site || false,
+      has_meta_pixel: lead.has_meta_pixel || false,
+      has_gtag: lead.has_gtag || false,
+      has_gtm: lead.has_gtm || false,
+    },
+    diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
+    probabilidade_conversao: lead.probabilidade_conversao || 0,
+    plano_prospecao_7dias: (lead.plano_prospeccao as any[]) || [],
+    rating: lead.rating,
+    total_reviews: lead.total_reviews,
+    status: lead.status || 'novo',
+    created_at: lead.created_at,
+    ai_analise_gerada_em: lead.ai_analise_gerada_em,
+  });
+
   const loadLeads = async () => {
     try {
       const { data, error } = await supabase
@@ -35,39 +69,7 @@ export const LeadsList = () => {
 
       if (error) throw error;
       
-      // Mapeia os dados do banco para a interface LeadProspeccao
-      const leadsFormatted: LeadProspeccao[] = (data || []).map(lead => ({
-        id: lead.id,
-        placeId: lead.google_place_id,
-        nome: lead.nome,
-        telefone: lead.telefone,
-        whatsapp_link: lead.whatsapp_number 
-          ? `https://wa.me/${lead.whatsapp_number.replace(/\D/g, '')}` 
-          : null,
-        website: lead.website,
-        instagram_url: lead.instagram_url,
-        instagram_context: lead.instagram_context,
-        endereco: lead.endereco,
-        cidade: lead.cidade,
-        nicho: lead.nicho,
-        foco: lead.foco as any, // Cast necessário pois vem como string do banco
-        proximidadeAtiva: lead.proximidade_ativa || false,
-        raioKm: lead.raio_km,
-        sinais: {
-          has_whatsapp_on_site: lead.whatsapp_on_site || false,
-          has_meta_pixel: lead.has_meta_pixel || false,
-          has_gtag: lead.has_gtag || false,
-          has_gtm: lead.has_gtm || false,
-        },
-        diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
-        probabilidade_conversao: lead.probabilidade_conversao || 0,
-        plano_prospecao_7dias: (lead.plano_prospeccao as any[]) || [],
-        rating: lead.rating,
-        total_reviews: lead.total_reviews,
-        status: lead.status || 'novo',
-        created_at: lead.created_at,
-        ai_analise_gerada_em: lead.ai_analise_gerada_em,
-      }));
+      const leadsFormatted: LeadProspeccao[] = (data || []).map(transformLeadFromDb);
       
       setLeads(leadsFormatted);
     } catch (error: any) {
@@ -96,9 +98,43 @@ export const LeadsList = () => {
     };
     window.addEventListener("clearLeads", handleClear);
     
+    // Configurar realtime para atualizar leads quando análise IA for concluída
+    const channel = supabase
+      .channel('leads-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'leads'
+        },
+        (payload) => {
+          console.log('Lead atualizado via realtime:', payload.new);
+          
+          // Atualizar o lead específico na lista
+          setLeads(prevLeads => 
+            prevLeads.map(lead => 
+              lead.id === payload.new.id 
+                ? transformLeadFromDb(payload.new)
+                : lead
+            )
+          );
+          
+          // Se a análise foi concluída agora, mostrar toast
+          if (payload.new.ai_analise_gerada_em && !payload.old.ai_analise_gerada_em) {
+            toast({
+              title: "✨ Análise IA concluída",
+              description: `Lead "${payload.new.nome}" foi analisado com sucesso`,
+            });
+          }
+        }
+      )
+      .subscribe();
+    
     return () => {
       window.removeEventListener("reloadLeads", handleReload);
       window.removeEventListener("clearLeads", handleClear);
+      supabase.removeChannel(channel);
     };
   }, []);
 

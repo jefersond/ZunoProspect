@@ -85,7 +85,8 @@ export const LeadsList = () => {
   };
 
   useEffect(() => {
-    loadLeads();
+    // NÃO carrega leads automaticamente - apenas em novas buscas
+    setLoading(false);
     
     // Listener para recarregar quando novos leads são adicionados
     const handleReload = () => loadLeads();

@@ -10,8 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, Mail, MessageCircle } from "lucide-react";
 import { SearchProgress } from "./SearchProgress";
 
 const formSchema = z.object({
@@ -21,6 +22,7 @@ const formSchema = z.object({
   foco: z.string().min(1, "Foco é obrigatório"),
   proximidadeAtiva: z.boolean(),
   raioKm: z.number().min(1).max(10),
+  canaisProspeccao: z.enum(["ambos", "email", "whatsapp"]),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -45,10 +47,12 @@ export const ProspeccaoForm = () => {
       quantidade: 20,
       proximidadeAtiva: false,
       raioKm: 5,
+      canaisProspeccao: "ambos",
     },
   });
 
   const foco = watch("foco");
+  const canaisProspeccao = watch("canaisProspeccao");
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
@@ -93,6 +97,7 @@ export const ProspeccaoForm = () => {
           foco: data.foco,
           proximidadeAtiva: data.proximidadeAtiva,
           raioKm: data.raioKm,
+          canaisProspeccao: data.canaisProspeccao,
         },
       });
 
@@ -284,6 +289,43 @@ export const ProspeccaoForm = () => {
                 />
               </div>
             )}
+          </div>
+
+          <div className="space-y-4 p-4 bg-secondary/20 rounded-lg border border-border">
+            <div className="space-y-2">
+              <Label className="text-base">Canais de comunicação</Label>
+              <p className="text-sm text-muted-foreground">
+                Escolha quais canais usar no plano de prospecção
+              </p>
+            </div>
+            <RadioGroup
+              value={canaisProspeccao}
+              onValueChange={(value) => setValue("canaisProspeccao", value as "ambos" | "email" | "whatsapp")}
+              className="grid grid-cols-1 md:grid-cols-3 gap-4"
+            >
+              <div className="flex items-center space-x-2 p-3 rounded-lg border border-border bg-background hover:bg-accent/50 transition-colors cursor-pointer">
+                <RadioGroupItem value="ambos" id="ambos" />
+                <Label htmlFor="ambos" className="flex items-center gap-2 cursor-pointer flex-1">
+                  <Mail className="h-4 w-4 text-primary" />
+                  <MessageCircle className="h-4 w-4 text-primary" />
+                  <span>Email + WhatsApp</span>
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2 p-3 rounded-lg border border-border bg-background hover:bg-accent/50 transition-colors cursor-pointer">
+                <RadioGroupItem value="email" id="email" />
+                <Label htmlFor="email" className="flex items-center gap-2 cursor-pointer flex-1">
+                  <Mail className="h-4 w-4 text-primary" />
+                  <span>Somente Email</span>
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2 p-3 rounded-lg border border-border bg-background hover:bg-accent/50 transition-colors cursor-pointer">
+                <RadioGroupItem value="whatsapp" id="whatsapp" />
+                <Label htmlFor="whatsapp" className="flex items-center gap-2 cursor-pointer flex-1">
+                  <MessageCircle className="h-4 w-4 text-primary" />
+                  <span>Somente WhatsApp</span>
+                </Label>
+              </div>
+            </RadioGroup>
           </div>
 
           <Button type="submit" className="w-full shadow-primary" disabled={loading}>

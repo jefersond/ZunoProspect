@@ -196,7 +196,7 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
         {
           role: "system",
           content:
-            "Você é um especialista em prospecção B2B e análise de marketing digital. Sua função é gerar diagnósticos precisos e planos de prospecção persuasivos.",
+            "Você é um especialista sênior em prospecção B2B, copywriting persuasivo e análise de marketing digital. Você domina a técnica AIDA (Atenção, Interesse, Desejo, Ação) e cria mensagens de alta conversão. Suas objeções são realistas e suas respostas usam técnicas avançadas de vendas consultivas. Você gera CTAs irresistíveis e acionáveis.",
         },
         {
           role: "user",
@@ -361,47 +361,110 @@ function buildAnalysisPrompt(lead: LeadData): string {
   if (lead.whatsapp_on_site) sinaisMarketing.push("WhatsApp visível no site");
   if (lead.instagram_url) sinaisMarketing.push("Presença no Instagram");
 
-  return `Analise este lead B2B e gere um plano de prospecção persuasivo:
+  return `Analise este lead B2B e gere um plano de prospecção de alta conversão:
 
-DADOS DO LEAD:
+═══════════════════════════════════════
+📊 DADOS DO LEAD
+═══════════════════════════════════════
 - Nome: ${lead.nome}
 - Nicho: ${lead.nicho}
 - Cidade: ${lead.cidade}
 - Website: ${lead.website || "Não informado"}
 - Foco de Serviço Desejado: ${lead.foco}
 
-SINAIS DE MARKETING DIGITAL:
+🎯 SINAIS DE MARKETING DIGITAL:
 ${sinaisMarketing.length > 0 ? sinaisMarketing.join("\n") : "Nenhum sinal detectado"}
 
-${lead.instagram_context ? `CONTEXTO INSTAGRAM:\n${lead.instagram_context}` : ""}
+${lead.instagram_context ? `📱 CONTEXTO INSTAGRAM:\n${lead.instagram_context}` : ""}
 
-INSTRUÇÕES:
+═══════════════════════════════════════
+📋 INSTRUÇÕES DETALHADAS
+═══════════════════════════════════════
 
-1. DIAGNÓSTICO (máximo 6 bullets):
-   - Avalie presença digital atual
-   - Identifique gaps de marketing
-   - Destaque oportunidades relacionadas ao foco "${lead.foco}"
-   - Avalie maturidade digital
-   ${lead.instagram_context ? "- Considere análise do Instagram" : ""}
+1️⃣ DIAGNÓSTICO (máximo 6 bullets):
+   - Avalie presença digital atual com métricas específicas
+   - Identifique gaps críticos de marketing digital
+   - Destaque oportunidades de ROI relacionadas ao foco "${lead.foco}"
+   - Analise maturidade digital e prontidão para investimento
+   ${lead.instagram_context ? "- Considere dados do Instagram na análise" : ""}
+   - Use linguagem consultiva e profissional
 
-2. PROBABILIDADE DE CONVERSÃO (0-100):
-   - Considere maturidade atual
-   - Sinais de investimento em marketing
-   - Complexidade da oferta necessária
-   - Abertura para contato (WhatsApp, redes sociais)
+2️⃣ PROBABILIDADE DE CONVERSÃO (0-100):
+   Avalie com base em:
+   - Maturidade digital e investimento atual em marketing
+   - Sinais de crescimento e abertura para mudança
+   - Complexidade da solução vs. capacidade de absorção
+   - Canais de contato disponíveis (WhatsApp, redes sociais)
+   - Urgência implícita do nicho "${lead.nicho}"
 
-3. PLANO DE PROSPECÇÃO 7 DIAS:
-   Crie cadência multicanal (WhatsApp + Email) com:
-   - 1 mensagem por dia
-   - Copy ULTRA PERSUASIVA adaptada ao foco "${lead.foco}"
-   - Objeções prováveis realistas
-   - Respostas que contornam objeções com técnicas de vendas
-   - CTAs claros e acionáveis
+3️⃣ PLANO DE PROSPECÇÃO 7 DIAS - TÉCNICA AIDA OBRIGATÓRIA:
+   
+   🎯 MENSAGENS - Estrutura AIDA (Atenção, Interesse, Desejo, Ação):
+   
+   ✅ ATENÇÃO: Ganchar com problema específico ou resultado tangível
+   - Use números, dados do nicho ou dor conhecida
+   - Personalize com nome da empresa e cidade
+   - Crie curiosidade ou urgência nos primeiros 10 segundos
+   
+   ✅ INTERESSE: Mostre relevância imediata
+   - Cases específicos do nicho "${lead.nicho}"
+   - Resultados mensuráveis de empresas similares
+   - Conexão emocional com desafios do dia a dia
+   
+   ✅ DESEJO: Construa aspiração pela solução
+   - Benefícios tangíveis focados em "${lead.foco}"
+   - Diferenciais competitivos claros
+   - Redução de risco percebido
+   - Prova social ou autoridade
+   
+   ✅ AÇÃO: CTA irresistível e de baixo atrito
+   - Uma ação clara e específica
+   - Elimine barreiras para o próximo passo
+   - Senso de urgência ou escassez sutil
+   
+   📝 OBJEÇÕES PROVÁVEIS - Requisitos:
+   - Sejam REALISTAS e específicas do nicho "${lead.nicho}"
+   - Reflitam preocupações reais de empresas similares
+   - Incluam objeções de orçamento, timing, risco e confiança
+   - Aumentem em complexidade ao longo dos 7 dias
+   
+   💬 RESPOSTAS SUGERIDAS - Técnicas Avançadas:
+   - Use SPIN Selling (Situação, Problema, Implicação, Necessidade)
+   - Aplique técnica do "Feel, Felt, Found" quando apropriado
+   - Reframe objeções em oportunidades
+   - Demonstre empatia genuína antes de contornar
+   - Use prova social, dados ou cases para validar
+   - Ofereça garantias ou redução de risco
+   - Mantenha tom consultivo, nunca agressivo
+   - Mínimo 2 sentenças, máximo 4 sentenças
+   
+   🎯 CTAs (Call-to-Action) - Requisitos:
+   - Sejam ESPECÍFICOS e de baixo compromisso inicial
+   - Usem verbos de ação fortes ("Agende", "Receba", "Descubra")
+   - Incluam benefício imediato no próprio CTA
+   - Removam fricção (tempo curto, sem compromisso, gratuito)
+   - Variem o formato: WhatsApp rápido, link de agendamento, PDF exclusivo
+   - Criem senso de urgência sutil quando apropriado
+   
+   📅 CADÊNCIA ESTRATÉGICA:
+   - Dia 1-2: Apresentação + gancho de valor
+   - Dia 3-4: Prova social + case study
+   - Dia 5-6: Proposta concreta + urgência
+   - Dia 7: Follow-up de despedida mantendo porta aberta
+   - Alterne canais: WhatsApp (mais direto) + Email (mais detalhado)
 
-FOCO "${lead.foco}" - Adapte mensagens:
+═══════════════════════════════════════
+🎯 ADAPTAÇÃO PARA FOCO: "${lead.foco}"
+═══════════════════════════════════════
 ${getFocoGuidance(lead.foco)}
 
-Retorne em português brasileiro, com linguagem profissional mas acessível.`;
+⚠️ QUALIDADE MÍNIMA EXIGIDA:
+- Mensagens: 3-6 linhas, copy persuasiva com AIDA completo
+- Objeções: Realistas e específicas do contexto do lead
+- Respostas: Técnicas consultivas avançadas, 2-4 sentenças
+- CTAs: Claros, acionáveis, baixo atrito, com benefício explícito
+
+🌐 IDIOMA: Português brasileiro profissional mas acessível`;
 }
 
 function getFocoGuidance(foco: string): string {

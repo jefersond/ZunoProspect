@@ -38,7 +38,7 @@ serve(async (req) => {
   }
 
   try {
-    const leadData: LeadData & { lead_id?: string } = await req.json();
+    const leadData: LeadData & { lead_id?: string; canaisProspeccao?: string } = await req.json();
     console.log("🔍 Analisando lead:", leadData.nome, leadData.lead_id ? `(ID: ${leadData.lead_id})` : "");
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
@@ -49,10 +49,10 @@ serve(async (req) => {
 
     if (!OPENAI_API_KEY) {
       console.log("⚠️ API key não configurada - retornando análise mockada");
-      analise = generateMockAnalise(leadData);
+      analise = generateMockAnalise(leadData, leadData.canaisProspeccao);
     } else {
       console.log("🤖 Iniciando análise com OpenAI...");
-      analise = await analyzeWithAI(leadData, OPENAI_API_KEY);
+      analise = await analyzeWithAI(leadData, OPENAI_API_KEY, leadData.canaisProspeccao);
     }
 
     // Se temos lead_id e credenciais do Supabase, atualiza o lead no banco
@@ -101,10 +101,18 @@ serve(async (req) => {
   }
 });
 
-function generateMockAnalise(lead: LeadData): AnaliseResult {
+function generateMockAnalise(lead: LeadData, canaisProspeccao: string = "ambos"): AnaliseResult {
   const temMarketing = lead.has_meta_pixel || lead.has_gtag || lead.has_gtm;
   const temWhatsApp = lead.whatsapp_on_site;
   const temSocial = !!lead.instagram_url;
+
+  // Define os canais disponíveis baseado na preferência
+  const getCanal = (diaNumero: number): "whatsapp" | "email" => {
+    if (canaisProspeccao === "whatsapp") return "whatsapp";
+    if (canaisProspeccao === "email") return "email";
+    // Se for ambos, alterna: ímpares WhatsApp, pares Email
+    return diaNumero % 2 === 1 ? "whatsapp" : "email";
+  };
 
   return {
     diagnostico_bullets: [
@@ -125,7 +133,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
     plano_prospeccao_7dias: [
       {
         dia: 1,
-        canal: "whatsapp",
+        canal: getCanal(1),
         mensagem: `Olá! Notei que ${lead.nome} está em ${lead.cidade}. Estamos ajudando empresas de ${lead.nicho} a ${getFocoMessage(lead.foco)}. Podemos conversar 5min?`,
         objecao_provavel: "Já temos fornecedor",
         resposta_sugerida: "Entendo! Não vim substituir ninguém. Vim mostrar como empresas do seu nicho estão conseguindo resultados complementares. Vale a pena conhecer?",
@@ -133,7 +141,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       },
       {
         dia: 2,
-        canal: "email",
+        canal: getCanal(2),
         mensagem: `Assunto: ${lead.nome} - Oportunidade de ${lead.foco}\n\nOi! Rápido aqui: vi que vocês estão em ${lead.cidade} e trabalham com ${lead.nicho}. Temos cases específicos desse nicho que estão dobrando resultados com nossa abordagem de ${lead.foco}. Quer ver?`,
         objecao_provavel: "Não tenho orçamento agora",
         resposta_sugerida: "Sem problema! Minha ideia é mostrar o potencial primeiro. Depois você decide se faz sentido. Investimento só quando você estiver 100% confortável.",
@@ -141,7 +149,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       },
       {
         dia: 3,
-        canal: "whatsapp",
+        canal: getCanal(3),
         mensagem: `Case rápido: empresa de ${lead.nicho} em cidade similar aumentou ${getFocoMetric(lead.foco)} em 3 meses. Seu caso é parecido. Posso enviar o resumo?`,
         objecao_provavel: "Estou muito ocupado",
         resposta_sugerida: "Imagino! Por isso preparei algo bem objetivo: 1 página, 3 números, 0 enrolação. Lê em 2 minutos. Posso mandar?",
@@ -149,7 +157,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       },
       {
         dia: 4,
-        canal: "email",
+        canal: getCanal(4),
         mensagem: `Assunto: Diagnóstico ${lead.nome}\n\nPreparei uma análise rápida da presença digital de vocês. ${temMarketing ? "Vi que já usam algumas ferramentas, mas" : "Identifiquei"} 3 oportunidades imediatas de ${lead.foco}. Quer receber?`,
         objecao_provavel: "Como sei que funciona?",
         resposta_sugerida: "Justo! Por isso ofereço: mostro o plano completo antes, você aprova cada etapa, e medimos tudo. Se não bater meta, ajusto sem custo. Risco zero.",
@@ -157,7 +165,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       },
       {
         dia: 5,
-        canal: "whatsapp",
+        canal: getCanal(5),
         mensagem: `Última tentativa: ${lead.nome} tem potencial enorme em ${lead.nicho}. Montei uma proposta personalizada focada em ${lead.foco}. 15min de call pra mostrar?`,
         objecao_provavel: "Preciso pensar",
         resposta_sugerida: "Claro! Mas antes de pensar, que tal ter todas as informações? Na call vou mostrar números, prazos e investimento. Aí sim dá pra pensar certinho.",
@@ -165,7 +173,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       },
       {
         dia: 6,
-        canal: "email",
+        canal: getCanal(6),
         mensagem: `Assunto: Proposta Final - ${lead.nome}\n\nOi! Sei que está avaliando. Deixo aqui uma proposta completa: escopo, cronograma, investimento e garantias. Sem pressão, só informação pra você decidir bem. Abre e dá uma olhada?`,
         objecao_provavel: "Vou deixar pra depois",
         resposta_sugerida: "Entendo. Mas deixa eu te falar: cada mês que passa sem otimizar ${lead.foco} é oportunidade perdida. Que tal começarmos pequeno? Teste de 30 dias, baixo investimento?",
@@ -173,7 +181,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       },
       {
         dia: 7,
-        canal: "whatsapp",
+        canal: getCanal(7),
         mensagem: `Última mensagem: vi que ainda não conseguimos conversar. Tudo bem! Fico à disposição. Se mudar de ideia sobre ${lead.foco}, é só chamar. Sucesso aí com ${lead.nome}! 🚀`,
         objecao_provavel: "Vou entrar em contato depois",
         resposta_sugerida: "Combinado! Salva meu contato. E olha: se precisar de algo pontual enquanto isso, mesmo que pequeno, pode chamar. A gente se ajuda!",
@@ -183,8 +191,8 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
   };
 }
 
-async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
-  const prompt = buildAnalysisPrompt(lead);
+async function analyzeWithAI(lead: LeadData, apiKey: string, canaisProspeccao: string = "ambos"): Promise<AnaliseResult> {
+  const prompt = buildAnalysisPrompt(lead, canaisProspeccao);
 
   console.log("Iniciando análise com OpenAI para:", lead.nome);
 
@@ -353,7 +361,18 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
   }
 }
 
-function buildAnalysisPrompt(lead: LeadData): string {
+function buildAnalysisPrompt(lead: LeadData, canaisProspeccao: string = "ambos"): string {
+  // Define os canais disponíveis baseado na preferência do usuário
+  const canaisDisponiveis = canaisProspeccao === "ambos" 
+    ? ["whatsapp", "email"]
+    : [canaisProspeccao];
+  
+  const canalTexto = canaisProspeccao === "ambos"
+    ? "WhatsApp e Email (alternando estrategicamente)"
+    : canaisProspeccao === "email"
+    ? "Email apenas"
+    : "WhatsApp apenas";
+    
   const sinaisMarketing = [];
   if (lead.has_meta_pixel) sinaisMarketing.push("Meta Pixel instalado");
   if (lead.has_gtag) sinaisMarketing.push("Google Analytics configurado");
@@ -446,12 +465,15 @@ ${lead.instagram_context ? `📱 CONTEXTO INSTAGRAM:\n${lead.instagram_context}`
    - Variem o formato: WhatsApp rápido, link de agendamento, PDF exclusivo
    - Criem senso de urgência sutil quando apropriado
    
-   📅 CADÊNCIA ESTRATÉGICA:
-   - Dia 1-2: Apresentação + gancho de valor
-   - Dia 3-4: Prova social + case study
-   - Dia 5-6: Proposta concreta + urgência
-   - Dia 7: Follow-up de despedida mantendo porta aberta
-   - Alterne canais: WhatsApp (mais direto) + Email (mais detalhado)
+    📅 CADÊNCIA ESTRATÉGICA:
+    - Canais disponíveis: ${canalTexto}
+    ${canaisProspeccao === "ambos" 
+      ? "- Alterne canais: WhatsApp (mais direto/rápido) em dias ímpares + Email (mais formal/detalhado) em dias pares" 
+      : `- Use ${canaisProspeccao} em todos os 7 dias, variando abordagem e tom`}
+    - Dia 1-2: Apresentação + gancho de valor
+    - Dia 3-4: Prova social + case study
+    - Dia 5-6: Proposta concreta + urgência
+    - Dia 7: Follow-up de despedida mantendo porta aberta
 
 ═══════════════════════════════════════
 🎯 ADAPTAÇÃO PARA FOCO: "${lead.foco}"

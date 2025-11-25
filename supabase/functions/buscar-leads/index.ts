@@ -13,6 +13,7 @@ interface ProspeccaoRequest {
   foco: string;
   proximidadeAtiva: boolean;
   raioKm?: number;
+  canaisProspeccao?: "ambos" | "email" | "whatsapp";
 }
 
 serve(async (req) => {
@@ -334,6 +335,7 @@ serve(async (req) => {
                       has_gtm: siteSignals.has_gtm,
                       instagram_url: siteSignals.instagram_url,
                       instagram_context: null,
+                      canaisProspeccao: body.canaisProspeccao || "ambos",
                     }),
                   }
                 );

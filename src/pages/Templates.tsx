@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LogOut, ArrowLeft, Plus } from "lucide-react";
+import { LogOut, ArrowLeft, Plus, History as HistoryIcon } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TemplatesList } from "@/components/templates/TemplatesList";
 import { TemplateForm } from "@/components/templates/TemplateForm";
@@ -67,6 +67,13 @@ const Templates = () => {
                 onClick={() => navigate("/dashboard")}
               >
                 📊
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate("/historico")}
+              >
+                <HistoryIcon className="h-5 w-5" />
               </Button>
               <Button
                 variant="ghost"

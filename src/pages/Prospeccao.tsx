@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ProspeccaoForm } from "@/components/prospeccao/ProspeccaoForm";
 import { LeadsList } from "@/components/prospeccao/LeadsList";
-import { LogOut, Search, User, BarChart3, FileText } from "lucide-react";
+import { LogOut, Search, User, BarChart3, FileText, History } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Prospeccao = () => {
@@ -47,6 +47,10 @@ const Prospeccao = () => {
             <Button variant="ghost" size="sm" onClick={() => navigate("/templates")}>
               <FileText className="mr-2 h-4 w-4" />
               Templates
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/historico")}>
+              <History className="mr-2 h-4 w-4" />
+              Histórico
             </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate("/profile")}>
               <User className="mr-2 h-4 w-4" />

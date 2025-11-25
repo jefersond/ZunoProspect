@@ -115,6 +115,7 @@ export type Database = {
           proximidade_ativa: boolean | null
           raio_km: number | null
           rating: number | null
+          salvo: boolean | null
           status: string | null
           telefone: string | null
           total_reviews: number | null
@@ -150,6 +151,7 @@ export type Database = {
           proximidade_ativa?: boolean | null
           raio_km?: number | null
           rating?: number | null
+          salvo?: boolean | null
           status?: string | null
           telefone?: string | null
           total_reviews?: number | null
@@ -185,6 +187,7 @@ export type Database = {
           proximidade_ativa?: boolean | null
           raio_km?: number | null
           rating?: number | null
+          salvo?: boolean | null
           status?: string | null
           telefone?: string | null
           total_reviews?: number | null

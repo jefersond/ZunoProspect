@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
 import { Progress } from "@/components/ui/progress";
@@ -58,6 +58,7 @@ export const LeadsList = () => {
     status: lead.status || 'novo',
     created_at: lead.created_at,
     ai_analise_gerada_em: lead.ai_analise_gerada_em,
+    salvo: lead.salvo || false,
   });
 
   const loadLeads = async () => {
@@ -187,6 +188,68 @@ export const LeadsList = () => {
     }
   };
 
+  const handleSaveLeads = async () => {
+    try {
+      const leadsNaoSalvos = leads.filter(lead => !lead.salvo);
+      
+      if (leadsNaoSalvos.length === 0) {
+        toast({
+          title: "Nenhum lead para salvar",
+          description: "Todos os leads já estão salvos",
+        });
+        return;
+      }
+
+      // Marca todos os leads não salvos como salvos
+      const { error } = await supabase
+        .from("leads")
+        .update({ salvo: true })
+        .in("id", leadsNaoSalvos.map(l => l.id));
+
+      if (error) throw error;
+
+      toast({
+        title: "Leads salvos com sucesso!",
+        description: `${leadsNaoSalvos.length} leads foram salvos e não serão deletados em novas buscas`,
+      });
+
+      loadLeads();
+    } catch (error: any) {
+      console.error("Erro ao salvar leads:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao salvar leads",
+        description: error.message,
+      });
+    }
+  };
+
+  const toggleSaveLead = async (leadId: string, currentSalvo: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("leads")
+        .update({ salvo: !currentSalvo })
+        .eq("id", leadId);
+
+      if (error) throw error;
+
+      toast({
+        title: currentSalvo ? "Lead desmarcado" : "Lead salvo",
+        description: currentSalvo 
+          ? "Lead será deletado na próxima busca" 
+          : "Lead será preservado em novas buscas",
+      });
+
+      loadLeads();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: error.message,
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -216,10 +279,16 @@ export const LeadsList = () => {
           <div className="flex items-center justify-between">
             <CardTitle>Leads Encontrados ({leads.length})</CardTitle>
             {leads.length > 0 && (
-              <Button onClick={handleExportExcel} variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Exportar Excel
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={handleSaveLeads} variant="default" size="sm">
+                  <Save className="h-4 w-4 mr-2" />
+                  Salvar Leads
+                </Button>
+                <Button onClick={handleExportExcel} variant="outline" size="sm">
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar Excel
+                </Button>
+              </div>
             )}
           </div>
         </CardHeader>
@@ -242,7 +311,15 @@ export const LeadsList = () => {
                   <TableRow key={lead.id}>
                     <TableCell>
                       <div className="space-y-1 min-w-[200px]">
-                        <p className="font-medium">{lead.nome}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{lead.nome}</p>
+                          {lead.salvo && (
+                            <Badge variant="secondary" className="text-xs">
+                              <Archive className="h-3 w-3 mr-1" />
+                              Salvo
+                            </Badge>
+                          )}
+                        </div>
                         {lead.endereco && (
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
                             <MapPin className="h-3 w-3 flex-shrink-0" />
@@ -394,6 +471,18 @@ export const LeadsList = () => {
                         >
                           <Eye className="h-4 w-4 mr-1" />
                           Ver Plano
+                        </Button>
+                        <Button
+                          variant={lead.salvo ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => toggleSaveLead(lead.id, lead.salvo)}
+                          title={lead.salvo ? "Desmarcar lead" : "Salvar lead"}
+                        >
+                          {lead.salvo ? (
+                            <Archive className="h-4 w-4" />
+                          ) : (
+                            <Save className="h-4 w-4" />
+                          )}
                         </Button>
                         <Button
                           variant="ghost"

@@ -52,4 +52,5 @@ export interface LeadProspeccao {
   status: string;
   created_at: string;
   ai_analise_gerada_em: string | null;
+  salvo: boolean;
 }

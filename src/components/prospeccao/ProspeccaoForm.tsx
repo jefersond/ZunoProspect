@@ -59,10 +59,10 @@ export const ProspeccaoForm = () => {
       // Limpa leads anteriores da interface
       window.dispatchEvent(new CustomEvent("clearLeads"));
       
-      // Deleta todos os leads antigos do banco de dados
+      // Deleta apenas os leads NÃO salvos do banco de dados
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        await supabase.from("leads").delete().eq("user_id", user.id);
+        await supabase.from("leads").delete().eq("user_id", user.id).eq("salvo", false);
       }
       
       // Simula progresso durante a busca

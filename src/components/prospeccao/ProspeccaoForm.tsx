@@ -56,8 +56,14 @@ export const ProspeccaoForm = () => {
     setProgressMessage("Iniciando busca...");
 
     try {
-      // Limpa leads anteriores antes de buscar novos
+      // Limpa leads anteriores da interface
       window.dispatchEvent(new CustomEvent("clearLeads"));
+      
+      // Deleta todos os leads antigos do banco de dados
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("leads").delete().eq("user_id", user.id);
+      }
       
       // Simula progresso durante a busca
       const progressInterval = setInterval(() => {

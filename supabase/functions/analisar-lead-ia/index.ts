@@ -190,7 +190,7 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
 
   try {
     const requestBody = {
-      model: "gpt-5-mini-2025-08-07",
+      model: "gpt-4o-mini",
       max_completion_tokens: 4000,
       messages: [
         {
@@ -253,14 +253,22 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
 
     console.log("Enviando requisição para OpenAI...");
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
+    // Adiciona timeout de 30 segundos
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -284,7 +292,7 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
       throw new Error(errorMessage);
     }
 
-    const data = await response.json();
+      const data = await response.json();
     console.log("✅ Resposta recebida da OpenAI");
 
     if (!data.choices || data.choices.length === 0) {
@@ -323,6 +331,13 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
     console.log("✅ Análise validada com sucesso");
     return analise;
 
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        throw new Error("Timeout: OpenAI demorou mais de 30 segundos para responder");
+      }
+      throw fetchError;
+    }
   } catch (error: any) {
     console.error("❌ Erro na função analyzeWithAI:", {
       message: error.message,
@@ -331,7 +346,7 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
     });
     
     // Re-throw com mensagem mais clara
-    if (error.message.includes("API")) {
+    if (error.message.includes("API") || error.message.includes("Timeout")) {
       throw error; // Já tem mensagem clara
     }
     throw new Error(`Falha ao analisar lead: ${error.message}`);

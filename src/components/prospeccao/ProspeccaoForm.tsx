@@ -97,10 +97,28 @@ export const ProspeccaoForm = () => {
       setCurrentStep(7);
       setProgressMessage("Busca concluída!");
 
+      const leadsCount = responseData?.leadsCount || 0;
+
       toast({
         title: "Busca concluída!",
-        description: `${responseData?.leadsCount || 0} leads encontrados`,
+        description: `${leadsCount} leads encontrados`,
       });
+
+      // Salva a busca no histórico
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from("interacoes").insert({
+            user_id: user.id,
+            lead_id: responseData?.leads?.[0]?.id || "00000000-0000-0000-0000-000000000000", // Lead genérico para buscas
+            tipo: "busca",
+            conteudo: `Busca em ${data.cidade} - ${data.nicho} (${data.foco}) - ${leadsCount} leads encontrados`,
+            data_interacao: new Date().toISOString(),
+          });
+        }
+      } catch (error) {
+        console.error("Erro ao salvar no histórico:", error);
+      }
 
       // Recarrega a lista de leads
       window.dispatchEvent(new CustomEvent("reloadLeads"));

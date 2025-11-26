@@ -13,7 +13,7 @@ interface ProspeccaoRequest {
   foco: string;
   proximidadeAtiva: boolean;
   raioKm?: number;
-  canaisProspeccao?: "ambos" | "email" | "whatsapp";
+  canaisProspeccao?: ("email" | "whatsapp" | "instagram")[];
 }
 
 serve(async (req) => {

@@ -1,12 +1,12 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Brain, TrendingUp, MessageSquare, Mail, RefreshCw } from "lucide-react";
+import { Brain, TrendingUp, MessageSquare, Mail, RefreshCw, Instagram } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface PlanoProspeccaoDia {
   dia: number;
-  canal: "whatsapp" | "email";
+  canal: "whatsapp" | "email" | "instagram";
   mensagem: string;
   objecao_provavel: string;
   resposta_sugerida: string;
@@ -142,15 +142,17 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
                     Dia {dia.dia}
                   </Badge>
                   <Badge
-                    variant={dia.canal === "whatsapp" ? "default" : "secondary"}
+                    variant={dia.canal === "whatsapp" ? "default" : dia.canal === "instagram" ? "outline" : "secondary"}
                     className="gap-1"
                   >
                     {dia.canal === "whatsapp" ? (
                       <MessageSquare className="h-3 w-3" />
+                    ) : dia.canal === "instagram" ? (
+                      <Instagram className="h-3 w-3" />
                     ) : (
                       <Mail className="h-3 w-3" />
                     )}
-                    {dia.canal === "whatsapp" ? "WhatsApp" : "Email"}
+                    {dia.canal === "whatsapp" ? "WhatsApp" : dia.canal === "instagram" ? "Instagram" : "Email"}
                   </Badge>
                 </div>
 

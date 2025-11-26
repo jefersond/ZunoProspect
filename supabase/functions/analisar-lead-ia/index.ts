@@ -17,6 +17,7 @@ interface LeadData {
   has_gtm: boolean;
   instagram_url: string | null;
   instagram_context: string | null;
+  canaisProspeccao?: ("email" | "whatsapp" | "instagram")[];
 }
 
 interface AnaliseResult {
@@ -24,7 +25,7 @@ interface AnaliseResult {
   probabilidade_conversao: number;
   plano_prospeccao_7dias: Array<{
     dia: number;
-    canal: "whatsapp" | "email";
+    canal: "whatsapp" | "email" | "instagram";
     mensagem: string;
     objecao_provavel: string;
     resposta_sugerida: string;
@@ -38,7 +39,7 @@ serve(async (req) => {
   }
 
   try {
-    const leadData: LeadData & { lead_id?: string; canaisProspeccao?: string } = await req.json();
+    const leadData: LeadData & { lead_id?: string } = await req.json();
     console.log("🔍 Analisando lead:", leadData.nome, leadData.lead_id ? `(ID: ${leadData.lead_id})` : "");
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
@@ -49,10 +50,10 @@ serve(async (req) => {
 
     if (!OPENAI_API_KEY) {
       console.log("⚠️ API key não configurada - retornando análise mockada");
-      analise = generateMockAnalise(leadData, leadData.canaisProspeccao);
+      analise = generateMockAnalise(leadData);
     } else {
       console.log("🤖 Iniciando análise com OpenAI...");
-      analise = await analyzeWithAI(leadData, OPENAI_API_KEY, leadData.canaisProspeccao);
+      analise = await analyzeWithAI(leadData, OPENAI_API_KEY);
     }
 
     // Se temos lead_id e credenciais do Supabase, atualiza o lead no banco
@@ -101,17 +102,21 @@ serve(async (req) => {
   }
 });
 
-function generateMockAnalise(lead: LeadData, canaisProspeccao: string = "ambos"): AnaliseResult {
+function generateMockAnalise(lead: LeadData): AnaliseResult {
   const temMarketing = lead.has_meta_pixel || lead.has_gtag || lead.has_gtm;
   const temWhatsApp = lead.whatsapp_on_site;
   const temSocial = !!lead.instagram_url;
 
   // Define os canais disponíveis baseado na preferência
-  const getCanal = (diaNumero: number): "whatsapp" | "email" => {
-    if (canaisProspeccao === "whatsapp") return "whatsapp";
-    if (canaisProspeccao === "email") return "email";
-    // Se for ambos, alterna: ímpares WhatsApp, pares Email
-    return diaNumero % 2 === 1 ? "whatsapp" : "email";
+  const canais = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
+    ? lead.canaisProspeccao 
+    : ["email", "whatsapp"];
+  
+  const getCanal = (diaNumero: number): "whatsapp" | "email" | "instagram" => {
+    if (canais.length === 1) return canais[0] as "whatsapp" | "email" | "instagram";
+    // Distribui entre os canais disponíveis
+    const index = (diaNumero - 1) % canais.length;
+    return canais[index] as "whatsapp" | "email" | "instagram";
   };
 
   return {
@@ -191,8 +196,8 @@ function generateMockAnalise(lead: LeadData, canaisProspeccao: string = "ambos")
   };
 }
 
-async function analyzeWithAI(lead: LeadData, apiKey: string, canaisProspeccao: string = "ambos"): Promise<AnaliseResult> {
-  const prompt = buildAnalysisPrompt(lead, canaisProspeccao);
+async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
+  const prompt = buildAnalysisPrompt(lead);
 
   console.log("Iniciando análise com OpenAI para:", lead.nome);
 
@@ -239,7 +244,7 @@ async function analyzeWithAI(lead: LeadData, apiKey: string, canaisProspeccao: s
                     type: "object",
                     properties: {
                       dia: { type: "number" },
-                      canal: { type: "string", enum: ["whatsapp", "email"] },
+                      canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
                       mensagem: { type: "string" },
                       objecao_provavel: { type: "string" },
                       resposta_sugerida: { type: "string" },
@@ -361,17 +366,22 @@ async function analyzeWithAI(lead: LeadData, apiKey: string, canaisProspeccao: s
   }
 }
 
-function buildAnalysisPrompt(lead: LeadData, canaisProspeccao: string = "ambos"): string {
+function buildAnalysisPrompt(lead: LeadData): string {
   // Define os canais disponíveis baseado na preferência do usuário
-  const canaisDisponiveis = canaisProspeccao === "ambos" 
-    ? ["whatsapp", "email"]
-    : [canaisProspeccao];
+  const canais = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
+    ? lead.canaisProspeccao 
+    : ["email", "whatsapp"];
   
-  const canalTexto = canaisProspeccao === "ambos"
-    ? "WhatsApp e Email (alternando estrategicamente)"
-    : canaisProspeccao === "email"
-    ? "Email apenas"
-    : "WhatsApp apenas";
+  const canalTexto = canais.map(c => {
+    if (c === "email") return "Email";
+    if (c === "whatsapp") return "WhatsApp";
+    if (c === "instagram") return "Instagram";
+    return c;
+  }).join(", ");
+  
+  const estrategiaCadencia = canais.length === 1 
+    ? `Use SOMENTE ${canalTexto} para todos os 7 dias`
+    : `Distribua os 7 dias entre os canais disponíveis (${canalTexto}), alternando estrategicamente para maximizar engajamento`;
     
   const sinaisMarketing = [];
   if (lead.has_meta_pixel) sinaisMarketing.push("Meta Pixel instalado");
@@ -465,15 +475,13 @@ ${lead.instagram_context ? `📱 CONTEXTO INSTAGRAM:\n${lead.instagram_context}`
    - Variem o formato: WhatsApp rápido, link de agendamento, PDF exclusivo
    - Criem senso de urgência sutil quando apropriado
    
-    📅 CADÊNCIA ESTRATÉGICA:
-    - Canais disponíveis: ${canalTexto}
-    ${canaisProspeccao === "ambos" 
-      ? "- Alterne canais: WhatsApp (mais direto/rápido) em dias ímpares + Email (mais formal/detalhado) em dias pares" 
-      : `- Use ${canaisProspeccao} em todos os 7 dias, variando abordagem e tom`}
-    - Dia 1-2: Apresentação + gancho de valor
-    - Dia 3-4: Prova social + case study
-    - Dia 5-6: Proposta concreta + urgência
-    - Dia 7: Follow-up de despedida mantendo porta aberta
+     📅 CADÊNCIA ESTRATÉGICA:
+     - Canais disponíveis: ${canalTexto}
+     - ${estrategiaCadencia}
+     - Dia 1-2: Apresentação + gancho de valor
+     - Dia 3-4: Prova social + case study
+     - Dia 5-6: Proposta concreta + urgência
+     - Dia 7: Follow-up de despedida mantendo porta aberta
 
 ═══════════════════════════════════════
 🎯 ADAPTAÇÃO PARA FOCO: "${lead.foco}"

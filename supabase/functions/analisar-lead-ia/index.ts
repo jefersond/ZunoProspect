@@ -201,6 +201,11 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
 
   console.log("Iniciando análise com OpenAI para:", lead.nome);
 
+  // Define os canais permitidos baseado na preferência do usuário
+  const canaisPermitidos = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
+    ? lead.canaisProspeccao 
+    : ["email", "whatsapp"];
+
   try {
     const requestBody = {
       model: "gpt-4o-mini",
@@ -244,7 +249,7 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
                     type: "object",
                     properties: {
                       dia: { type: "number" },
-                      canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
+                      canal: { type: "string", enum: canaisPermitidos, description: "USAR APENAS OS CANAIS PERMITIDOS PELO USUÁRIO" },
                       mensagem: { type: "string" },
                       objecao_provavel: { type: "string" },
                       resposta_sugerida: { type: "string" },

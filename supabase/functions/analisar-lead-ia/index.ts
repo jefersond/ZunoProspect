@@ -430,26 +430,53 @@ ${lead.instagram_context ? `📱 CONTEXTO INSTAGRAM:\n${lead.instagram_context}`
    
    🎯 MENSAGENS - Estrutura AIDA (Atenção, Interesse, Desejo, Ação):
    
+   📱 LINGUAGEM POR CANAL - CRÍTICO:
+   
+   **EMAIL**: Linguagem formal e profissional
+   - Sempre inclua linha de assunto forte e clara
+   - Use parágrafos estruturados e espaçamento adequado
+   - Tom corporativo mas acessível
+   - Assinatura profissional ao final
+   - Exemplo: "Assunto: Oportunidade de crescimento para [Empresa]\n\nOlá,\n\nMeu nome é [Nome] e..."
+   
+   **WHATSAPP**: Linguagem casual e direta
+   - Mensagens curtas e objetivas (máximo 3-4 linhas)
+   - Tom amigável e conversacional
+   - Use emojis estrategicamente (1-2 por mensagem)
+   - Sem formalidades excessivas
+   - Exemplo: "Oi! 👋 Vi que você trabalha com [nicho]..."
+   
+   **INSTAGRAM**: Linguagem de redes sociais
+   - Tom descontraído e autêntico
+   - Use emojis relevantes (2-3 por mensagem)
+   - Mencione elementos visuais quando relevante
+   - Pode usar hashtags estratégicas (máximo 2)
+   - Exemplo: "E aí! 🚀 Adorei o feed de vocês..."
+   
    ✅ ATENÇÃO: Ganchar com problema específico ou resultado tangível
    - Use números, dados do nicho ou dor conhecida
    - Personalize com nome da empresa e cidade
    - Crie curiosidade ou urgência nos primeiros 10 segundos
+   - ADAPTE o tom ao canal (formal no email, casual no WhatsApp/Instagram)
    
    ✅ INTERESSE: Mostre relevância imediata
    - Cases específicos do nicho "${lead.nicho}"
    - Resultados mensuráveis de empresas similares
    - Conexão emocional com desafios do dia a dia
+   - MANTENHA a linguagem do canal (estruturado no email, ágil no WhatsApp, visual no Instagram)
    
    ✅ DESEJO: Construa aspiração pela solução
    - Benefícios tangíveis focados em "${lead.foco}"
    - Diferenciais competitivos claros
    - Redução de risco percebido
    - Prova social ou autoridade
+   - AJUSTE o nível de detalhe ao canal (detalhado no email, conciso no WhatsApp/Instagram)
    
    ✅ AÇÃO: CTA irresistível e de baixo atrito
    - Uma ação clara e específica
    - Elimine barreiras para o próximo passo
    - Senso de urgência ou escassez sutil
+   - FORMATE adequadamente: link clicável no email, resposta rápida no WhatsApp, menção/DM no Instagram
    
    📝 OBJEÇÕES PROVÁVEIS - Requisitos:
    - Sejam REALISTAS e específicas do nicho "${lead.nicho}"

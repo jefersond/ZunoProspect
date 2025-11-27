@@ -29,7 +29,7 @@ const Prospeccao = () => {
   if (!user) return null;
   return <div className="min-h-screen bg-gradient-to-br from-background via-secondary/10 to-primary/5">
       <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-6 py-4 text-primary-foreground bg-zinc-950">
           <div className="flex items-center justify-between gap-4">
             {/* Logo e Título */}
             <div className="flex items-center gap-3">
@@ -78,7 +78,7 @@ const Prospeccao = () => {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 space-y-8">
+      <main className="container mx-auto px-4 py-8 space-y-8 border-zinc-900 border-solid rounded-none border-0 text-zinc-950 bg-zinc-950">
         <ProspeccaoForm />
         <LeadsList />
       </main>

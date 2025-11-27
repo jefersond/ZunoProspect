@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LogOut, History, LayoutDashboard, FileText, User, Search } from "lucide-react";
-import { NavLink } from "@/components/NavLink";
+import { LogOut, History, BarChart3, FileText, User, Search, ArrowLeft } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -130,43 +129,58 @@ export default function Historico() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <History className="h-6 w-6" />
-              Histórico de Interações
-            </h1>
-            <nav className="hidden md:flex items-center gap-1">
-              <NavLink to="/dashboard" className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-accent transition-colors">
-                <LayoutDashboard className="h-4 w-4" />
-                Dashboard
-              </NavLink>
-              <NavLink to="/prospeccao" className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-accent transition-colors">
-                <Search className="h-4 w-4" />
-                Prospecção
-              </NavLink>
-              <NavLink to="/templates" className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-accent transition-colors">
-                <FileText className="h-4 w-4" />
-                Templates
-              </NavLink>
-              <NavLink to="/historico" className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-accent transition-colors" activeClassName="bg-accent text-accent-foreground">
-                <History className="h-4 w-4" />
-                Histórico
-              </NavLink>
-              <NavLink to="/profile" className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-accent transition-colors">
-                <User className="h-4 w-4" />
-                Perfil
-              </NavLink>
-            </nav>
-          </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Sair
-            </Button>
+    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/10 to-primary/5">
+      <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between gap-4">
+            {/* Logo e Título */}
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate("/prospeccao")}
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
+                <History className="h-5 w-5 text-primary" />
+              </div>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-primary via-primary to-accent bg-clip-text text-transparent">
+                Histórico de Interações
+              </h1>
+            </div>
+
+            {/* Navegação e Ações */}
+            <div className="flex items-center gap-1">
+              {/* Navegação Principal */}
+              <nav className="flex items-center gap-1 mr-2 pr-2 border-r border-border">
+                <Button variant="ghost" size="sm" onClick={() => navigate("/prospeccao")} className="gap-2">
+                  <Search className="h-4 w-4" />
+                  <span className="hidden sm:inline">Prospecção</span>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Dashboard</span>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/templates")} className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  <span className="hidden sm:inline">Templates</span>
+                </Button>
+              </nav>
+
+              {/* Ações do Usuário */}
+              <div className="flex items-center gap-1">
+                <ThemeToggle />
+                <Button variant="ghost" size="sm" onClick={() => navigate("/profile")} className="gap-2">
+                  <User className="h-4 w-4" />
+                  <span className="hidden sm:inline">Perfil</span>
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2 ml-1">
+                  <LogOut className="h-4 w-4" />
+                  <span className="hidden sm:inline">Sair</span>
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </header>

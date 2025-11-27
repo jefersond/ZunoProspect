@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, User } from "lucide-react";
+import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Profile = () => {
@@ -107,25 +107,58 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/10 to-primary/5">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/prospeccao")}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar
-            </Button>
+      <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between gap-4">
+            {/* Logo e Título */}
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate("/prospeccao")}
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
+                <User className="h-5 w-5 text-primary" />
+              </div>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-primary via-primary to-accent bg-clip-text text-transparent">
+                Meu Perfil
+              </h1>
+            </div>
+
+            {/* Navegação e Ações */}
+            <div className="flex items-center gap-1">
+              {/* Navegação Principal */}
+              <nav className="flex items-center gap-1 mr-2 pr-2 border-r border-border">
+                <Button variant="ghost" size="sm" onClick={() => navigate("/prospeccao")} className="gap-2">
+                  <Search className="h-4 w-4" />
+                  <span className="hidden sm:inline">Prospecção</span>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Dashboard</span>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/templates")} className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  <span className="hidden sm:inline">Templates</span>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/historico")} className="gap-2">
+                  <History className="h-4 w-4" />
+                  <span className="hidden sm:inline">Histórico</span>
+                </Button>
+              </nav>
+
+              {/* Ações do Usuário */}
+              <div className="flex items-center gap-1">
+                <ThemeToggle />
+                <Button variant="outline" size="sm" onClick={async () => { await supabase.auth.signOut(); navigate("/auth"); }} className="gap-2 ml-1">
+                  <LogOut className="h-4 w-4" />
+                  <span className="hidden sm:inline">Sair</span>
+                </Button>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <User className="h-5 w-5 text-primary" />
-            <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Meu Perfil
-            </h1>
-          </div>
-          <ThemeToggle />
         </div>
       </header>
 

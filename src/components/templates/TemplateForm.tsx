@@ -106,6 +106,7 @@ export const TemplateForm = ({ template, onClose }: TemplateFormProps) => {
           <SelectContent>
             <SelectItem value="whatsapp">WhatsApp</SelectItem>
             <SelectItem value="email">Email</SelectItem>
+            <SelectItem value="instagram">Instagram</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -132,6 +133,8 @@ export const TemplateForm = ({ template, onClose }: TemplateFormProps) => {
           placeholder={
             tipo === "whatsapp"
               ? "Ex: Olá {nome}! Vi que sua empresa {empresa} está em {cidade}..."
+              : tipo === "instagram"
+              ? "Ex: Oi! 👋 Vi seu perfil e curti muito o trabalho de vocês..."
               : "Ex: Olá!\n\nNotei que sua empresa..."
           }
           rows={8}

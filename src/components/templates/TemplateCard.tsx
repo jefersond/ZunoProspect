@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Mail, MessageCircle } from "lucide-react";
+import { Edit, Trash2, Mail, MessageCircle, Instagram } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,10 +36,15 @@ export const TemplateCard = ({ template, onEdit, onDelete }: TemplateCardProps) 
             <div className="flex items-center gap-2 mb-2">
               {template.tipo === "whatsapp" ? (
                 <MessageCircle className="h-4 w-4 text-green-600" />
+              ) : template.tipo === "instagram" ? (
+                <Instagram className="h-4 w-4 text-pink-600" />
               ) : (
                 <Mail className="h-4 w-4 text-blue-600" />
               )}
-              <Badge variant={template.tipo === "whatsapp" ? "default" : "secondary"}>
+              <Badge 
+                variant={template.tipo === "whatsapp" ? "default" : "secondary"}
+                className={template.tipo === "instagram" ? "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200" : ""}
+              >
                 {template.tipo}
               </Badge>
             </div>

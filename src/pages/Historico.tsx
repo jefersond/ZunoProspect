@@ -108,6 +108,7 @@ export default function Historico() {
 
   const getTipoIcon = (tipo: string) => {
     const icons: Record<string, string> = {
+      busca: "🔍",
       whatsapp: "💬",
       email: "📧",
       telefone: "📞",
@@ -119,6 +120,7 @@ export default function Historico() {
 
   const getTipoBadgeVariant = (tipo: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+      busca: "default",
       whatsapp: "default",
       email: "secondary",
       telefone: "outline",
@@ -203,8 +205,9 @@ export default function Historico() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="todos">Todos</TabsTrigger>
+            <TabsTrigger value="busca">Buscas</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
             <TabsTrigger value="email">E-mail</TabsTrigger>
             <TabsTrigger value="telefone">Telefone</TabsTrigger>

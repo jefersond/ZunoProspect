@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Brain, TrendingUp, MessageSquare, Mail, RefreshCw, Instagram } from "lucide-react";
+import { Brain, TrendingUp, MessageSquare, Mail, RefreshCw, Instagram, Copy, Check } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import { copyToClipboard } from "@/utils/templateUtils";
 
 interface PlanoProspeccaoDia {
   dia: number;
@@ -23,6 +26,21 @@ interface LeadAnalysisProps {
 }
 
 export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onReanalyze, isReanalyzing }: LeadAnalysisProps) => {
+  const [copiedDia, setCopiedDia] = useState<number | null>(null);
+  const { toast } = useToast();
+
+  const handleCopyMessage = async (dia: number, mensagem: string) => {
+    const success = await copyToClipboard(mensagem);
+    if (success) {
+      setCopiedDia(dia);
+      toast({
+        title: "Copiado!",
+        description: `Mensagem do Dia ${dia} copiada`,
+      });
+      setTimeout(() => setCopiedDia(null), 2000);
+    }
+  };
+
   if (!diagnostico || !probabilidade || !plano) {
     return (
       <Card className="mt-4">
@@ -157,9 +175,23 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
                 </div>
 
                 <div className="pl-4 space-y-2 text-sm">
-                  <div className="bg-primary/5 p-3 rounded-md border border-primary/10">
-                    <p className="font-medium text-primary mb-1">Mensagem:</p>
-                    <p className="whitespace-pre-wrap">{dia.mensagem}</p>
+                  <div className="bg-primary/5 p-3 rounded-md border border-primary/10 relative">
+                    <div className="flex items-start justify-between">
+                      <p className="font-medium text-primary mb-1">Mensagem:</p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCopyMessage(dia.dia, dia.mensagem)}
+                        className="h-7 w-7 p-0 -mt-1 -mr-1"
+                      >
+                        {copiedDia === dia.dia ? (
+                          <Check className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <p className="whitespace-pre-wrap pr-6">{dia.mensagem}</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">

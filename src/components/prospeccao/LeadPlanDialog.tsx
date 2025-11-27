@@ -6,9 +6,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadAnalysis } from "./LeadAnalysis";
+import { TemplateSelector } from "@/components/templates/TemplateSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Brain, FileText } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 
 interface LeadPlanDialogProps {
@@ -101,14 +104,35 @@ export const LeadPlanDialog = ({ lead, open, onOpenChange, onLeadUpdate }: LeadP
           </DialogDescription>
         </DialogHeader>
 
-        <LeadAnalysis
-          diagnostico={displayLead.diagnostico_bullets}
-          probabilidade={displayLead.probabilidade_conversao}
-          plano={displayLead.plano_prospecao_7dias}
-          geradoEm={displayLead.ai_analise_gerada_em}
-          onReanalyze={handleReanalyze}
-          isReanalyzing={isReanalyzing}
-        />
+        <Tabs defaultValue="analise" className="mt-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="analise" className="gap-2">
+              <Brain className="h-4 w-4" />
+              Análise IA
+            </TabsTrigger>
+            <TabsTrigger value="templates" className="gap-2">
+              <FileText className="h-4 w-4" />
+              Usar Template
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="analise">
+            <LeadAnalysis
+              diagnostico={displayLead.diagnostico_bullets}
+              probabilidade={displayLead.probabilidade_conversao}
+              plano={displayLead.plano_prospecao_7dias}
+              geradoEm={displayLead.ai_analise_gerada_em}
+              onReanalyze={handleReanalyze}
+              isReanalyzing={isReanalyzing}
+            />
+          </TabsContent>
+
+          <TabsContent value="templates">
+            <div className="mt-4">
+              <TemplateSelector lead={displayLead} />
+            </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

@@ -25,7 +25,7 @@ const App = () => <QueryClientProvider client={queryClient}>
             <Route path="/auth" element={<Auth />} />
             <Route path="/lp-prospeccao-ia" element={<LandingProspeccaoIA />} />
             <Route path="/prospeccao" element={<Prospeccao />} />
-            <Route path="/profile" element={<Profile />} className="text-primary-foreground bg-zinc-950 border-zinc-950" />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/templates" element={<Templates />} />
             <Route path="/historico" element={<Historico />} />

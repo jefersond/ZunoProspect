@@ -229,7 +229,7 @@ const PLANOS = [
       "Relatórios avançados",
       "Gerente de sucesso dedicado",
     ],
-    cta: "Falar com vendas",
+    cta: "Assinar Agência",
     gratuito: false,
   },
 ];

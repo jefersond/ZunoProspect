@@ -6,14 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark } from "lucide-react";
+import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 
 const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
   const [profile, setProfile] = useState({
     nome_completo: "",
     empresa: "",
@@ -155,6 +157,15 @@ const Profile = () => {
 
               {/* Ações do Usuário */}
               <div className="flex items-center gap-1">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setUpgradeDialogOpen(true)} 
+                  className="gap-2 text-primary hover:text-primary"
+                >
+                  <Crown className="h-4 w-4" />
+                  <span className="hidden sm:inline">Upgrade</span>
+                </Button>
                 <ThemeToggle />
                 <Button variant="outline" size="sm" onClick={async () => { await supabase.auth.signOut(); navigate("/auth"); }} className="gap-2 ml-1">
                   <LogOut className="h-4 w-4" />
@@ -215,7 +226,37 @@ const Profile = () => {
             </form>
           </CardContent>
         </Card>
+
+        {/* Card de Upgrade de Plano */}
+        <Card className="shadow-lg mt-6 border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Crown className="h-5 w-5 text-primary" />
+              Seu Plano
+            </CardTitle>
+            <CardDescription>
+              Faça upgrade para desbloquear mais recursos
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Plano atual</p>
+                <p className="text-lg font-semibold">Starter (Gratuito)</p>
+              </div>
+              <Button onClick={() => setUpgradeDialogOpen(true)} className="gap-2">
+                <Crown className="h-4 w-4" />
+                Fazer Upgrade
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </main>
+
+      <UpgradePlanDialog 
+        open={upgradeDialogOpen} 
+        onOpenChange={setUpgradeDialogOpen} 
+      />
     </div>
   );
 };

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, TrendingUp, Users, Target, Activity, Loader2, History, BarChart3, Search, FileText, User, LogOut } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, Target, Activity, Loader2, History, BarChart3, Search, FileText, User, LogOut, Bookmark } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
@@ -157,6 +157,10 @@ const Dashboard = () => {
                 <Button variant="ghost" size="sm" onClick={() => navigate("/prospeccao")} className="gap-2">
                   <Search className="h-4 w-4" />
                   <span className="hidden sm:inline">Prospecção</span>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/leads-salvos")} className="gap-2">
+                  <Bookmark className="h-4 w-4" />
+                  <span className="hidden sm:inline">Salvos</span>
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => navigate("/templates")} className="gap-2">
                   <FileText className="h-4 w-4" />

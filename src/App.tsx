@@ -10,6 +10,7 @@ import Profile from "./pages/Profile";
 import Dashboard from "./pages/Dashboard";
 import Templates from "./pages/Templates";
 import Historico from "./pages/Historico";
+import LeadsSalvos from "./pages/LeadsSalvos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/templates" element={<Templates />} />
             <Route path="/historico" element={<Historico />} />
+            <Route path="/leads-salvos" element={<LeadsSalvos />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Templates from "./pages/Templates";
 import Historico from "./pages/Historico";
 import LeadsSalvos from "./pages/LeadsSalvos";
+import LandingProspeccaoIA from "./pages/LandingProspeccaoIA";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Navigate to="/auth" replace />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/lp-prospeccao-ia" element={<LandingProspeccaoIA />} />
             <Route path="/prospeccao" element={<Prospeccao />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/dashboard" element={<Dashboard />} />

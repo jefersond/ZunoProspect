@@ -169,6 +169,55 @@ const PERFIS_ALVO = [
   },
 ];
 
+const PLANOS = [
+  {
+    nome: "Starter",
+    preco: "Grátis",
+    periodo: "",
+    descricao: "Para testar a plataforma",
+    destaque: false,
+    features: [
+      "Até 10 leads por mês",
+      "Análise básica de leads",
+      "1 plano de prospecção por lead",
+      "Exportação para Excel",
+    ],
+    cta: "Começar grátis",
+  },
+  {
+    nome: "Pro",
+    preco: "R$ 97",
+    periodo: "/mês",
+    descricao: "Para freelancers e profissionais",
+    destaque: true,
+    features: [
+      "Até 100 leads por mês",
+      "Análise completa com IA",
+      "Plano de 7 dias personalizado",
+      "Diagnóstico de sinais digitais",
+      "Exportação ilimitada",
+      "Suporte prioritário",
+    ],
+    cta: "Assinar Pro",
+  },
+  {
+    nome: "Agência",
+    preco: "R$ 247",
+    periodo: "/mês",
+    descricao: "Para agências e times",
+    destaque: false,
+    features: [
+      "Leads ilimitados",
+      "Tudo do plano Pro",
+      "Múltiplos usuários",
+      "API de integração",
+      "Relatórios avançados",
+      "Gerente de sucesso dedicado",
+    ],
+    cta: "Falar com vendas",
+  },
+];
+
 const FAQ_ITEMS = [
   {
     pergunta: "Preciso saber programar para usar?",
@@ -236,6 +285,12 @@ const LPHeader = () => {
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               Para quem é
+            </button>
+            <button 
+              onClick={() => scrollToSection("precos")}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Preços
             </button>
             <button 
               onClick={() => scrollToSection("faq")}
@@ -694,6 +749,75 @@ const ParaQuemSection = () => {
   );
 };
 
+const PrecosSection = () => {
+  return (
+    <section id="precos" className="py-20 bg-background">
+      <div className="container mx-auto px-4">
+        <div className="text-center mb-16">
+          <Badge variant="outline" className="mb-4">Planos</Badge>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Escolha o plano ideal para você
+          </h2>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Comece grátis e escale conforme sua necessidade. Cancele quando quiser.
+          </p>
+        </div>
+        
+        <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          {PLANOS.map((plano, index) => (
+            <Card 
+              key={index} 
+              className={`relative p-8 flex flex-col ${
+                plano.destaque 
+                  ? "border-2 border-primary shadow-xl shadow-primary/20 dark:shadow-primary/10 scale-105" 
+                  : "border border-border/50 dark:border-border/30"
+              }`}
+            >
+              {plano.destaque && (
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                  <Badge className="px-4 py-1 shadow-lg">Mais popular</Badge>
+                </div>
+              )}
+              
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-bold mb-2">{plano.nome}</h3>
+                <p className="text-sm text-muted-foreground mb-4">{plano.descricao}</p>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-4xl font-bold">{plano.preco}</span>
+                  {plano.periodo && (
+                    <span className="text-muted-foreground">{plano.periodo}</span>
+                  )}
+                </div>
+              </div>
+              
+              <ul className="space-y-3 mb-8 flex-1">
+                {plano.features.map((feature, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-muted-foreground text-sm">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              
+              <Button 
+                className="w-full" 
+                variant={plano.destaque ? "default" : "outline"}
+                asChild
+              >
+                <a href="/auth">{plano.cta}</a>
+              </Button>
+            </Card>
+          ))}
+        </div>
+        
+        <p className="text-center text-sm text-muted-foreground mt-8">
+          Todos os planos incluem atualizações gratuitas e acesso às novas funcionalidades.
+        </p>
+      </div>
+    </section>
+  );
+};
+
 const FAQSection = () => {
   return (
     <section id="faq" className="py-20 bg-secondary/20 dark:bg-secondary/10">
@@ -796,6 +920,7 @@ export default function LandingProspeccaoIA() {
       <LogosSection />
       <VideoCaseSection />
       <ParaQuemSection />
+      <PrecosSection />
       <FAQSection />
       <CTAFinalSection />
       <Footer />

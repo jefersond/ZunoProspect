@@ -32,6 +32,7 @@ import {
   Code,
   LineChart,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 // ============================================
 // MOCK DATA - FÁCIL DE EDITAR
@@ -203,14 +204,71 @@ const FAQ_ITEMS = [
 // COMPONENTES DA LANDING PAGE
 // ============================================
 
+const LPHeader = () => {
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  return (
+    <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          <div className="flex items-center gap-2">
+            <Target className="h-7 w-7 text-primary" />
+            <span className="font-bold text-lg">Prospecção IA</span>
+          </div>
+          
+          <nav className="hidden md:flex items-center gap-6">
+            <button 
+              onClick={() => scrollToSection("como-funciona")}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Como funciona
+            </button>
+            <button 
+              onClick={() => scrollToSection("depoimentos")}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Depoimentos
+            </button>
+            <button 
+              onClick={() => scrollToSection("para-quem")}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Para quem é
+            </button>
+            <button 
+              onClick={() => scrollToSection("faq")}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              FAQ
+            </button>
+          </nav>
+          
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <Button asChild>
+              <a href="/auth">Começar agora</a>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+};
+
 const HeroSection = () => {
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-background via-primary/5 to-accent/10 py-16 md:py-24">
-      <div className="container mx-auto px-4">
+    <section className="relative overflow-hidden bg-gradient-to-br from-background via-primary/5 to-accent/10 dark:from-background dark:via-primary/10 dark:to-accent/5 py-16 md:py-24">
+      {/* Decorative elements for dark mode */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl dark:bg-primary/20" />
+      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl dark:bg-accent/15" />
+      
+      <div className="container mx-auto px-4 relative">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Conteúdo */}
           <div className="space-y-8">
@@ -231,7 +289,7 @@ const HeroSection = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button size="lg" className="text-lg px-8 shadow-lg" asChild>
+              <Button size="lg" className="text-lg px-8 shadow-lg shadow-primary/25" asChild>
                 <a href="/auth">
                   Começar agora
                   <ArrowRight className="ml-2 h-5 w-5" />
@@ -268,13 +326,13 @@ const HeroSection = () => {
           
           {/* Card Mock da Interface */}
           <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-accent/20 blur-3xl opacity-30" />
-            <Card className="relative border-2 shadow-2xl">
+            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-accent/20 blur-3xl opacity-30 dark:opacity-50" />
+            <Card className="relative border-2 shadow-2xl dark:border-border/50 dark:shadow-primary/10">
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="w-3 h-3 rounded-full bg-red-500" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                  <div className="w-3 h-3 rounded-full bg-green-500" />
+                  <div className="w-3 h-3 rounded-full bg-destructive" />
+                  <div className="w-3 h-3 rounded-full bg-amber-500" />
+                  <div className="w-3 h-3 rounded-full bg-emerald-500" />
                   <span className="ml-2 text-sm text-muted-foreground">Prospecção com IA</span>
                 </div>
                 
@@ -284,15 +342,15 @@ const HeroSection = () => {
                     <span className="text-sm font-medium">Buscar leads</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="p-2 bg-background rounded text-sm">🏙️ São Paulo</div>
-                    <div className="p-2 bg-background rounded text-sm">🏢 Restaurantes</div>
+                    <div className="p-2 bg-background rounded border border-border/50 text-sm">🏙️ São Paulo</div>
+                    <div className="p-2 bg-background rounded border border-border/50 text-sm">🏢 Restaurantes</div>
                   </div>
                 </div>
                 
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Leads encontrados</div>
                   {["Restaurante Sabor & Arte", "Bistrô da Vila", "Cantina Italiana"].map((nome, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
+                    <div key={i} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg border border-border/30">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                           <Building2 className="h-4 w-4 text-primary" />
@@ -306,7 +364,7 @@ const HeroSection = () => {
                   ))}
                 </div>
                 
-                <div className="p-3 border border-primary/20 rounded-lg bg-primary/5">
+                <div className="p-3 border border-primary/30 rounded-lg bg-primary/5 dark:bg-primary/10">
                   <div className="flex items-center gap-2 text-sm font-medium text-primary mb-2">
                     <Zap className="h-4 w-4" />
                     Plano de 7 dias gerado!
@@ -349,12 +407,12 @@ const BeneficiosSection = () => {
   ];
 
   return (
-    <section className="py-16 bg-secondary/30">
+    <section className="py-16 bg-secondary/30 dark:bg-secondary/10">
       <div className="container mx-auto px-4">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           {beneficios.map((beneficio, index) => (
-            <div key={index} className="flex items-start gap-4 p-6 bg-background rounded-xl shadow-sm">
-              <div className="p-3 rounded-lg bg-primary/10">
+            <div key={index} className="flex items-start gap-4 p-6 bg-background rounded-xl shadow-sm border border-border/50 dark:border-border/30">
+              <div className="p-3 rounded-lg bg-primary/10 dark:bg-primary/20">
                 <beneficio.icone className="h-6 w-6 text-primary" />
               </div>
               <div>
@@ -410,9 +468,9 @@ const ComoFuncionaSection = () => {
               {index < 2 && (
                 <div className="hidden md:block absolute top-12 left-full w-full h-0.5 bg-gradient-to-r from-primary/50 to-transparent -translate-x-1/2" />
               )}
-              <Card className="text-center p-8 hover:shadow-lg transition-shadow">
-                <div className="text-5xl font-bold text-primary/20 mb-4">{passo.numero}</div>
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
+              <Card className="text-center p-8 hover:shadow-lg hover:shadow-primary/5 transition-all dark:border-border/50">
+                <div className="text-5xl font-bold text-primary/20 dark:text-primary/30 mb-4">{passo.numero}</div>
+                <div className="w-16 h-16 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center mx-auto mb-6">
                   <passo.icone className="h-8 w-8 text-primary" />
                 </div>
                 <h3 className="text-xl font-semibold mb-3">{passo.titulo}</h3>
@@ -445,7 +503,7 @@ const DepoimentosSection = () => {
   );
 
   return (
-    <section className="py-20 bg-secondary/20">
+    <section id="depoimentos" className="py-20 bg-secondary/20 dark:bg-secondary/10">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <Badge variant="outline" className="mb-4">Depoimentos</Badge>
@@ -460,10 +518,10 @@ const DepoimentosSection = () => {
         <div className="relative">
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {visibleDepoimentos.map((depoimento) => (
-              <Card key={depoimento.id} className="p-6 hover:shadow-lg transition-shadow">
+              <Card key={depoimento.id} className="p-6 hover:shadow-lg hover:shadow-primary/5 transition-all dark:border-border/50">
                 <div className="flex items-center gap-1 mb-4">
                   {Array.from({ length: depoimento.estrelas }).map((_, i) => (
-                    <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                    <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
                   ))}
                 </div>
                 <p className="text-muted-foreground mb-6 italic">"{depoimento.texto}"</p>
@@ -554,18 +612,18 @@ const LogosSection = () => {
 
 const VideoCaseSection = () => {
   return (
-    <section className="py-20 bg-secondary/20">
+    <section className="py-20 bg-secondary/20 dark:bg-secondary/10">
       <div className="container mx-auto px-4">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Video Placeholder */}
-          <div className="relative aspect-video bg-gradient-to-br from-primary/10 to-accent/10 rounded-2xl overflow-hidden group cursor-pointer">
+          <div className="relative aspect-video bg-gradient-to-br from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20 rounded-2xl overflow-hidden group cursor-pointer border border-border/30">
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+              <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center shadow-xl shadow-primary/30 group-hover:scale-110 transition-transform">
                 <Play className="h-8 w-8 text-primary-foreground ml-1" />
               </div>
             </div>
             <div className="absolute bottom-4 left-4 right-4">
-              <div className="bg-background/90 backdrop-blur-sm rounded-lg p-4">
+              <div className="bg-background/90 backdrop-blur-sm rounded-lg p-4 border border-border/30">
                 <p className="text-sm font-medium">📹 Veja o case completo em vídeo</p>
               </div>
             </div>
@@ -587,7 +645,7 @@ const VideoCaseSection = () => {
                 "ROI positivo já no primeiro mês",
               ].map((item, index) => (
                 <li key={index} className="flex items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
                   <span>{item}</span>
                 </li>
               ))}
@@ -601,7 +659,7 @@ const VideoCaseSection = () => {
 
 const ParaQuemSection = () => {
   return (
-    <section className="py-20 bg-background">
+    <section id="para-quem" className="py-20 bg-background">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <Badge variant="outline" className="mb-4">Para quem é</Badge>
@@ -615,15 +673,15 @@ const ParaQuemSection = () => {
         
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {PERFIS_ALVO.map((perfil, index) => (
-            <Card key={index} className="p-6 hover:shadow-lg hover:border-primary/50 transition-all">
-              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+            <Card key={index} className="p-6 hover:shadow-lg hover:shadow-primary/5 hover:border-primary/50 transition-all dark:border-border/50">
+              <div className="w-12 h-12 rounded-lg bg-primary/10 dark:bg-primary/20 flex items-center justify-center mb-4">
                 <perfil.icone className="h-6 w-6 text-primary" />
               </div>
               <h3 className="text-xl font-semibold mb-4">{perfil.titulo}</h3>
               <ul className="space-y-3">
                 {perfil.bullets.map((bullet, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
                     <span className="text-muted-foreground">{bullet}</span>
                   </li>
                 ))}
@@ -638,7 +696,7 @@ const ParaQuemSection = () => {
 
 const FAQSection = () => {
   return (
-    <section className="py-20 bg-secondary/20">
+    <section id="faq" className="py-20 bg-secondary/20 dark:bg-secondary/10">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <Badge variant="outline" className="mb-4">Dúvidas frequentes</Badge>
@@ -653,7 +711,7 @@ const FAQSection = () => {
               <AccordionItem
                 key={index}
                 value={`item-${index}`}
-                className="bg-background rounded-lg px-6 border"
+                className="bg-background rounded-lg px-6 border border-border/50 dark:border-border/30"
               >
                 <AccordionTrigger className="text-left font-semibold hover:no-underline">
                   {item.pergunta}
@@ -729,6 +787,7 @@ const Footer = () => {
 export default function LandingProspeccaoIA() {
   return (
     <div className="min-h-screen bg-background">
+      <LPHeader />
       <HeroSection />
       <BeneficiosSection />
       <ComoFuncionaSection />

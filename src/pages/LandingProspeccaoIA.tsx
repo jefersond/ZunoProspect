@@ -1,7 +1,18 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Accordion,
   AccordionContent,
@@ -13,7 +24,6 @@ import {
   Zap,
   Target,
   MessageSquare,
-  Mail,
   Clock,
   Users,
   TrendingUp,
@@ -21,7 +31,6 @@ import {
   Play,
   ArrowRight,
   Star,
-  BarChart3,
   Globe,
   Smartphone,
   ChevronLeft,
@@ -31,8 +40,12 @@ import {
   Palette,
   Code,
   LineChart,
+  CreditCard,
+  QrCode,
+  X,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { toast } from "sonner";
 
 // ============================================
 // MOCK DATA - FÁCIL DE EDITAR
@@ -172,8 +185,8 @@ const PERFIS_ALVO = [
 const PLANOS = [
   {
     nome: "Starter",
-    preco: "Grátis",
-    periodo: "",
+    precoMensal: 0,
+    precoAnual: 0,
     descricao: "Para testar a plataforma",
     destaque: false,
     features: [
@@ -183,11 +196,12 @@ const PLANOS = [
       "Exportação para Excel",
     ],
     cta: "Começar grátis",
+    gratuito: true,
   },
   {
     nome: "Pro",
-    preco: "R$ 97",
-    periodo: "/mês",
+    precoMensal: 97,
+    precoAnual: 970, // ~17% desconto
     descricao: "Para freelancers e profissionais",
     destaque: true,
     features: [
@@ -199,11 +213,12 @@ const PLANOS = [
       "Suporte prioritário",
     ],
     cta: "Assinar Pro",
+    gratuito: false,
   },
   {
     nome: "Agência",
-    preco: "R$ 247",
-    periodo: "/mês",
+    precoMensal: 247,
+    precoAnual: 2470, // ~17% desconto
     descricao: "Para agências e times",
     destaque: false,
     features: [
@@ -215,6 +230,7 @@ const PLANOS = [
       "Gerente de sucesso dedicado",
     ],
     cta: "Falar com vendas",
+    gratuito: false,
   },
 ];
 
@@ -749,7 +765,262 @@ const ParaQuemSection = () => {
   );
 };
 
+// ============================================
+// CHECKOUT DIALOG
+// ============================================
+
+interface CheckoutDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  plano: typeof PLANOS[0] | null;
+  isAnual: boolean;
+}
+
+const CheckoutDialog = ({ open, onOpenChange, plano, isAnual }: CheckoutDialogProps) => {
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [metodoPagamento, setMetodoPagamento] = useState<"pix" | "cartao">("pix");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  if (!plano) return null;
+
+  const preco = isAnual ? plano.precoAnual : plano.precoMensal;
+  const periodo = isAnual ? "/ano" : "/mês";
+  const economia = isAnual ? Math.round((plano.precoMensal * 12 - plano.precoAnual) / (plano.precoMensal * 12) * 100) : 0;
+
+  const formatCPF = (value: string) => {
+    const cleaned = value.replace(/\D/g, "").slice(0, 11);
+    return cleaned
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  };
+
+  const formatCardNumber = (value: string) => {
+    const cleaned = value.replace(/\D/g, "").slice(0, 16);
+    return cleaned.replace(/(\d{4})/g, "$1 ").trim();
+  };
+
+  const formatExpiry = (value: string) => {
+    const cleaned = value.replace(/\D/g, "").slice(0, 4);
+    if (cleaned.length >= 2) {
+      return cleaned.slice(0, 2) + "/" + cleaned.slice(2);
+    }
+    return cleaned;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!nome || !email || !cpf) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+
+    if (metodoPagamento === "cartao" && (!cardNumber || !cardExpiry || !cardCvv)) {
+      toast.error("Preencha todos os dados do cartão");
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    // Simular processamento
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    setIsProcessing(false);
+    onOpenChange(false);
+    
+    toast.success(
+      metodoPagamento === "pix" 
+        ? "QR Code PIX gerado! Verifique seu email." 
+        : "Pagamento processado com sucesso!"
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            Checkout - Plano {plano.nome}
+          </DialogTitle>
+          <DialogDescription>
+            {plano.gratuito 
+              ? "Crie sua conta gratuita" 
+              : `R$ ${preco}${periodo}${isAnual && economia > 0 ? ` (${economia}% de desconto)` : ""}`
+            }
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-6 mt-4">
+          {/* Dados pessoais */}
+          <div className="space-y-4">
+            <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Dados pessoais</h4>
+            
+            <div className="space-y-2">
+              <Label htmlFor="nome">Nome completo *</Label>
+              <Input
+                id="nome"
+                placeholder="Seu nome completo"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">E-mail *</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cpf">CPF *</Label>
+              <Input
+                id="cpf"
+                placeholder="000.000.000-00"
+                value={cpf}
+                onChange={(e) => setCpf(formatCPF(e.target.value))}
+                required
+              />
+            </div>
+          </div>
+
+          {/* Método de pagamento (apenas se não for gratuito) */}
+          {!plano.gratuito && (
+            <div className="space-y-4">
+              <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Forma de pagamento</h4>
+              
+              <RadioGroup 
+                value={metodoPagamento} 
+                onValueChange={(value) => setMetodoPagamento(value as "pix" | "cartao")}
+                className="grid grid-cols-2 gap-4"
+              >
+                <div>
+                  <RadioGroupItem value="pix" id="pix" className="peer sr-only" />
+                  <Label
+                    htmlFor="pix"
+                    className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                  >
+                    <QrCode className="h-6 w-6" />
+                    <span className="font-medium">PIX</span>
+                    <span className="text-xs text-muted-foreground">Aprovação imediata</span>
+                  </Label>
+                </div>
+                
+                <div>
+                  <RadioGroupItem value="cartao" id="cartao" className="peer sr-only" />
+                  <Label
+                    htmlFor="cartao"
+                    className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                  >
+                    <CreditCard className="h-6 w-6" />
+                    <span className="font-medium">Cartão</span>
+                    <span className="text-xs text-muted-foreground">Crédito ou débito</span>
+                  </Label>
+                </div>
+              </RadioGroup>
+
+              {/* Campos do cartão */}
+              {metodoPagamento === "cartao" && (
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="space-y-2">
+                    <Label htmlFor="cardNumber">Número do cartão</Label>
+                    <Input
+                      id="cardNumber"
+                      placeholder="0000 0000 0000 0000"
+                      value={cardNumber}
+                      onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="cardExpiry">Validade</Label>
+                      <Input
+                        id="cardExpiry"
+                        placeholder="MM/AA"
+                        value={cardExpiry}
+                        onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cardCvv">CVV</Label>
+                      <Input
+                        id="cardCvv"
+                        placeholder="123"
+                        maxLength={4}
+                        value={cardCvv}
+                        onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Info PIX */}
+              {metodoPagamento === "pix" && (
+                <div className="p-4 bg-secondary/50 rounded-lg border border-border/50">
+                  <p className="text-sm text-muted-foreground">
+                    Após confirmar, você receberá um QR Code PIX para pagamento. A aprovação é instantânea.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Resumo */}
+          <div className="p-4 bg-secondary/30 rounded-lg border border-border/50">
+            <div className="flex justify-between items-center">
+              <span className="font-medium">Total</span>
+              <span className="text-2xl font-bold">
+                {plano.gratuito ? "Grátis" : `R$ ${preco}`}
+              </span>
+            </div>
+            {isAnual && !plano.gratuito && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                Você economiza R$ {plano.precoMensal * 12 - plano.precoAnual} por ano!
+              </p>
+            )}
+          </div>
+
+          <Button type="submit" className="w-full" size="lg" disabled={isProcessing}>
+            {isProcessing ? (
+              "Processando..."
+            ) : plano.gratuito ? (
+              "Criar conta gratuita"
+            ) : metodoPagamento === "pix" ? (
+              "Gerar QR Code PIX"
+            ) : (
+              "Finalizar pagamento"
+            )}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const PrecosSection = () => {
+  const [isAnual, setIsAnual] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [selectedPlano, setSelectedPlano] = useState<typeof PLANOS[0] | null>(null);
+
+  const handleSelectPlano = (plano: typeof PLANOS[0]) => {
+    setSelectedPlano(plano);
+    setCheckoutOpen(true);
+  };
+
   return (
     <section id="precos" className="py-20 bg-background">
       <div className="container mx-auto px-4">
@@ -758,62 +1029,103 @@ const PrecosSection = () => {
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Escolha o plano ideal para você
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
             Comece grátis e escale conforme sua necessidade. Cancele quando quiser.
           </p>
+
+          {/* Toggle Mensal/Anual */}
+          <div className="flex items-center justify-center gap-4">
+            <span className={`text-sm font-medium ${!isAnual ? "text-foreground" : "text-muted-foreground"}`}>
+              Mensal
+            </span>
+            <Switch
+              checked={isAnual}
+              onCheckedChange={setIsAnual}
+              className="data-[state=checked]:bg-primary"
+            />
+            <span className={`text-sm font-medium ${isAnual ? "text-foreground" : "text-muted-foreground"}`}>
+              Anual
+            </span>
+            {isAnual && (
+              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
+                Economize 17%
+              </Badge>
+            )}
+          </div>
         </div>
         
         <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          {PLANOS.map((plano, index) => (
-            <Card 
-              key={index} 
-              className={`relative p-8 flex flex-col ${
-                plano.destaque 
-                  ? "border-2 border-primary shadow-xl shadow-primary/20 dark:shadow-primary/10 scale-105" 
-                  : "border border-border/50 dark:border-border/30"
-              }`}
-            >
-              {plano.destaque && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                  <Badge className="px-4 py-1 shadow-lg">Mais popular</Badge>
-                </div>
-              )}
-              
-              <div className="text-center mb-6">
-                <h3 className="text-xl font-bold mb-2">{plano.nome}</h3>
-                <p className="text-sm text-muted-foreground mb-4">{plano.descricao}</p>
-                <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-bold">{plano.preco}</span>
-                  {plano.periodo && (
-                    <span className="text-muted-foreground">{plano.periodo}</span>
+          {PLANOS.map((plano, index) => {
+            const preco = isAnual ? plano.precoAnual : plano.precoMensal;
+            const precoMensal = isAnual ? Math.round(plano.precoAnual / 12) : plano.precoMensal;
+            
+            return (
+              <Card 
+                key={index} 
+                className={`relative p-8 flex flex-col ${
+                  plano.destaque 
+                    ? "border-2 border-primary shadow-xl shadow-primary/20 dark:shadow-primary/10 scale-105" 
+                    : "border border-border/50 dark:border-border/30"
+                }`}
+              >
+                {plano.destaque && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                    <Badge className="px-4 py-1 shadow-lg">Mais popular</Badge>
+                  </div>
+                )}
+                
+                <div className="text-center mb-6">
+                  <h3 className="text-xl font-bold mb-2">{plano.nome}</h3>
+                  <p className="text-sm text-muted-foreground mb-4">{plano.descricao}</p>
+                  <div className="flex items-baseline justify-center gap-1">
+                    {plano.gratuito ? (
+                      <span className="text-4xl font-bold">Grátis</span>
+                    ) : (
+                      <>
+                        <span className="text-4xl font-bold">R$ {precoMensal}</span>
+                        <span className="text-muted-foreground">/mês</span>
+                      </>
+                    )}
+                  </div>
+                  {isAnual && !plano.gratuito && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      cobrado R$ {preco} por ano
+                    </p>
                   )}
                 </div>
-              </div>
-              
-              <ul className="space-y-3 mb-8 flex-1">
-                {plano.features.map((feature, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
-                    <span className="text-muted-foreground text-sm">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-              
-              <Button 
-                className="w-full" 
-                variant={plano.destaque ? "default" : "outline"}
-                asChild
-              >
-                <a href="/auth">{plano.cta}</a>
-              </Button>
-            </Card>
-          ))}
+                
+                <ul className="space-y-3 mb-8 flex-1">
+                  {plano.features.map((feature, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                      <span className="text-muted-foreground text-sm">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                
+                <Button 
+                  className="w-full" 
+                  variant={plano.destaque ? "default" : "outline"}
+                  onClick={() => handleSelectPlano(plano)}
+                >
+                  {plano.cta}
+                </Button>
+              </Card>
+            );
+          })}
         </div>
         
         <p className="text-center text-sm text-muted-foreground mt-8">
           Todos os planos incluem atualizações gratuitas e acesso às novas funcionalidades.
         </p>
       </div>
+
+      <CheckoutDialog 
+        open={checkoutOpen} 
+        onOpenChange={setCheckoutOpen} 
+        plano={selectedPlano}
+        isAnual={isAnual}
+      />
     </section>
   );
 };

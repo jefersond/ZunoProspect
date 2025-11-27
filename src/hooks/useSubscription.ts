@@ -7,12 +7,14 @@ interface SubscriptionInfo {
   leads_used: number;
   leads_remaining: number;
   billing_period_end: string;
+  is_admin?: boolean;
 }
 
 interface UseSubscriptionReturn {
   subscription: SubscriptionInfo | null;
   loading: boolean;
   error: string | null;
+  isAdmin: boolean;
   refetch: () => Promise<void>;
   canUseLeads: (count: number) => boolean;
   incrementLeadsUsed: (count: number) => Promise<boolean>;
@@ -24,6 +26,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const fetchSubscription = useCallback(async () => {
     try {
@@ -33,8 +36,15 @@ export const useSubscription = (): UseSubscriptionReturn => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setSubscription(null);
+        setIsAdmin(false);
         return;
       }
+
+      // Verifica se é admin
+      const { data: adminCheck } = await supabase
+        .rpc('is_admin', { _user_id: user.id });
+      
+      setIsAdmin(adminCheck === true);
 
       // Usa a função RPC para obter info da assinatura
       const { data, error: fetchError } = await supabase
@@ -57,6 +67,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
             leads_used: 0,
             leads_remaining: 10,
             billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            is_admin: adminCheck === true,
           });
           return;
         }
@@ -64,7 +75,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
       }
 
       if (data && data.length > 0) {
-        setSubscription(data[0]);
+        setSubscription({ ...data[0], is_admin: adminCheck === true });
       } else {
         // Cria assinatura padrão se não existir
         const { error: insertError } = await supabase
@@ -81,6 +92,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
           leads_used: 0,
           leads_remaining: 10,
           billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          is_admin: adminCheck === true,
         });
       }
     } catch (err: any) {
@@ -96,10 +108,11 @@ export const useSubscription = (): UseSubscriptionReturn => {
   }, [fetchSubscription]);
 
   const canUseLeads = useCallback((count: number): boolean => {
+    if (isAdmin) return true; // Admin tem acesso ilimitado
     if (!subscription) return false;
     if (subscription.leads_limit === -1) return true; // Ilimitado
     return subscription.leads_remaining >= count;
-  }, [subscription]);
+  }, [subscription, isAdmin]);
 
   const incrementLeadsUsed = useCallback(async (count: number): Promise<boolean> => {
     try {
@@ -125,25 +138,28 @@ export const useSubscription = (): UseSubscriptionReturn => {
 
   const getPlanDisplayName = useCallback((): string => {
     if (!subscription) return "Carregando...";
+    if (isAdmin) return "Admin (Ilimitado)";
     const names: Record<string, string> = {
       starter: "Starter (Gratuito)",
       pro: "Pro",
       agencia: "Agência",
     };
     return names[subscription.plan_name] || subscription.plan_name;
-  }, [subscription]);
+  }, [subscription, isAdmin]);
 
   const getUsagePercentage = useCallback((): number => {
+    if (isAdmin) return 0; // Admin não tem limite
     if (!subscription) return 0;
     if (subscription.leads_limit === -1) return 0; // Ilimitado
     if (subscription.leads_limit === 0) return 100;
     return Math.round((subscription.leads_used / subscription.leads_limit) * 100);
-  }, [subscription]);
+  }, [subscription, isAdmin]);
 
   return {
     subscription,
     loading,
     error,
+    isAdmin,
     refetch: fetchSubscription,
     canUseLeads,
     incrementLeadsUsed,

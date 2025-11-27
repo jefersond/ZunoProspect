@@ -262,6 +262,7 @@ serve(async (req) => {
           }
           
           // Insere no banco (ou atualiza se já existe)
+          // IMPORTANTE: Limpa os campos de análise IA para forçar regeneração quando o foco muda
           const { error: insertError } = await supabaseClient.from("leads").upsert(
             {
               nome: details.name,
@@ -287,6 +288,11 @@ serve(async (req) => {
               has_gtm: siteSignals.has_gtm,
               instagram_url: siteSignals.instagram_url,
               digital_signals: siteSignals,
+              // Limpa análise IA anterior para forçar regeneração com novo foco
+              diagnostico_bullets: null,
+              probabilidade_conversao: null,
+              plano_prospeccao: null,
+              ai_analise_gerada_em: null,
             },
             { onConflict: "google_place_id" }
           );

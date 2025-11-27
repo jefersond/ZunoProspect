@@ -6,13 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown } from "lucide-react";
+import { useSubscription } from "@/hooks/useSubscription";
+import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
+import { UsageIndicator } from "@/components/subscription/UsageIndicator";
 
 const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { subscription, loading: subscriptionLoading, getPlanDisplayName } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
@@ -235,20 +238,41 @@ const Profile = () => {
               Seu Plano
             </CardTitle>
             <CardDescription>
-              Faça upgrade para desbloquear mais recursos
+              Gerencie sua assinatura e veja seu uso
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
+            {/* Info do plano */}
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Plano atual</p>
-                <p className="text-lg font-semibold">Starter (Gratuito)</p>
+                <p className="text-lg font-semibold flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-primary" />
+                  {subscriptionLoading ? "Carregando..." : getPlanDisplayName()}
+                </p>
               </div>
-              <Button onClick={() => setUpgradeDialogOpen(true)} className="gap-2">
-                <Crown className="h-4 w-4" />
-                Fazer Upgrade
-              </Button>
+              {subscription?.plan_name !== 'agencia' && (
+                <Button onClick={() => setUpgradeDialogOpen(true)} className="gap-2">
+                  <Crown className="h-4 w-4" />
+                  Fazer Upgrade
+                </Button>
+              )}
             </div>
+
+            {/* Indicador de uso */}
+            <div className="pt-4 border-t">
+              <UsageIndicator />
+            </div>
+
+            {/* Período de renovação */}
+            {subscription && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground pt-4 border-t">
+                <Calendar className="h-4 w-4" />
+                <span>
+                  Renova em {new Date(subscription.billing_period_end).toLocaleDateString('pt-BR')}
+                </span>
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>

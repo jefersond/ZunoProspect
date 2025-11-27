@@ -301,12 +301,65 @@ export type Database = {
         }
         Relationships: []
       }
+      user_subscriptions: {
+        Row: {
+          billing_period_end: string
+          billing_period_start: string
+          created_at: string
+          id: string
+          is_annual: boolean
+          leads_limit: number
+          leads_used_this_month: number
+          plan_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          billing_period_end?: string
+          billing_period_start?: string
+          created_at?: string
+          id?: string
+          is_annual?: boolean
+          leads_limit?: number
+          leads_used_this_month?: number
+          plan_name?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          billing_period_end?: string
+          billing_period_start?: string
+          created_at?: string
+          id?: string
+          is_annual?: boolean
+          leads_limit?: number
+          leads_used_this_month?: number
+          plan_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_subscription_info: {
+        Args: { p_user_id: string }
+        Returns: {
+          billing_period_end: string
+          leads_limit: number
+          leads_remaining: number
+          leads_used: number
+          plan_name: string
+        }[]
+      }
+      increment_leads_used: {
+        Args: { p_count: number; p_user_id: string }
+        Returns: boolean
+      }
+      reset_monthly_leads_count: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

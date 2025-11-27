@@ -12,8 +12,10 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Search, Mail, MessageCircle, Instagram } from "lucide-react";
+import { useSubscription } from "@/hooks/useSubscription";
+import { Loader2, Search, Mail, MessageCircle, Instagram, AlertTriangle } from "lucide-react";
 import { SearchProgress } from "./SearchProgress";
+import { UsageIndicator } from "@/components/subscription/UsageIndicator";
 
 const formSchema = z.object({
   cidade: z.string().min(1, "Cidade é obrigatória"),
@@ -29,6 +31,7 @@ type FormData = z.infer<typeof formSchema>;
 
 export const ProspeccaoForm = () => {
   const { toast } = useToast();
+  const { subscription, canUseLeads, incrementLeadsUsed, refetch } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [proximidadeAtiva, setProximidadeAtiva] = useState(false);
   const [raioKm, setRaioKm] = useState([5]);
@@ -53,8 +56,23 @@ export const ProspeccaoForm = () => {
 
   const foco = watch("foco");
   const canaisProspeccao = watch("canaisProspeccao");
+  const quantidade = watch("quantidade");
+
+  // Verifica se pode buscar leads
+  const canSearch = canUseLeads(quantidade || 0);
+  const isAtLimit = subscription && subscription.leads_limit !== -1 && subscription.leads_remaining <= 0;
 
   const onSubmit = async (data: FormData) => {
+    // Verifica limite antes de buscar
+    if (!canUseLeads(data.quantidade)) {
+      toast({
+        variant: "destructive",
+        title: "Limite de leads atingido",
+        description: `Você só pode buscar mais ${subscription?.leads_remaining || 0} leads este mês. Faça upgrade do seu plano para continuar.`,
+      });
+      return;
+    }
+
     setLoading(true);
     setCurrentStep(1);
     setProgressMessage("Iniciando busca...");
@@ -109,6 +127,12 @@ export const ProspeccaoForm = () => {
       setProgressMessage("Busca concluída!");
 
       const leadsCount = responseData?.leadsCount || 0;
+
+      // Incrementa o contador de leads usados
+      if (leadsCount > 0) {
+        await incrementLeadsUsed(leadsCount);
+        refetch(); // Atualiza os dados da assinatura
+      }
 
       toast({
         title: "Busca concluída!",
@@ -171,15 +195,32 @@ export const ProspeccaoForm = () => {
   return (
     <Card className="shadow-lg border-primary/10">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Search className="h-5 w-5 text-primary" />
-          Buscar Leads
-        </CardTitle>
-        <CardDescription>
-          Encontre empresas potenciais para sua prospecção
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Search className="h-5 w-5 text-primary" />
+              Buscar Leads
+            </CardTitle>
+            <CardDescription>
+              Encontre empresas potenciais para sua prospecção
+            </CardDescription>
+          </div>
+          <UsageIndicator compact />
+        </div>
       </CardHeader>
       <CardContent>
+        {/* Aviso de limite */}
+        {isAtLimit && (
+          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-destructive">Limite de leads atingido</p>
+              <p className="text-sm text-muted-foreground">
+                Você usou todos os seus {subscription?.leads_limit} leads este mês. Faça upgrade do seu plano para continuar prospectando.
+              </p>
+            </div>
+          </div>
+        )}
         {loading && currentStep > 0 && (
           <div className="mb-6">
             <SearchProgress

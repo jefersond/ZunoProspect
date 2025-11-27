@@ -115,13 +115,13 @@ export const ProspeccaoForm = () => {
         description: `${leadsCount} leads encontrados`,
       });
 
-      // Salva a busca no histórico
+      // Salva a busca no histórico (apenas se houver leads com ID válido)
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+        const firstLeadId = responseData?.leads?.[0]?.id;
+        if (user && firstLeadId) {
           await supabase.from("interacoes").insert({
             user_id: user.id,
-            lead_id: responseData?.leads?.[0]?.id || "00000000-0000-0000-0000-000000000000", // Lead genérico para buscas
+            lead_id: firstLeadId,
             tipo: "busca",
             conteudo: `Busca em ${data.cidade} - ${data.nicho} (${data.foco}) - ${leadsCount} leads encontrados`,
             data_interacao: new Date().toISOString(),

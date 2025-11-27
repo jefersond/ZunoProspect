@@ -7,15 +7,16 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
-import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar } from "lucide-react";
+import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar, Shield } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
+import { Badge } from "@/components/ui/badge";
 
 const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { subscription, loading: subscriptionLoading, getPlanDisplayName } = useSubscription();
+  const { subscription, loading: subscriptionLoading, isAdmin, getPlanDisplayName } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
@@ -246,12 +247,21 @@ const Profile = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Plano atual</p>
-                <p className="text-lg font-semibold flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-primary" />
-                  {subscriptionLoading ? "Carregando..." : getPlanDisplayName()}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-lg font-semibold flex items-center gap-2">
+                    {isAdmin ? (
+                      <Shield className="h-4 w-4 text-amber-500" />
+                    ) : (
+                      <Zap className="h-4 w-4 text-primary" />
+                    )}
+                    {subscriptionLoading ? "Carregando..." : getPlanDisplayName()}
+                  </p>
+                  {isAdmin && (
+                    <Badge className="bg-amber-500 hover:bg-amber-600">Admin</Badge>
+                  )}
+                </div>
               </div>
-              {subscription?.plan_name !== 'agencia' && (
+              {!isAdmin && subscription?.plan_name !== 'agencia' && (
                 <Button onClick={() => setUpgradeDialogOpen(true)} className="gap-2">
                   <Crown className="h-4 w-4" />
                   Fazer Upgrade

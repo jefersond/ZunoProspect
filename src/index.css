@@ -8,25 +8,25 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 0%;
-    --foreground: 0 0% 100%;
+    --background: 0 0% 100%;
+    --foreground: 220 13% 18%;
 
-    --card: 0 0% 5%;
-    --card-foreground: 0 0% 100%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 13% 18%;
 
-    --popover: 0 0% 5%;
-    --popover-foreground: 0 0% 100%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 18%;
 
     /* Azul profissional corporativo */
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secundário escuro */
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 0 0% 100%;
+    /* Azul secundário mais suave */
+    --secondary: 217 20% 95%;
+    --secondary-foreground: 217 91% 40%;
 
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 65%;
+    --muted: 220 13% 96%;
+    --muted-foreground: 220 9% 46%;
 
     /* Accent roxo/azul */
     --accent: 250 84% 54%;
@@ -39,37 +39,37 @@ All colors MUST be HSL.
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
     --ring: 217 91% 60%;
 
     --radius: 0.75rem;
     
     /* Gradientes */
     --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(250 84% 54%));
-    --gradient-subtle: linear-gradient(180deg, hsl(0 0% 0%), hsl(0 0% 5%));
+    --gradient-subtle: linear-gradient(180deg, hsl(0 0% 100%), hsl(217 20% 98%));
     
     /* Sombras */
-    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
-    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.4);
-    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.5);
+    --shadow-sm: 0 1px 2px 0 hsl(220 13% 18% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(220 13% 18% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(220 13% 18% / 0.1);
     --shadow-primary: 0 8px 20px -4px hsl(217 91% 60% / 0.3);
 
-    --sidebar-background: 0 0% 5%;
+    --sidebar-background: 0 0% 98%;
 
-    --sidebar-foreground: 0 0% 100%;
+    --sidebar-foreground: 240 5.3% 26.1%;
 
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary: 240 5.9% 10%;
 
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary-foreground: 0 0% 98%;
 
-    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent: 240 4.8% 95.9%;
 
-    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
 
-    --sidebar-border: 0 0% 20%;
+    --sidebar-border: 220 13% 91%;
 
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {

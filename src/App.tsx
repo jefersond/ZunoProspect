@@ -13,8 +13,11 @@ import Historico from "./pages/Historico";
 import LeadsSalvos from "./pages/LeadsSalvos";
 import LandingProspeccaoIA from "./pages/LandingProspeccaoIA";
 import NotFound from "./pages/NotFound";
+
 const queryClient = new QueryClient();
-const App = () => <QueryClientProvider client={queryClient}>
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
     <ThemeProvider defaultTheme="light" storageKey="prospeccao-theme">
       <TooltipProvider>
         <Toaster />
@@ -36,5 +39,7 @@ const App = () => <QueryClientProvider client={queryClient}>
         </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>
-  </QueryClientProvider>;
+  </QueryClientProvider>
+);
+
 export default App;

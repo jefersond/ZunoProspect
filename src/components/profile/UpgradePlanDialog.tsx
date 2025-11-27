@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,13 @@ import {
 } from "@/components/ui/dialog";
 import { CheckCircle2, CreditCard, QrCode, Crown, Zap } from "lucide-react";
 import { toast } from "sonner";
+
+// Limites de leads por plano
+const PLAN_LIMITS: Record<string, number> = {
+  starter: 10,
+  pro: 100,
+  agencia: -1, // Ilimitado
+};
 
 // Planos disponíveis para upgrade
 const PLANOS = [
@@ -115,19 +123,53 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
 
     setIsProcessing(true);
     
-    // Simula processamento
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    setIsProcessing(false);
-    onOpenChange(false);
-    setShowCheckout(false);
-    setSelectedPlano(null);
-    
-    toast.success(`Upgrade para ${selectedPlano?.nome} realizado!`, {
-      description: metodoPagamento === "pix" 
-        ? "Você receberá o QR Code PIX por e-mail." 
-        : "Pagamento processado com sucesso!",
-    });
+    try {
+      // Simula processamento de pagamento
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Obtém o usuário atual
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Usuário não autenticado");
+      }
+
+      // Atualiza a assinatura no banco
+      const planName = selectedPlano?.nome.toLowerCase() === 'agência' ? 'agencia' : selectedPlano?.nome.toLowerCase();
+      const leadsLimit = PLAN_LIMITS[planName || 'starter'] || 10;
+
+      const { error: updateError } = await supabase
+        .from('user_subscriptions')
+        .update({
+          plan_name: planName,
+          leads_limit: leadsLimit,
+          is_annual: isAnual,
+          billing_period_start: new Date().toISOString(),
+          billing_period_end: new Date(Date.now() + (isAnual ? 365 : 30) * 24 * 60 * 60 * 1000).toISOString(),
+        })
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      setIsProcessing(false);
+      onOpenChange(false);
+      setShowCheckout(false);
+      setSelectedPlano(null);
+      
+      toast.success(`Upgrade para ${selectedPlano?.nome} realizado!`, {
+        description: metodoPagamento === "pix" 
+          ? "Você receberá o QR Code PIX por e-mail." 
+          : "Pagamento processado com sucesso!",
+      });
+
+      // Recarrega a página para atualizar os dados
+      window.location.reload();
+    } catch (error: any) {
+      console.error("Erro ao processar upgrade:", error);
+      toast.error("Erro ao processar upgrade", {
+        description: error.message,
+      });
+      setIsProcessing(false);
+    }
   };
 
   const handleClose = () => {

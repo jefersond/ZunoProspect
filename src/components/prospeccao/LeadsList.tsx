@@ -63,9 +63,12 @@ export const LeadsList = () => {
 
   const loadLeads = async () => {
     try {
+      // Carrega apenas leads NÃO salvos (da busca atual)
+      // Leads salvos ficam na página de Leads Salvos
       const { data, error } = await supabase
         .from("leads")
         .select("*")
+        .eq("salvo", false)
         .order("created_at", { ascending: false });
 
       if (error) throw error;

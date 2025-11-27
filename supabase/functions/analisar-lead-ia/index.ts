@@ -531,15 +531,93 @@ ${getFocoGuidance(lead.foco)}
 
 function getFocoGuidance(foco: string): string {
   const guidance: Record<string, string> = {
-    "Full Service":
-      "Enfatize gestão completa, economia de tempo, resultados integrados, parceria estratégica",
-    Tráfego: "Enfatize ROI, leads qualificados, escala, otimização de campanhas, mídia paga",
-    Automação: "Enfatize redução de tarefas manuais, funis automatizados, nutrição de leads, eficiência",
-    Design: "Enfatize identidade visual, conversão, experiência do usuário, modernização de marca",
-    Social: "Enfatize engajamento, crescimento orgânico, conteúdo relevante, comunidade",
-    SEO: "Enfatize tráfego orgânico, ranking Google, autoridade, conteúdo evergreen, leads gratuitos",
-    "Sites/Landing": "Enfatize conversão, velocidade, responsividade, design moderno, performance",
-    CRM: "Enfatize organização de leads, funil de vendas, métricas, produtividade do time comercial",
+    "Full Service": `
+🎯 FOCO PRINCIPAL: Gestão Completa de Marketing Digital
+📌 MENSAGENS DEVEM FALAR SOBRE:
+- Economia de tempo e energia do empresário (não precisa se preocupar com nada)
+- Integração de todos os canais e estratégias em um só lugar
+- Parceria estratégica de longo prazo com resultados consistentes
+- Relatórios consolidados e acompanhamento próximo
+- ROI total do marketing, não fragmentado
+📊 MÉTRICAS PARA CITAR: custo por lead total, ROAS geral, leads qualificados/mês, engajamento global
+❌ NÃO FALE sobre serviços isolados ou especializados demais`,
+
+    "Tráfego": `
+🎯 FOCO PRINCIPAL: Tráfego Pago (Meta Ads, Google Ads)
+📌 MENSAGENS DEVEM FALAR SOBRE:
+- Geração de leads qualificados através de anúncios
+- Otimização de campanhas para reduzir custo por lead
+- Escala de investimento com ROI previsível
+- Segmentação de público-alvo certeira
+- Testes A/B e otimização contínua
+📊 MÉTRICAS PARA CITAR: CPL (custo por lead), ROAS, CTR, taxa de conversão de anúncios, leads/mês
+❌ NÃO FALE sobre SEO, conteúdo orgânico ou gestão de redes sociais`,
+
+    "Automação": `
+🎯 FOCO PRINCIPAL: Automação de Marketing e Vendas
+📌 MENSAGENS DEVEM FALAR SOBRE:
+- Funis de vendas automatizados que funcionam 24/7
+- Nutrição automática de leads (email marketing, WhatsApp)
+- Integrações entre CRM, email e ferramentas de vendas
+- Redução de trabalho manual da equipe comercial
+- Follow-up automático sem perder nenhum lead
+📊 MÉTRICAS PARA CITAR: tempo economizado/semana, leads nutridos automaticamente, conversão de funil, resposta automática
+❌ NÃO FALE sobre criação de conteúdo, design ou tráfego pago`,
+
+    "Design": `
+🎯 FOCO PRINCIPAL: Design e Identidade Visual
+📌 MENSAGENS DEVEM FALAR SOBRE:
+- Modernização da identidade visual da marca
+- Design de materiais que convertem (social media, anúncios)
+- Consistência visual em todos os canais
+- Experiência do usuário (UX) que gera confiança
+- Diferenciação visual da concorrência
+📊 MÉTRICAS PARA CITAR: taxa de conversão visual, engajamento de posts com novo design, percepção de marca
+❌ NÃO FALE sobre tráfego pago, SEO ou automação`,
+
+    "Social": `
+🎯 FOCO PRINCIPAL: Gestão de Redes Sociais (Instagram, LinkedIn, etc.)
+📌 MENSAGENS DEVEM FALAR SOBRE:
+- Crescimento orgânico de seguidores qualificados
+- Calendário de conteúdo estratégico
+- Engajamento real com a comunidade
+- Posicionamento de marca nas redes
+- Stories, Reels e conteúdos que viralizam
+📊 MÉTRICAS PARA CITAR: crescimento de seguidores, taxa de engajamento, alcance orgânico, DMs recebidas/mês
+❌ NÃO FALE sobre tráfego pago, SEO técnico ou automação complexa`,
+
+    "SEO": `
+🎯 FOCO PRINCIPAL: SEO e Tráfego Orgânico do Google
+📌 MENSAGENS DEVEM FALAR SOBRE:
+- Rankear no Google para palavras-chave do negócio
+- Tráfego orgânico gratuito e qualificado
+- Conteúdo otimizado que atrai clientes
+- Autoridade de domínio e backlinks
+- Resultados sustentáveis de longo prazo
+📊 MÉTRICAS PARA CITAR: posição no Google, tráfego orgânico/mês, keywords rankeando, leads orgânicos
+❌ NÃO FALE sobre anúncios pagos ou gestão de redes sociais`,
+
+    "Sites/Landing": `
+🎯 FOCO PRINCIPAL: Criação de Sites e Landing Pages de Alta Conversão
+📌 MENSAGENS DEVEM FALAR SOBRE:
+- Sites que convertem visitantes em leads/clientes
+- Landing pages otimizadas para campanhas
+- Design responsivo e rápido
+- Integração com ferramentas de marketing
+- Experiência do usuário focada em conversão
+📊 MÉTRICAS PARA CITAR: taxa de conversão da página, tempo de carregamento, bounce rate, leads capturados
+❌ NÃO FALE sobre gestão de campanhas ou conteúdo de redes`,
+
+    "CRM": `
+🎯 FOCO PRINCIPAL: Implementação e Gestão de CRM
+📌 MENSAGENS DEVEM FALAR SOBRE:
+- Organização completa do funil de vendas
+- Visibilidade de todos os leads e oportunidades
+- Produtividade do time comercial
+- Relatórios de vendas e previsibilidade
+- Integração CRM com outros canais
+📊 MÉTRICAS PARA CITAR: leads no pipeline, taxa de conversão do funil, tempo de fechamento, produtividade/vendedor
+❌ NÃO FALE sobre marketing digital, conteúdo ou tráfego`,
   };
   return guidance[foco] || "Enfatize resultados, ROI e transformação do negócio";
 }

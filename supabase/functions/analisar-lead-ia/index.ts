@@ -271,9 +271,9 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
 
     console.log("Enviando requisição para OpenAI...");
 
-    // Adiciona timeout de 30 segundos
+    // Aumenta timeout para 60 segundos (prompts complexos podem demorar)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -352,7 +352,7 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
     } catch (fetchError: any) {
       clearTimeout(timeoutId);
       if (fetchError.name === 'AbortError') {
-        throw new Error("Timeout: OpenAI demorou mais de 30 segundos para responder");
+        throw new Error("Timeout: OpenAI demorou mais de 60 segundos para responder. Tente novamente.");
       }
       throw fetchError;
     }

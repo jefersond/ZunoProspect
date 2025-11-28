@@ -63,11 +63,9 @@ export const LeadsList = () => {
 
   const loadLeads = async () => {
     try {
-      // Carrega apenas leads NÃO salvos (da busca atual)
-      // Leads salvos ficam na página de Leads Salvos
+      // Usa função RPC para obter dados descriptografados
       const { data, error } = await supabase
-        .from("leads")
-        .select("*")
+        .rpc("get_leads_decrypted")
         .eq("salvo", false)
         .order("created_at", { ascending: false });
 

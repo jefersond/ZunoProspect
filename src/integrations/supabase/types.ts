@@ -386,6 +386,45 @@ export type Database = {
     Functions: {
       decrypt_sensitive: { Args: { encrypted_data: string }; Returns: string }
       encrypt_sensitive: { Args: { plain_text: string }; Returns: string }
+      get_leads_decrypted: {
+        Args: never
+        Returns: {
+          ai_analise_gerada_em: string
+          cidade: string
+          created_at: string
+          diagnostico_bullets: Json
+          digital_signals: Json
+          email: string
+          endereco: string
+          foco: string
+          google_place_id: string
+          has_gtag: boolean
+          has_gtm: boolean
+          has_meta_pixel: boolean
+          id: string
+          instagram_context: string
+          instagram_url: string
+          latitude: number
+          longitude: number
+          nicho: string
+          nome: string
+          notas: string
+          plano_prospeccao: Json
+          probabilidade_conversao: number
+          proximidade_ativa: boolean
+          raio_km: number
+          rating: number
+          salvo: boolean
+          status: string
+          telefone: string
+          total_reviews: number
+          updated_at: string
+          user_id: string
+          website: string
+          whatsapp_number: string
+          whatsapp_on_site: boolean
+        }[]
+      }
       get_subscription_info: {
         Args: { p_user_id: string }
         Returns: {
@@ -406,6 +445,33 @@ export type Database = {
       increment_leads_used: {
         Args: { p_count: number; p_user_id: string }
         Returns: boolean
+      }
+      insert_lead_with_encryption: {
+        Args: {
+          p_cidade: string
+          p_digital_signals: Json
+          p_endereco: string
+          p_foco: string
+          p_google_place_id: string
+          p_has_gtag: boolean
+          p_has_gtm: boolean
+          p_has_meta_pixel: boolean
+          p_instagram_url: string
+          p_latitude: number
+          p_longitude: number
+          p_nicho: string
+          p_nome: string
+          p_proximidade_ativa: boolean
+          p_raio_km: number
+          p_rating: number
+          p_telefone: string
+          p_total_reviews: number
+          p_user_id: string
+          p_website: string
+          p_whatsapp_number: string
+          p_whatsapp_on_site: boolean
+        }
+        Returns: string
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       reset_monthly_leads_count: { Args: never; Returns: undefined }

@@ -280,7 +280,7 @@ const LPHeader = () => {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-2">
             <Target className="h-7 w-7 text-primary" />
-            <span className="font-bold text-lg">Prospecção IA</span>
+            <span className="font-bold text-lg">Zuno Propect</span>
           </div>
           
           <nav className="hidden md:flex items-center gap-6">

@@ -8,6 +8,7 @@ const corsHeaders = {
 
 interface ProspeccaoRequest {
   cidade: string;
+  estado: string;
   nicho: string;
   quantidade: number;
   foco: string;
@@ -79,9 +80,9 @@ serve(async (req) => {
         // Busca por proximidade (Nearby Search)
         console.log("Buscando por proximidade (Nearby Search)...");
 
-        // Geocodifica a cidade para obter lat/lng do centro
+        // Geocodifica a cidade + estado para obter lat/lng do centro
         const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-          body.cidade
+          `${body.cidade}, ${body.estado}, Brasil`
         )}&key=${GOOGLE_API_KEY}`;
 
         const geocodeResponse = await fetch(geocodeUrl);
@@ -114,7 +115,7 @@ serve(async (req) => {
         console.log("Buscando por texto (Text Search)...");
 
         const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
-          `${body.nicho} ${body.cidade}`
+          `${body.nicho} ${body.cidade} ${body.estado}`
         )}&key=${GOOGLE_API_KEY}`;
 
         const textResponse = await fetch(textSearchUrl);

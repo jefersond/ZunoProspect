@@ -6,13 +6,15 @@ import { ProspeccaoForm } from "@/components/prospeccao/ProspeccaoForm";
 import { LeadsList } from "@/components/prospeccao/LeadsList";
 import { LogOut, Search, User, BarChart3, FileText, History, Bookmark } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-
 const Prospeccao = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
-
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(({
+      data: {
+        user
+      }
+    }) => {
       if (!user) {
         navigate("/auth");
       } else {
@@ -20,16 +22,12 @@ const Prospeccao = () => {
       }
     });
   }, [navigate]);
-
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/auth");
   };
-
   if (!user) return null;
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/10 to-primary/5">
+  return <div className="min-h-screen bg-gradient-to-br from-background via-secondary/10 to-primary/5">
       <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between gap-4">
@@ -38,9 +36,7 @@ const Prospeccao = () => {
               <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
                 <Search className="h-5 w-5 text-primary" />
               </div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-primary via-primary to-accent bg-clip-text text-transparent">
-                Prospecção B2B
-              </h1>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-primary via-primary to-accent bg-clip-text text-transparent">Zuno Propect </h1>
             </div>
 
             {/* Navegação e Ações */}
@@ -86,8 +82,6 @@ const Prospeccao = () => {
         <ProspeccaoForm />
         <LeadsList />
       </main>
-    </div>
-  );
+    </div>;
 };
-
 export default Prospeccao;

@@ -64,10 +64,9 @@ export const LeadsList = () => {
   const loadLeads = async () => {
     try {
       // Usa função RPC para obter dados descriptografados
+      // p_salvo = false para buscar apenas leads não salvos
       const { data, error } = await supabase
-        .rpc("get_leads_decrypted")
-        .eq("salvo", false)
-        .order("created_at", { ascending: false });
+        .rpc("get_leads_decrypted_filtered", { p_salvo: false });
 
       if (error) throw error;
       

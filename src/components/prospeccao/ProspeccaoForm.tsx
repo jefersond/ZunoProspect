@@ -19,6 +19,7 @@ import { UsageIndicator } from "@/components/subscription/UsageIndicator";
 
 const formSchema = z.object({
   cidade: z.string().min(1, "Cidade é obrigatória"),
+  estado: z.string().min(2, "Estado é obrigatório").max(2, "Use a sigla do estado (ex: SP)"),
   nicho: z.string().min(1, "Nicho é obrigatório"),
   quantidade: z.number().min(1).max(100),
   foco: z.string().min(1, "Foco é obrigatório"),
@@ -110,6 +111,7 @@ export const ProspeccaoForm = () => {
       const { data: responseData, error } = await supabase.functions.invoke("buscar-leads", {
         body: {
           cidade: data.cidade,
+          estado: data.estado,
           nicho: data.nicho,
           quantidade: data.quantidade,
           foco: data.foco,
@@ -232,7 +234,7 @@ export const ProspeccaoForm = () => {
         )}
         
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="cidade">Cidade</Label>
               <Input
@@ -242,6 +244,20 @@ export const ProspeccaoForm = () => {
               />
               {errors.cidade && (
                 <p className="text-sm text-destructive">{errors.cidade.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="estado">Estado</Label>
+              <Input
+                id="estado"
+                placeholder="Ex: SP"
+                maxLength={2}
+                className="uppercase"
+                {...register("estado")}
+              />
+              {errors.estado && (
+                <p className="text-sm text-destructive">{errors.estado.message}</p>
               )}
             </div>
 

@@ -96,7 +96,9 @@ export type Database = {
           diagnostico_bullets: Json | null
           digital_signals: Json | null
           email: string | null
+          email_encrypted: string | null
           endereco: string | null
+          endereco_encrypted: string | null
           foco: string
           google_place_id: string | null
           has_gtag: boolean | null
@@ -105,6 +107,7 @@ export type Database = {
           id: string
           instagram_context: string | null
           instagram_url: string | null
+          instagram_url_encrypted: string | null
           latitude: number | null
           longitude: number | null
           nicho: string
@@ -118,11 +121,14 @@ export type Database = {
           salvo: boolean | null
           status: string | null
           telefone: string | null
+          telefone_encrypted: string | null
           total_reviews: number | null
           updated_at: string
           user_id: string
           website: string | null
+          website_encrypted: string | null
           whatsapp_number: string | null
+          whatsapp_number_encrypted: string | null
           whatsapp_on_site: boolean | null
         }
         Insert: {
@@ -132,7 +138,9 @@ export type Database = {
           diagnostico_bullets?: Json | null
           digital_signals?: Json | null
           email?: string | null
+          email_encrypted?: string | null
           endereco?: string | null
+          endereco_encrypted?: string | null
           foco: string
           google_place_id?: string | null
           has_gtag?: boolean | null
@@ -141,6 +149,7 @@ export type Database = {
           id?: string
           instagram_context?: string | null
           instagram_url?: string | null
+          instagram_url_encrypted?: string | null
           latitude?: number | null
           longitude?: number | null
           nicho: string
@@ -154,11 +163,14 @@ export type Database = {
           salvo?: boolean | null
           status?: string | null
           telefone?: string | null
+          telefone_encrypted?: string | null
           total_reviews?: number | null
           updated_at?: string
           user_id: string
           website?: string | null
+          website_encrypted?: string | null
           whatsapp_number?: string | null
+          whatsapp_number_encrypted?: string | null
           whatsapp_on_site?: boolean | null
         }
         Update: {
@@ -168,7 +180,9 @@ export type Database = {
           diagnostico_bullets?: Json | null
           digital_signals?: Json | null
           email?: string | null
+          email_encrypted?: string | null
           endereco?: string | null
+          endereco_encrypted?: string | null
           foco?: string
           google_place_id?: string | null
           has_gtag?: boolean | null
@@ -177,6 +191,7 @@ export type Database = {
           id?: string
           instagram_context?: string | null
           instagram_url?: string | null
+          instagram_url_encrypted?: string | null
           latitude?: number | null
           longitude?: number | null
           nicho?: string
@@ -190,11 +205,14 @@ export type Database = {
           salvo?: boolean | null
           status?: string | null
           telefone?: string | null
+          telefone_encrypted?: string | null
           total_reviews?: number | null
           updated_at?: string
           user_id?: string
           website?: string | null
+          website_encrypted?: string | null
           whatsapp_number?: string | null
+          whatsapp_number_encrypted?: string | null
           whatsapp_on_site?: boolean | null
         }
         Relationships: []
@@ -366,6 +384,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      decrypt_sensitive: { Args: { encrypted_data: string }; Returns: string }
+      encrypt_sensitive: { Args: { plain_text: string }; Returns: string }
       get_subscription_info: {
         Args: { p_user_id: string }
         Returns: {

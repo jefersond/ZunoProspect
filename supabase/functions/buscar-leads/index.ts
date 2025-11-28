@@ -261,41 +261,32 @@ serve(async (req) => {
             return null;
           }
           
-          // Insere no banco (ou atualiza se já existe)
-          // IMPORTANTE: Limpa os campos de análise IA para forçar regeneração quando o foco muda
-          const { error: insertError } = await supabaseClient.from("leads").upsert(
-            {
-              nome: details.name,
-              endereco: details.formatted_address,
-              telefone: details.formatted_phone_number || null,
-              website: details.website || null,
-              google_place_id: place.place_id,
-              rating: details.rating || null,
-              total_reviews: details.user_ratings_total || 0,
-              cidade: body.cidade,
-              latitude: details.geometry?.location?.lat || null,
-              longitude: details.geometry?.location?.lng || null,
-              nicho: body.nicho,
-              foco: body.foco,
-              status: "novo",
-              user_id: user.id,
-              proximidade_ativa: body.proximidadeAtiva,
-              raio_km: body.raioKm,
-              whatsapp_on_site: siteSignals.whatsapp_on_site,
-              whatsapp_number: siteSignals.whatsapp_number,
-              has_meta_pixel: siteSignals.has_meta_pixel,
-              has_gtag: siteSignals.has_gtag,
-              has_gtm: siteSignals.has_gtm,
-              instagram_url: siteSignals.instagram_url,
-              digital_signals: siteSignals,
-              // Limpa análise IA anterior para forçar regeneração com novo foco
-              diagnostico_bullets: null,
-              probabilidade_conversao: null,
-              plano_prospeccao: null,
-              ai_analise_gerada_em: null,
-            },
-            { onConflict: "google_place_id" }
-          );
+          // Insere no banco usando colunas criptografadas
+          // IMPORTANTE: Dados sensíveis são criptografados no banco
+          const { error: insertError } = await supabaseClient.rpc('insert_lead_with_encryption', {
+            p_nome: details.name,
+            p_endereco: details.formatted_address,
+            p_telefone: details.formatted_phone_number || null,
+            p_website: details.website || null,
+            p_google_place_id: place.place_id,
+            p_rating: details.rating || null,
+            p_total_reviews: details.user_ratings_total || 0,
+            p_cidade: body.cidade,
+            p_latitude: details.geometry?.location?.lat || null,
+            p_longitude: details.geometry?.location?.lng || null,
+            p_nicho: body.nicho,
+            p_foco: body.foco,
+            p_user_id: user.id,
+            p_proximidade_ativa: body.proximidadeAtiva,
+            p_raio_km: body.raioKm,
+            p_whatsapp_on_site: siteSignals.whatsapp_on_site,
+            p_whatsapp_number: siteSignals.whatsapp_number,
+            p_has_meta_pixel: siteSignals.has_meta_pixel,
+            p_has_gtag: siteSignals.has_gtag,
+            p_has_gtm: siteSignals.has_gtm,
+            p_instagram_url: siteSignals.instagram_url,
+            p_digital_signals: siteSignals,
+          });
 
           if (insertError) {
             console.error("Erro ao inserir lead:", insertError);

@@ -66,16 +66,14 @@ const LeadsSalvos = () => {
   const loadSavedLeads = async (userId: string) => {
     try {
       setLoading(true);
+      // Usa função RPC para obter dados descriptografados
+      // p_salvo = true para buscar apenas leads salvos
       const { data, error } = await supabase
-        .from("leads")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("salvo", true)
-        .order("created_at", { ascending: false });
+        .rpc("get_leads_decrypted_filtered", { p_salvo: true });
 
       if (error) throw error;
 
-      const transformedLeads: LeadProspeccao[] = (data || []).map((lead) => ({
+      const transformedLeads: LeadProspeccao[] = (data || []).map((lead: any) => ({
         id: lead.id,
         placeId: lead.google_place_id,
         nome: lead.nome,

@@ -26,15 +26,29 @@ export const LeadsList = () => {
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // Função helper para gerar link do WhatsApp a partir de um número
+  const generateWhatsAppLink = (whatsappNumber: string | null, telefone: string | null): string | null => {
+    // Prioriza whatsapp_number encontrado no site
+    if (whatsappNumber) {
+      return `https://wa.me/${whatsappNumber.replace(/\D/g, '')}`;
+    }
+    // Se não houver, usa o telefone como fallback
+    if (telefone) {
+      const cleanNumber = telefone.replace(/\D/g, '');
+      // Se o número não começar com código do país, adiciona o Brasil (55)
+      const fullNumber = cleanNumber.length <= 11 ? `55${cleanNumber}` : cleanNumber;
+      return `https://wa.me/${fullNumber}`;
+    }
+    return null;
+  };
+
   // Função helper para transformar dados do banco
   const transformLeadFromDb = (lead: any): LeadProspeccao => ({
     id: lead.id,
     placeId: lead.google_place_id,
     nome: lead.nome,
     telefone: lead.telefone,
-    whatsapp_link: lead.whatsapp_number 
-      ? `https://wa.me/${lead.whatsapp_number.replace(/\D/g, '')}` 
-      : null,
+    whatsapp_link: generateWhatsAppLink(lead.whatsapp_number, lead.telefone),
     website: lead.website,
     instagram_url: lead.instagram_url,
     instagram_context: lead.instagram_context,

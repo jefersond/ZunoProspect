@@ -500,18 +500,7 @@ const VideoCaseSection = () => {
       <div className="container mx-auto px-4">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Video Placeholder */}
-          <div className="relative aspect-video bg-gradient-to-br from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20 rounded-2xl overflow-hidden group cursor-pointer border border-border/30">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center shadow-xl shadow-primary/30 group-hover:scale-110 transition-transform">
-                <Play className="h-8 w-8 text-primary-foreground ml-1" />
-              </div>
-            </div>
-            <div className="absolute bottom-4 left-4 right-4">
-              <div className="bg-background/90 backdrop-blur-sm rounded-lg p-4 border border-border/30">
-                <p className="text-sm font-medium">📹 Veja o case completo em vídeo</p>
-              </div>
-            </div>
-          </div>
+          
           
           {/* Case Content */}
           <div className="space-y-6">

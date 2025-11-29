@@ -81,38 +81,55 @@ export const LeadsList = () => {
     return null;
   };
 
+  // Função para verificar se uma URL é do Instagram
+  const isInstagramUrl = (url: string | null): boolean => {
+    if (!url) return false;
+    return /instagram\.com/i.test(url);
+  };
+
   // Função helper para transformar dados do banco
-  const transformLeadFromDb = (lead: any): LeadProspeccao => ({
-    id: lead.id,
-    placeId: lead.google_place_id,
-    nome: lead.nome,
-    telefone: lead.telefone,
-    whatsapp_link: generateWhatsAppLink(lead.whatsapp_number, lead.telefone),
-    website: lead.website,
-    instagram_url: lead.instagram_url,
-    instagram_context: lead.instagram_context,
-    endereco: lead.endereco,
-    cidade: lead.cidade,
-    nicho: lead.nicho,
-    foco: lead.foco as any,
-    proximidadeAtiva: lead.proximidade_ativa || false,
-    raioKm: lead.raio_km,
-    sinais: {
-      has_whatsapp_on_site: lead.whatsapp_on_site || false,
-      has_meta_pixel: lead.has_meta_pixel || false,
-      has_gtag: lead.has_gtag || false,
-      has_gtm: lead.has_gtm || false,
-    },
-    diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
-    probabilidade_conversao: lead.probabilidade_conversao || 0,
-    plano_prospecao_7dias: (lead.plano_prospeccao as any[]) || [],
-    rating: lead.rating,
-    total_reviews: lead.total_reviews,
-    status: lead.status || 'novo',
-    created_at: lead.created_at,
-    ai_analise_gerada_em: lead.ai_analise_gerada_em,
-    salvo: lead.salvo || false,
-  });
+  const transformLeadFromDb = (lead: any): LeadProspeccao => {
+    // Verifica se o website é na verdade um Instagram
+    const websiteIsInstagram = isInstagramUrl(lead.website);
+    
+    // Se o website for Instagram, usa como instagram_url
+    const finalInstagramUrl = lead.instagram_url || (websiteIsInstagram ? lead.website : null);
+    
+    // Website só é válido se não for Instagram
+    const finalWebsite = websiteIsInstagram ? null : lead.website;
+    
+    return {
+      id: lead.id,
+      placeId: lead.google_place_id,
+      nome: lead.nome,
+      telefone: lead.telefone,
+      whatsapp_link: generateWhatsAppLink(lead.whatsapp_number, lead.telefone),
+      website: finalWebsite,
+      instagram_url: finalInstagramUrl,
+      instagram_context: lead.instagram_context,
+      endereco: lead.endereco,
+      cidade: lead.cidade,
+      nicho: lead.nicho,
+      foco: lead.foco as any,
+      proximidadeAtiva: lead.proximidade_ativa || false,
+      raioKm: lead.raio_km,
+      sinais: {
+        has_whatsapp_on_site: lead.whatsapp_on_site || false,
+        has_meta_pixel: lead.has_meta_pixel || false,
+        has_gtag: lead.has_gtag || false,
+        has_gtm: lead.has_gtm || false,
+      },
+      diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
+      probabilidade_conversao: lead.probabilidade_conversao || 0,
+      plano_prospecao_7dias: (lead.plano_prospeccao as any[]) || [],
+      rating: lead.rating,
+      total_reviews: lead.total_reviews,
+      status: lead.status || 'novo',
+      created_at: lead.created_at,
+      ai_analise_gerada_em: lead.ai_analise_gerada_em,
+      salvo: lead.salvo || false,
+    };
+  };
 
   const loadLeads = async () => {
     try {

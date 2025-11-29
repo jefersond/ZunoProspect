@@ -26,19 +26,58 @@ export const LeadsList = () => {
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // Função para validar se um número de telefone brasileiro é válido
+  const isValidBrazilianPhone = (phone: string): boolean => {
+    const cleanNumber = phone.replace(/\D/g, '');
+    
+    // Remove código do país se presente
+    const numberWithoutCountry = cleanNumber.startsWith('55') 
+      ? cleanNumber.slice(2) 
+      : cleanNumber;
+    
+    // Deve ter 10 (fixo) ou 11 (celular) dígitos
+    if (numberWithoutCountry.length < 10 || numberWithoutCountry.length > 11) {
+      return false;
+    }
+    
+    // Extrai DDD (primeiros 2 dígitos)
+    const ddd = parseInt(numberWithoutCountry.slice(0, 2), 10);
+    
+    // DDDs válidos no Brasil (11-99, exceto alguns inválidos)
+    const invalidDDDs = [20, 23, 25, 26, 29, 30, 36, 39, 40, 50, 52, 56, 57, 58, 59, 60, 70, 72, 76, 78, 80, 90];
+    if (ddd < 11 || ddd > 99 || invalidDDDs.includes(ddd)) {
+      return false;
+    }
+    
+    // Para celulares (11 dígitos), o primeiro dígito após DDD deve ser 9
+    if (numberWithoutCountry.length === 11) {
+      const firstDigitAfterDDD = numberWithoutCountry.charAt(2);
+      if (firstDigitAfterDDD !== '9') {
+        return false;
+      }
+    }
+    
+    return true;
+  };
+
   // Função helper para gerar link do WhatsApp a partir de um número
   const generateWhatsAppLink = (whatsappNumber: string | null, telefone: string | null): string | null => {
     // Prioriza whatsapp_number encontrado no site
     if (whatsappNumber) {
-      return `https://wa.me/${whatsappNumber.replace(/\D/g, '')}`;
+      const cleanWhatsapp = whatsappNumber.replace(/\D/g, '');
+      if (cleanWhatsapp.length >= 10) {
+        return `https://wa.me/${cleanWhatsapp}`;
+      }
     }
-    // Se não houver, usa o telefone como fallback
-    if (telefone) {
+    
+    // Se não houver, usa o telefone como fallback (com validação)
+    if (telefone && isValidBrazilianPhone(telefone)) {
       const cleanNumber = telefone.replace(/\D/g, '');
       // Se o número não começar com código do país, adiciona o Brasil (55)
-      const fullNumber = cleanNumber.length <= 11 ? `55${cleanNumber}` : cleanNumber;
+      const fullNumber = cleanNumber.startsWith('55') ? cleanNumber : `55${cleanNumber}`;
       return `https://wa.me/${fullNumber}`;
     }
+    
     return null;
   };
 

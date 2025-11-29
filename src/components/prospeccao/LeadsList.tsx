@@ -113,17 +113,28 @@ export const LeadsList = () => {
         (payload) => {
           console.log('Lead atualizado via realtime:', payload.new);
           
-          // Atualizar o lead específico na lista
+          // IMPORTANTE: O payload do realtime contém dados brutos (não descriptografados)
+          // Apenas atualizamos os campos da análise IA, preservando os dados descriptografados
           setLeads(prevLeads => 
-            prevLeads.map(lead => 
-              lead.id === payload.new.id 
-                ? transformLeadFromDb(payload.new)
-                : lead
-            )
+            prevLeads.map(lead => {
+              if (lead.id === payload.new.id) {
+                // Atualiza apenas os campos de IA, mantendo os dados de contato existentes
+                return {
+                  ...lead,
+                  diagnostico_bullets: (payload.new.diagnostico_bullets as string[]) || lead.diagnostico_bullets,
+                  probabilidade_conversao: payload.new.probabilidade_conversao || lead.probabilidade_conversao,
+                  plano_prospecao_7dias: (payload.new.plano_prospeccao as any[]) || lead.plano_prospecao_7dias,
+                  ai_analise_gerada_em: payload.new.ai_analise_gerada_em || lead.ai_analise_gerada_em,
+                  status: payload.new.status || lead.status,
+                  salvo: payload.new.salvo ?? lead.salvo,
+                };
+              }
+              return lead;
+            })
           );
           
           // Se a análise foi concluída agora, mostrar toast
-          if (payload.new.ai_analise_gerada_em && !payload.old.ai_analise_gerada_em) {
+          if (payload.new.ai_analise_gerada_em && !payload.old?.ai_analise_gerada_em) {
             toast({
               title: "✨ Análise IA concluída",
               description: `Lead "${payload.new.nome}" foi analisado com sucesso`,

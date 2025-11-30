@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
-import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar, Shield } from "lucide-react";
+import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
@@ -15,15 +15,39 @@ import { Badge } from "@/components/ui/badge";
 
 const Profile = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
-  const { subscription, loading: subscriptionLoading, isAdmin, getPlanDisplayName } = useSubscription();
+  const { subscription, loading: subscriptionLoading, isAdmin, getPlanDisplayName, refetch } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
+  const [managingSubscription, setManagingSubscription] = useState(false);
   const [profile, setProfile] = useState({
     nome_completo: "",
     empresa: "",
   });
+
+  // Handle checkout result from URL params
+  useEffect(() => {
+    const checkoutResult = searchParams.get("checkout");
+    if (checkoutResult === "success") {
+      toast({
+        title: "Pagamento realizado com sucesso!",
+        description: "Seu plano foi atualizado. As mudanças podem levar alguns instantes para refletir.",
+      });
+      // Clear the search params
+      setSearchParams({});
+      // Refresh subscription data
+      setTimeout(() => refetch?.(), 2000);
+    } else if (checkoutResult === "canceled") {
+      toast({
+        variant: "destructive",
+        title: "Checkout cancelado",
+        description: "Você cancelou o processo de pagamento.",
+      });
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams, toast, refetch]);
 
   useEffect(() => {
     loadProfile();
@@ -100,6 +124,30 @@ const Profile = () => {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    setManagingSubscription(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('customer-portal');
+      
+      if (error) throw error;
+      
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      } else {
+        throw new Error("URL do portal não retornada");
+      }
+    } catch (error: any) {
+      console.error("Erro ao abrir portal:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao abrir gerenciamento",
+        description: error.message || "Tente novamente mais tarde.",
+      });
+    } finally {
+      setManagingSubscription(false);
     }
   };
 
@@ -261,12 +309,35 @@ const Profile = () => {
                   )}
                 </div>
               </div>
-              {!isAdmin && subscription?.plan_name !== 'agencia' && (
-                <Button onClick={() => setUpgradeDialogOpen(true)} className="gap-2">
-                  <Crown className="h-4 w-4" />
-                  Fazer Upgrade
-                </Button>
-              )}
+              <div className="flex gap-2">
+                {!isAdmin && subscription?.plan_name !== 'agencia' && subscription?.plan_name !== 'starter' && (
+                  <Button 
+                    variant="outline" 
+                    onClick={handleManageSubscription} 
+                    className="gap-2"
+                    disabled={managingSubscription}
+                  >
+                    {managingSubscription ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CreditCard className="h-4 w-4" />
+                    )}
+                    <span className="hidden sm:inline">Gerenciar</span>
+                  </Button>
+                )}
+                {!isAdmin && subscription?.plan_name === 'starter' && (
+                  <Button onClick={() => setUpgradeDialogOpen(true)} className="gap-2">
+                    <Crown className="h-4 w-4" />
+                    Fazer Upgrade
+                  </Button>
+                )}
+                {!isAdmin && subscription?.plan_name !== 'agencia' && subscription?.plan_name !== 'starter' && (
+                  <Button onClick={() => setUpgradeDialogOpen(true)} className="gap-2">
+                    <Crown className="h-4 w-4" />
+                    Upgrade
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Indicador de uso */}

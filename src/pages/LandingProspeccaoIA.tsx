@@ -203,7 +203,7 @@ const LPHeader = () => {
               viewBox="0 0 32 32" 
               fill="none" 
               xmlns="http://www.w3.org/2000/svg"
-              className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12"
+              className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12 rotate-180"
             >
               <defs>
                 <linearGradient id="zGradient" x1="0%" y1="0%" x2="100%" y2="100%">

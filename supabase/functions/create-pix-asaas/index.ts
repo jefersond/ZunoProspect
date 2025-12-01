@@ -32,8 +32,8 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const { plano, isAnual, customerName, customerCpf, customerEmail } = await req.json();
-    logStep("Request body", { plano, isAnual, customerName, customerCpf });
+    const { plano, isAnual, customerName, customerCpf, customerEmail, customerWhatsapp } = await req.json();
+    logStep("Request body", { plano, isAnual, customerName, customerCpf, customerWhatsapp });
 
     // Autenticar usuário
     const authHeader = req.headers.get("Authorization");
@@ -94,6 +94,7 @@ serve(async (req) => {
           name: customerName || user.email?.split("@")[0] || "Cliente",
           email: customerEmail || user.email,
           cpfCnpj: customerCpf?.replace(/\D/g, "") || undefined,
+          mobilePhone: customerWhatsapp?.replace(/\D/g, "") || undefined,
           notificationDisabled: false,
         }),
       });

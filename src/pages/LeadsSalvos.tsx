@@ -50,6 +50,25 @@ const LeadsSalvos = () => {
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // Função para validar telefone brasileiro
+  const isValidBrazilianPhone = (phone: string): boolean => {
+    if (!phone) return false;
+    const cleaned = phone.replace(/\D/g, "");
+    return cleaned.length >= 10 && cleaned.length <= 11;
+  };
+
+  // Função para gerar link do WhatsApp
+  const generateWhatsAppLink = (phone: string): string | null => {
+    if (!phone) return null;
+    const cleaned = phone.replace(/\D/g, "");
+    if (!isValidBrazilianPhone(phone)) return null;
+    // Adiciona código do Brasil se não tiver
+    const fullNumber = cleaned.length === 11 || cleaned.length === 10 
+      ? `55${cleaned}` 
+      : cleaned;
+    return `https://wa.me/${fullNumber}`;
+  };
+
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -73,17 +92,19 @@ const LeadsSalvos = () => {
 
       if (error) throw error;
 
-      const transformedLeads: LeadProspeccao[] = (data || []).map((lead: any) => ({
-        id: lead.id,
-        placeId: lead.google_place_id,
-        nome: lead.nome,
-        telefone: lead.telefone,
-        whatsapp_link: lead.whatsapp_number
-          ? `https://wa.me/${lead.whatsapp_number.replace(/\D/g, "")}`
-          : null,
-        website: lead.website,
-        instagram_url: lead.instagram_url,
-        instagram_context: lead.instagram_context,
+      const transformedLeads: LeadProspeccao[] = (data || []).map((lead: any) => {
+        // Usa whatsapp_number se existir, senão tenta telefone
+        const phoneForWhatsapp = lead.whatsapp_number || lead.telefone;
+        
+        return {
+          id: lead.id,
+          placeId: lead.google_place_id,
+          nome: lead.nome,
+          telefone: lead.telefone,
+          whatsapp_link: generateWhatsAppLink(phoneForWhatsapp),
+          website: lead.website || null,
+          instagram_url: lead.instagram_url || null,
+          instagram_context: lead.instagram_context,
         endereco: lead.endereco,
         cidade: lead.cidade,
         nicho: lead.nicho,
@@ -105,7 +126,8 @@ const LeadsSalvos = () => {
         created_at: lead.created_at,
         ai_analise_gerada_em: lead.ai_analise_gerada_em,
         salvo: lead.salvo || false,
-      }));
+      };
+      });
 
       setLeads(transformedLeads);
       setFilteredLeads(transformedLeads);

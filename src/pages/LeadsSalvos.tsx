@@ -64,11 +64,18 @@ const LeadsSalvos = () => {
     if (!phone) return null;
     const cleaned = phone.replace(/\D/g, "");
     if (!isValidBrazilianPhone(phone)) return null;
-    // Adiciona código do Brasil se não tiver
-    const fullNumber = cleaned.length === 11 || cleaned.length === 10 
-      ? `55${cleaned}` 
-      : cleaned;
-    return `https://wa.me/${fullNumber}`;
+    
+    // Remove o código do país se já existir
+    let numberOnly = cleaned;
+    if (cleaned.startsWith("55")) {
+      numberOnly = cleaned.substring(2);
+    }
+    
+    // Valida o tamanho após remover o código
+    if (numberOnly.length < 10 || numberOnly.length > 11) return null;
+    
+    // Sempre adiciona o código do Brasil +55
+    return `https://wa.me/55${numberOnly}`;
   };
 
   useEffect(() => {

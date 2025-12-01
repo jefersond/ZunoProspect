@@ -197,14 +197,7 @@ const LPHeader = () => {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-2 group cursor-pointer">
-            <svg 
-              width="32" 
-              height="32" 
-              viewBox="0 0 32 32" 
-              fill="none" 
-              xmlns="http://www.w3.org/2000/svg"
-              className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12 rotate-180"
-            >
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12 rotate-180">
               <defs>
                 <linearGradient id="zGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="#22d3ee" />
@@ -212,11 +205,7 @@ const LPHeader = () => {
                   <stop offset="100%" stopColor="#a855f7" />
                 </linearGradient>
               </defs>
-              <path 
-                d="M 8 6 L 24 6 L 24 10 L 16 10 L 24 22 L 24 26 L 8 26 L 8 22 L 16 22 L 8 10 L 8 6 Z" 
-                fill="url(#zGradient)"
-                className="transition-all duration-500"
-              />
+              <path d="M 8 6 L 24 6 L 24 10 L 16 10 L 24 22 L 24 26 L 8 26 L 8 22 L 16 22 L 8 10 L 8 6 Z" fill="url(#zGradient)" className="transition-all duration-500" />
             </svg>
             <span className="text-xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent bg-[length:200%_100%] bg-[position:0%_50%] transition-all duration-500 group-hover:bg-[position:100%_50%]">
               Zuno
@@ -434,7 +423,7 @@ const ComoFuncionaSection = () => {
         
         <div className="grid md:grid-cols-3 gap-8">
           {passos.map((passo, index) => <div key={index} className="relative">
-              {index < 2 && <div className="hidden md:block absolute top-12 left-full w-full h-0.5 bg-gradient-to-r from-primary/50 to-transparent -translate-x-1/2" />}
+              {index < 2}
               <Card className="text-center p-8 hover:shadow-lg hover:shadow-primary/5 transition-all dark:border-border/50">
                 <div className="text-5xl font-bold text-primary/20 dark:text-primary/30 mb-4">{passo.numero}</div>
                 <div className="w-16 h-16 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center mx-auto mb-6">
@@ -633,18 +622,20 @@ const CheckoutDialog = ({
   // Poll para verificar pagamento PIX
   useEffect(() => {
     if (step !== "qrcode" || !pixData?.paymentId) return;
-
     const interval = setInterval(async () => {
       try {
-        const { data, error } = await supabase.functions.invoke("check-pix-payment", {
-          body: { paymentId: pixData.paymentId },
+        const {
+          data,
+          error
+        } = await supabase.functions.invoke("check-pix-payment", {
+          body: {
+            paymentId: pixData.paymentId
+          }
         });
-
         if (error) {
           console.error("Error checking payment:", error);
           return;
         }
-
         if (data?.confirmed) {
           setStep("confirmed");
           clearInterval(interval);
@@ -657,28 +648,20 @@ const CheckoutDialog = ({
         console.error("Error in payment check:", err);
       }
     }, 5000);
-
     return () => clearInterval(interval);
   }, [step, pixData?.paymentId]);
-
   if (!plano) return null;
   const preco = isAnual ? plano.precoAnual : plano.precoMensal;
   const periodo = isAnual ? "/ano" : "/mês";
   const economia = isAnual ? Math.round((plano.precoMensal * 12 - plano.precoAnual) / (plano.precoMensal * 12) * 100) : 0;
-  
   const formatCPF = (value: string) => {
     const cleaned = value.replace(/\D/g, "").slice(0, 11);
     return cleaned.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
   };
-  
   const formatWhatsapp = (value: string) => {
     const numbers = value.replace(/\D/g, "");
-    return numbers
-      .replace(/(\d{2})(\d)/, "($1) $2")
-      .replace(/(\d{5})(\d)/, "$1-$2")
-      .replace(/(-\d{4})\d+?$/, "$1");
+    return numbers.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2").replace(/(-\d{4})\d+?$/, "$1");
   };
-
   const formatCardNumber = (value: string) => {
     const cleaned = value.replace(/\D/g, "").slice(0, 16);
     return cleaned.replace(/(\d{4})/g, "$1 ").trim();
@@ -690,7 +673,6 @@ const CheckoutDialog = ({
     }
     return cleaned;
   };
-
   const handleGeneratePix = async () => {
     if (!nome.trim()) {
       toast.error("Informe seu nome completo");
@@ -708,28 +690,28 @@ const CheckoutDialog = ({
       toast.error("Informe um WhatsApp válido");
       return;
     }
-
     setIsProcessing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("create-pix-asaas", {
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke("create-pix-asaas", {
         body: {
           plano: plano.nome,
           isAnual,
           customerName: nome,
           customerCpf: cpf,
           customerEmail: email,
-          customerWhatsapp: whatsapp,
-        },
+          customerWhatsapp: whatsapp
+        }
       });
-
       if (error) throw error;
-
       if (data?.success) {
         setPixData({
           paymentId: data.paymentId,
           pixCopiaECola: data.pixCopiaECola,
           qrCodeBase64: data.qrCodeBase64,
-          vencimento: data.vencimento,
+          vencimento: data.vencimento
         });
         setStep("qrcode");
         toast.success("QR Code PIX gerado com sucesso!");
@@ -739,31 +721,31 @@ const CheckoutDialog = ({
     } catch (error: any) {
       console.error("Error generating PIX:", error);
       toast.error("Erro ao gerar PIX", {
-        description: error.message || "Tente novamente mais tarde.",
+        description: error.message || "Tente novamente mais tarde."
       });
     } finally {
       setIsProcessing(false);
     }
   };
-
   const handleCopyPix = () => {
     if (pixData?.pixCopiaECola) {
       navigator.clipboard.writeText(pixData.pixCopiaECola);
       toast.success("Código PIX copiado!");
     }
   };
-
   const handleCheckPayment = async () => {
     if (!pixData?.paymentId) return;
-    
     setIsChecking(true);
     try {
-      const { data, error } = await supabase.functions.invoke("check-pix-payment", {
-        body: { paymentId: pixData.paymentId },
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke("check-pix-payment", {
+        body: {
+          paymentId: pixData.paymentId
+        }
       });
-
       if (error) throw error;
-
       if (data?.confirmed) {
         setStep("confirmed");
         toast.success("Pagamento confirmado!");
@@ -772,7 +754,7 @@ const CheckoutDialog = ({
         }, 2000);
       } else {
         toast.info("Pagamento ainda não confirmado", {
-          description: "Aguarde alguns segundos após efetuar o pagamento.",
+          description: "Aguarde alguns segundos após efetuar o pagamento."
         });
       }
     } catch (error: any) {
@@ -781,19 +763,16 @@ const CheckoutDialog = ({
       setIsChecking(false);
     }
   };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome || !email || !cpf) {
       toast.error("Preencha todos os campos obrigatórios");
       return;
     }
-    
     if (metodoPagamento === "pix") {
       await handleGeneratePix();
       return;
     }
-    
     if (metodoPagamento === "cartao" && (!cardNumber || !cardExpiry || !cardCvv)) {
       toast.error("Preencha todos os dados do cartão");
       return;
@@ -806,7 +785,6 @@ const CheckoutDialog = ({
     handleClose();
     toast.success("Pagamento processado com sucesso!");
   };
-
   const handleClose = () => {
     if (!isProcessing) {
       setStep("form");
@@ -821,24 +799,17 @@ const CheckoutDialog = ({
       onOpenChange(false);
     }
   };
-
   return <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {step === "confirmed" ? (
-              <>
+            {step === "confirmed" ? <>
                 <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                 Pagamento Confirmado
-              </>
-            ) : step === "qrcode" ? (
-              <>
+              </> : step === "qrcode" ? <>
                 <QrCode className="h-5 w-5 text-primary" />
                 Pagamento via PIX
-              </>
-            ) : (
-              <>Checkout - Plano {plano.nome}</>
-            )}
+              </> : <>Checkout - Plano {plano.nome}</>}
           </DialogTitle>
           <DialogDescription>
             {step === "confirmed" && "Sua assinatura foi ativada com sucesso!"}
@@ -847,8 +818,7 @@ const CheckoutDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        {step === "confirmed" && (
-          <div className="py-8 text-center space-y-4">
+        {step === "confirmed" && <div className="py-8 text-center space-y-4">
             <div className="flex justify-center">
               <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center">
                 <CheckCircle2 className="h-10 w-10 text-emerald-500" />
@@ -860,18 +830,12 @@ const CheckoutDialog = ({
                 Sua assinatura foi ativada com sucesso.
               </p>
             </div>
-          </div>
-        )}
+          </div>}
 
-        {step === "qrcode" && pixData && (
-          <div className="space-y-4 py-4">
+        {step === "qrcode" && pixData && <div className="space-y-4 py-4">
             <div className="flex justify-center">
               <div className="p-4 bg-white rounded-lg">
-                <img
-                  src={`data:image/png;base64,${pixData.qrCodeBase64}`}
-                  alt="QR Code PIX"
-                  className="w-48 h-48"
-                />
+                <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" className="w-48 h-48" />
               </div>
             </div>
 
@@ -885,44 +849,29 @@ const CheckoutDialog = ({
             <div className="space-y-2">
               <Label>PIX Copia e Cola</Label>
               <div className="flex gap-2">
-                <Input
-                  value={pixData.pixCopiaECola}
-                  readOnly
-                  className="text-xs"
-                />
+                <Input value={pixData.pixCopiaECola} readOnly className="text-xs" />
                 <Button variant="outline" size="icon" onClick={handleCopyPix}>
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
             </div>
 
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={handleCheckPayment}
-              disabled={isChecking}
-            >
-              {isChecking ? (
-                <>
+            <Button variant="outline" className="w-full" onClick={handleCheckPayment} disabled={isChecking}>
+              {isChecking ? <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Verificando...
-                </>
-              ) : (
-                <>
+                </> : <>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Verificar Pagamento
-                </>
-              )}
+                </>}
             </Button>
 
             <p className="text-xs text-center text-muted-foreground">
               O pagamento será verificado automaticamente a cada 5 segundos.
             </p>
-          </div>
-        )}
+          </div>}
 
-        {step === "form" && (
-          <form onSubmit={handleSubmit} className="space-y-6 mt-4">
+        {step === "form" && <form onSubmit={handleSubmit} className="space-y-6 mt-4">
             {/* Dados pessoais */}
             <div className="space-y-4">
               <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Dados pessoais</h4>
@@ -1013,17 +962,12 @@ const CheckoutDialog = ({
             </div>
 
             <Button type="submit" className="w-full" size="lg" disabled={isProcessing}>
-              {isProcessing ? (
-                <>
+              {isProcessing ? <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Processando...
-                </>
-              ) : (
-                plano.gratuito ? "Criar conta gratuita" : metodoPagamento === "pix" ? "Gerar QR Code PIX" : "Finalizar pagamento"
-              )}
+                </> : plano.gratuito ? "Criar conta gratuita" : metodoPagamento === "pix" ? "Gerar QR Code PIX" : "Finalizar pagamento"}
             </Button>
-          </form>
-        )}
+          </form>}
       </DialogContent>
     </Dialog>;
 };
@@ -1180,39 +1124,45 @@ const Footer = () => {
 export default function LandingProspeccaoIA() {
   const navigate = useNavigate();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-
   useEffect(() => {
     // Check if user is already logged in
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: {
+          session
+        }
+      } = await supabase.auth.getSession();
       if (session?.user) {
-        navigate("/prospeccao", { replace: true });
+        navigate("/prospeccao", {
+          replace: true
+        });
       } else {
         setIsCheckingAuth(false);
       }
     };
-
     checkAuth();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: {
+        subscription
+      }
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        navigate("/prospeccao", { replace: true });
+        navigate("/prospeccao", {
+          replace: true
+        });
       }
     });
-
     return () => subscription.unsubscribe();
   }, [navigate]);
 
   // Show nothing while checking auth to avoid flash
   if (isCheckingAuth) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+    return <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+      </div>;
   }
-
   return <div className="min-h-screen bg-background">
       <LPHeader />
       <HeroSection />

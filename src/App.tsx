@@ -24,9 +24,9 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Navigate to="/auth" replace />} />
+            <Route path="/" element={<LandingProspeccaoIA />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/lp-prospeccao-ia" element={<LandingProspeccaoIA />} />
+            <Route path="/lp-prospeccao-ia" element={<Navigate to="/" replace />} />
             <Route path="/prospeccao" element={<Prospeccao />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/dashboard" element={<Dashboard />} />

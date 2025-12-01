@@ -875,10 +875,10 @@ export default function LandingProspeccaoIA() {
       <ComoFuncionaSection />
       <DepoimentosSection />
       <MetricasSection />
-      <LogosSection />
-      <VideoCaseSection />
-      <ParaQuemSection />
-      <PrecosSection />
+      
+      
+      
+      
       <FAQSection />
       <CTAFinalSection />
       <Footer />

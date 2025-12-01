@@ -26,6 +26,9 @@ const Auth = () => {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => {
+    return localStorage.getItem('rememberMe') !== 'false';
+  });
   const [passwordValidation, setPasswordValidation] = useState({
     minLength: false,
     hasUppercase: false,
@@ -214,6 +217,10 @@ const Auth = () => {
       setLoading(false);
       return;
     }
+    
+    // Armazenar preferência de "lembrar-me"
+    localStorage.setItem('rememberMe', rememberMe.toString());
+    
     const {
       error
     } = await supabase.auth.signInWithPassword({
@@ -227,6 +234,10 @@ const Auth = () => {
         description: "Email ou senha incorretos. Verifique suas credenciais."
       });
     } else {
+      // Se "lembrar-me" estiver desmarcado, configurar logout ao fechar o navegador
+      if (!rememberMe) {
+        sessionStorage.setItem('logoutOnClose', 'true');
+      }
       navigate("/prospeccao");
     }
     setLoading(false);
@@ -330,6 +341,18 @@ const Auth = () => {
                       </button>
                     </div>
                     <Input id="login-password" name="password" type="password" placeholder="••••••••" required />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="remember-me"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                    />
+                    <Label htmlFor="remember-me" className="text-sm font-normal cursor-pointer">
+                      Lembrar-me neste dispositivo
+                    </Label>
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? <>

@@ -35,6 +35,7 @@ export const PixPaymentDialog = ({
   const [isChecking, setIsChecking] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerCpf, setCpf] = useState("");
+  const [customerWhatsapp, setCustomerWhatsapp] = useState("");
   const [pixData, setPixData] = useState<{
     paymentId: string;
     pixCopiaECola: string;
@@ -91,6 +92,14 @@ export const PixPaymentDialog = ({
       .replace(/(-\d{2})\d+?$/, "$1");
   };
 
+  const formatWhatsapp = (value: string) => {
+    const numbers = value.replace(/\D/g, "");
+    return numbers
+      .replace(/(\d{2})(\d)/, "($1) $2")
+      .replace(/(\d{5})(\d)/, "$1-$2")
+      .replace(/(-\d{4})\d+?$/, "$1");
+  };
+
   const handleGeneratePix = async () => {
     if (!customerName.trim()) {
       toast.error("Informe seu nome completo");
@@ -109,6 +118,7 @@ export const PixPaymentDialog = ({
           isAnual,
           customerName,
           customerCpf,
+          customerWhatsapp,
         },
       });
 
@@ -179,6 +189,7 @@ export const PixPaymentDialog = ({
       setPixData(null);
       setCustomerName("");
       setCpf("");
+      setCustomerWhatsapp("");
       onOpenChange(false);
     }
   };
@@ -224,6 +235,17 @@ export const PixPaymentDialog = ({
                 onChange={(e) => setCpf(formatCpf(e.target.value))}
                 placeholder="000.000.000-00"
                 maxLength={14}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp">WhatsApp</Label>
+              <Input
+                id="whatsapp"
+                value={customerWhatsapp}
+                onChange={(e) => setCustomerWhatsapp(formatWhatsapp(e.target.value))}
+                placeholder="(11) 99999-9999"
+                maxLength={15}
               />
             </div>
 

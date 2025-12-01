@@ -24,7 +24,6 @@ import depoCamila from "@/assets/avatars/depo-camila.jpg";
 import depoFelipe from "@/assets/avatars/depo-felipe.jpg";
 import depoJuliana from "@/assets/avatars/depo-juliana.jpg";
 import depoBruno from "@/assets/avatars/depo-bruno.jpg";
-
 const HERO_AVATARS = [avatar1, avatar2, avatar3, avatar4, avatar5, avatar6];
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "sonner";
@@ -273,14 +272,7 @@ const HeroSection = () => {
             
             <div className="flex items-center gap-6 pt-4">
               <div className="flex -space-x-2">
-                {HERO_AVATARS.map((avatar, i) => (
-                  <img 
-                    key={i} 
-                    src={avatar} 
-                    alt={`Usuário ${i + 1}`}
-                    className="w-10 h-10 rounded-full border-2 border-background object-cover"
-                  />
-                ))}
+                {HERO_AVATARS.map((avatar, i) => <img key={i} src={avatar} alt={`Usuário ${i + 1}`} className="w-10 h-10 rounded-full border-2 border-background object-cover" />)}
                 <div className="w-10 h-10 rounded-full bg-primary border-2 border-background flex items-center justify-center">
                   <span className="text-xs font-bold text-primary-foreground">+500</span>
                 </div>
@@ -459,11 +451,7 @@ const DepoimentosSection = () => {
                 </div>
                 <p className="text-muted-foreground mb-6 italic">"{depoimento.texto}"</p>
                 <div className="flex items-center gap-4">
-                  <img 
-                    src={depoimento.foto} 
-                    alt={depoimento.nome}
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
+                  <img src={depoimento.foto} alt={depoimento.nome} className="w-12 h-12 rounded-full object-cover" />
                   <div>
                     <div className="font-semibold">{depoimento.nome}</div>
                     <div className="text-sm text-muted-foreground">
@@ -900,7 +888,7 @@ export default function LandingProspeccaoIA() {
       <ComoFuncionaSection />
       <DepoimentosSection />
       <MetricasSection />
-      <LogosSection />
+      
       
       <ParaQuemSection />
       <PrecosSection />

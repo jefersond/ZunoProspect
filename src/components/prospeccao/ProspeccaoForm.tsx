@@ -40,6 +40,7 @@ export const ProspeccaoForm = () => {
   const [progressMessage, setProgressMessage] = useState("");
   const [lastSearchParams, setLastSearchParams] = useState<FormData | null>(null);
   const [showRepeatButton, setShowRepeatButton] = useState(false);
+  const [isIncremental, setIsIncremental] = useState(false);
 
   const {
     register,
@@ -85,13 +86,27 @@ export const ProspeccaoForm = () => {
     setProgressMessage("Iniciando busca...");
 
     try {
-      // Limpa leads anteriores da interface
-      window.dispatchEvent(new CustomEvent("clearLeads"));
-      
-      // Deleta apenas os leads NÃO salvos do banco de dados
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from("leads").delete().eq("user_id", user.id).eq("salvo", false);
+      
+      // Buscar google_place_ids já existentes para evitar duplicatas
+      let existingPlaceIds: string[] = [];
+      if (user && isIncremental) {
+        const { data: existingLeads } = await supabase
+          .from("leads")
+          .select("google_place_id")
+          .eq("user_id", user.id)
+          .not("google_place_id", "is", null);
+        
+        existingPlaceIds = existingLeads?.map(lead => lead.google_place_id).filter(Boolean) || [];
+      }
+      
+      // Se não for incremental, limpa leads anteriores
+      if (!isIncremental) {
+        window.dispatchEvent(new CustomEvent("clearLeads"));
+        
+        if (user) {
+          await supabase.from("leads").delete().eq("user_id", user.id).eq("salvo", false);
+        }
       }
       
       // Simula progresso durante a busca
@@ -124,6 +139,7 @@ export const ProspeccaoForm = () => {
           proximidadeAtiva: data.proximidadeAtiva,
           raioKm: data.raioKm,
           canaisProspeccao: data.canaisProspeccao,
+          excludePlaceIds: existingPlaceIds,
         },
       });
 
@@ -143,8 +159,11 @@ export const ProspeccaoForm = () => {
       }
 
       toast({
-        title: "Busca concluída!",
-        description: `${leadsCount} leads encontrados`,
+        title: leadsCount > 0 ? "Busca concluída!" : "Nenhum lead novo",
+        description: leadsCount > 0 
+          ? `${leadsCount} leads ${isIncremental ? "adicionados" : "encontrados"}` 
+          : "Todos os leads desta busca já foram adicionados anteriormente.",
+        variant: leadsCount > 0 ? "default" : "destructive"
       });
 
       // Salva a busca no histórico (apenas se houver leads com ID válido)
@@ -171,6 +190,7 @@ export const ProspeccaoForm = () => {
         setLoading(false);
         setCurrentStep(0);
         setShowRepeatButton(true);
+        setIsIncremental(false); // Reset para próxima busca
       }, 1500);
     } catch (error: any) {
       console.error("Erro ao buscar leads:", error);
@@ -198,11 +218,20 @@ export const ProspeccaoForm = () => {
       });
       setLoading(false);
       setCurrentStep(0);
+      setIsIncremental(false); // Reset em caso de erro
     }
   };
 
   const handleRepeatSearch = () => {
     if (lastSearchParams) {
+      setIsIncremental(false);
+      onSubmit(lastSearchParams);
+    }
+  };
+  
+  const handleIncrementalSearch = () => {
+    if (lastSearchParams) {
+      setIsIncremental(true);
       onSubmit(lastSearchParams);
     }
   };
@@ -456,8 +485,8 @@ export const ProspeccaoForm = () => {
             )}
           </div>
 
-          <div className="flex gap-3">
-            <Button type="submit" className="flex-1 shadow-primary" disabled={loading}>
+          <div className="space-y-3">
+            <Button type="submit" className="w-full shadow-primary" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -472,16 +501,28 @@ export const ProspeccaoForm = () => {
             </Button>
             
             {showRepeatButton && lastSearchParams && (
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={handleRepeatSearch}
-                disabled={loading}
-                className="flex-1"
-              >
-                <Search className="mr-2 h-4 w-4" />
-                Buscar novamente
-              </Button>
+              <div className="flex gap-3">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={handleRepeatSearch}
+                  disabled={loading}
+                  className="flex-1"
+                >
+                  <Search className="mr-2 h-4 w-4" />
+                  Buscar novamente
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  onClick={handleIncrementalSearch}
+                  disabled={loading}
+                  className="flex-1"
+                >
+                  <Search className="mr-2 h-4 w-4" />
+                  Buscar mais leads
+                </Button>
+              </div>
             )}
           </div>
         </form>

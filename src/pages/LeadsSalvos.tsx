@@ -355,16 +355,7 @@ const LeadsSalvos = () => {
                 <CardContent className="space-y-3">
                   {/* Contatos */}
                   <div className="flex flex-wrap gap-2">
-                    {lead.telefone && (
-                      <a
-                        href={`tel:${lead.telefone}`}
-                        className="flex items-center gap-1 text-xs text-primary hover:underline"
-                      >
-                        <Phone className="h-3 w-3" />
-                        {lead.telefone}
-                      </a>
-                    )}
-                    {lead.whatsapp_link && (
+                    {lead.telefone && lead.whatsapp_link && (
                       <a
                         href={lead.whatsapp_link}
                         target="_blank"
@@ -372,7 +363,16 @@ const LeadsSalvos = () => {
                         className="flex items-center gap-1 text-xs text-green-600 hover:underline"
                       >
                         <MessageSquare className="h-3 w-3" />
-                        WhatsApp
+                        {lead.telefone}
+                      </a>
+                    )}
+                    {lead.telefone && !lead.whatsapp_link && (
+                      <a
+                        href={`tel:${lead.telefone}`}
+                        className="flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        <Phone className="h-3 w-3" />
+                        {lead.telefone}
                       </a>
                     )}
                     {lead.instagram_url && (

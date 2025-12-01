@@ -196,9 +196,9 @@ const LPHeader = () => {
   return <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-2">
-            <Target className="h-7 w-7 text-primary" />
-            <span className="font-bold text-lg">Zuno Propect</span>
+          <div className="flex items-center gap-3">
+            <img src="/favicon.png" alt="Zuno Prospect" className="h-8 w-8" />
+            <span className="font-bold text-xl">Zuno Prospect</span>
           </div>
           
           <nav className="hidden md:flex items-center gap-6">

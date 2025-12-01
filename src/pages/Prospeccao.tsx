@@ -33,10 +33,8 @@ const Prospeccao = () => {
           <div className="flex items-center justify-between gap-4">
             {/* Logo e Título */}
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-                <Search className="h-5 w-5 text-primary" />
-              </div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-primary via-primary to-accent bg-clip-text text-transparent">Prospecção</h1>
+              <img src="/favicon.png" alt="Zuno Prospect" className="h-8 w-8" />
+              <h1 className="text-xl font-bold">Zuno Prospect</h1>
             </div>
 
             {/* Navegação e Ações */}

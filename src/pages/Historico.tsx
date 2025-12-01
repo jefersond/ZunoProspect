@@ -137,19 +137,8 @@ export default function Historico() {
           <div className="flex items-center justify-between gap-4">
             {/* Logo e Título */}
             <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate("/prospeccao")}
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-                <History className="h-5 w-5 text-primary" />
-              </div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-primary via-primary to-accent bg-clip-text text-transparent">
-                Histórico de Interações
-              </h1>
+              <img src="/favicon.png" alt="Zuno Prospect" className="h-8 w-8" />
+              <h1 className="text-xl font-bold">Zuno Prospect</h1>
             </div>
 
             {/* Navegação e Ações */}

@@ -66,7 +66,7 @@ export const ProspeccaoForm = () => {
   const canSearch = canUseLeads(quantidade || 0);
   const isAtLimit = subscription && subscription.leads_limit !== -1 && subscription.leads_remaining <= 0;
 
-  const onSubmit = async (data: FormData) => {
+  const runSearch = async (data: FormData, isIncrementalSearch: boolean) => {
     // Verifica limite antes de buscar
     if (!canUseLeads(data.quantidade)) {
       toast({
@@ -90,7 +90,7 @@ export const ProspeccaoForm = () => {
       
       // Buscar google_place_ids já existentes para evitar duplicatas
       let existingPlaceIds: string[] = [];
-      if (user && isIncremental) {
+      if (user && isIncrementalSearch) {
         const { data: existingLeads } = await supabase
           .from("leads")
           .select("google_place_id")
@@ -101,7 +101,7 @@ export const ProspeccaoForm = () => {
       }
       
       // Se não for incremental, limpa leads NÃO salvos
-      if (!isIncremental) {
+      if (!isIncrementalSearch) {
         window.dispatchEvent(new CustomEvent("clearLeads"));
         
         if (user) {
@@ -162,7 +162,7 @@ export const ProspeccaoForm = () => {
       toast({
         title: leadsCount > 0 ? "Busca concluída!" : "Nenhum lead novo",
         description: leadsCount > 0 
-          ? `${leadsCount} leads ${isIncremental ? "adicionados" : "encontrados"}${isIncremental && responseData?.radiusExpanded ? " (raio expandido)" : ""}` 
+          ? `${leadsCount} leads ${isIncrementalSearch ? "adicionados" : "encontrados"}${isIncrementalSearch && responseData?.radiusExpanded ? " (raio expandido)" : ""}` 
           : responseData?.error || "Nenhum lead novo encontrado nesta região. Tente aumentar o raio de busca ou modificar os termos.",
         variant: leadsCount > 0 ? "default" : "destructive"
       });
@@ -191,7 +191,6 @@ export const ProspeccaoForm = () => {
         setLoading(false);
         setCurrentStep(0);
         setShowRepeatButton(true);
-        setIsIncremental(false); // Reset para próxima busca
       }, 1500);
     } catch (error: any) {
       console.error("Erro ao buscar leads:", error);
@@ -219,24 +218,24 @@ export const ProspeccaoForm = () => {
       });
       setLoading(false);
       setCurrentStep(0);
-      setIsIncremental(false); // Reset em caso de erro
     }
+  };
+
+  const onSubmit = async (data: FormData) => {
+    return runSearch(data, false);
   };
 
   const handleRepeatSearch = () => {
     if (lastSearchParams) {
-      setIsIncremental(false);
-      onSubmit(lastSearchParams);
+      runSearch(lastSearchParams, false);
     }
   };
   
   const handleIncrementalSearch = () => {
     if (lastSearchParams) {
-      setIsIncremental(true);
-      onSubmit(lastSearchParams);
+      runSearch(lastSearchParams, true);
     }
   };
-
   return (
     <Card className="shadow-lg border-primary/10">
       <CardHeader>

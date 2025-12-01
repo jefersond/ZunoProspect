@@ -213,7 +213,7 @@ const LPHeader = () => {
                 </linearGradient>
               </defs>
               <path 
-                d="M8 6 L24 6 L24 10 L14 10 L24 22 L24 26 L8 26 L8 22 L18 22 L8 10 Z" 
+                d="M 8 6 L 24 6 L 24 10 L 16 10 L 24 22 L 24 26 L 8 26 L 8 22 L 16 22 L 8 10 L 8 6 Z" 
                 fill="url(#zGradient)"
                 className="transition-all duration-500"
               />

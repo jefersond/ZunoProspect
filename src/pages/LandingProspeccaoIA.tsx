@@ -27,7 +27,6 @@ import depoFelipe from "@/assets/avatars/depo-felipe.jpg";
 import depoJuliana from "@/assets/avatars/depo-juliana.jpg";
 import depoBruno from "@/assets/avatars/depo-bruno.jpg";
 const HERO_AVATARS = [avatar1, avatar2, avatar3, avatar4, avatar5, avatar6];
-import logoHorizontal from "@/assets/logo-horizontal.png";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "sonner";
 
@@ -197,12 +196,13 @@ const LPHeader = () => {
   return <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center">
-            <img 
-              src={logoHorizontal} 
-              alt="Zuno Prospect" 
-              className="h-8 [mix-blend-mode:multiply] dark:[mix-blend-mode:normal] dark:invert dark:hue-rotate-180" 
-            />
+          <div className="flex items-center gap-2">
+            <span className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-600 bg-clip-text text-transparent">
+              Zuno
+            </span>
+            <span className="text-xl font-semibold text-muted-foreground">
+              Prospect
+            </span>
           </div>
           
           <nav className="hidden md:flex items-center gap-6">

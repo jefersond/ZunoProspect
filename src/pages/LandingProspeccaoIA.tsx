@@ -876,7 +876,7 @@ export default function LandingProspeccaoIA() {
       <DepoimentosSection />
       <MetricasSection />
       <LogosSection />
-      <VideoCaseSection />
+      
       <ParaQuemSection />
       <PrecosSection />
       <FAQSection />

@@ -16,6 +16,7 @@ interface ProspeccaoRequest {
   raioKm?: number;
   canaisProspeccao?: ("email" | "whatsapp" | "instagram")[];
   excludePlaceIds?: string[];
+  pageToken?: string;
 }
 
 serve(async (req) => {
@@ -81,6 +82,14 @@ serve(async (req) => {
         // Busca por proximidade (Nearby Search)
         console.log("Buscando por proximidade (Nearby Search)...");
 
+        // Se for busca incremental, aumenta o raio em 50% para encontrar novos leads
+        const isIncremental = body.excludePlaceIds && body.excludePlaceIds.length > 0;
+        const searchRadius = isIncremental ? body.raioKm * 1.5 : body.raioKm;
+        
+        if (isIncremental) {
+          console.log(`Busca incremental: raio expandido de ${body.raioKm}km para ${searchRadius}km`);
+        }
+
         // Geocodifica a cidade + estado para obter lat/lng do centro
         const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
           `${body.cidade}, ${body.estado}, Brasil`
@@ -98,15 +107,30 @@ serve(async (req) => {
         console.log("Coordenadas do centro da cidade:", location);
 
         // Nearby Search com keyword (nicho) e raio
-        const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
-          body.raioKm * 1000
+        let nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
+          searchRadius * 1000
         }&keyword=${encodeURIComponent(body.nicho)}&key=${GOOGLE_API_KEY}`;
+
+        // Se houver pageToken, usa para paginação (busca incremental)
+        if (body.pageToken) {
+          nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${body.pageToken}&key=${GOOGLE_API_KEY}`;
+          console.log("Usando pageToken para busca incremental");
+        }
 
         const nearbyResponse = await fetch(nearbyUrl);
         const nearbyData = await nearbyResponse.json();
 
       if (nearbyData.status === "OK") {
-          leads = nearbyData.results.slice(0, body.quantidade);
+          // Se for busca incremental, pega TODOS os resultados (até 20) para filtrar depois
+          // Se não, pega apenas a quantidade solicitada
+          leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
+            ? nearbyData.results // Busca incremental: pega tudo para filtrar
+            : nearbyData.results.slice(0, body.quantidade);
+          
+          console.log(`Google retornou ${nearbyData.results.length} resultados`);
+        } else if (nearbyData.status === "INVALID_REQUEST" && body.pageToken) {
+          // PageToken pode ter expirado (válido por ~2 minutos)
+          throw new Error("Token de paginação expirou. Tente fazer uma nova busca.");
         } else {
           console.error("Nearby Search falhou:", nearbyData.status, nearbyData.error_message);
           throw new Error(`Erro na busca: ${nearbyData.error_message || nearbyData.status}`);
@@ -115,15 +139,30 @@ serve(async (req) => {
         // Busca por texto (Text Search)
         console.log("Buscando por texto (Text Search)...");
 
-        const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
+        let textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
           `${body.nicho} ${body.cidade} ${body.estado}`
         )}&key=${GOOGLE_API_KEY}`;
+
+        // Se houver pageToken, usa para paginação (busca incremental)
+        if (body.pageToken) {
+          textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?pagetoken=${body.pageToken}&key=${GOOGLE_API_KEY}`;
+          console.log("Usando pageToken para busca incremental");
+        }
 
         const textResponse = await fetch(textSearchUrl);
         const textData = await textResponse.json();
 
         if (textData.status === "OK") {
-          leads = textData.results.slice(0, body.quantidade);
+          // Se for busca incremental, pega TODOS os resultados (até 20) para filtrar depois
+          // Se não, pega apenas a quantidade solicitada
+          leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
+            ? textData.results // Busca incremental: pega tudo para filtrar
+            : textData.results.slice(0, body.quantidade);
+          
+          console.log(`Google retornou ${textData.results.length} resultados`);
+        } else if (textData.status === "INVALID_REQUEST" && body.pageToken) {
+          // PageToken pode ter expirado (válido por ~2 minutos)
+          throw new Error("Token de paginação expirou. Tente fazer uma nova busca.");
         } else {
           console.error("Text Search falhou:", textData.status, textData.error_message);
           throw new Error(`Erro na busca: ${textData.error_message || textData.status}`);
@@ -131,20 +170,21 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Encontrados ${leads.length} leads`);
+    console.log(`Encontrados ${leads.length} leads antes do filtro`);
     
     // Filtra leads que já existem (busca incremental)
     const excludePlaceIds = body.excludePlaceIds || [];
+    const originalLeadsCount = leads.length;
     if (excludePlaceIds.length > 0) {
       console.log(`Filtrando ${excludePlaceIds.length} place_ids já existentes...`);
       leads = leads.filter((lead: any) => !excludePlaceIds.includes(lead.place_id));
-      console.log(`Leads após filtro: ${leads.length}`);
+      console.log(`Leads após filtro: ${leads.length} (removidos: ${originalLeadsCount - leads.length})`);
       
-      // Se não houver leads suficientes após o filtro, pode retornar menos do que solicitado
+      // Se não houver novos leads após filtrar, informa ao usuário
       if (leads.length === 0) {
         return new Response(
           JSON.stringify({ 
-            error: "Nenhum lead novo encontrado. Todos os leads desta busca já foram adicionados anteriormente.",
+            error: "Nenhum lead novo encontrado. O Google retornou os mesmos resultados da busca anterior. Tente aumentar o raio de busca ou modificar os termos.",
             leadsCount: 0 
           }),
           {
@@ -154,6 +194,9 @@ serve(async (req) => {
         );
       }
     }
+    
+    // Limita ao número solicitado após filtrar duplicados
+    leads = leads.slice(0, body.quantidade);
 
     // Função para analisar o HTML do site e extrair sinais digitais
     async function analyzeSiteHTML(websiteUrl: string) {
@@ -415,6 +458,7 @@ serve(async (req) => {
         success: true,
         leadsCount: leadsDetails.length,
         leads: leadsDetails,
+        hasMore: leads.length >= body.quantidade, // Indica se provavelmente há mais resultados
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -162,8 +162,8 @@ export const ProspeccaoForm = () => {
       toast({
         title: leadsCount > 0 ? "Busca concluída!" : "Nenhum lead novo",
         description: leadsCount > 0 
-          ? `${leadsCount} leads ${isIncremental ? "adicionados" : "encontrados"}` 
-          : "Todos os leads desta busca já foram adicionados anteriormente.",
+          ? `${leadsCount} leads ${isIncremental ? "adicionados" : "encontrados"}${isIncremental && responseData?.radiusExpanded ? " (raio expandido)" : ""}` 
+          : responseData?.error || "Nenhum lead novo encontrado nesta região. Tente aumentar o raio de busca ou modificar os termos.",
         variant: leadsCount > 0 ? "default" : "destructive"
       });
 

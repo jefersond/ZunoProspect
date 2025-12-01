@@ -80,6 +80,7 @@ serve(async (req) => {
         },
       ],
       mode: "subscription",
+      payment_method_types: ["card"],
       success_url: `${origin}/profile?checkout=success`,
       cancel_url: `${origin}/profile?checkout=canceled`,
       metadata: {

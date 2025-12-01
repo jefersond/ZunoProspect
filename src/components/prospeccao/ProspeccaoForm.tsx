@@ -38,6 +38,8 @@ export const ProspeccaoForm = () => {
   const [raioKm, setRaioKm] = useState([5]);
   const [currentStep, setCurrentStep] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
+  const [lastSearchParams, setLastSearchParams] = useState<FormData | null>(null);
+  const [showRepeatButton, setShowRepeatButton] = useState(false);
 
   const {
     register,
@@ -74,6 +76,10 @@ export const ProspeccaoForm = () => {
       return;
     }
 
+    // Salva os parâmetros da pesquisa
+    setLastSearchParams(data);
+    setShowRepeatButton(false);
+    
     setLoading(true);
     setCurrentStep(1);
     setProgressMessage("Iniciando busca...");
@@ -164,6 +170,7 @@ export const ProspeccaoForm = () => {
       setTimeout(() => {
         setLoading(false);
         setCurrentStep(0);
+        setShowRepeatButton(true);
       }, 1500);
     } catch (error: any) {
       console.error("Erro ao buscar leads:", error);
@@ -191,6 +198,12 @@ export const ProspeccaoForm = () => {
       });
       setLoading(false);
       setCurrentStep(0);
+    }
+  };
+
+  const handleRepeatSearch = () => {
+    if (lastSearchParams) {
+      onSubmit(lastSearchParams);
     }
   };
 
@@ -443,19 +456,34 @@ export const ProspeccaoForm = () => {
             )}
           </div>
 
-          <Button type="submit" className="w-full shadow-primary" disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Buscando leads...
-              </>
-            ) : (
-              <>
+          <div className="flex gap-3">
+            <Button type="submit" className="flex-1 shadow-primary" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Buscando leads...
+                </>
+              ) : (
+                <>
+                  <Search className="mr-2 h-4 w-4" />
+                  Buscar leads
+                </>
+              )}
+            </Button>
+            
+            {showRepeatButton && lastSearchParams && (
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={handleRepeatSearch}
+                disabled={loading}
+                className="flex-1"
+              >
                 <Search className="mr-2 h-4 w-4" />
-                Buscar leads
-              </>
+                Repetir busca
+              </Button>
             )}
-          </Button>
+          </div>
         </form>
       </CardContent>
     </Card>

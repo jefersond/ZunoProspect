@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,18 +15,28 @@ const passwordSchema = z.string().min(8, "A senha deve ter no mínimo 8 caracter
 const emailSchema = z.string().email("Email inválido");
 const Auth = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     toast
   } = useToast();
   const [loading, setLoading] = useState(false);
   const [signupPassword, setSignupPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [activeTab, setActiveTab] = useState<string>("login");
   const [passwordValidation, setPasswordValidation] = useState({
     minLength: false,
     hasUppercase: false,
     hasLowercase: false,
     hasNumber: false
   });
+
+  // Read tab from URL params
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "signup" || tab === "login") {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
   const validatePasswordStrength = (password: string) => {
     setPasswordValidation({
       minLength: password.length >= 8,
@@ -185,7 +195,7 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="login" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Login</TabsTrigger>
               <TabsTrigger value="signup">Cadastro</TabsTrigger>

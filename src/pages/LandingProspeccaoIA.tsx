@@ -387,7 +387,7 @@ const ComoFuncionaSection = () => {
         
         <div className="grid md:grid-cols-3 gap-8">
           {passos.map((passo, index) => <div key={index} className="relative">
-              {index < 2 && <div className="hidden md:block absolute top-12 left-full w-full h-0.5 bg-gradient-to-r from-primary/50 to-transparent -translate-x-1/2" />}
+              {index < 2}
               <Card className="text-center p-8 hover:shadow-lg hover:shadow-primary/5 transition-all dark:border-border/50">
                 <div className="text-5xl font-bold text-primary/20 dark:text-primary/30 mb-4">{passo.numero}</div>
                 <div className="w-16 h-16 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center mx-auto mb-6">

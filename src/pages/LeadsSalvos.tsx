@@ -51,12 +51,24 @@ const LeadsSalvos = () => {
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [reanalyzingLeadId, setReanalyzingLeadId] = useState<string | null>(null);
+  const [verifyingNumbers, setVerifyingNumbers] = useState<Set<string>>(new Set());
+  const [numberStatus, setNumberStatus] = useState<Record<string, 'valid' | 'invalid' | 'checking'>>({});
 
   // Função para validar telefone brasileiro
   const isValidBrazilianPhone = (phone: string): boolean => {
     if (!phone) return false;
     const cleaned = phone.replace(/\D/g, "");
     return cleaned.length >= 10 && cleaned.length <= 11;
+  };
+
+  // Função para validar se o número tem formato de celular (9 dígitos)
+  const isMobileNumber = (phone: string): boolean => {
+    if (!phone) return false;
+    const cleaned = phone.replace(/\D/g, "");
+    // Remove código do país se existir
+    const number = cleaned.startsWith("55") ? cleaned.substring(2) : cleaned;
+    // Celular brasileiro: DDD (2 dígitos) + 9 + 8 dígitos = 11 dígitos total
+    return number.length === 11 && number.charAt(2) === '9';
   };
 
   // Função para gerar link do WhatsApp
@@ -77,6 +89,33 @@ const LeadsSalvos = () => {
     // Sempre adiciona o código do Brasil +55
     return `https://wa.me/55${numberOnly}`;
   };
+
+  // Função para verificar formato do número
+  const validatePhoneNumber = (phone: string): 'valid' | 'invalid' | 'landline' => {
+    if (!phone) return 'invalid';
+    
+    if (!isValidBrazilianPhone(phone)) {
+      return 'invalid';
+    }
+    
+    if (!isMobileNumber(phone)) {
+      return 'landline';
+    }
+    
+    return 'valid';
+  };
+
+  // Valida números ao carregar leads
+  useEffect(() => {
+    const statusMap: Record<string, 'valid' | 'invalid' | 'checking'> = {};
+    leads.forEach(lead => {
+      if (lead.telefone) {
+        const validation = validatePhoneNumber(lead.telefone);
+        statusMap[lead.telefone] = validation === 'valid' ? 'valid' : 'invalid';
+      }
+    });
+    setNumberStatus(statusMap);
+  }, [leads]);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -363,24 +402,41 @@ const LeadsSalvos = () => {
                   {/* Contatos */}
                   <div className="flex flex-wrap gap-2">
                     {lead.telefone && lead.whatsapp_link && (
-                      <a
-                        href={lead.whatsapp_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-xs text-green-600 hover:underline"
-                      >
-                        <MessageSquare className="h-3 w-3" />
-                        {lead.telefone}
-                      </a>
+                      <div className="flex items-center gap-1">
+                        <a
+                          href={lead.whatsapp_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-xs text-green-600 hover:underline"
+                        >
+                          <MessageSquare className="h-3 w-3" />
+                          {lead.telefone}
+                        </a>
+                        {numberStatus[lead.telefone] === 'valid' && (
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 text-green-700 border-green-200">
+                            WhatsApp
+                          </Badge>
+                        )}
+                        {numberStatus[lead.telefone] === 'invalid' && (
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-yellow-50 text-yellow-700 border-yellow-200">
+                            Fixo
+                          </Badge>
+                        )}
+                      </div>
                     )}
                     {lead.telefone && !lead.whatsapp_link && (
-                      <a
-                        href={`tel:${lead.telefone}`}
-                        className="flex items-center gap-1 text-xs text-primary hover:underline"
-                      >
-                        <Phone className="h-3 w-3" />
-                        {lead.telefone}
-                      </a>
+                      <div className="flex items-center gap-1">
+                        <a
+                          href={`tel:${lead.telefone}`}
+                          className="flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
+                          <Phone className="h-3 w-3" />
+                          {lead.telefone}
+                        </a>
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-gray-50 text-gray-600 border-gray-200">
+                          Telefone
+                        </Badge>
+                      </div>
                     )}
                     {lead.instagram_url && (
                       <a

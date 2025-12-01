@@ -23,6 +23,7 @@ import {
   Trash2,
   Eye,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LeadPlanDialog } from "@/components/prospeccao/LeadPlanDialog";
@@ -49,6 +50,7 @@ const LeadsSalvos = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [reanalyzingLeadId, setReanalyzingLeadId] = useState<string | null>(null);
 
   // Função para validar telefone brasileiro
   const isValidBrazilianPhone = (phone: string): boolean => {
@@ -187,6 +189,42 @@ const LeadsSalvos = () => {
   const handleViewPlan = (lead: LeadProspeccao) => {
     setSelectedLead(lead);
     setDialogOpen(true);
+  };
+
+  const handleReanalyze = async (leadId: string) => {
+    try {
+      setReanalyzingLeadId(leadId);
+      
+      toast({
+        title: "Reanalisando lead",
+        description: "Aguarde enquanto a IA reanalisa este lead...",
+      });
+
+      const { error } = await supabase.functions.invoke("analisar-lead-ia", {
+        body: { leadId },
+      });
+
+      if (error) throw error;
+
+      // Recarrega os leads para obter a análise atualizada
+      if (user) {
+        await loadSavedLeads(user.id);
+      }
+
+      toast({
+        title: "Reanálise concluída",
+        description: "O lead foi reanalisado com sucesso",
+      });
+    } catch (error: any) {
+      console.error("Erro ao reanalisar lead:", error);
+      toast({
+        title: "Erro na reanálise",
+        description: error.message || "Não foi possível reanalisar o lead",
+        variant: "destructive",
+      });
+    } finally {
+      setReanalyzingLeadId(null);
+    }
   };
 
   if (!user) return null;
@@ -390,6 +428,18 @@ const LeadsSalvos = () => {
                     >
                       <Eye className="h-4 w-4 mr-1" />
                       Ver Plano
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleReanalyze(lead.id)}
+                      disabled={reanalyzingLeadId === lead.id}
+                    >
+                      {reanalyzingLeadId === lead.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>

@@ -196,6 +196,8 @@ const Auth = () => {
       // Limpar campos
       setSignupPassword("");
       setConfirmPassword("");
+      // Redirecionar para aba de login
+      setActiveTab("login");
     }
     setLoading(false);
   };

@@ -222,10 +222,10 @@ const LPHeader = () => {
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <Button variant="ghost" asChild>
-              <a href="/auth">Entrar</a>
+              <a href="/auth?tab=login">Entrar</a>
             </Button>
             <Button asChild>
-              <a href="/auth">Começar agora</a>
+              <a href="/auth?tab=signup">Começar agora</a>
             </Button>
           </div>
         </div>
@@ -265,7 +265,7 @@ const HeroSection = () => {
             
             <div className="flex flex-col sm:flex-row gap-4">
               <Button size="lg" className="text-lg px-8 shadow-lg shadow-primary/25" asChild>
-                <a href="/auth">
+                <a href="/auth?tab=signup">
                   Começar agora
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </a>
@@ -1117,7 +1117,7 @@ const CTAFinalSection = () => {
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Button size="lg" variant="secondary" className="text-lg px-8 shadow-lg" asChild>
-            <a href="/auth">
+            <a href="/auth?tab=signup">
               Começar agora
               <ArrowRight className="ml-2 h-5 w-5" />
             </a>

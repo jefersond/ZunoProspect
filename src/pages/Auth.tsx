@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, ArrowLeft } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Progress } from "@/components/ui/progress";
 import { z } from "zod";
@@ -23,6 +23,9 @@ const Auth = () => {
   const [signupPassword, setSignupPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [activeTab, setActiveTab] = useState<string>("login");
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [resetEmailSent, setResetEmailSent] = useState(false);
   const [passwordValidation, setPasswordValidation] = useState({
     minLength: false,
     hasUppercase: false,
@@ -37,6 +40,41 @@ const Auth = () => {
       setActiveTab(tab);
     }
   }, [searchParams]);
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const emailValidation = emailSchema.safeParse(forgotEmail);
+    if (!emailValidation.success) {
+      toast({
+        variant: "destructive",
+        title: "Email inválido",
+        description: emailValidation.error.errors[0].message
+      });
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      redirectTo: `${window.location.origin}/auth`,
+    });
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao enviar email",
+        description: error.message
+      });
+    } else {
+      setResetEmailSent(true);
+      toast({
+        title: "Email enviado!",
+        description: "Verifique sua caixa de entrada para redefinir sua senha."
+      });
+    }
+    setLoading(false);
+  };
+
   const validatePasswordStrength = (password: string) => {
     setPasswordValidation({
       minLength: password.length >= 8,
@@ -202,22 +240,94 @@ const Auth = () => {
             </TabsList>
             
             <TabsContent value="login">
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input id="login-email" name="email" type="email" placeholder="seu@email.com" required />
+              {showForgotPassword ? (
+                <div className="space-y-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowForgotPassword(false);
+                      setResetEmailSent(false);
+                      setForgotEmail("");
+                    }}
+                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Voltar ao login
+                  </button>
+                  
+                  {resetEmailSent ? (
+                    <div className="text-center space-y-4 py-4">
+                      <div className="flex justify-center">
+                        <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                          <CheckCircle2 className="h-6 w-6 text-green-500" />
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">Email enviado!</h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Verifique sua caixa de entrada em <strong>{forgotEmail}</strong> para redefinir sua senha.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleForgotPassword} className="space-y-4">
+                      <div className="text-center mb-4">
+                        <h3 className="font-semibold">Esqueceu sua senha?</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Digite seu email para receber um link de recuperação.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="forgot-email">Email</Label>
+                        <Input
+                          id="forgot-email"
+                          type="email"
+                          placeholder="seu@email.com"
+                          value={forgotEmail}
+                          onChange={(e) => setForgotEmail(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <Button type="submit" className="w-full" disabled={loading}>
+                        {loading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Enviando...
+                          </>
+                        ) : (
+                          "Enviar link de recuperação"
+                        )}
+                      </Button>
+                    </form>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Senha</Label>
-                  <Input id="login-password" name="password" type="password" placeholder="••••••••" required />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Entrando...
-                    </> : "Entrar"}
-                </Button>
-              </form>
+              ) : (
+                <form onSubmit={handleSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email">Email</Label>
+                    <Input id="login-email" name="email" type="email" placeholder="seu@email.com" required />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="login-password">Senha</Label>
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotPassword(true)}
+                        className="text-sm text-primary hover:underline"
+                      >
+                        Esqueci minha senha
+                      </button>
+                    </div>
+                    <Input id="login-password" name="password" type="password" placeholder="••••••••" required />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Entrando...
+                      </> : "Entrar"}
+                  </Button>
+                </form>
+              )}
             </TabsContent>
             
             <TabsContent value="signup">

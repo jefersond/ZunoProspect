@@ -196,11 +196,11 @@ const LPHeader = () => {
   return <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-600 bg-clip-text text-transparent">
+          <div className="flex items-center gap-2 group cursor-pointer">
+            <span className="text-xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent bg-[length:200%_100%] bg-[position:0%_50%] transition-all duration-500 group-hover:bg-[position:100%_50%]">
               Zuno
             </span>
-            <span className="text-xl font-semibold text-muted-foreground">
+            <span className="text-xl font-semibold text-muted-foreground transition-colors duration-300 group-hover:text-foreground">
               Prospect
             </span>
           </div>

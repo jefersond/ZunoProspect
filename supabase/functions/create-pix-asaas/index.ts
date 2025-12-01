@@ -33,17 +33,25 @@ serve(async (req) => {
     logStep("Function started");
 
     const { plano, isAnual, customerName, customerCpf, customerEmail, customerWhatsapp } = await req.json();
-    logStep("Request body", { plano, isAnual, customerName, customerCpf, customerWhatsapp });
+    logStep("Request body", { plano, isAnual, customerName, customerCpf, customerWhatsapp, customerEmail });
 
-    // Autenticar usuário
+    // Validar dados obrigatórios
+    if (!customerEmail) throw new Error("Email é obrigatório");
+    if (!customerName) throw new Error("Nome é obrigatório");
+    if (!customerCpf) throw new Error("CPF é obrigatório");
+
+    // Tentar autenticar usuário (opcional para landing page)
+    let userId: string | null = null;
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
-    
-    const token = authHeader.replace("Bearer ", "");
-    const { data } = await supabaseClient.auth.getUser(token);
-    const user = data.user;
-    if (!user?.email) throw new Error("User not authenticated or email not available");
-    logStep("User authenticated", { userId: user.id, email: user.email });
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "");
+      const { data } = await supabaseClient.auth.getUser(token);
+      if (data.user?.id) {
+        userId = data.user.id;
+        logStep("User authenticated", { userId });
+      }
+    }
+    logStep("Processing for", { userId: userId || "guest", email: customerEmail });
 
     // Determinar o valor baseado no plano e período
     const planKey = plano.toLowerCase() === "pro" 
@@ -66,7 +74,7 @@ serve(async (req) => {
 
     // 1. Buscar ou criar cliente no Asaas
     const searchCustomerResponse = await fetch(
-      `${asaasBaseUrl}/customers?email=${encodeURIComponent(customerEmail || user.email)}`,
+      `${asaasBaseUrl}/customers?email=${encodeURIComponent(customerEmail)}`,
       {
         headers: {
           "access_token": asaasApiKey,
@@ -91,8 +99,8 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: customerName || user.email?.split("@")[0] || "Cliente",
-          email: customerEmail || user.email,
+          name: customerName || customerEmail.split("@")[0] || "Cliente",
+          email: customerEmail,
           cpfCnpj: customerCpf?.replace(/\D/g, "") || undefined,
           mobilePhone: customerWhatsapp?.replace(/\D/g, "") || undefined,
           notificationDisabled: false,
@@ -130,7 +138,8 @@ serve(async (req) => {
         dueDate: dueDateStr,
         description: descricaoPlano,
         externalReference: JSON.stringify({
-          user_id: user.id,
+          user_id: userId,
+          customer_email: customerEmail,
           plan_name: plano.toLowerCase(),
           is_annual: isAnual,
         }),

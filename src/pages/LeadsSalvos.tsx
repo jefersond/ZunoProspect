@@ -71,8 +71,8 @@ const LeadsSalvos = () => {
     return number.length === 11 && number.charAt(2) === '9';
   };
 
-  // Função para gerar link do WhatsApp
-  const generateWhatsAppLink = (phone: string): string | null => {
+  // Função para gerar link do WhatsApp com mensagem pré-preenchida
+  const generateWhatsAppLink = (phone: string, lead?: LeadProspeccao): string | null => {
     if (!phone) return null;
     const cleaned = phone.replace(/\D/g, "");
     if (!isValidBrazilianPhone(phone)) return null;
@@ -86,8 +86,20 @@ const LeadsSalvos = () => {
     // Valida o tamanho após remover o código
     if (numberOnly.length < 10 || numberOnly.length > 11) return null;
     
-    // Sempre adiciona o código do Brasil +55
-    return `https://wa.me/55${numberOnly}`;
+    // Gera mensagem personalizada se o lead for fornecido
+    let url = `https://wa.me/55${numberOnly}`;
+    if (lead) {
+      const message = `Olá! Tudo bem?
+
+Meu nome é [SEU NOME] e trabalho com ${lead.foco.toLowerCase()} para empresas de ${lead.nicho.toLowerCase()} em ${lead.cidade}.
+
+Encontrei ${lead.nome} e gostaria de conversar sobre como podemos ajudar a melhorar os resultados digitais do seu negócio.
+
+Teria alguns minutos para conversarmos?`;
+      url += `?text=${encodeURIComponent(message)}`;
+    }
+    
+    return url;
   };
 
   // Função para verificar formato do número
@@ -141,40 +153,44 @@ const LeadsSalvos = () => {
       if (error) throw error;
 
       const transformedLeads: LeadProspeccao[] = (data || []).map((lead: any) => {
-        // Usa whatsapp_number se existir, senão tenta telefone
         const phoneForWhatsapp = lead.whatsapp_number || lead.telefone;
         
-        return {
+        const leadData = {
           id: lead.id,
           placeId: lead.google_place_id,
           nome: lead.nome,
           telefone: lead.telefone,
-          whatsapp_link: generateWhatsAppLink(phoneForWhatsapp),
+          whatsapp_link: null as string | null,
           website: lead.website || null,
           instagram_url: lead.instagram_url || null,
           instagram_context: lead.instagram_context,
-        endereco: lead.endereco,
-        cidade: lead.cidade,
-        nicho: lead.nicho,
-        foco: lead.foco as any,
-        proximidadeAtiva: lead.proximidade_ativa || false,
-        raioKm: lead.raio_km,
-        sinais: {
-          has_whatsapp_on_site: lead.whatsapp_on_site || false,
-          has_meta_pixel: lead.has_meta_pixel || false,
-          has_gtag: lead.has_gtag || false,
-          has_gtm: lead.has_gtm || false,
-        },
-        diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
-        probabilidade_conversao: lead.probabilidade_conversao || 0,
-        plano_prospecao_7dias: (lead.plano_prospeccao as any) || [],
-        rating: lead.rating,
-        total_reviews: lead.total_reviews,
-        status: lead.status || "novo",
-        created_at: lead.created_at,
-        ai_analise_gerada_em: lead.ai_analise_gerada_em,
-        salvo: lead.salvo || false,
-      };
+          endereco: lead.endereco,
+          cidade: lead.cidade,
+          nicho: lead.nicho,
+          foco: lead.foco as any,
+          proximidadeAtiva: lead.proximidade_ativa || false,
+          raioKm: lead.raio_km,
+          sinais: {
+            has_whatsapp_on_site: lead.whatsapp_on_site || false,
+            has_meta_pixel: lead.has_meta_pixel || false,
+            has_gtag: lead.has_gtag || false,
+            has_gtm: lead.has_gtm || false,
+          },
+          diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
+          probabilidade_conversao: lead.probabilidade_conversao || 0,
+          plano_prospecao_7dias: (lead.plano_prospeccao as any) || [],
+          rating: lead.rating,
+          total_reviews: lead.total_reviews,
+          status: lead.status || "novo",
+          created_at: lead.created_at,
+          ai_analise_gerada_em: lead.ai_analise_gerada_em,
+          salvo: lead.salvo || false,
+        };
+        
+        // Gera link do WhatsApp com mensagem personalizada
+        leadData.whatsapp_link = generateWhatsAppLink(phoneForWhatsapp, leadData);
+        
+        return leadData;
       });
 
       setLeads(transformedLeads);

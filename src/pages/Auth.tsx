@@ -41,6 +41,17 @@ const Auth = () => {
     }
   }, [searchParams]);
 
+  // Redirect authenticated users to /prospeccao
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate("/prospeccao");
+      }
+    };
+    checkAuth();
+  }, [navigate]);
+
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     

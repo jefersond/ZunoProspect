@@ -40,3 +40,15 @@ export const copyToClipboard = async (text: string): Promise<boolean> => {
     return false;
   }
 };
+
+export const generateWhatsAppMessage = (lead: LeadProspeccao): string => {
+  const variables = extractVariables(lead);
+  
+  return `Olá! Tudo bem?
+
+Meu nome é [SEU NOME] e trabalho com ${variables.foco.toLowerCase()} para empresas de ${variables.nicho.toLowerCase()} em ${variables.cidade}.
+
+Encontrei ${variables.empresa} e gostaria de conversar sobre como podemos ajudar a melhorar os resultados digitais do seu negócio.
+
+Teria alguns minutos para conversarmos?`;
+};

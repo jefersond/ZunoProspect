@@ -11,8 +11,9 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { CheckCircle2, Crown, Zap, Loader2, CreditCard } from "lucide-react";
+import { CheckCircle2, Crown, Loader2, CreditCard, QrCode } from "lucide-react";
 import { toast } from "sonner";
+import { PixPaymentDialog } from "./PixPaymentDialog";
 
 // Planos disponíveis para upgrade
 const PLANOS = [
@@ -56,8 +57,16 @@ interface UpgradePlanDialogProps {
 export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps) => {
   const [isAnual, setIsAnual] = useState(false);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"card" | "pix" | null>(null);
+  const [selectedPlano, setSelectedPlano] = useState<typeof PLANOS[0] | null>(null);
+  const [showPixDialog, setShowPixDialog] = useState(false);
 
-  const handleSelectPlano = async (plano: typeof PLANOS[0]) => {
+  const handleSelectPlano = async (plano: typeof PLANOS[0], method: "card" | "pix") => {
+    if (method === "pix") {
+      setSelectedPlano(plano);
+      setShowPixDialog(true);
+      return;
+    }
     setIsProcessing(plano.nome);
     
     try {
@@ -105,7 +114,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
             Fazer Upgrade do Plano
           </DialogTitle>
           <DialogDescription>
-            Escolha o plano ideal para escalar sua prospecção. Pagamento seguro via Stripe.
+            Escolha o plano ideal para escalar sua prospecção.
           </DialogDescription>
         </DialogHeader>
 
@@ -143,8 +152,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
                   plano.destaque
                     ? "border-2 border-primary shadow-md"
                     : "border border-border/50"
-                } ${isProcessing && !isLoading ? "opacity-50" : "hover:shadow-lg cursor-pointer"}`}
-                onClick={() => !isProcessing && handleSelectPlano(plano)}
+                } ${isProcessing && !isLoading ? "opacity-50" : ""}`}
               >
                 {plano.destaque && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -175,33 +183,65 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
                   ))}
                 </ul>
 
-                <Button
-                  className="w-full"
-                  variant={plano.destaque ? "default" : "outline"}
-                  disabled={!!isProcessing}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Abrindo checkout...
-                    </>
-                  ) : (
-                    <>
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Assinar {plano.nome}
-                    </>
-                  )}
-                </Button>
+                <div className="space-y-2">
+                  <Button
+                    className="w-full"
+                    variant={plano.destaque ? "default" : "outline"}
+                    disabled={!!isProcessing}
+                    onClick={() => handleSelectPlano(plano, "card")}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Processando...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        Cartão de Crédito
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    disabled={!!isProcessing}
+                    onClick={() => handleSelectPlano(plano, "pix")}
+                  >
+                    <QrCode className="h-4 w-4 mr-2" />
+                    Pagar com PIX
+                  </Button>
+                </div>
               </Card>
             );
           })}
         </div>
 
-        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-2 border-t">
-          <CreditCard className="h-3 w-3" />
-          <span>Pagamento seguro processado pelo Stripe</span>
+        <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-2 border-t">
+          <div className="flex items-center gap-1">
+            <CreditCard className="h-3 w-3" />
+            <span>Stripe</span>
+          </div>
+          <span>•</span>
+          <div className="flex items-center gap-1">
+            <QrCode className="h-3 w-3" />
+            <span>Asaas PIX</span>
+          </div>
         </div>
       </DialogContent>
+
+      {selectedPlano && (
+        <PixPaymentDialog
+          open={showPixDialog}
+          onOpenChange={setShowPixDialog}
+          plano={selectedPlano.nome}
+          isAnual={isAnual}
+          valor={isAnual ? selectedPlano.precoAnual : selectedPlano.precoMensal}
+          onPaymentConfirmed={() => {
+            onOpenChange(false);
+          }}
+        />
+      )}
     </Dialog>
   );
 };

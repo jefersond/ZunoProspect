@@ -14,3 +14,9 @@ verify_jwt = true
 
 [functions.customer-portal]
 verify_jwt = true
+
+[functions.create-pix-asaas]
+verify_jwt = true
+
+[functions.check-pix-payment]
+verify_jwt = true

@@ -220,6 +220,9 @@ const LPHeader = () => {
           
           <div className="flex items-center gap-3">
             <ThemeToggle />
+            <Button variant="ghost" asChild>
+              <a href="/auth">Entrar</a>
+            </Button>
             <Button asChild>
               <a href="/auth">Começar agora</a>
             </Button>

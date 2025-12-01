@@ -9,6 +9,16 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Search, Zap, Target, MessageSquare, Clock, Users, TrendingUp, CheckCircle2, Play, ArrowRight, Star, Globe, Smartphone, ChevronLeft, ChevronRight, Building2, Megaphone, Palette, Code, LineChart, CreditCard, QrCode, X } from "lucide-react";
+
+// Avatar imports
+import avatar1 from "@/assets/avatars/avatar-1.jpg";
+import avatar2 from "@/assets/avatars/avatar-2.jpg";
+import avatar3 from "@/assets/avatars/avatar-3.jpg";
+import avatar4 from "@/assets/avatars/avatar-4.jpg";
+import avatar5 from "@/assets/avatars/avatar-5.jpg";
+import avatar6 from "@/assets/avatars/avatar-6.jpg";
+
+const HERO_AVATARS = [avatar1, avatar2, avatar3, avatar4, avatar5, avatar6];
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "sonner";
 
@@ -255,10 +265,18 @@ const HeroSection = () => {
             </div>
             
             <div className="flex items-center gap-6 pt-4">
-              <div className="flex -space-x-3">
-                {[1, 2, 3, 4].map(i => <div key={i} className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 border-2 border-background flex items-center justify-center">
-                    <Users className="h-4 w-4 text-primary" />
-                  </div>)}
+              <div className="flex -space-x-2">
+                {HERO_AVATARS.map((avatar, i) => (
+                  <img 
+                    key={i} 
+                    src={avatar} 
+                    alt={`Usuário ${i + 1}`}
+                    className="w-10 h-10 rounded-full border-2 border-background object-cover"
+                  />
+                ))}
+                <div className="w-10 h-10 rounded-full bg-primary border-2 border-background flex items-center justify-center">
+                  <span className="text-xs font-bold text-primary-foreground">+500</span>
+                </div>
               </div>
               <div className="text-sm text-muted-foreground">
                 <span className="font-semibold text-foreground">+500 profissionais</span>

@@ -480,7 +480,7 @@ export const ProspeccaoForm = () => {
                 className="flex-1"
               >
                 <Search className="mr-2 h-4 w-4" />
-                Repetir busca
+                Buscar novamente
               </Button>
             )}
           </div>

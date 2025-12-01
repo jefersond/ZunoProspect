@@ -197,6 +197,27 @@ const LPHeader = () => {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-2 group cursor-pointer">
+            <svg 
+              width="32" 
+              height="32" 
+              viewBox="0 0 32 32" 
+              fill="none" 
+              xmlns="http://www.w3.org/2000/svg"
+              className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12"
+            >
+              <defs>
+                <linearGradient id="zGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#22d3ee" />
+                  <stop offset="50%" stopColor="#3b82f6" />
+                  <stop offset="100%" stopColor="#a855f7" />
+                </linearGradient>
+              </defs>
+              <path 
+                d="M8 6 L24 6 L24 10 L14 10 L24 22 L24 26 L8 26 L8 22 L18 22 L8 10 Z" 
+                fill="url(#zGradient)"
+                className="transition-all duration-500"
+              />
+            </svg>
             <span className="text-xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent bg-[length:200%_100%] bg-[position:0%_50%] transition-all duration-500 group-hover:bg-[position:100%_50%]">
               Zuno
             </span>

@@ -198,7 +198,7 @@ const LPHeader = () => {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
-            <img src={logoHorizontal} alt="Zuno Prospect" className="h-10" />
+            <img src={logoHorizontal} alt="Zuno Prospect" className="h-7 opacity-90 dark:opacity-100 dark:brightness-110" />
           </div>
           
           <nav className="hidden md:flex items-center gap-6">

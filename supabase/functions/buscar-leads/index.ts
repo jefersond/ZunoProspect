@@ -15,6 +15,7 @@ interface ProspeccaoRequest {
   proximidadeAtiva: boolean;
   raioKm?: number;
   canaisProspeccao?: ("email" | "whatsapp" | "instagram")[];
+  excludePlaceIds?: string[];
 }
 
 serve(async (req) => {
@@ -131,6 +132,28 @@ serve(async (req) => {
     }
 
     console.log(`Encontrados ${leads.length} leads`);
+    
+    // Filtra leads que já existem (busca incremental)
+    const excludePlaceIds = body.excludePlaceIds || [];
+    if (excludePlaceIds.length > 0) {
+      console.log(`Filtrando ${excludePlaceIds.length} place_ids já existentes...`);
+      leads = leads.filter((lead: any) => !excludePlaceIds.includes(lead.place_id));
+      console.log(`Leads após filtro: ${leads.length}`);
+      
+      // Se não houver leads suficientes após o filtro, pode retornar menos do que solicitado
+      if (leads.length === 0) {
+        return new Response(
+          JSON.stringify({ 
+            error: "Nenhum lead novo encontrado. Todos os leads desta busca já foram adicionados anteriormente.",
+            leadsCount: 0 
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }
 
     // Função para analisar o HTML do site e extrair sinais digitais
     async function analyzeSiteHTML(websiteUrl: string) {

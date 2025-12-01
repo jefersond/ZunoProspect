@@ -48,7 +48,7 @@ const Templates = () => {
           <div className="flex items-center justify-between gap-4">
             {/* Logo e Título */}
             <div className="flex items-center gap-2 group cursor-pointer">
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12 rotate-180">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12 scale-x-[-1]">
                 <defs>
                   <linearGradient id="zGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stopColor="#22d3ee" />

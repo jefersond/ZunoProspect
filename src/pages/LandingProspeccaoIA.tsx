@@ -18,6 +18,13 @@ import avatar4 from "@/assets/avatars/avatar-4.jpg";
 import avatar5 from "@/assets/avatars/avatar-5.jpg";
 import avatar6 from "@/assets/avatars/avatar-6.jpg";
 
+// Depoimentos avatars
+import depoRicardo from "@/assets/avatars/depo-ricardo.jpg";
+import depoCamila from "@/assets/avatars/depo-camila.jpg";
+import depoFelipe from "@/assets/avatars/depo-felipe.jpg";
+import depoJuliana from "@/assets/avatars/depo-juliana.jpg";
+import depoBruno from "@/assets/avatars/depo-bruno.jpg";
+
 const HERO_AVATARS = [avatar1, avatar2, avatar3, avatar4, avatar5, avatar6];
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "sonner";
@@ -31,7 +38,7 @@ const DEPOIMENTOS = [{
   nome: "Ricardo Mendes",
   cargo: "Gestor de Tráfego",
   empresa: "RM Digital",
-  foto: null,
+  foto: depoRicardo,
   texto: "Em 2 semanas consegui 15 reuniões com leads qualificados. O plano de prospecção de 7 dias é genial, economizo umas 10h por semana.",
   estrelas: 5
 }, {
@@ -39,7 +46,7 @@ const DEPOIMENTOS = [{
   nome: "Camila Santos",
   cargo: "Owner de Agência",
   empresa: "Agência Impulso",
-  foto: null,
+  foto: depoCamila,
   texto: "Antes eu passava horas no Google procurando empresas. Agora em minutos tenho uma lista pronta com diagnóstico e até as mensagens de abordagem.",
   estrelas: 5
 }, {
@@ -47,7 +54,7 @@ const DEPOIMENTOS = [{
   nome: "Felipe Oliveira",
   cargo: "Freela de Social Media",
   empresa: "Autônomo",
-  foto: null,
+  foto: depoFelipe,
   texto: "O diferencial é a análise de sinais digitais. Consigo identificar quem realmente precisa dos meus serviços antes de abordar.",
   estrelas: 5
 }, {
@@ -55,7 +62,7 @@ const DEPOIMENTOS = [{
   nome: "Juliana Costa",
   cargo: "Especialista em SEO",
   empresa: "SEO Masters",
-  foto: null,
+  foto: depoJuliana,
   texto: "Finalmente uma ferramenta que entende o mercado de marketing. Os leads vêm com contexto e eu sei exatamente como abordar cada um.",
   estrelas: 5
 }, {
@@ -63,7 +70,7 @@ const DEPOIMENTOS = [{
   nome: "Bruno Almeida",
   cargo: "Webdesigner",
   empresa: "Studio Criativo",
-  foto: null,
+  foto: depoBruno,
   texto: "Minha taxa de resposta subiu muito depois que comecei a usar os planos de prospecção. As mensagens são personalizadas e não parecem spam.",
   estrelas: 5
 }];
@@ -452,11 +459,11 @@ const DepoimentosSection = () => {
                 </div>
                 <p className="text-muted-foreground mb-6 italic">"{depoimento.texto}"</p>
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-                    <span className="text-lg font-bold text-primary">
-                      {depoimento.nome.split(" ").map(n => n[0]).join("")}
-                    </span>
-                  </div>
+                  <img 
+                    src={depoimento.foto} 
+                    alt={depoimento.nome}
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
                   <div>
                     <div className="font-semibold">{depoimento.nome}</div>
                     <div className="text-sm text-muted-foreground">

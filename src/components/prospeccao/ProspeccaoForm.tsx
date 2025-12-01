@@ -100,11 +100,12 @@ export const ProspeccaoForm = () => {
         existingPlaceIds = existingLeads?.map(lead => lead.google_place_id).filter(Boolean) || [];
       }
       
-      // Se não for incremental, limpa leads anteriores
+      // Se não for incremental, limpa leads NÃO salvos
       if (!isIncremental) {
         window.dispatchEvent(new CustomEvent("clearLeads"));
         
         if (user) {
+          // Deleta apenas leads não salvos (salvo=false)
           await supabase.from("leads").delete().eq("user_id", user.id).eq("salvo", false);
         }
       }

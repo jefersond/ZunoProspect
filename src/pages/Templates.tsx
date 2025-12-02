@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut, ArrowLeft, Plus, History, BarChart3, User, FileText, Search, Bookmark } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
+import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { TemplatesList } from "@/components/templates/TemplatesList";
 import { TemplateForm } from "@/components/templates/TemplateForm";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -113,6 +114,7 @@ const Templates = () => {
           </DialogContent>
         </Dialog>
       </main>
+      <FloatingWhatsAppButton />
     </div>
   );
 };

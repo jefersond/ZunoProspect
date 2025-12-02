@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut, History, BarChart3, FileText, User, Search, ArrowLeft, Bookmark } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
+import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -246,6 +247,7 @@ export default function Historico() {
           </TabsContent>
         </Tabs>
       </main>
+      <FloatingWhatsAppButton />
     </div>
   );
 }

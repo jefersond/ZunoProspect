@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, TrendingUp, Users, Target, Activity, Loader2, History, BarChart3, Search, FileText, User, LogOut, Bookmark } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
+import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
 interface DashboardMetrics {
@@ -282,6 +283,7 @@ const Dashboard = () => {
           </Card>
         </div>
       </main>
+      <FloatingWhatsAppButton />
     </div>
   );
 };

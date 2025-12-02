@@ -7,6 +7,7 @@ import { LeadsList } from "@/components/prospeccao/LeadsList";
 import { LogOut, Search, User, BarChart3, FileText, History, Bookmark } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
+import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 const Prospeccao = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
@@ -78,6 +79,7 @@ const Prospeccao = () => {
         <ProspeccaoForm />
         <LeadsList />
       </main>
+      <FloatingWhatsAppButton />
     </div>;
 };
 export default Prospeccao;

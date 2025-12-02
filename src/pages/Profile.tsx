@@ -10,6 +10,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
+import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
 import { Badge } from "@/components/ui/badge";
@@ -349,6 +350,7 @@ const Profile = () => {
         open={upgradeDialogOpen} 
         onOpenChange={setUpgradeDialogOpen} 
       />
+      <FloatingWhatsAppButton />
     </div>
   );
 };

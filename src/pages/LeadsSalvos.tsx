@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
+import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { LeadPlanDialog } from "@/components/prospeccao/LeadPlanDialog";
 import type { LeadProspeccao } from "@/types/lead";
 import {
@@ -526,6 +527,7 @@ const LeadsSalvos = () => {
         onOpenChange={setDialogOpen}
         onLeadUpdate={() => user && loadSavedLeads(user.id)}
       />
+      <FloatingWhatsAppButton />
     </div>
   );
 };

@@ -29,6 +29,7 @@ import depoJuliana from "@/assets/avatars/depo-juliana.jpg";
 import depoBruno from "@/assets/avatars/depo-bruno.jpg";
 const HERO_AVATARS = [avatar1, avatar2, avatar3, avatar4, avatar5, avatar6];
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
 
 // ============================================
@@ -202,24 +203,7 @@ const LPHeader = () => {
       <div className="container mx-auto px-3 sm:px-4">
         <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Logo */}
-          <div className="flex items-center gap-1.5 sm:gap-2 group cursor-pointer">
-            <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12 scale-x-[-1] sm:w-8 sm:h-8">
-              <defs>
-                <linearGradient id="zGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#22d3ee" />
-                  <stop offset="50%" stopColor="#3b82f6" />
-                  <stop offset="100%" stopColor="#a855f7" />
-                </linearGradient>
-              </defs>
-              <path d="M 8 6 L 24 6 L 24 10 L 16 10 L 24 22 L 24 26 L 8 26 L 8 22 L 16 22 L 8 10 L 8 6 Z" fill="url(#zGradient)" className="transition-all duration-500" />
-            </svg>
-            <span className="text-base sm:text-xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent bg-[length:200%_100%] bg-[position:0%_50%] transition-all duration-500 group-hover:bg-[position:100%_50%]">
-              Zuno
-            </span>
-            <span className="text-base sm:text-xl font-semibold text-muted-foreground transition-colors duration-300 group-hover:text-foreground">
-              Prospect
-            </span>
-          </div>
+          <Logo className="[&_svg]:w-6 [&_svg]:h-6 sm:[&_svg]:w-8 sm:[&_svg]:h-8 [&_span:first-of-type]:text-base sm:[&_span:first-of-type]:text-xl [&_span:last-of-type]:text-base sm:[&_span:last-of-type]:text-xl" />
           
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center gap-6">
@@ -1231,24 +1215,7 @@ const Footer = () => {
   return <footer className="py-6 sm:py-8 bg-background border-t">
       <div className="container mx-auto px-3 sm:px-4">
         <div className="flex flex-col md:flex-row justify-between items-center gap-3 sm:gap-4">
-          <div className="flex items-center gap-1.5 sm:gap-2 group cursor-pointer">
-            <svg width="20" height="20" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12 scale-x-[-1] sm:w-6 sm:h-6">
-              <defs>
-                <linearGradient id="zGradientFooter" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#22d3ee" />
-                  <stop offset="50%" stopColor="#3b82f6" />
-                  <stop offset="100%" stopColor="#a855f7" />
-                </linearGradient>
-              </defs>
-              <path d="M 8 6 L 24 6 L 24 10 L 16 10 L 24 22 L 24 26 L 8 26 L 8 22 L 16 22 L 8 10 L 8 6 Z" fill="url(#zGradientFooter)" className="transition-all duration-500" />
-            </svg>
-            <span className="text-base sm:text-lg font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent bg-[length:200%_100%] bg-[position:0%_50%] transition-all duration-500 group-hover:bg-[position:100%_50%]">
-              Zuno
-            </span>
-            <span className="text-base sm:text-lg font-semibold text-muted-foreground transition-colors duration-300 group-hover:text-foreground">
-              Prospect
-            </span>
-          </div>
+          <Logo className="[&_svg]:w-5 [&_svg]:h-5 sm:[&_svg]:w-6 sm:[&_svg]:h-6 [&_span:first-of-type]:text-base sm:[&_span:first-of-type]:text-lg [&_span:last-of-type]:text-base sm:[&_span:last-of-type]:text-lg" />
           <p className="text-xs sm:text-sm text-muted-foreground text-center">
             © 2024 Todos os direitos reservados.
           </p>

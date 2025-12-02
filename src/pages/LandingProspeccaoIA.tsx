@@ -422,9 +422,9 @@ const ComoFuncionaSection = () => {
         </div>
         
         <div className="grid md:grid-cols-3 gap-8">
-          {passos.map((passo, index) => <div key={index} className="relative">
+          {passos.map((passo, index) => <div key={index} className="relative h-full">
               {index < 2}
-              <Card className="text-center p-8 hover:shadow-lg hover:shadow-primary/5 transition-all dark:border-border/50">
+              <Card className="text-center p-8 h-full hover:shadow-lg hover:shadow-primary/5 transition-all dark:border-border/50">
                 <div className="text-5xl font-bold text-primary/20 dark:text-primary/30 mb-4">{passo.numero}</div>
                 <div className="w-16 h-16 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center mx-auto mb-6">
                   <passo.icone className="h-8 w-8 text-primary" />

@@ -73,7 +73,7 @@ const LeadsSalvos = () => {
     return number.length === 11 && number.charAt(2) === '9';
   };
 
-  // Função para gerar link do WhatsApp
+  // Função para gerar link do WhatsApp (apenas para celulares)
   const generateWhatsAppLink = (phone: string): string | null => {
     if (!phone) return null;
     const cleaned = phone.replace(/\D/g, "");
@@ -87,6 +87,11 @@ const LeadsSalvos = () => {
     
     // Valida o tamanho após remover o código
     if (numberOnly.length < 10 || numberOnly.length > 11) return null;
+    
+    // Só gera link WhatsApp para celulares (11 dígitos, começa com 9)
+    if (numberOnly.length !== 11 || numberOnly.charAt(2) !== '9') {
+      return null; // Telefone fixo - não tem WhatsApp
+    }
     
     // Sempre adiciona o código do Brasil +55
     return `https://wa.me/55${numberOnly}`;

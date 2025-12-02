@@ -30,6 +30,7 @@ import depoBruno from "@/assets/avatars/depo-bruno.jpg";
 const HERO_AVATARS = [avatar1, avatar2, avatar3, avatar4, avatar5, avatar6];
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
+import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { toast } from "sonner";
 
 // ============================================
@@ -1416,12 +1417,11 @@ export default function LandingProspeccaoIA() {
       <ComoFuncionaSection />
       <DepoimentosSection />
       <MetricasSection />
-      
-      
       <ParaQuemSection />
       <PrecosSection />
       <FAQSection />
       <CTAFinalSection />
       <Footer />
+      <FloatingWhatsAppButton />
     </div>;
 }

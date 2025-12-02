@@ -4,20 +4,29 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { useEffect } from "react";
+import { useEffect, Suspense, lazy } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import Auth from "./pages/Auth";
-import Prospeccao from "./pages/Prospeccao";
-import Profile from "./pages/Profile";
-import Dashboard from "./pages/Dashboard";
-import Templates from "./pages/Templates";
-import Historico from "./pages/Historico";
-import LeadsSalvos from "./pages/LeadsSalvos";
 import LandingProspeccaoIA from "./pages/LandingProspeccaoIA";
-import ResetPassword from "./pages/ResetPassword";
-import NotFound from "./pages/NotFound";
+
+// Lazy load all pages except landing page for code splitting
+const Auth = lazy(() => import("./pages/Auth"));
+const Prospeccao = lazy(() => import("./pages/Prospeccao"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Templates = lazy(() => import("./pages/Templates"));
+const Historico = lazy(() => import("./pages/Historico"));
+const LeadsSalvos = lazy(() => import("./pages/LeadsSalvos"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
+
+// Simple loading fallback
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="animate-pulse text-muted-foreground">Carregando...</div>
+  </div>
+);
 
 const AppContent = () => {
   useEffect(() => {
@@ -45,20 +54,22 @@ const AppContent = () => {
   }, []);
 
   return (
-    <Routes>
-      <Route path="/" element={<LandingProspeccaoIA />} />
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/lp-prospeccao-ia" element={<Navigate to="/" replace />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/prospeccao" element={<Prospeccao />} />
-      <Route path="/profile" element={<Profile />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/templates" element={<Templates />} />
-      <Route path="/historico" element={<Historico />} />
-      <Route path="/leads-salvos" element={<LeadsSalvos />} />
-      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/" element={<LandingProspeccaoIA />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/lp-prospeccao-ia" element={<Navigate to="/" replace />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/prospeccao" element={<Prospeccao />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/templates" element={<Templates />} />
+        <Route path="/historico" element={<Historico />} />
+        <Route path="/leads-salvos" element={<LeadsSalvos />} />
+        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
   );
 };
 

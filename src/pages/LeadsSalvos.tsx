@@ -73,28 +73,33 @@ const LeadsSalvos = () => {
     return number.length === 11 && number.charAt(2) === '9';
   };
 
-  // Função para gerar link do WhatsApp (apenas para celulares)
-  const generateWhatsAppLink = (phone: string): string | null => {
-    if (!phone) return null;
-    const cleaned = phone.replace(/\D/g, "");
-    if (!isValidBrazilianPhone(phone)) return null;
-    
-    // Remove o código do país se já existir
-    let numberOnly = cleaned;
-    if (cleaned.startsWith("55")) {
-      numberOnly = cleaned.substring(2);
+  // Função para gerar link do WhatsApp
+  // whatsappNumber = número confirmado do WhatsApp (do site) - não precisa validar
+  // telefone = número de telefone geral - só gera link se for celular
+  const generateWhatsAppLink = (whatsappNumber: string | null, telefone: string | null): string | null => {
+    // Prioriza whatsapp_number (já é confirmado, não precisa validar se é celular)
+    if (whatsappNumber) {
+      const cleaned = whatsappNumber.replace(/\D/g, "");
+      if (cleaned.length >= 10) {
+        const numberOnly = cleaned.startsWith("55") ? cleaned.substring(2) : cleaned;
+        return `https://wa.me/55${numberOnly}`;
+      }
     }
     
-    // Valida o tamanho após remover o código
-    if (numberOnly.length < 10 || numberOnly.length > 11) return null;
-    
-    // Só gera link WhatsApp para celulares (11 dígitos, começa com 9)
-    if (numberOnly.length !== 11 || numberOnly.charAt(2) !== '9') {
-      return null; // Telefone fixo - não tem WhatsApp
+    // Fallback para telefone - só se for celular válido
+    if (telefone) {
+      const cleaned = telefone.replace(/\D/g, "");
+      if (!isValidBrazilianPhone(telefone)) return null;
+      
+      const numberOnly = cleaned.startsWith("55") ? cleaned.substring(2) : cleaned;
+      
+      // Só gera link WhatsApp para celulares (11 dígitos, começa com 9)
+      if (numberOnly.length === 11 && numberOnly.charAt(2) === '9') {
+        return `https://wa.me/55${numberOnly}`;
+      }
     }
     
-    // Sempre adiciona o código do Brasil +55
-    return `https://wa.me/55${numberOnly}`;
+    return null;
   };
 
   // Função para formatar telefone com prefixo do país
@@ -162,15 +167,12 @@ const LeadsSalvos = () => {
       if (error) throw error;
 
       const transformedLeads: LeadProspeccao[] = (data || []).map((lead: any) => {
-        // Usa whatsapp_number se existir, senão tenta telefone
-        const phoneForWhatsapp = lead.whatsapp_number || lead.telefone;
-        
         return {
           id: lead.id,
           placeId: lead.google_place_id,
           nome: lead.nome,
           telefone: lead.telefone,
-          whatsapp_link: generateWhatsAppLink(phoneForWhatsapp),
+          whatsapp_link: generateWhatsAppLink(lead.whatsapp_number, lead.telefone),
           website: lead.website || null,
           instagram_url: lead.instagram_url || null,
           instagram_context: lead.instagram_context,

@@ -1080,10 +1080,15 @@ const CheckoutDialog = ({
     </Dialog>;
 };
 const PrecosSection = () => {
+  const navigate = useNavigate();
   const [isAnual, setIsAnual] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedPlano, setSelectedPlano] = useState<typeof PLANOS[0] | null>(null);
   const handleSelectPlano = (plano: typeof PLANOS[0]) => {
+    if (plano.gratuito) {
+      navigate("/auth?tab=signup");
+      return;
+    }
     setSelectedPlano(plano);
     setCheckoutOpen(true);
   };

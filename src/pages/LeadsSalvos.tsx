@@ -92,6 +92,20 @@ const LeadsSalvos = () => {
     return `https://wa.me/55${numberOnly}`;
   };
 
+  // Função para formatar telefone com prefixo do país
+  const formatPhoneWithCountryCode = (phone: string): string => {
+    if (!phone) return "";
+    const cleaned = phone.replace(/\D/g, "");
+    
+    // Se já começa com 55, formata
+    if (cleaned.startsWith("55")) {
+      return `+${cleaned}`;
+    }
+    
+    // Se não tem o prefixo, adiciona +55
+    return `+55${cleaned}`;
+  };
+
   // Função para verificar formato do número
   const validatePhoneNumber = (phone: string): 'valid' | 'invalid' | 'landline' => {
     if (!phone) return 'invalid';
@@ -397,8 +411,8 @@ const LeadsSalvos = () => {
                           rel="noopener noreferrer"
                           className="flex items-center gap-1 text-xs text-green-600 hover:underline"
                         >
-                          <MessageSquare className="h-3 w-3" />
-                          {lead.telefone}
+                        <MessageSquare className="h-3 w-3" />
+                          {formatPhoneWithCountryCode(lead.telefone)}
                         </a>
                         {numberStatus[lead.telefone] === 'valid' && (
                           <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 text-green-700 border-green-200">
@@ -418,8 +432,8 @@ const LeadsSalvos = () => {
                           href={`tel:${lead.telefone}`}
                           className="flex items-center gap-1 text-xs text-primary hover:underline"
                         >
-                          <Phone className="h-3 w-3" />
-                          {lead.telefone}
+                        <Phone className="h-3 w-3" />
+                          {formatPhoneWithCountryCode(lead.telefone)}
                         </a>
                         <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-gray-50 text-gray-600 border-gray-200">
                           Telefone

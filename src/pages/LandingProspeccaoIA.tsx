@@ -709,9 +709,12 @@ const CheckoutDialog = ({
   plano,
   isAnual
 }: CheckoutDialogProps) => {
+  const navigate = useNavigate();
   const [step, setStep] = useState<"form" | "qrcode" | "confirmed">("form");
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [confirmarSenha, setConfirmarSenha] = useState("");
   const [cpf, setCpf] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [metodoPagamento, setMetodoPagamento] = useState<"pix" | "cartao">("pix");
@@ -726,6 +729,26 @@ const CheckoutDialog = ({
     qrCodeBase64: string;
     vencimento: string;
   } | null>(null);
+
+  // Password validation
+  const passwordValidation = {
+    minLength: senha.length >= 8,
+    hasUppercase: /[A-Z]/.test(senha),
+    hasLowercase: /[a-z]/.test(senha),
+    hasNumber: /[0-9]/.test(senha),
+  };
+  const passwordStrength = Object.values(passwordValidation).filter(Boolean).length;
+  const getPasswordStrengthLabel = () => {
+    if (passwordStrength === 0) return "";
+    if (passwordStrength <= 2) return "Fraca";
+    if (passwordStrength === 3) return "Média";
+    return "Forte";
+  };
+  const getPasswordStrengthColor = () => {
+    if (passwordStrength <= 2) return "bg-red-500";
+    if (passwordStrength === 3) return "bg-yellow-500";
+    return "bg-emerald-500";
+  };
 
   // Poll para verificar pagamento PIX
   useEffect(() => {
@@ -781,6 +804,49 @@ const CheckoutDialog = ({
     }
     return cleaned;
   };
+  const validateAndCreateAccount = async (): Promise<boolean> => {
+    if (!senha || senha.length < 8) {
+      toast.error("A senha deve ter pelo menos 8 caracteres");
+      return false;
+    }
+    if (passwordStrength < 3) {
+      toast.error("A senha deve conter letras maiúsculas, minúsculas e números");
+      return false;
+    }
+    if (senha !== confirmarSenha) {
+      toast.error("As senhas não coincidem");
+      return false;
+    }
+
+    // Create user account
+    const redirectUrl = `${window.location.origin}/prospeccao`;
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password: senha,
+      options: {
+        emailRedirectTo: redirectUrl,
+        data: {
+          full_name: nome,
+        }
+      }
+    });
+
+    if (authError) {
+      if (authError.message.includes("already registered")) {
+        toast.error("Este email já está cadastrado", {
+          description: "Faça login ou use outro email."
+        });
+      } else {
+        toast.error("Erro ao criar conta", {
+          description: authError.message
+        });
+      }
+      return false;
+    }
+
+    return true;
+  };
+
   const handleGeneratePix = async () => {
     if (!nome.trim()) {
       toast.error("Informe seu nome completo");
@@ -798,8 +864,16 @@ const CheckoutDialog = ({
       toast.error("Informe um WhatsApp válido");
       return;
     }
+
     setIsProcessing(true);
     try {
+      // Create account first
+      const accountCreated = await validateAndCreateAccount();
+      if (!accountCreated) {
+        setIsProcessing(false);
+        return;
+      }
+
       const {
         data,
         error
@@ -822,7 +896,7 @@ const CheckoutDialog = ({
           vencimento: data.vencimento
         });
         setStep("qrcode");
-        toast.success("QR Code PIX gerado com sucesso!");
+        toast.success("Conta criada e QR Code PIX gerado!");
       } else {
         throw new Error(data?.error || "Erro ao gerar PIX");
       }
@@ -886,12 +960,29 @@ const CheckoutDialog = ({
       return;
     }
     setIsProcessing(true);
+    
+    try {
+      // Create account first
+      const accountCreated = await validateAndCreateAccount();
+      if (!accountCreated) {
+        setIsProcessing(false);
+        return;
+      }
 
-    // Simular processamento cartão
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsProcessing(false);
-    handleClose();
-    toast.success("Pagamento processado com sucesso!");
+      // TODO: Process card payment via Stripe
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setStep("confirmed");
+      toast.success("Conta criada e pagamento processado!");
+      setTimeout(() => {
+        navigate("/prospeccao");
+      }, 2000);
+    } catch (error: any) {
+      toast.error("Erro ao processar pagamento", {
+        description: error.message
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
   const handleClose = () => {
     if (!isProcessing) {
@@ -899,6 +990,8 @@ const CheckoutDialog = ({
       setPixData(null);
       setNome("");
       setEmail("");
+      setSenha("");
+      setConfirmarSenha("");
       setCpf("");
       setWhatsapp("");
       setCardNumber("");
@@ -992,6 +1085,47 @@ const CheckoutDialog = ({
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail *</Label>
                 <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} required />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="senha">Senha *</Label>
+                <Input id="senha" type="password" placeholder="Mínimo 8 caracteres" value={senha} onChange={e => setSenha(e.target.value)} required />
+                {senha && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full transition-all ${getPasswordStrengthColor()}`} 
+                          style={{ width: `${(passwordStrength / 4) * 100}%` }} 
+                        />
+                      </div>
+                      <span className={`text-xs font-medium ${passwordStrength <= 2 ? "text-red-500" : passwordStrength === 3 ? "text-yellow-500" : "text-emerald-500"}`}>
+                        {getPasswordStrengthLabel()}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+                      <span className={passwordValidation.minLength ? "text-emerald-500" : ""}>• 8+ caracteres</span>
+                      <span className={passwordValidation.hasUppercase ? "text-emerald-500" : ""}>• Letra maiúscula</span>
+                      <span className={passwordValidation.hasLowercase ? "text-emerald-500" : ""}>• Letra minúscula</span>
+                      <span className={passwordValidation.hasNumber ? "text-emerald-500" : ""}>• Número</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirmarSenha">Confirmar senha *</Label>
+                <Input 
+                  id="confirmarSenha" 
+                  type="password" 
+                  placeholder="Repita a senha" 
+                  value={confirmarSenha} 
+                  onChange={e => setConfirmarSenha(e.target.value)} 
+                  required 
+                />
+                {confirmarSenha && senha !== confirmarSenha && (
+                  <p className="text-xs text-red-500">As senhas não coincidem</p>
+                )}
               </div>
 
               <div className="space-y-2">

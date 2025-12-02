@@ -407,53 +407,22 @@ const LeadsSalvos = () => {
 
                 <CardContent className="space-y-3">
                   {/* Contatos */}
-                  <div className="flex flex-wrap gap-2">
-                    {lead.telefone && lead.whatsapp_link && (
-                      <div className="flex items-center gap-1">
-                        <a
-                          href={lead.whatsapp_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs text-green-600 hover:underline"
-                        >
-                        <MessageSquare className="h-3 w-3" />
-                          {formatPhoneWithCountryCode(lead.telefone)}
-                        </a>
-                        {numberStatus[lead.telefone] === 'valid' && (
-                          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 text-green-700 border-green-200">
-                            WhatsApp
-                          </Badge>
-                        )}
-                        {numberStatus[lead.telefone] === 'invalid' && (
-                          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-yellow-50 text-yellow-700 border-yellow-200">
-                            Fixo
-                          </Badge>
-                        )}
+                  <div className="space-y-1">
+                    {lead.telefone && (
+                      <div className="flex items-center gap-1 text-sm">
+                        <Phone className="h-3 w-3 flex-shrink-0" />
+                        <span>{formatPhoneWithCountryCode(lead.telefone)}</span>
                       </div>
                     )}
-                    {lead.telefone && !lead.whatsapp_link && (
-                      <div className="flex items-center gap-1">
-                        <a
-                          href={`tel:${lead.telefone}`}
-                          className="flex items-center gap-1 text-xs text-primary hover:underline"
-                        >
-                        <Phone className="h-3 w-3" />
-                          {formatPhoneWithCountryCode(lead.telefone)}
-                        </a>
-                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-gray-50 text-gray-600 border-gray-200">
-                          Telefone
-                        </Badge>
-                      </div>
-                    )}
-                    {lead.instagram_url && (
+                    {lead.whatsapp_link && (
                       <a
-                        href={lead.instagram_url}
+                        href={lead.whatsapp_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-xs text-pink-600 hover:underline"
+                        className="flex items-center gap-1 text-sm text-green-600 hover:underline"
                       >
-                        <Instagram className="h-3 w-3" />
-                        Instagram
+                        <MessageSquare className="h-3 w-3 flex-shrink-0" />
+                        <span>WhatsApp</span>
                       </a>
                     )}
                     {lead.website && (
@@ -461,10 +430,21 @@ const LeadsSalvos = () => {
                         href={lead.website}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-xs text-primary hover:underline"
+                        className="flex items-center gap-1 text-sm text-primary hover:underline"
                       >
-                        <ExternalLink className="h-3 w-3" />
-                        Website
+                        <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                        <span>Site</span>
+                      </a>
+                    )}
+                    {lead.instagram_url && (
+                      <a
+                        href={lead.instagram_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-sm text-pink-600 hover:underline"
+                      >
+                        <Instagram className="h-3 w-3 flex-shrink-0" />
+                        <span>Instagram</span>
                       </a>
                     )}
                   </div>

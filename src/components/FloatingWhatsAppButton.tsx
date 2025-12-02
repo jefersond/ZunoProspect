@@ -39,7 +39,8 @@ export const FloatingWhatsAppButton = ({
         </a>
       </TooltipTrigger>
       <TooltipContent side="left" className="bg-background text-foreground">
-        Suporte via WhatsApp
+        <p className="font-medium">Suporte via WhatsApp</p>
+        <p className="text-xs text-muted-foreground">Atendimento: 8h às 18h</p>
       </TooltipContent>
     </Tooltip>
   );

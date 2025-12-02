@@ -546,7 +546,7 @@ const DepoimentosSection = () => {
                 </div>
                 <p className="text-muted-foreground mb-6 italic">"{depoimento.texto}"</p>
                 <div className="flex items-center gap-4">
-                  <img src={depoimento.foto} alt={depoimento.nome} className="w-12 h-12 rounded-full object-cover" />
+                  <img src={depoimento.foto} alt={depoimento.nome} loading="lazy" className="w-12 h-12 rounded-full object-cover" />
                   <div>
                     <div className="font-semibold">{depoimento.nome}</div>
                     <div className="text-sm text-muted-foreground">

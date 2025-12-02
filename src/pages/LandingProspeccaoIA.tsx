@@ -238,8 +238,8 @@ const LPHeader = () => {
             <Button variant="ghost" asChild>
               <a href="/auth?tab=login">Entrar</a>
             </Button>
-            <Button asChild>
-              <a href="/auth?tab=signup">Começar agora</a>
+            <Button onClick={() => scrollToSection("precos")}>
+              Começar agora
             </Button>
           </div>
         </div>
@@ -278,11 +278,9 @@ const HeroSection = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button size="lg" className="text-lg px-8 shadow-lg shadow-primary/25" asChild>
-                <a href="/auth?tab=signup">
-                  Começar agora
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </a>
+              <Button size="lg" className="text-lg px-8 shadow-lg shadow-primary/25" onClick={() => scrollToSection("precos")}>
+                Começar agora
+                <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
               <Button size="lg" variant="outline" className="text-lg px-8" onClick={() => scrollToSection("como-funciona")}>
                 Ver como funciona
@@ -1074,6 +1072,12 @@ const FAQSection = () => {
     </section>;
 };
 const CTAFinalSection = () => {
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({
+      behavior: "smooth"
+    });
+  };
+  
   return <section className="py-20 bg-gradient-to-br from-primary via-primary to-accent">
       <div className="container mx-auto px-4 text-center">
         <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-primary-foreground mb-6">
@@ -1083,11 +1087,9 @@ const CTAFinalSection = () => {
           Comece agora a prospectar com IA e tenha leads qualificados com planos de abordagem prontos em minutos.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button size="lg" variant="secondary" className="text-lg px-8 shadow-lg" asChild>
-            <a href="/auth?tab=signup">
-              Começar agora
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </a>
+          <Button size="lg" variant="secondary" className="text-lg px-8 shadow-lg" onClick={() => scrollToSection("precos")}>
+            Começar agora
+            <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
           <Button size="lg" variant="outline" className="text-lg px-8 bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10" asChild>
             <a href="https://wa.me/5500000000000" target="_blank" rel="noopener noreferrer">

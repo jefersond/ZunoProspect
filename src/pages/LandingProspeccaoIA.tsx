@@ -252,20 +252,20 @@ const HeroSection = () => {
       behavior: "smooth"
     });
   };
-  return <section className="relative overflow-hidden bg-gradient-to-br from-background via-primary/5 to-accent/10 dark:from-background dark:via-primary/10 dark:to-accent/5 py-16 md:py-24">
+  return <section className="relative overflow-hidden bg-gradient-to-br from-background via-primary/5 to-accent/10 dark:from-background dark:via-primary/10 dark:to-accent/5 pt-24 pb-16 md:py-24">
       {/* Decorative elements for dark mode */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl dark:bg-primary/20" />
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl dark:bg-accent/15" />
       
       <div className="container mx-auto px-4 relative">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+        <div className="grid lg:grid-cols-2 gap-8 md:gap-12 items-center">
           {/* Conteúdo */}
-          <div className="space-y-8">
-            <Badge variant="secondary" className="text-sm px-4 py-2">
+          <div className="space-y-6 md:space-y-8">
+            <Badge variant="secondary" className="text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2">
               🚀 Feito para agências, gestores de tráfego e freelas de marketing
             </Badge>
             
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
               Encontre clientes{" "}
               <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                 prontos para comprar
@@ -273,28 +273,28 @@ const HeroSection = () => {
               seus serviços de marketing
             </h1>
             
-            <p className="text-xl text-muted-foreground max-w-lg">
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-lg">
               Prospecte leads qualificados em minutos. A IA analisa empresas, gera diagnósticos e cria planos de abordagem personalizados de 7 dias.
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button size="lg" className="text-lg px-8 shadow-lg shadow-primary/25" onClick={() => scrollToSection("precos")}>
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <Button size="lg" className="text-base sm:text-lg px-6 sm:px-8 shadow-lg shadow-primary/25" onClick={() => scrollToSection("precos")}>
                 Começar agora
-                <ArrowRight className="ml-2 h-5 w-5" />
+                <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
-              <Button size="lg" variant="outline" className="text-lg px-8" onClick={() => scrollToSection("como-funciona")}>
+              <Button size="lg" variant="outline" className="text-base sm:text-lg px-6 sm:px-8" onClick={() => scrollToSection("como-funciona")}>
                 Ver como funciona
               </Button>
             </div>
             
-            <div className="flex items-center gap-6 pt-4">
+            <div className="flex items-center gap-4 sm:gap-6 pt-2 sm:pt-4">
               <div className="flex -space-x-2">
-                {HERO_AVATARS.map((avatar, i) => <img key={i} src={avatar} alt={`Usuário ${i + 1}`} className="w-10 h-10 rounded-full border-2 border-background object-cover" />)}
-                <div className="w-10 h-10 rounded-full bg-primary border-2 border-background flex items-center justify-center">
-                  <span className="text-xs font-bold text-primary-foreground">+500</span>
+                {HERO_AVATARS.map((avatar, i) => <img key={i} src={avatar} alt={`Usuário ${i + 1}`} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-background object-cover" />)}
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary border-2 border-background flex items-center justify-center">
+                  <span className="text-[10px] sm:text-xs font-bold text-primary-foreground">+500</span>
                 </div>
               </div>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-xs sm:text-sm text-muted-foreground">
                 <span className="font-semibold text-foreground">+500 profissionais</span>
                 <br />
                 já usam a plataforma
@@ -302,8 +302,8 @@ const HeroSection = () => {
             </div>
           </div>
           
-          {/* Card Mock da Interface */}
-          <div className="relative">
+          {/* Card Mock da Interface - esconde em mobile */}
+          <div className="relative hidden lg:block">
             <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-accent/20 blur-3xl opacity-30 dark:opacity-50" />
             <Card className="relative border-2 shadow-2xl dark:border-border/50 dark:shadow-primary/10">
               <CardContent className="p-6 space-y-4">

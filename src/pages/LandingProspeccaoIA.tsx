@@ -9,8 +9,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Search, Zap, Target, MessageSquare, Clock, Users, TrendingUp, CheckCircle2, Play, ArrowRight, Star, Globe, Smartphone, ChevronLeft, ChevronRight, Building2, Megaphone, Palette, Code, LineChart, CreditCard, QrCode, X, Copy, Loader2, RefreshCw } from "lucide-react";
+import { Search, Zap, Target, MessageSquare, Clock, Users, TrendingUp, CheckCircle2, Play, ArrowRight, Star, Globe, Smartphone, ChevronLeft, ChevronRight, Building2, Megaphone, Palette, Code, LineChart, CreditCard, QrCode, X, Copy, Loader2, RefreshCw, Menu } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 // Avatar imports
 import avatar1 from "@/assets/avatars/avatar-1.jpg";
@@ -188,16 +189,21 @@ const FAQ_ITEMS = [{
 // ============================================
 
 const LPHeader = () => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({
       behavior: "smooth"
     });
+    setMobileMenuOpen(false);
   };
-  return <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-2 group cursor-pointer">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12 scale-x-[-1]">
+  
+  return <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/50">
+      <div className="container mx-auto px-3 sm:px-4">
+        <div className="flex items-center justify-between h-14 sm:h-16">
+          {/* Logo */}
+          <div className="flex items-center gap-1.5 sm:gap-2 group cursor-pointer">
+            <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12 scale-x-[-1] sm:w-8 sm:h-8">
               <defs>
                 <linearGradient id="zGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="#22d3ee" />
@@ -207,15 +213,16 @@ const LPHeader = () => {
               </defs>
               <path d="M 8 6 L 24 6 L 24 10 L 16 10 L 24 22 L 24 26 L 8 26 L 8 22 L 16 22 L 8 10 L 8 6 Z" fill="url(#zGradient)" className="transition-all duration-500" />
             </svg>
-            <span className="text-xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent bg-[length:200%_100%] bg-[position:0%_50%] transition-all duration-500 group-hover:bg-[position:100%_50%]">
+            <span className="text-base sm:text-xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent bg-[length:200%_100%] bg-[position:0%_50%] transition-all duration-500 group-hover:bg-[position:100%_50%]">
               Zuno
             </span>
-            <span className="text-xl font-semibold text-muted-foreground transition-colors duration-300 group-hover:text-foreground">
+            <span className="text-base sm:text-xl font-semibold text-muted-foreground transition-colors duration-300 group-hover:text-foreground">
               Prospect
             </span>
           </div>
           
-          <nav className="hidden md:flex items-center gap-6">
+          {/* Desktop Navigation */}
+          <nav className="hidden lg:flex items-center gap-6">
             <button onClick={() => scrollToSection("como-funciona")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Como funciona
             </button>
@@ -233,14 +240,70 @@ const LPHeader = () => {
             </button>
           </nav>
           
-          <div className="flex items-center gap-3">
+          {/* Desktop Actions */}
+          <div className="hidden lg:flex items-center gap-3">
             <ThemeToggle />
-            <Button variant="ghost" asChild>
+            <Button variant="ghost" size="sm" asChild>
               <a href="/auth?tab=login">Entrar</a>
             </Button>
-            <Button onClick={() => scrollToSection("precos")}>
-              Começar agora
+            <Button size="sm" onClick={() => scrollToSection("precos")}>
+              Começar
             </Button>
+          </div>
+          
+          {/* Mobile Actions */}
+          <div className="flex lg:hidden items-center gap-2">
+            <ThemeToggle />
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="sm" className="px-2">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[280px] sm:w-[320px]">
+                <nav className="flex flex-col gap-4 mt-8">
+                  <button 
+                    onClick={() => scrollToSection("como-funciona")} 
+                    className="text-left py-3 px-4 rounded-lg hover:bg-secondary transition-colors"
+                  >
+                    Como funciona
+                  </button>
+                  <button 
+                    onClick={() => scrollToSection("depoimentos")} 
+                    className="text-left py-3 px-4 rounded-lg hover:bg-secondary transition-colors"
+                  >
+                    Depoimentos
+                  </button>
+                  <button 
+                    onClick={() => scrollToSection("para-quem")} 
+                    className="text-left py-3 px-4 rounded-lg hover:bg-secondary transition-colors"
+                  >
+                    Para quem é
+                  </button>
+                  <button 
+                    onClick={() => scrollToSection("precos")} 
+                    className="text-left py-3 px-4 rounded-lg hover:bg-secondary transition-colors"
+                  >
+                    Preços
+                  </button>
+                  <button 
+                    onClick={() => scrollToSection("faq")} 
+                    className="text-left py-3 px-4 rounded-lg hover:bg-secondary transition-colors"
+                  >
+                    FAQ
+                  </button>
+                  
+                  <div className="border-t pt-4 mt-2 space-y-3">
+                    <Button variant="outline" className="w-full" asChild>
+                      <a href="/auth?tab=login">Entrar</a>
+                    </Button>
+                    <Button className="w-full" onClick={() => scrollToSection("precos")}>
+                      Começar agora
+                    </Button>
+                  </div>
+                </nav>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </div>
@@ -1141,22 +1204,22 @@ const CTAFinalSection = () => {
     });
   };
   
-  return <section className="py-20 bg-gradient-to-br from-primary via-primary to-accent">
-      <div className="container mx-auto px-4 text-center">
-        <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-primary-foreground mb-6">
+  return <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-br from-primary to-primary/80">
+      <div className="container mx-auto px-4">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-primary-foreground mb-4 sm:mb-6 text-center">
           Pare de ficar horas caçando clientes manualmente
         </h2>
-        <p className="text-xl text-primary-foreground/80 max-w-2xl mx-auto mb-10">
+        <p className="text-base sm:text-lg md:text-xl text-primary-foreground/80 max-w-2xl mx-auto mb-6 sm:mb-8 md:mb-10 text-center">
           Comece agora a prospectar com IA e tenha leads qualificados com planos de abordagem prontos em minutos.
         </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button size="lg" variant="secondary" className="text-lg px-8 shadow-lg" onClick={() => scrollToSection("precos")}>
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center max-w-md sm:max-w-none mx-auto">
+          <Button size="lg" variant="secondary" className="text-base sm:text-lg px-6 sm:px-8 shadow-lg w-full sm:w-auto" onClick={() => scrollToSection("precos")}>
             Começar agora
-            <ArrowRight className="ml-2 h-5 w-5" />
+            <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
-          <Button size="lg" variant="outline" className="text-lg px-8 bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10" asChild>
+          <Button size="lg" variant="outline" className="text-base sm:text-lg px-6 sm:px-8 bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 w-full sm:w-auto" asChild>
             <a href="https://wa.me/5500000000000" target="_blank" rel="noopener noreferrer">
-              <Smartphone className="mr-2 h-5 w-5" />
+              <Smartphone className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
               Falar com suporte
             </a>
           </Button>
@@ -1165,11 +1228,11 @@ const CTAFinalSection = () => {
     </section>;
 };
 const Footer = () => {
-  return <footer className="py-8 bg-background border-t">
-      <div className="container mx-auto px-4">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-2 group cursor-pointer">
-            <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12 scale-x-[-1]">
+  return <footer className="py-6 sm:py-8 bg-background border-t">
+      <div className="container mx-auto px-3 sm:px-4">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 group cursor-pointer">
+            <svg width="20" height="20" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12 scale-x-[-1] sm:w-6 sm:h-6">
               <defs>
                 <linearGradient id="zGradientFooter" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="#22d3ee" />
@@ -1179,14 +1242,14 @@ const Footer = () => {
               </defs>
               <path d="M 8 6 L 24 6 L 24 10 L 16 10 L 24 22 L 24 26 L 8 26 L 8 22 L 16 22 L 8 10 L 8 6 Z" fill="url(#zGradientFooter)" className="transition-all duration-500" />
             </svg>
-            <span className="text-lg font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent bg-[length:200%_100%] bg-[position:0%_50%] transition-all duration-500 group-hover:bg-[position:100%_50%]">
+            <span className="text-base sm:text-lg font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent bg-[length:200%_100%] bg-[position:0%_50%] transition-all duration-500 group-hover:bg-[position:100%_50%]">
               Zuno
             </span>
-            <span className="text-lg font-semibold text-muted-foreground transition-colors duration-300 group-hover:text-foreground">
+            <span className="text-base sm:text-lg font-semibold text-muted-foreground transition-colors duration-300 group-hover:text-foreground">
               Prospect
             </span>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground text-center">
             © 2024 Todos os direitos reservados.
           </p>
         </div>
@@ -1240,7 +1303,7 @@ export default function LandingProspeccaoIA() {
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>;
   }
-  return <div className="min-h-screen bg-background">
+  return <div className="min-h-screen bg-background overflow-x-hidden">
       <LPHeader />
       <HeroSection />
       <BeneficiosSection />

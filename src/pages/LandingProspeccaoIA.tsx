@@ -1342,7 +1342,7 @@ const CTAFinalSection = () => {
             <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
           <Button size="lg" variant="outline" className="text-base sm:text-lg px-6 sm:px-8 bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 w-full sm:w-auto" asChild>
-            <a href="https://wa.me/5500000000000" target="_blank" rel="noopener noreferrer">
+            <a href="https://wa.me/553298511685?text=Ol%C3%A1!%20Preciso%20de%20suporte%20com%20o%20Zuno%20Prospect." target="_blank" rel="noopener noreferrer">
               <Smartphone className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
               Falar com suporte
             </a>

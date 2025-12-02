@@ -1,4 +1,4 @@
-import { MessageCircle } from "lucide-react";
+import { useState, useEffect } from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -8,14 +8,40 @@ import {
 const WHATSAPP_NUMBER = "5532985111685";
 const DEFAULT_MESSAGE = "Olá! Preciso de suporte com o Zuno Prospect.";
 
+// Horário de atendimento: 8h às 18h (horário de Brasília)
+const OPENING_HOUR = 8;
+const CLOSING_HOUR = 18;
+
 interface FloatingWhatsAppButtonProps {
   message?: string;
 }
 
+const isWithinBusinessHours = (): boolean => {
+  const now = new Date();
+  const hour = now.getHours();
+  const day = now.getDay(); // 0 = Sunday, 6 = Saturday
+  
+  // Segunda a Sexta, 8h às 18h
+  const isWeekday = day >= 1 && day <= 5;
+  const isBusinessHour = hour >= OPENING_HOUR && hour < CLOSING_HOUR;
+  
+  return isWeekday && isBusinessHour;
+};
+
 export const FloatingWhatsAppButton = ({ 
   message = DEFAULT_MESSAGE 
 }: FloatingWhatsAppButtonProps) => {
+  const [isOnline, setIsOnline] = useState(isWithinBusinessHours());
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+
+  // Atualiza o status a cada minuto
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsOnline(isWithinBusinessHours());
+    }, 60000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <Tooltip>
@@ -27,6 +53,12 @@ export const FloatingWhatsAppButton = ({
           className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition-all duration-300 hover:scale-105 hover:bg-[#128C7E] hover:shadow-xl"
           aria-label="Suporte via WhatsApp"
         >
+          {/* Indicador de status */}
+          <span 
+            className={`absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-background ${
+              isOnline ? "bg-green-500" : "bg-muted-foreground"
+            }`}
+          />
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="24"
@@ -39,8 +71,20 @@ export const FloatingWhatsAppButton = ({
         </a>
       </TooltipTrigger>
       <TooltipContent side="left" className="bg-background text-foreground">
-        <p className="font-medium">Suporte via WhatsApp</p>
-        <p className="text-xs text-muted-foreground">Atendimento: 8h às 18h</p>
+        <div className="flex items-center gap-2">
+          <span 
+            className={`h-2 w-2 rounded-full ${isOnline ? "bg-green-500" : "bg-muted-foreground"}`} 
+          />
+          <p className="font-medium">
+            {isOnline ? "Online" : "Offline"}
+          </p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {isOnline 
+            ? "Suporte disponível agora" 
+            : "Retornaremos em horário comercial"}
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">Seg-Sex: 8h às 18h</p>
       </TooltipContent>
     </Tooltip>
   );

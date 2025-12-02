@@ -60,22 +60,33 @@ export const LeadsList = () => {
     return true;
   };
 
-  // Função helper para gerar link do WhatsApp a partir de um número
+  // Função para verificar se é número de celular
+  const isMobileNumber = (phone: string): boolean => {
+    if (!phone) return false;
+    const cleaned = phone.replace(/\D/g, "");
+    const number = cleaned.startsWith("55") ? cleaned.substring(2) : cleaned;
+    // Celular brasileiro: DDD (2 dígitos) + 9 + 8 dígitos = 11 dígitos total
+    return number.length === 11 && number.charAt(2) === '9';
+  };
+
+  // Função helper para gerar link do WhatsApp a partir de um número (apenas celulares)
   const generateWhatsAppLink = (whatsappNumber: string | null, telefone: string | null): string | null => {
     // Prioriza whatsapp_number encontrado no site
     if (whatsappNumber) {
       const cleanWhatsapp = whatsappNumber.replace(/\D/g, '');
       if (cleanWhatsapp.length >= 10) {
-        return `https://wa.me/${cleanWhatsapp}`;
+        // Adiciona código do país se não tiver
+        const fullNumber = cleanWhatsapp.startsWith('55') ? cleanWhatsapp : `55${cleanWhatsapp}`;
+        return `https://wa.me/${fullNumber}`;
       }
     }
     
-    // Se não houver, usa o telefone como fallback (com validação)
-    if (telefone && isValidBrazilianPhone(telefone)) {
+    // Se não houver, usa o telefone como fallback (apenas se for celular)
+    if (telefone && isValidBrazilianPhone(telefone) && isMobileNumber(telefone)) {
       const cleanNumber = telefone.replace(/\D/g, '');
-      // Se o número não começar com código do país, adiciona o Brasil (55)
-      const fullNumber = cleanNumber.startsWith('55') ? cleanNumber : `55${cleanNumber}`;
-      return `https://wa.me/${fullNumber}`;
+      const numberWithoutCountry = cleanNumber.startsWith('55') ? cleanNumber.substring(2) : cleanNumber;
+      // Sempre adiciona o código do Brasil +55
+      return `https://wa.me/55${numberWithoutCountry}`;
     }
     
     return null;

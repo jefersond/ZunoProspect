@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,13 @@ export const LeadPlanDialog = ({ lead, open, onOpenChange, onLeadUpdate }: LeadP
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [currentLead, setCurrentLead] = useState(lead);
   const { toast } = useToast();
+
+  // Sempre que o lead mudar ou o dialog for reaberto, sincroniza o estado interno
+  useEffect(() => {
+    if (open) {
+      setCurrentLead(lead);
+    }
+  }, [lead, open]);
 
   if (!lead) return null;
 

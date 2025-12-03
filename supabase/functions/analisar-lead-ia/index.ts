@@ -874,12 +874,14 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
 9. Use pattern interrupts para quebrar expectativas
 10. Termine SEMPRE com pergunta que demanda resposta
 
-🎭 PERSONALIDADE NAS MENSAGENS:
-• Confiante sem ser arrogante
-• Direto sem ser rude
-• Consultivo sem ser vendedor
-• Urgente sem ser desesperado
-• Casual sem ser unprofessional`;
+🎭 POSTURA NAS MENSAGENS (B2B PROFISSIONAL):
+• Consultivo e direto - postura de especialista que entrega valor
+• Autoridade sem arrogância - você sabe o que faz e mostra
+• Foco em resultados e ROI - linguagem de negócios
+• Sem rodeios - vá direto ao ponto e ao valor
+• Profissional sem ser formal demais - evite "prezados" e "vossa senhoria"
+• NUNCA use: "pessoal", "galera", "vocês aí", "olá tudo bem?"
+• TOM: Consultor de negócios que identifica oportunidades, não vendedor pedindo atenção`;
 
     const requestBody = {
       model: "gpt-4o-mini",
@@ -1098,78 +1100,72 @@ function buildAnalysisPrompt(lead: LeadData): string {
 ═══════════════════════════════════════
 
 ${canais.includes("whatsapp") ? `
-💬 WHATSAPP - REGRAS DE OURO:
+💬 WHATSAPP - ABORDAGEM B2B CONSULTIVA:
 • Máximo 4 linhas por mensagem (quebra em parágrafos curtos)
-• Aborde pelo nome da EMPRESA ou equipe (humaniza sem inventar nome)
+• Entre direto no VALOR - sem "olá tudo bem" ou "pessoal"
 • 1-2 emojis estratégicos no máximo (não decorativos)
-• Pergunta que abre conversa no FINAL
-• Tom como se já se conhecessem (sem formalidade excessiva)
-• NUNCA comece com "Olá" sozinho - entre direto no valor
-• Use linguagem de conversa real, não marketing
+• Postura de consultor que identificou oportunidade
+• Tom profissional e direto, não coloquial
+• NUNCA comece com saudações vazias - lidere com insight
 
 ❌ EVITAR (WhatsApp):
 "Olá! Tudo bem? Meu nome é X da empresa Y e gostaria de..."
+"Pessoal da empresa, vi que vocês..." (muito informal)
 "João, vi que a empresa..." (NÃO INVENTE NOMES!)
 
 ✅ USAR (WhatsApp):
-"Pessoal da ${lead.nome}, vi que vocês estão em ${lead.cidade} há um tempo. Pergunta rápida: já investem em tráfego pago? Um cliente do mesmo nicho triplicou leads em 60 dias. Se fizer sentido, mando o case. Quer?"
+"${lead.nome}, analisei o setor de ${lead.nicho} em ${lead.cidade}. Identifiquei um gap que está custando clientes: [gap específico]. Empresas similares corrigiram isso e viram aumento de 3x em leads. Faz sentido uma conversa de 5 min?"
 ` : ""}
 
 ${canais.includes("email") ? `
-✉️ EMAIL - ESTRUTURA DE ALTO DESEMPENHO:
-• Assunto: curiosidade + personalização (máx 50 caracteres)
-  Ex: "[Empresa] + [cidade] = oportunidade não explorada"
-  Ex: "Notei algo sobre vocês..."
-  Ex: "Pergunta rápida sobre [nicho]"
-• Abertura: observação específica sobre o negócio DELES (não sobre você)
-• Corpo: 1 insight de valor + 1 prova rápida (máx 150 palavras)
-• Fechamento: pergunta que requer BAIXO ESFORÇO para responder
-• PS: segunda chance de CTA ou prova social adicional (opcional mas poderoso)
+✉️ EMAIL - ESTRUTURA B2B CONSULTIVA:
+• Assunto: direto ao ponto + urgência implícita (máx 50 caracteres)
+  Ex: "Oportunidade identificada - ${lead.nome}"
+  Ex: "Diagnóstico rápido: ${lead.nicho} em ${lead.cidade}"
+  Ex: "3 gaps custando clientes - ${lead.nome}"
+• Abertura: vá direto à análise/descoberta (não sobre você)
+• Corpo: diagnóstico + evidência + próximo passo (máx 150 palavras)
+• Fechamento: convite claro e de baixo compromisso
+• PS: reforço de credibilidade ou escassez (opcional)
 
 ❌ EVITAR (Email):
 "Prezado(a), venho por meio desta apresentar nossa empresa..."
+"Olá, equipe da..." ou "Pessoal da..." (informal demais)
 "Oi João," (NÃO INVENTE NOMES!)
 
 ✅ USAR (Email):
-"Assunto: ${lead.nome} + ${lead.cidade} = oportunidade perdida?
+"Assunto: Diagnóstico rápido - ${lead.nome}
 
-Olá, equipe da ${lead.nome},
+Analisei a presença digital da ${lead.nome} e identifiquei 3 gaps que estão custando clientes:
 
-Pesquisando ${lead.nicho} em ${lead.cidade}, vocês apareceram. Analisei rapidamente e notei 3 coisas:
+1. [Gap específico sobre presença digital]
+2. [Oportunidade não explorada em ${lead.foco}]
+3. [Vantagem competitiva não aproveitada]
 
-1. [Observação específica sobre presença digital]
-2. [Gap identificado relacionado ao foco]
-3. [Oportunidade rápida]
+Empresas do mesmo porte em ${lead.cidade} já corrigiram isso e viram aumento médio de [X%] em [métrica].
 
-Um cliente nosso na mesma situação conseguiu [resultado específico] em [tempo].
-
-Pergunta rápida: vocês já tentaram [ação relacionada ao foco]?
-
-Se sim, curioso pra saber como foi.
-Se não, tenho um material de 2 páginas que explica o caminho.
-
-Qual das duas?
+Vale 10 minutos para mostrar como aplicar isso no caso de vocês?
 
 [Assinatura]
 
-PS: Não vou te ligar 50 vezes. Uma resposta de 'sim' ou 'não' já resolve 😉"
+PS: Sem compromisso. Se não fizer sentido, agradeço pela atenção e sigo em frente."
 ` : ""}
 
 ${canais.includes("instagram") ? `
-📸 INSTAGRAM DM - CÓDIGO DE CONDUTA:
-• Abordagem como FÃ primeiro, vendedor depois
-• ANTES de mandar DM: curta 2-3 posts, comente em 1 (genuinamente)
-• Referência ESPECÍFICA a algo do perfil deles
-• Mensagem curta e casual (máx 3 linhas)
-• Tom de conversa entre conhecidos
-• Convite para conversa, NUNCA pitch direto
+📸 INSTAGRAM DM - ABORDAGEM CONSULTIVA:
+• Engaje primeiro (curta/comente em 1-2 posts relevantes)
+• Referência a algo ESPECÍFICO do perfil/conteúdo deles
+• Mensagem curta e profissional (máx 3 linhas)
+• Postura de especialista que identificou potencial
+• Convite para conversa, não pitch direto
 • Use 1 emoji no máximo
 
 ❌ EVITAR (Instagram):
 "Olá! Somos uma agência de marketing e gostaríamos de apresentar nossos serviços..."
+"Vi o último post de vocês. Muito bom! 🔥" (muito informal/fã)
 
 ✅ USAR (Instagram):
-"Vi o último post de vocês. Muito bom! 🔥 A ${lead.nome} está crescendo forte em ${lead.cidade}. Trabalho com ${lead.foco} e tenho um insight específico pro nicho de vocês. Posso mandar em 30 segundos?"
+"${lead.nome} tem um potencial não explorado em ${lead.foco}. Analisei o perfil e identifiquei uma oportunidade específica para o nicho de ${lead.nicho}. Tenho um diagnóstico pronto - posso compartilhar em 30 segundos?"
 ` : ""}`;
 
   // Instruções de objeções avançadas
@@ -1289,16 +1285,17 @@ IMPORTANTE: Use EXATAMENTE este nome, não invente variações!`
 
 🚫🚫🚫 NUNCA INVENTE NOMES como "João", "Maria", "Carlos", etc! 🚫🚫🚫
 
-Abordagens corretas SEM nome pessoal:
-• "Pessoal da ${lead.nome},"
-• "Time da ${lead.nome},"
-• "Olá, equipe da ${lead.nome},"
-• "Vi que a ${lead.nome} está em ${lead.cidade}..." (entra direto no assunto)
+Abordagens B2B CORRETAS sem nome pessoal (entre direto no valor):
+• "${lead.nome}, identifiquei uma oportunidade..."
+• "Analisei a presença digital da ${lead.nome}..."
+• "A ${lead.nome} está perdendo clientes em ${lead.cidade} por [motivo]..."
+• "${lead.nome}, 3 gaps que identifiquei no setor de ${lead.nicho}..."
 
 ❌ ERRADO: "João, vi que a ${lead.nome}..." (NOME INVENTADO!)
-❌ ERRADO: "Oi Maria, tudo bem?" (NOME INVENTADO!)
-✅ CORRETO: "Pessoal da ${lead.nome}, vi que vocês..."
-✅ CORRETO: "Vi que a ${lead.nome} está crescendo em ${lead.cidade}..."`}
+❌ ERRADO: "Pessoal da ${lead.nome}, vi que vocês..." (muito informal)
+❌ ERRADO: "Olá, equipe da ${lead.nome}," (saudação vazia)
+✅ CORRETO: "${lead.nome}, analisei o setor de ${lead.nicho} em ${lead.cidade}..."
+✅ CORRETO: "Identifiquei 3 oportunidades para a ${lead.nome}..."`}
 
 ════════════════════════════════════════════════════════════════════════════════
 ⚠️⚠️⚠️ REGRA CRÍTICA #1 - CANAIS DE CONTATO ⚠️⚠️⚠️

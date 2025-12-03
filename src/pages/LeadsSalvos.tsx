@@ -489,13 +489,13 @@ const LeadsSalvos = () => {
                       </div>
                       
                       {lead.razao_social && lead.razao_social !== lead.nome && (
-                        <p className="text-xs text-muted-foreground truncate">
-                          {lead.razao_social}
+                        <p className="text-xs text-muted-foreground truncate" title={lead.razao_social}>
+                          <span className="font-medium">Razão Social:</span> {lead.razao_social}
                         </p>
                       )}
                       
                       <p className="text-xs text-muted-foreground font-mono">
-                        {lead.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}
+                        <span className="font-medium font-sans">CNPJ:</span> {lead.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}
                       </p>
                       
                       {(lead.cnpj_telefone || lead.cnpj_email) && (
@@ -506,7 +506,7 @@ const LeadsSalvos = () => {
                             </a>
                           )}
                           {lead.cnpj_email && (
-                            <a href={`mailto:${lead.cnpj_email}`} className="text-primary hover:underline truncate max-w-[150px]">
+                            <a href={`mailto:${lead.cnpj_email}`} className="text-primary hover:underline truncate max-w-[150px]" title={lead.cnpj_email}>
                               ✉️ {lead.cnpj_email}
                             </a>
                           )}
@@ -517,6 +517,11 @@ const LeadsSalvos = () => {
                         <div className="flex flex-wrap gap-1">
                           {lead.porte_empresa && (
                             <Badge variant="secondary" className="text-xs">{lead.porte_empresa}</Badge>
+                          )}
+                          {lead.cnae_principal && (
+                            <Badge variant="outline" className="text-xs" title={`CNAE: ${lead.cnae_principal}`}>
+                              {lead.cnae_principal.length > 30 ? lead.cnae_principal.substring(0, 30) + "..." : lead.cnae_principal}
+                            </Badge>
                           )}
                         </div>
                       )}

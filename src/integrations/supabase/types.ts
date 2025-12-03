@@ -112,6 +112,7 @@ export type Database = {
           longitude: number | null
           nicho: string
           nome: string
+          nome_responsavel: string | null
           notas: string | null
           plano_prospeccao: Json | null
           probabilidade_conversao: number | null
@@ -154,6 +155,7 @@ export type Database = {
           longitude?: number | null
           nicho: string
           nome: string
+          nome_responsavel?: string | null
           notas?: string | null
           plano_prospeccao?: Json | null
           probabilidade_conversao?: number | null
@@ -196,6 +198,7 @@ export type Database = {
           longitude?: number | null
           nicho?: string
           nome?: string
+          nome_responsavel?: string | null
           notas?: string | null
           plano_prospeccao?: Json | null
           probabilidade_conversao?: number | null
@@ -391,6 +394,10 @@ export type Database = {
         Returns: {
           ai_analise_gerada_em: string
           cidade: string
+          cnae_principal: string
+          cnpj: string
+          cnpj_email: string
+          cnpj_telefone: string
           created_at: string
           diagnostico_bullets: Json
           digital_signals: Json
@@ -408,13 +415,17 @@ export type Database = {
           longitude: number
           nicho: string
           nome: string
+          nome_responsavel: string
           notas: string
           plano_prospeccao: Json
+          porte_empresa: string
           probabilidade_conversao: number
           proximidade_ativa: boolean
           raio_km: number
           rating: number
+          razao_social: string
           salvo: boolean
+          situacao_cadastral: string
           status: string
           telefone: string
           total_reviews: number
@@ -430,6 +441,10 @@ export type Database = {
         Returns: {
           ai_analise_gerada_em: string
           cidade: string
+          cnae_principal: string
+          cnpj: string
+          cnpj_email: string
+          cnpj_telefone: string
           created_at: string
           diagnostico_bullets: Json
           digital_signals: Json
@@ -447,13 +462,17 @@ export type Database = {
           longitude: number
           nicho: string
           nome: string
+          nome_responsavel: string
           notas: string
           plano_prospeccao: Json
+          porte_empresa: string
           probabilidade_conversao: number
           proximidade_ativa: boolean
           raio_km: number
           rating: number
+          razao_social: string
           salvo: boolean
+          situacao_cadastral: string
           status: string
           telefone: string
           total_reviews: number

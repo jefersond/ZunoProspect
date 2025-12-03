@@ -411,12 +411,25 @@ export const LeadsList = () => {
                   <TableRow key={lead.id}>
                     <TableCell>
                       <div className="space-y-1 min-w-[200px]">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-medium">{lead.nome}</p>
                           {lead.salvo && (
                             <Badge variant="secondary" className="text-xs">
                               <Archive className="h-3 w-3 mr-1" />
                               Salvo
+                            </Badge>
+                          )}
+                          {lead.cnpj && (
+                            <Badge 
+                              variant="outline" 
+                              className={
+                                lead.situacao_cadastral === "ATIVA"
+                                  ? "text-xs bg-green-500/10 text-green-700 border-green-500/20"
+                                  : "text-xs bg-red-500/10 text-red-700 border-red-500/20"
+                              }
+                              title={`CNPJ: ${lead.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}${lead.razao_social ? ` - ${lead.razao_social}` : ""}`}
+                            >
+                              {lead.situacao_cadastral === "ATIVA" ? "✓ CNPJ" : "⚠ CNPJ"}
                             </Badge>
                           )}
                         </div>

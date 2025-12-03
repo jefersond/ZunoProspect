@@ -102,6 +102,57 @@ export const LeadCard = ({ lead }: LeadCardProps) => {
           )}
         </div>
         
+        {/* Dados CNPJ */}
+        {lead.cnpj && (
+          <div className="pt-2 border-t space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dados Oficiais (Receita)</span>
+              <Badge
+                variant="outline"
+                className={
+                  lead.situacao_cadastral === "ATIVA"
+                    ? "text-xs bg-green-500/10 text-green-700 border-green-500/20"
+                    : "text-xs bg-red-500/10 text-red-700 border-red-500/20"
+                }
+              >
+                {lead.situacao_cadastral || "N/A"}
+              </Badge>
+            </div>
+            
+            {lead.razao_social && lead.razao_social !== lead.nome && (
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium">Razão Social:</span> {lead.razao_social}
+              </p>
+            )}
+            
+            <p className="text-xs text-muted-foreground font-mono">
+              CNPJ: {lead.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}
+            </p>
+            
+            <div className="flex flex-wrap gap-2 text-sm">
+              {lead.cnpj_telefone && (
+                <a href={`tel:${lead.cnpj_telefone}`} className="text-primary hover:underline">
+                  📞 {lead.cnpj_telefone}
+                </a>
+              )}
+              {lead.cnpj_email && (
+                <a href={`mailto:${lead.cnpj_email}`} className="text-primary hover:underline">
+                  ✉️ {lead.cnpj_email}
+                </a>
+              )}
+            </div>
+            
+            <div className="flex flex-wrap gap-1">
+              {lead.porte_empresa && (
+                <Badge variant="secondary" className="text-xs">{lead.porte_empresa}</Badge>
+              )}
+              {lead.cnae_principal && (
+                <Badge variant="outline" className="text-xs">{lead.cnae_principal}</Badge>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Análise IA */}
         {lead.probabilidade_conversao > 0 && (
           <div className="pt-2 border-t">

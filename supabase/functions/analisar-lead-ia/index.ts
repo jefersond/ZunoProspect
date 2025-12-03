@@ -24,40 +24,34 @@ interface LeadData {
 }
 
 // Função para filtrar canais baseado no que foi detectado no lead
+// SEM FALLBACK - só retorna canais que realmente foram detectados
 function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "whatsapp" | "instagram")[]): ("email" | "whatsapp" | "instagram")[] {
   const available: ("email" | "whatsapp" | "instagram")[] = [];
   
-  // WhatsApp: disponível se tem número ou está no site
+  // WhatsApp: disponível SOMENTE se tem número ou está no site
   if (selectedChannels.includes("whatsapp") && (lead.whatsapp_number || lead.whatsapp_on_site)) {
     available.push("whatsapp");
   }
   
-  // Email: disponível se foi detectado
+  // Email: disponível SOMENTE se foi detectado
   if (selectedChannels.includes("email") && lead.email) {
     available.push("email");
   }
   
-  // Instagram: disponível se tem URL
+  // Instagram: disponível SOMENTE se tem URL
   if (selectedChannels.includes("instagram") && lead.instagram_url) {
     available.push("instagram");
   }
   
-  // Fallback: se nenhum canal detectado, usa email como último recurso
-  if (available.length === 0) {
-    // Tenta email primeiro
-    if (selectedChannels.includes("email")) {
-      available.push("email");
-    } else if (selectedChannels.length > 0) {
-      // Usa o primeiro canal selecionado como fallback
-      available.push(selectedChannels[0]);
-    } else {
-      available.push("email");
-    }
-    console.log(`⚠️ Nenhum canal detectado, usando fallback: ${available[0]}`);
-  }
+  // SEM FALLBACK! Se não detectou nenhum canal, retorna array vazio
+  // A IA será instruída a criar plano alternativo de como ENCONTRAR contato
   
-  console.log(`📢 Canais selecionados: ${selectedChannels.join(", ")}`);
-  console.log(`✅ Canais disponíveis (detectados): ${available.join(", ")}`);
+  console.log(`📢 Canais selecionados pelo usuário: ${selectedChannels.join(", ")}`);
+  console.log(`✅ Canais REALMENTE detectados: ${available.length > 0 ? available.join(", ") : "NENHUM"}`);
+  
+  if (available.length === 0) {
+    console.log(`⚠️ ATENÇÃO: Nenhum canal de contato foi detectado para este lead!`);
+  }
   
   return available;
 }
@@ -688,14 +682,40 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
   const canaisPermitidos = canaisDisponiveis;
 
   try {
+    const systemPrompt = `Você é um COPYWRITER DE ELITE com mais de 15 anos de experiência em vendas B2B, prospecção de alto ticket e persuasão de alta conversão.
+
+🏆 SUA FORMAÇÃO E ESPECIALIDADES:
+• Treinado por mestres como Gary Halbert, Dan Kennedy, Eugene Schwartz, Robert Cialdini e Russell Brunson
+• Taxa de resposta média em cold outreach: acima de 40%
+• Especialista em: AIDA, PAS (Problem-Agitate-Solve), 4Ps (Promise, Picture, Proof, Push)
+• Gatilhos mentais dominados: escassez, urgência, prova social, autoridade, reciprocidade, compromisso progressivo
+
+📜 SUAS 10 REGRAS DE OURO (INEGOCIÁVEIS):
+1. Cada mensagem tem UM ÚNICO objetivo claro
+2. Fale sobre ELES, não sobre você (proporção 80% cliente / 20% você)
+3. Use números específicos, NUNCA genéricos ("aumentou 37%" ao invés de "aumentou muito")
+4. Crie urgência REAL, não artificial
+5. CTAs que pedem micro-compromissos progressivos
+6. Personalize com dados REAIS do lead (nome, cidade, nicho)
+7. Cada frase deve passar no teste "E daí?" (So what?)
+8. Abra loops de curiosidade que só fecham na resposta
+9. Use pattern interrupts para quebrar expectativas
+10. Termine SEMPRE com pergunta que demanda resposta
+
+🎭 PERSONALIDADE NAS MENSAGENS:
+• Confiante sem ser arrogante
+• Direto sem ser rude
+• Consultivo sem ser vendedor
+• Urgente sem ser desesperado
+• Casual sem ser unprofessional`;
+
     const requestBody = {
       model: "gpt-4o-mini",
-      max_completion_tokens: 4000,
+      max_completion_tokens: 6000,
       messages: [
         {
           role: "system",
-          content:
-            "Você é um especialista sênior em prospecção B2B, copywriting persuasivo e análise de marketing digital. Você domina a técnica AIDA (Atenção, Interesse, Desejo, Ação) e cria mensagens de alta conversão. Suas objeções são realistas e suas respostas usam técnicas avançadas de vendas consultivas. Você gera CTAs irresistíveis e acionáveis.",
+          content: systemPrompt,
         },
         {
           role: "user",
@@ -854,118 +874,289 @@ function buildAnalysisPrompt(lead: LeadData): string {
   // Estes canais já vêm filtrados baseado no que foi detectado
   const canais = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
     ? lead.canaisProspeccao 
-    : ["email", "whatsapp"];
+    : [];
   
-  const canalTexto = canais.map(c => {
-    if (c === "email") return "Email";
-    if (c === "whatsapp") return "WhatsApp";
-    if (c === "instagram") return "Instagram";
-    return c;
-  }).join(", ");
+  const nenhumCanalDetectado = canais.length === 0;
   
-  const estrategiaCadencia = canais.length === 1 
-    ? `Use SOMENTE ${canalTexto} para todos os 7 dias`
-    : `Distribua os 7 dias entre os canais disponíveis (${canalTexto}), alternando estrategicamente para maximizar engajamento`;
+  const canalTexto = canais.length > 0 
+    ? canais.map(c => {
+        if (c === "email") return "Email";
+        if (c === "whatsapp") return "WhatsApp";
+        if (c === "instagram") return "Instagram DM";
+        return c;
+      }).join(", ")
+    : "NENHUM CANAL DETECTADO";
   
-  // Informação de disponibilidade de canais para a IA entender o contexto
+  const estrategiaCadencia = nenhumCanalDetectado
+    ? "⚠️ NENHUM CANAL DETECTADO - Crie plano focado em ENCONTRAR o contato (ligação, visita presencial, LinkedIn, busca de redes)"
+    : canais.length === 1 
+      ? `Use SOMENTE ${canalTexto} para todos os 7 dias com variações criativas`
+      : `Distribua os 7 dias entre os canais (${canalTexto}), alternando para maximizar touchpoints`;
+  
+  // Status detalhado dos canais
   const canaisInfo = [];
   if (lead.whatsapp_on_site || lead.whatsapp_number) {
-    canaisInfo.push("✅ WhatsApp: DISPONÍVEL (detectado no lead)");
+    canaisInfo.push(`✅ WhatsApp: DISPONÍVEL${lead.whatsapp_number ? ` (${lead.whatsapp_number})` : " (detectado no site)"}`);
   } else {
-    canaisInfo.push("❌ WhatsApp: NÃO DETECTADO");
+    canaisInfo.push("❌ WhatsApp: NÃO DETECTADO - NÃO USAR!");
   }
   if (lead.email) {
     canaisInfo.push(`✅ Email: DISPONÍVEL (${lead.email})`);
   } else {
-    canaisInfo.push("❌ Email: NÃO DETECTADO");
+    canaisInfo.push("❌ Email: NÃO DETECTADO - NÃO USAR!");
   }
   if (lead.instagram_url) {
     canaisInfo.push(`✅ Instagram: DISPONÍVEL (${lead.instagram_url})`);
   } else {
-    canaisInfo.push("❌ Instagram: NÃO DETECTADO");
+    canaisInfo.push("❌ Instagram: NÃO DETECTADO - NÃO USAR!");
   }
     
   const sinaisMarketing = [];
-  if (lead.has_meta_pixel) sinaisMarketing.push("Meta Pixel instalado");
-  if (lead.has_gtag) sinaisMarketing.push("Google Analytics configurado");
-  if (lead.has_gtm) sinaisMarketing.push("Google Tag Manager ativo");
-  if (lead.whatsapp_on_site || lead.whatsapp_number) sinaisMarketing.push("WhatsApp detectado");
-  if (lead.instagram_url) sinaisMarketing.push(`Instagram: ${lead.instagram_url}`);
-  if (lead.email) sinaisMarketing.push(`Email: ${lead.email}`);
+  if (lead.has_meta_pixel) sinaisMarketing.push("✓ Meta Pixel instalado");
+  if (lead.has_gtag) sinaisMarketing.push("✓ Google Analytics ativo");
+  if (lead.has_gtm) sinaisMarketing.push("✓ Google Tag Manager configurado");
+  if (lead.whatsapp_on_site || lead.whatsapp_number) sinaisMarketing.push("✓ WhatsApp no site");
+  if (lead.instagram_url) sinaisMarketing.push(`✓ Instagram ativo: ${lead.instagram_url}`);
+  if (lead.email) sinaisMarketing.push(`✓ Email de contato: ${lead.email}`);
 
-  return `Analise este lead B2B e gere um plano de prospecção de alta conversão:
+  // Instruções específicas por canal
+  const instrucoesPorCanal = `
+═══════════════════════════════════════
+📱 REGRAS POR CANAL (OBEDEÇA RIGOROSAMENTE)
+═══════════════════════════════════════
+
+${canais.includes("whatsapp") ? `
+💬 WHATSAPP - REGRAS DE OURO:
+• Máximo 4 linhas por mensagem (quebra em parágrafos curtos)
+• Primeiro nome no início (humaniza: "Oi João,")
+• 1-2 emojis estratégicos no máximo (não decorativos)
+• Pergunta que abre conversa no FINAL
+• Tom como se já se conhecessem (sem formalidade excessiva)
+• NUNCA comece com "Olá" sozinho - entre direto no valor
+• Use linguagem de conversa real, não marketing
+
+❌ EVITAR (WhatsApp):
+"Olá! Tudo bem? Meu nome é X da empresa Y e gostaria de..."
+
+✅ USAR (WhatsApp):
+"João, vi que a [Empresa] está em [cidade] há um tempo. Pergunta rápida: vocês já investem em tráfego pago? Pergunto porque um cliente do mesmo nicho triplicou leads em 60 dias. Se fizer sentido, mando o case. Quer?"
+` : ""}
+
+${canais.includes("email") ? `
+✉️ EMAIL - ESTRUTURA DE ALTO DESEMPENHO:
+• Assunto: curiosidade + personalização (máx 50 caracteres)
+  Ex: "[Empresa] + [cidade] = oportunidade não explorada"
+  Ex: "Notei algo sobre vocês..."
+  Ex: "Pergunta rápida sobre [nicho]"
+• Abertura: observação específica sobre o negócio DELES (não sobre você)
+• Corpo: 1 insight de valor + 1 prova rápida (máx 150 palavras)
+• Fechamento: pergunta que requer BAIXO ESFORÇO para responder
+• PS: segunda chance de CTA ou prova social adicional (opcional mas poderoso)
+
+❌ EVITAR (Email):
+"Prezado(a), venho por meio desta apresentar nossa empresa..."
+
+✅ USAR (Email):
+"Assunto: [Empresa] + [Cidade] = oportunidade perdida?
+
+Oi [Nome],
+
+Pesquisando [nicho] em [cidade], a [Empresa] apareceu. Analisei rapidamente e notei 3 coisas:
+
+1. [Observação específica sobre presença digital]
+2. [Gap identificado relacionado ao foco]
+3. [Oportunidade rápida]
+
+Um cliente nosso na mesma situação conseguiu [resultado específico] em [tempo].
+
+Pergunta rápida: vocês já tentaram [ação relacionada ao foco]?
+
+Se sim, curioso pra saber como foi.
+Se não, tenho um material de 2 páginas que explica o caminho.
+
+Qual das duas?
+
+[Assinatura]
+
+PS: Não vou te ligar 50 vezes. Uma resposta de 'sim' ou 'não' já resolve 😉"
+` : ""}
+
+${canais.includes("instagram") ? `
+📸 INSTAGRAM DM - CÓDIGO DE CONDUTA:
+• Abordagem como FÃ primeiro, vendedor depois
+• ANTES de mandar DM: curta 2-3 posts, comente em 1 (genuinamente)
+• Referência ESPECÍFICA a algo do perfil deles
+• Mensagem curta e casual (máx 3 linhas)
+• Tom de conversa entre conhecidos
+• Convite para conversa, NUNCA pitch direto
+• Use 1 emoji no máximo
+
+❌ EVITAR (Instagram):
+"Olá! Somos uma agência de marketing e gostaríamos de apresentar nossos serviços..."
+
+✅ USAR (Instagram):
+"Vi o último post sobre [assunto específico]. Muito bom! 🔥 Vocês estão crescendo forte em [cidade]. Trabalho com [foco] e tenho um insight específico pro nicho de vocês. Posso mandar em 30 segundos?"
+` : ""}`;
+
+  // Instruções de objeções avançadas
+  const instrucoesObjecoes = `
+═══════════════════════════════════════
+🚫 OBJEÇÕES - FORMATO AVANÇADO (OBRIGATÓRIO)
+═══════════════════════════════════════
+
+Cada objeção deve ser:
+• A FRASE EXATA como o cliente diria (entre aspas)
+• Realista para aquele estágio do funil
+• Progressiva (objeções mais duras nos dias finais)
+
+Exemplos por estágio:
+• Dia 1-2: "Quem é você?", "Não te conheço", "Como conseguiu meu contato?"
+• Dia 3-4: "Já temos fornecedor", "Não tenho orçamento agora", "Não é prioridade"
+• Dia 5-6: "Preciso pensar", "Vou avaliar com meu sócio", "Me manda proposta por email"
+• Dia 7: "Não tenho interesse", "Não me procure mais", silêncio total
+
+═══════════════════════════════════════
+💬 RESPOSTAS - ESTRUTURA PERSUASIVA (OBRIGATÓRIO)
+═══════════════════════════════════════
+
+Toda resposta DEVE seguir esta estrutura:
+1. VALIDAR a emoção primeiro ("Faz total sentido...", "Entendo perfeitamente...")
+2. QUESTIONAR suavemente ("Só pra eu entender melhor...", "Posso te fazer uma pergunta?")
+3. REFRAME com perspectiva nova
+4. PROVA ou exemplo rápido (case, número, comparação)
+5. MICRO-CTA que avança (não volta pro mesmo ponto)
+
+Técnicas obrigatórias para usar nas respostas:
+• Espelhamento: repetir palavras-chave do cliente
+• Isolamento: "Se não fosse o orçamento, faria sentido?"
+• Bumerangue: transformar objeção em motivo para comprar
+• Pergunta reversa: "O que te faria mudar de ideia?"
+• Prova social: "Fulano pensava igual até ver que..."`;
+
+  // Progressão de CTAs
+  const instrucoesCTAs = `
+═══════════════════════════════════════
+🎯 PROGRESSÃO DE CTAs (7 DIAS) - OBRIGATÓRIO
+═══════════════════════════════════════
+
+CTAs devem escalar em compromisso ao longo da semana:
+
+• Dia 1: MICRO-COMPROMISSO
+  "Responde SIM ou NÃO que já entendo"
+  "Faz sentido ou não faz?"
+
+• Dia 2: CURIOSIDADE
+  "Quer ver como funciona?"
+  "Mando o exemplo?"
+
+• Dia 3: PROVA SOCIAL
+  "Posso enviar o case de um cliente similar?"
+  "Quer ver o antes/depois?"
+
+• Dia 4: VALOR GRATUITO
+  "Posso fazer um diagnóstico rápido sem compromisso?"
+  "Que tal uma análise gratuita de 10min?"
+
+• Dia 5: URGÊNCIA SUAVE
+  "Estou fechando agenda essa semana. Consegue 15min amanhã?"
+  "Últimas 3 vagas desse mês"
+
+• Dia 6: ESCASSEZ REAL
+  "Proposta válida até sexta"
+  "Condição especial expira em 48h"
+
+• Dia 7: PORTA ABERTA (sem pressão)
+  "Última mensagem, sem pressão. Fico à disposição quando fizer sentido"
+  "Se mudar de ideia, é só chamar. Sucesso aí!"
+
+⚠️ NUNCA USE CTAs GENÉRICOS COMO:
+❌ "Fale conosco"
+❌ "Entre em contato"
+❌ "Aguardo retorno"
+❌ "Fico no aguardo"`;
+
+  return `
+════════════════════════════════════════════════════════════════════════════════
+🎯 MISSÃO: Gerar plano de prospecção de ELITE para conversão máxima
+════════════════════════════════════════════════════════════════════════════════
 
 ═══════════════════════════════════════
 📊 DADOS DO LEAD
 ═══════════════════════════════════════
-- Nome: ${lead.nome}
-- Nicho: ${lead.nicho}
-- Cidade: ${lead.cidade}
-- Website: ${lead.website || "Não informado"}
-- Foco de Serviço Desejado: ${lead.foco}
+• Empresa: ${lead.nome}
+• Nicho: ${lead.nicho}
+• Cidade: ${lead.cidade}
+• Website: ${lead.website || "Não informado"}
+• Foco de Serviço: ${lead.foco}
 
-🎯 SINAIS DE MARKETING DIGITAL:
-${sinaisMarketing.length > 0 ? sinaisMarketing.join("\n") : "Nenhum sinal detectado"}
+🎯 SINAIS DE MARKETING DETECTADOS:
+${sinaisMarketing.length > 0 ? sinaisMarketing.join("\n") : "❌ Nenhum sinal de marketing digital detectado - empresa com baixa maturidade digital"}
 
-🔌 STATUS DOS CANAIS DO LEAD:
+🔌 STATUS DOS CANAIS DE CONTATO:
 ${canaisInfo.join("\n")}
 
-${lead.instagram_context ? `📱 CONTEXTO INSTAGRAM:\n${lead.instagram_context}` : ""}
+${lead.instagram_context ? `📱 CONTEXTO DO INSTAGRAM:\n${lead.instagram_context}` : ""}
+
+════════════════════════════════════════════════════════════════════════════════
+⚠️⚠️⚠️ REGRA CRÍTICA #1 - LEIA COM ATENÇÃO ⚠️⚠️⚠️
+════════════════════════════════════════════════════════════════════════════════
+
+${nenhumCanalDetectado 
+  ? `🚨 NENHUM CANAL DE CONTATO FOI DETECTADO!
+
+Como não temos email, WhatsApp ou Instagram, o plano deve focar em:
+- Use "whatsapp" como canal nos campos (para o sistema aceitar)
+- Mas a MENSAGEM deve ser sobre COMO ENCONTRAR o contato:
+  • Dia 1-2: Buscar telefone em Google, Reclame Aqui, LinkedIn
+  • Dia 3-4: Tentar contato via formulário do site
+  • Dia 5-6: Buscar redes sociais alternativas
+  • Dia 7: Considerar visita presencial ou carta`
+  : `📢 CANAIS PERMITIDOS PARA USAR: ${canalTexto}
+
+🚫 NÃO USE canais marcados como "NÃO DETECTADO"!
+Se usou um canal que NÃO FOI DETECTADO, sua resposta será REJEITADA.
+
+📋 ESTRATÉGIA DE CADÊNCIA: ${estrategiaCadencia}`}
+
+${!nenhumCanalDetectado ? instrucoesPorCanal : ""}
+
+${instrucoesObjecoes}
+
+${instrucoesCTAs}
 
 ═══════════════════════════════════════
-📋 INSTRUÇÕES DETALHADAS
+📋 DIAGNÓSTICO (máximo 6 bullets)
 ═══════════════════════════════════════
+Gere análise consultiva incluindo:
+• Avaliação da maturidade digital atual
+• Gaps críticos identificados
+• Oportunidades específicas para ${lead.foco}
+• Recomendações prioritárias
+• Potencial de ROI estimado
+${lead.instagram_context ? "• Insights do Instagram" : ""}
 
-1️⃣ DIAGNÓSTICO (máximo 6 bullets):
-   - Avalie presença digital atual com métricas específicas
-   - Identifique gaps críticos de marketing digital
-   - Destaque oportunidades de ROI relacionadas ao foco "${lead.foco}"
-   - Analise maturidade digital e prontidão para investimento
-   ${lead.instagram_context ? "- Considere dados do Instagram na análise" : ""}
-   - Use linguagem consultiva e profissional
+═══════════════════════════════════════
+📊 PROBABILIDADE DE CONVERSÃO (0-100)
+═══════════════════════════════════════
+Calcule baseado em:
+• Maturidade digital (ferramentas instaladas)
+• Canais de contato disponíveis
+• Sinais de investimento em marketing
+• Complexidade da solução de ${lead.foco}
+• Tamanho provável da empresa
 
-2️⃣ PROBABILIDADE DE CONVERSÃO (0-100):
-   Avalie com base em:
-   - Maturidade digital e investimento atual em marketing
-   - Sinais de crescimento e abertura para mudança
-   - Complexidade da solução vs. capacidade de absorção
-   - Canais de contato disponíveis (WhatsApp, redes sociais)
+REGRA: Se nenhum canal detectado, máximo 30% de probabilidade
 
-3️⃣ PLANO DE PROSPECÇÃO 7 DIAS:
-   
-   ⚠️⚠️⚠️ REGRA CRÍTICA ⚠️⚠️⚠️
-   USE APENAS OS CANAIS DISPONÍVEIS: ${canalTexto}
-   NÃO use canais marcados como "NÃO DETECTADO"!
-   
-   📢 CANAIS PERMITIDOS: ${canalTexto}
-   📋 ESTRATÉGIA: ${estrategiaCadencia}
-   
-   Para CADA dia, gere:
-   
-   📝 MENSAGEM (usando técnica AIDA):
-   - WhatsApp: curta (até 150 palavras), informal, emojis moderados
-   - Email: assunto atrativo + corpo estruturado
-   - Instagram: tom casual, visual, engajamento
-
-   🚫 OBJEÇÃO PROVÁVEL:
-   - Antecipe a objeção mais realista para aquele estágio
-   - Ex: "Já temos fornecedor", "Sem orçamento", "Não tenho tempo"
-   
-   💬 RESPOSTA SUGERIDA:
-   - Use técnicas de vendas (espelhamento, pergunta reversa, prova social)
-   - Seja empático mas assertivo
-   - Mantenha o tom profissional e consultivo
-
-   🎯 CTA (Call-to-Action):
-   - DEVE ser específico e acionável
-   - Ex: "Responda SIM", "Clique aqui para agendar", "Escolha um horário"
-   - Evite CTAs genéricos como "Fale conosco"
-
-LEMBRE-SE:
-- Personalize TODAS as mensagens com nome da empresa e cidade
-- Adapte linguagem ao canal específico
-- Escalone urgência ao longo dos 7 dias
-- USE APENAS OS CANAIS ESPECIFICADOS: ${canalTexto}`;
+═══════════════════════════════════════
+🚀 LEMBRE-SE: VOCÊ É UM COPYWRITER DE ELITE
+═══════════════════════════════════════
+• Cada mensagem deve ser memorável
+• Use dados REAIS do lead (nome, cidade, nicho)
+• Crie urgência progressiva ao longo dos 7 dias
+• Objeções devem ser FRASES REAIS que clientes dizem
+• Respostas devem usar técnicas avançadas de vendas
+• CTAs devem escalar em compromisso
+• ${canalTexto} - USE APENAS ESTES CANAIS!`;
 }
 
 function getFocoMessage(foco: string): string {

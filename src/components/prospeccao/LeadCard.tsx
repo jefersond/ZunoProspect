@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, MapPin, Phone, MessageSquare, Instagram } from "lucide-react";
+import { ExternalLink, MapPin, Phone, MessageSquare, Instagram, Mail } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 
 interface LeadCardProps {
@@ -50,6 +50,16 @@ export const LeadCard = ({ lead }: LeadCardProps) => {
             >
               <MessageSquare className="h-3 w-3" />
               WhatsApp
+            </a>
+          )}
+
+          {lead.email && (
+            <a
+              href={`mailto:${lead.email}`}
+              className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
+            >
+              <Mail className="h-3 w-3" />
+              Email
             </a>
           )}
           

@@ -24,6 +24,7 @@ import {
   Eye,
   Loader2,
   RefreshCw,
+  Mail,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
@@ -173,6 +174,7 @@ const LeadsSalvos = () => {
           nome: lead.nome,
           telefone: lead.telefone,
           whatsapp_link: generateWhatsAppLink(lead.whatsapp_number, lead.telefone),
+          email: lead.email || null,
           website: lead.website || null,
           instagram_url: lead.instagram_url || null,
           instagram_context: lead.instagram_context,
@@ -433,6 +435,15 @@ const LeadsSalvos = () => {
                       >
                         <MessageSquare className="h-3 w-3 flex-shrink-0" />
                         <span>WhatsApp</span>
+                      </a>
+                    )}
+                    {lead.email && (
+                      <a
+                        href={`mailto:${lead.email}`}
+                        className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
+                      >
+                        <Mail className="h-3 w-3 flex-shrink-0" />
+                        <span>Email</span>
                       </a>
                     )}
                     {lead.website && (

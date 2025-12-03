@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
 import { Progress } from "@/components/ui/progress";
@@ -115,6 +115,7 @@ export const LeadsList = () => {
       nome: lead.nome,
       telefone: lead.telefone,
       whatsapp_link: generateWhatsAppLink(lead.whatsapp_number, lead.telefone),
+      email: lead.email || null,
       website: finalWebsite,
       instagram_url: finalInstagramUrl,
       instagram_context: lead.instagram_context,
@@ -468,6 +469,15 @@ export const LeadsList = () => {
                           >
                             <MessageSquare className="h-3 w-3 flex-shrink-0" />
                             <span>WhatsApp</span>
+                          </a>
+                        )}
+                        {lead.email && (
+                          <a
+                            href={`mailto:${lead.email}`}
+                            className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
+                          >
+                            <Mail className="h-3 w-3 flex-shrink-0" />
+                            <span>Email</span>
                           </a>
                         )}
                         {lead.website && (

@@ -30,6 +30,7 @@ export interface LeadProspeccao {
   nome: string;
   telefone: string | null;
   whatsapp_link: string | null;
+  email: string | null;
   website: string | null;
   instagram_url: string | null;
   instagram_context: string | null; // reservado para futuro

@@ -459,6 +459,58 @@ const LeadsSalvos = () => {
                     )}
                   </div>
 
+                  {/* Dados CNPJ */}
+                  {lead.cnpj && (
+                    <div className="pt-2 border-t space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Receita Federal</span>
+                        <Badge
+                          variant="outline"
+                          className={
+                            lead.situacao_cadastral === "ATIVA"
+                              ? "text-xs bg-green-500/10 text-green-700 border-green-500/20"
+                              : "text-xs bg-red-500/10 text-red-700 border-red-500/20"
+                          }
+                        >
+                          {lead.situacao_cadastral || "N/A"}
+                        </Badge>
+                      </div>
+                      
+                      {lead.razao_social && lead.razao_social !== lead.nome && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {lead.razao_social}
+                        </p>
+                      )}
+                      
+                      <p className="text-xs text-muted-foreground font-mono">
+                        {lead.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}
+                      </p>
+                      
+                      {(lead.cnpj_telefone || lead.cnpj_email) && (
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {lead.cnpj_telefone && (
+                            <a href={`tel:${lead.cnpj_telefone}`} className="text-primary hover:underline">
+                              📞 {lead.cnpj_telefone}
+                            </a>
+                          )}
+                          {lead.cnpj_email && (
+                            <a href={`mailto:${lead.cnpj_email}`} className="text-primary hover:underline truncate max-w-[150px]">
+                              ✉️ {lead.cnpj_email}
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      
+                      {(lead.porte_empresa || lead.cnae_principal) && (
+                        <div className="flex flex-wrap gap-1">
+                          {lead.porte_empresa && (
+                            <Badge variant="secondary" className="text-xs">{lead.porte_empresa}</Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Probabilidade */}
                   {lead.probabilidade_conversao > 0 && (
                     <div className="flex items-center justify-between pt-2 border-t">

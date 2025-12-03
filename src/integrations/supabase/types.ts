@@ -92,6 +92,10 @@ export type Database = {
         Row: {
           ai_analise_gerada_em: string | null
           cidade: string
+          cnae_principal: string | null
+          cnpj: string | null
+          cnpj_email_encrypted: string | null
+          cnpj_telefone_encrypted: string | null
           created_at: string
           diagnostico_bullets: Json | null
           digital_signals: Json | null
@@ -115,11 +119,14 @@ export type Database = {
           nome_responsavel: string | null
           notas: string | null
           plano_prospeccao: Json | null
+          porte_empresa: string | null
           probabilidade_conversao: number | null
           proximidade_ativa: boolean | null
           raio_km: number | null
           rating: number | null
+          razao_social: string | null
           salvo: boolean | null
+          situacao_cadastral: string | null
           status: string | null
           telefone: string | null
           telefone_encrypted: string | null
@@ -135,6 +142,10 @@ export type Database = {
         Insert: {
           ai_analise_gerada_em?: string | null
           cidade: string
+          cnae_principal?: string | null
+          cnpj?: string | null
+          cnpj_email_encrypted?: string | null
+          cnpj_telefone_encrypted?: string | null
           created_at?: string
           diagnostico_bullets?: Json | null
           digital_signals?: Json | null
@@ -158,11 +169,14 @@ export type Database = {
           nome_responsavel?: string | null
           notas?: string | null
           plano_prospeccao?: Json | null
+          porte_empresa?: string | null
           probabilidade_conversao?: number | null
           proximidade_ativa?: boolean | null
           raio_km?: number | null
           rating?: number | null
+          razao_social?: string | null
           salvo?: boolean | null
+          situacao_cadastral?: string | null
           status?: string | null
           telefone?: string | null
           telefone_encrypted?: string | null
@@ -178,6 +192,10 @@ export type Database = {
         Update: {
           ai_analise_gerada_em?: string | null
           cidade?: string
+          cnae_principal?: string | null
+          cnpj?: string | null
+          cnpj_email_encrypted?: string | null
+          cnpj_telefone_encrypted?: string | null
           created_at?: string
           diagnostico_bullets?: Json | null
           digital_signals?: Json | null
@@ -201,11 +219,14 @@ export type Database = {
           nome_responsavel?: string | null
           notas?: string | null
           plano_prospeccao?: Json | null
+          porte_empresa?: string | null
           probabilidade_conversao?: number | null
           proximidade_ativa?: boolean | null
           raio_km?: number | null
           rating?: number | null
+          razao_social?: string | null
           salvo?: boolean | null
+          situacao_cadastral?: string | null
           status?: string | null
           telefone?: string | null
           telefone_encrypted?: string | null

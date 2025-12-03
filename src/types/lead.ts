@@ -53,4 +53,13 @@ export interface LeadProspeccao {
   created_at: string;
   ai_analise_gerada_em: string | null;
   salvo: boolean;
+  
+  // Campos CNPJ
+  cnpj: string | null;
+  razao_social: string | null;
+  cnpj_telefone: string | null;
+  cnpj_email: string | null;
+  situacao_cadastral: string | null;
+  porte_empresa: string | null;
+  cnae_principal: string | null;
 }

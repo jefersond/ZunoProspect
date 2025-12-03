@@ -1176,74 +1176,118 @@ ${canais.includes("instagram") ? `
 
 Cada objeção deve ser:
 • A FRASE EXATA como o cliente diria (entre aspas)
-• Realista para aquele estágio do funil
+• Realista para aquele estágio do funil B2B
 • Progressiva (objeções mais duras nos dias finais)
 
-Exemplos por estágio:
-• Dia 1-2: "Quem é você?", "Não te conheço", "Como conseguiu meu contato?"
-• Dia 3-4: "Já temos fornecedor", "Não tenho orçamento agora", "Não é prioridade"
-• Dia 5-6: "Preciso pensar", "Vou avaliar com meu sócio", "Me manda proposta por email"
-• Dia 7: "Não tenho interesse", "Não me procure mais", silêncio total
+OBJEÇÕES B2B REAIS POR ESTÁGIO:
+
+📅 Dia 1-2 (DESCONFIANÇA INICIAL):
+• "Quem é você e como conseguiu meu contato?"
+• "Não solicitei nenhum contato"
+• "Estou ocupado, não é um bom momento"
+• "Vocês são de onde?"
+
+📅 Dia 3-4 (RESISTÊNCIA ESTRUTURAL):
+• "Já trabalhamos com uma agência/profissional"
+• "Não temos orçamento para isso no momento"
+• "Isso não é prioridade para a empresa agora"
+• "Nossa diretoria não aprovou investimentos em marketing"
+• "O último fornecedor não entregou resultados"
+
+📅 Dia 5-6 (HESITAÇÃO DE DECISÃO):
+• "Preciso conversar com meu sócio/diretor"
+• "Me manda uma proposta por email que eu avalio"
+• "Vou analisar internamente e retorno"
+• "Quanto custa? Me passa os valores"
+• "Não tenho tempo para reuniões agora"
+
+📅 Dia 7 (REJEIÇÃO FINAL OU SILÊNCIO):
+• "Não tenho interesse, obrigado"
+• "Não me procure mais, por favor"
+• [Silêncio total / Visualizou e não respondeu]
+• "Vou te chamar quando precisar"
 
 ═══════════════════════════════════════
-💬 RESPOSTAS - ESTRUTURA PERSUASIVA (OBRIGATÓRIO)
+💬 RESPOSTAS B2B CONSULTIVAS (OBRIGATÓRIO)
 ═══════════════════════════════════════
 
-Toda resposta DEVE seguir esta estrutura:
-1. VALIDAR a emoção primeiro ("Faz total sentido...", "Entendo perfeitamente...")
-2. QUESTIONAR suavemente ("Só pra eu entender melhor...", "Posso te fazer uma pergunta?")
-3. REFRAME com perspectiva nova
-4. PROVA ou exemplo rápido (case, número, comparação)
-5. MICRO-CTA que avança (não volta pro mesmo ponto)
+ESTRUTURA DE RESPOSTA PROFISSIONAL:
+1. RECONHECER (sem bajular): "Compreendo perfeitamente..."
+2. REPOSICIONAR com dado/insight: "O que observamos no mercado é que..."
+3. EVIDÊNCIA rápida: número, case anônimo, comparação de mercado
+4. PRÓXIMO PASSO de baixo atrito
 
-Técnicas obrigatórias para usar nas respostas:
-• Espelhamento: repetir palavras-chave do cliente
-• Isolamento: "Se não fosse o orçamento, faria sentido?"
-• Bumerangue: transformar objeção em motivo para comprar
-• Pergunta reversa: "O que te faria mudar de ideia?"
-• Prova social: "Fulano pensava igual até ver que..."`;
+EXEMPLOS DE RESPOSTAS B2B POR OBJEÇÃO:
+
+❓ "Já trabalhamos com uma agência"
+✅ "Faz sentido. Inclusive, não estou sugerindo substituição. A maioria dos clientes que atendemos já tinham parceiros. O que identificamos foi uma oportunidade específica em [área] que complementa o trabalho atual. Se não fizer sentido, pelo menos sai com um diagnóstico gratuito. 10 minutos?"
+
+❓ "Não temos orçamento"
+✅ "Compreendo. E se eu te mostrasse uma análise de quanto vocês estão deixando de faturar por não explorar [oportunidade específica]? Muitas vezes o 'orçamento' aparece quando o ROI fica claro. Posso enviar esse diagnóstico sem compromisso?"
+
+❓ "Preciso falar com meu sócio"
+✅ "Claro. Inclusive, posso preparar um resumo executivo de 1 página com os pontos principais para facilitar essa conversa? Assim vocês avaliam com as informações certas em mãos."
+
+❓ "Me manda proposta por email"
+✅ "Posso enviar. Mas antes de mandar algo genérico, preciso de 5 minutos para entender 2-3 pontos específicos do negócio de vocês. Assim a proposta já vem personalizada e com projeção de retorno. Amanhã às 10h ou prefere às 14h?"
+
+❓ "Não tenho interesse"
+✅ "Entendido. Agradeço a clareza. Se em algum momento fizer sentido revisitar [oportunidade específica], deixo meu contato à disposição. Sucesso com os projetos atuais."
+
+❓ [Silêncio / Não respondeu]
+✅ "Última mensagem, sem insistência. Se o timing não for agora, tudo bem. Deixo registrado a oportunidade que identifiquei em [área]. Quando fizer sentido, estou aqui."
+
+TÉCNICAS CONSULTIVAS OBRIGATÓRIAS:
+• Isolamento: "Tirando a questão de orçamento, faria sentido estrategicamente?"
+• Reframe de valor: Transformar custo em investimento com ROI projetado
+• Prova anônima: "Uma empresa do mesmo porte em ${lead.cidade}..."
+• Pergunta diagnóstica: "Me ajuda a entender: vocês medem [métrica] atualmente?"
+• Escassez real: Limitar disponibilidade de agenda, não inventar urgência falsa`;
 
   // Progressão de CTAs
   const instrucoesCTAs = `
 ═══════════════════════════════════════
-🎯 PROGRESSÃO DE CTAs (7 DIAS) - OBRIGATÓRIO
+🎯 PROGRESSÃO DE CTAs B2B (7 DIAS) - OBRIGATÓRIO
 ═══════════════════════════════════════
 
-CTAs devem escalar em compromisso ao longo da semana:
+CTAs devem escalar em compromisso de forma profissional:
 
-• Dia 1: MICRO-COMPROMISSO
-  "Responde SIM ou NÃO que já entendo"
-  "Faz sentido ou não faz?"
+• Dia 1: VALIDAÇÃO DE INTERESSE
+  "Vale uma conversa de 5 minutos ou não faz sentido agora?"
+  "Isso é relevante para vocês ou posso seguir em frente?"
 
-• Dia 2: CURIOSIDADE
-  "Quer ver como funciona?"
-  "Mando o exemplo?"
+• Dia 2: ENTREGA DE VALOR
+  "Posso enviar o diagnóstico que preparei?"
+  "Quer que eu compartilhe a análise?"
 
-• Dia 3: PROVA SOCIAL
-  "Posso enviar o case de um cliente similar?"
-  "Quer ver o antes/depois?"
+• Dia 3: PROVA DE RESULTADO
+  "Posso mostrar um case similar do setor de ${lead.nicho}?"
+  "Tenho um comparativo de mercado - envio?"
 
-• Dia 4: VALOR GRATUITO
-  "Posso fazer um diagnóstico rápido sem compromisso?"
-  "Que tal uma análise gratuita de 10min?"
+• Dia 4: CONVERSA ESTRUTURADA
+  "15 minutos para apresentar os pontos principais - funciona?"
+  "Uma call rápida para alinhar expectativas?"
 
-• Dia 5: URGÊNCIA SUAVE
-  "Estou fechando agenda essa semana. Consegue 15min amanhã?"
-  "Últimas 3 vagas desse mês"
+• Dia 5: AGENDAMENTO DIRETO
+  "Tenho disponibilidade amanhã às 10h ou às 15h. Qual funciona melhor?"
+  "Conseguimos encaixar essa semana?"
 
-• Dia 6: ESCASSEZ REAL
-  "Proposta válida até sexta"
-  "Condição especial expira em 48h"
+• Dia 6: URGÊNCIA CONTEXTUAL
+  "Estou fechando a agenda do mês. Conseguimos alinhar até sexta?"
+  "Última semana com essa condição de entrada"
 
-• Dia 7: PORTA ABERTA (sem pressão)
-  "Última mensagem, sem pressão. Fico à disposição quando fizer sentido"
-  "Se mudar de ideia, é só chamar. Sucesso aí!"
+• Dia 7: ENCERRAMENTO PROFISSIONAL
+  "Última mensagem sobre isso. Se o timing mudar, estou à disposição."
+  "Agradeço a atenção. Fico disponível quando fizer sentido."
 
-⚠️ NUNCA USE CTAs GENÉRICOS COMO:
+⚠️ CTAs PROIBIDOS (muito genéricos ou informais):
 ❌ "Fale conosco"
 ❌ "Entre em contato"
 ❌ "Aguardo retorno"
-❌ "Fico no aguardo"`;
+❌ "Fico no aguardo"
+❌ "Me chama aí"
+❌ "Bora conversar?"
+❌ "Responde SIM ou NÃO"`;
 
   return `
 ════════════════════════════════════════════════════════════════════════════════

@@ -28,6 +28,7 @@ interface SiteSignals {
   has_gtag: boolean;
   has_gtm: boolean;
   instagram_url: string | null;
+  email: string | null;
 }
 
 interface AnaliseResult {
@@ -52,6 +53,7 @@ async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
     has_gtag: false,
     has_gtm: false,
     instagram_url: null,
+    email: null,
   };
 
   try {
@@ -271,6 +273,68 @@ async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
       console.log(`✅ Google Tag Manager detectado`);
     }
 
+    // ========================================
+    // DETECÇÃO DE EMAIL - MÚLTIPLOS PADRÕES
+    // ========================================
+    
+    // Padrão 1: Links mailto:
+    const mailtoPattern = /mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
+    const mailtoMatches = html.matchAll(mailtoPattern);
+    for (const match of mailtoMatches) {
+      if (match[1]) {
+        signals.email = match[1].toLowerCase();
+        console.log(`✅ Email encontrado via mailto: ${signals.email}`);
+        break;
+      }
+    }
+
+    // Padrão 2: Emails em texto geral (se não encontrou via mailto)
+    if (!signals.email) {
+      // Regex para emails - exclui domínios comuns de imagens/assets
+      const emailTextPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
+      const emailMatches = html.match(emailTextPattern);
+      
+      if (emailMatches && emailMatches.length > 0) {
+        // Filtra emails inválidos ou de domínios de sistema
+        const excludedDomains = ['example.com', 'sentry.io', 'wixpress.com', 'google.com', 'facebook.com', 'twitter.com', 'instagram.com'];
+        const excludedPatterns = ['noreply', 'no-reply', 'donotreply', 'mailer-daemon'];
+        
+        for (const email of emailMatches) {
+          const emailLower = email.toLowerCase();
+          const domain = emailLower.split('@')[1];
+          
+          // Pula emails de sistema ou domínios excluídos
+          if (excludedDomains.some(d => domain?.includes(d))) continue;
+          if (excludedPatterns.some(p => emailLower.includes(p))) continue;
+          
+          // Email válido encontrado
+          signals.email = emailLower;
+          console.log(`✅ Email encontrado via texto: ${signals.email}`);
+          break;
+        }
+      }
+    }
+
+    // Padrão 3: Busca por contexto (email perto de palavras-chave)
+    if (!signals.email) {
+      const emailContextPatterns = [
+        /(?:contato|email|e-mail|fale\s*conosco|atendimento)[:\s]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi,
+        /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?:[:\s]*(?:contato|email|e-mail))/gi,
+      ];
+      
+      for (const pattern of emailContextPatterns) {
+        const matches = html.matchAll(pattern);
+        for (const match of matches) {
+          if (match[1]) {
+            signals.email = match[1].toLowerCase();
+            console.log(`✅ Email encontrado via contexto: ${signals.email}`);
+            break;
+          }
+        }
+        if (signals.email) break;
+      }
+    }
+
     console.log(`📊 Sinais finais:`, signals);
     
   } catch (error: any) {
@@ -360,12 +424,15 @@ serve(async (req) => {
             has_gtm: leadData.has_gtm,
           };
           
-          // Se encontrou novo WhatsApp ou Instagram, atualiza via campos não criptografados temporariamente
+          // Se encontrou novo WhatsApp, Instagram ou Email, atualiza via campos não criptografados temporariamente
           if (newSignals.whatsapp_number) {
             updateData.whatsapp_number = newSignals.whatsapp_number;
           }
           if (newSignals.instagram_url) {
             updateData.instagram_url = newSignals.instagram_url;
+          }
+          if (newSignals.email) {
+            updateData.email = newSignals.email;
           }
           
           const { error: updateSignalsError } = await supabase

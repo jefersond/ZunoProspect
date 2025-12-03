@@ -19,6 +19,15 @@ export const exportLeadsToExcel = (leads: LeadProspeccao[]) => {
       'Nicho': lead.nicho,
       'Foco': lead.foco,
       
+      // Dados CNPJ
+      'CNPJ': lead.cnpj || '',
+      'Razão Social': lead.razao_social || '',
+      'Telefone CNPJ': lead.cnpj_telefone || '',
+      'Email CNPJ': lead.cnpj_email || '',
+      'Situação Cadastral': lead.situacao_cadastral || '',
+      'Porte Empresa': lead.porte_empresa || '',
+      'CNAE Principal': lead.cnae_principal || '',
+      
       // Dados da busca
       'Proximidade Ativa': lead.proximidadeAtiva ? 'Sim' : 'Não',
       'Raio (km)': lead.raioKm || '',

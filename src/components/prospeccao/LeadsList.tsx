@@ -139,6 +139,14 @@ export const LeadsList = () => {
       created_at: lead.created_at,
       ai_analise_gerada_em: lead.ai_analise_gerada_em,
       salvo: lead.salvo || false,
+      // Campos CNPJ
+      cnpj: lead.cnpj || null,
+      razao_social: lead.razao_social || null,
+      cnpj_telefone: lead.cnpj_telefone || null,
+      cnpj_email: lead.cnpj_email || null,
+      situacao_cadastral: lead.situacao_cadastral || null,
+      porte_empresa: lead.porte_empresa || null,
+      cnae_principal: lead.cnae_principal || null,
     };
   };
 

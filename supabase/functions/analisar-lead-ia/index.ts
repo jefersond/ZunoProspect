@@ -13,12 +13,53 @@ interface LeadData {
   website: string | null;
   foco: string;
   whatsapp_on_site: boolean;
+  whatsapp_number?: string | null;
+  email?: string | null;
   has_meta_pixel: boolean;
   has_gtag: boolean;
   has_gtm: boolean;
   instagram_url: string | null;
   instagram_context: string | null;
   canaisProspeccao?: ("email" | "whatsapp" | "instagram")[];
+}
+
+// Função para filtrar canais baseado no que foi detectado no lead
+function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "whatsapp" | "instagram")[]): ("email" | "whatsapp" | "instagram")[] {
+  const available: ("email" | "whatsapp" | "instagram")[] = [];
+  
+  // WhatsApp: disponível se tem número ou está no site
+  if (selectedChannels.includes("whatsapp") && (lead.whatsapp_number || lead.whatsapp_on_site)) {
+    available.push("whatsapp");
+  }
+  
+  // Email: disponível se foi detectado
+  if (selectedChannels.includes("email") && lead.email) {
+    available.push("email");
+  }
+  
+  // Instagram: disponível se tem URL
+  if (selectedChannels.includes("instagram") && lead.instagram_url) {
+    available.push("instagram");
+  }
+  
+  // Fallback: se nenhum canal detectado, usa email como último recurso
+  if (available.length === 0) {
+    // Tenta email primeiro
+    if (selectedChannels.includes("email")) {
+      available.push("email");
+    } else if (selectedChannels.length > 0) {
+      // Usa o primeiro canal selecionado como fallback
+      available.push(selectedChannels[0]);
+    } else {
+      available.push("email");
+    }
+    console.log(`⚠️ Nenhum canal detectado, usando fallback: ${available[0]}`);
+  }
+  
+  console.log(`📢 Canais selecionados: ${selectedChannels.join(", ")}`);
+  console.log(`✅ Canais disponíveis (detectados): ${available.join(", ")}`);
+  
+  return available;
 }
 
 interface SiteSignals {
@@ -392,6 +433,8 @@ serve(async (req) => {
         website: directLead.website as string | null,
         foco: directLead.foco as string,
         whatsapp_on_site: (directLead.whatsapp_on_site as boolean) || false,
+        whatsapp_number: directLead.whatsapp_number as string | null,
+        email: directLead.email as string | null,
         has_meta_pixel: (directLead.has_meta_pixel as boolean) || false,
         has_gtag: (directLead.has_gtag as boolean) || false,
         has_gtm: (directLead.has_gtm as boolean) || false,
@@ -401,50 +444,57 @@ serve(async (req) => {
       };
       
       console.log("✅ Lead carregado:", leadData.nome);
+      console.log("📧 Email existente:", leadData.email);
+      console.log("📱 WhatsApp existente:", leadData.whatsapp_number);
+      console.log("📸 Instagram existente:", leadData.instagram_url);
       
       // RE-ESCANEIA O SITE para detectar novos sinais
       if (websiteUrl) {
         console.log("🔄 Re-escaneando site para detectar sinais atualizados...");
         const newSignals = await scrapeSiteForSignals(websiteUrl);
         
-        // Atualiza os sinais se encontrar algo novo
-        if (newSignals.whatsapp_on_site || newSignals.instagram_url || newSignals.has_meta_pixel || newSignals.has_gtag || newSignals.has_gtm) {
-          leadData.whatsapp_on_site = newSignals.whatsapp_on_site || leadData.whatsapp_on_site;
-          leadData.has_meta_pixel = newSignals.has_meta_pixel || leadData.has_meta_pixel;
-          leadData.has_gtag = newSignals.has_gtag || leadData.has_gtag;
-          leadData.has_gtm = newSignals.has_gtm || leadData.has_gtm;
-          leadData.instagram_url = newSignals.instagram_url || leadData.instagram_url;
+        // Atualiza os sinais - combina existentes com novos
+        leadData.whatsapp_on_site = newSignals.whatsapp_on_site || leadData.whatsapp_on_site;
+        leadData.whatsapp_number = newSignals.whatsapp_number || leadData.whatsapp_number;
+        leadData.email = newSignals.email || leadData.email;
+        leadData.has_meta_pixel = newSignals.has_meta_pixel || leadData.has_meta_pixel;
+        leadData.has_gtag = newSignals.has_gtag || leadData.has_gtag;
+        leadData.has_gtm = newSignals.has_gtm || leadData.has_gtm;
+        leadData.instagram_url = newSignals.instagram_url || leadData.instagram_url;
+        
+        console.log("📧 Email após scraping:", leadData.email);
+        console.log("📱 WhatsApp após scraping:", leadData.whatsapp_number);
+        console.log("📸 Instagram após scraping:", leadData.instagram_url);
+        
+        // Atualiza os sinais no banco (campos não criptografados)
+        console.log("💾 Atualizando sinais no banco...");
+        const updateData: Record<string, any> = {
+          whatsapp_on_site: leadData.whatsapp_on_site,
+          has_meta_pixel: leadData.has_meta_pixel,
+          has_gtag: leadData.has_gtag,
+          has_gtm: leadData.has_gtm,
+        };
+        
+        // Se encontrou novo WhatsApp, Instagram ou Email, atualiza via campos não criptografados temporariamente
+        if (newSignals.whatsapp_number) {
+          updateData.whatsapp_number = newSignals.whatsapp_number;
+        }
+        if (newSignals.instagram_url) {
+          updateData.instagram_url = newSignals.instagram_url;
+        }
+        if (newSignals.email) {
+          updateData.email = newSignals.email;
+        }
+        
+        const { error: updateSignalsError } = await supabase
+          .from("leads")
+          .update(updateData)
+          .eq("id", leadId);
           
-          // Atualiza os sinais no banco (campos não criptografados)
-          console.log("💾 Atualizando sinais no banco...");
-          const updateData: Record<string, any> = {
-            whatsapp_on_site: leadData.whatsapp_on_site,
-            has_meta_pixel: leadData.has_meta_pixel,
-            has_gtag: leadData.has_gtag,
-            has_gtm: leadData.has_gtm,
-          };
-          
-          // Se encontrou novo WhatsApp, Instagram ou Email, atualiza via campos não criptografados temporariamente
-          if (newSignals.whatsapp_number) {
-            updateData.whatsapp_number = newSignals.whatsapp_number;
-          }
-          if (newSignals.instagram_url) {
-            updateData.instagram_url = newSignals.instagram_url;
-          }
-          if (newSignals.email) {
-            updateData.email = newSignals.email;
-          }
-          
-          const { error: updateSignalsError } = await supabase
-            .from("leads")
-            .update(updateData)
-            .eq("id", leadId);
-            
-          if (updateSignalsError) {
-            console.error("⚠️ Erro ao atualizar sinais:", updateSignalsError);
-          } else {
-            console.log("✅ Sinais atualizados no banco");
-          }
+        if (updateSignalsError) {
+          console.error("⚠️ Erro ao atualizar sinais:", updateSignalsError);
+        } else {
+          console.log("✅ Sinais atualizados no banco");
         }
       }
     } else {
@@ -456,6 +506,8 @@ serve(async (req) => {
         website: requestData.website,
         foco: requestData.foco,
         whatsapp_on_site: requestData.whatsapp_on_site || false,
+        whatsapp_number: requestData.whatsapp_number || null,
+        email: requestData.email || null,
         has_meta_pixel: requestData.has_meta_pixel || false,
         has_gtag: requestData.has_gtag || false,
         has_gtm: requestData.has_gtm || false,
@@ -520,17 +572,21 @@ serve(async (req) => {
 
 function generateMockAnalise(lead: LeadData): AnaliseResult {
   const temMarketing = lead.has_meta_pixel || lead.has_gtag || lead.has_gtm;
-  const temWhatsApp = lead.whatsapp_on_site;
+  const temWhatsApp = lead.whatsapp_on_site || lead.whatsapp_number;
   const temSocial = !!lead.instagram_url;
+  const temEmail = !!lead.email;
 
-  const canais = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
+  // Filtra canais baseado no que foi detectado
+  const canaisSelecionados = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
     ? lead.canaisProspeccao 
-    : ["email", "whatsapp"];
+    : ["email", "whatsapp"] as ("email" | "whatsapp" | "instagram")[];
+  
+  const canais = getAvailableChannels(lead, canaisSelecionados);
   
   const getCanal = (diaNumero: number): "whatsapp" | "email" | "instagram" => {
-    if (canais.length === 1) return canais[0] as "whatsapp" | "email" | "instagram";
+    if (canais.length === 1) return canais[0];
     const index = (diaNumero - 1) % canais.length;
-    return canais[index] as "whatsapp" | "email" | "instagram";
+    return canais[index];
   };
 
   return {
@@ -611,13 +667,25 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
 }
 
 async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
-  const prompt = buildAnalysisPrompt(lead);
+  // Filtra canais baseado no que foi detectado no lead
+  const canaisSelecionados = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
+    ? lead.canaisProspeccao 
+    : ["email", "whatsapp"] as ("email" | "whatsapp" | "instagram")[];
+  
+  const canaisDisponiveis = getAvailableChannels(lead, canaisSelecionados);
+  
+  // Cria uma versão do lead com os canais filtrados
+  const leadComCanaisDisponiveis = {
+    ...lead,
+    canaisProspeccao: canaisDisponiveis,
+  };
+  
+  const prompt = buildAnalysisPrompt(leadComCanaisDisponiveis);
 
   console.log("Iniciando análise com OpenAI para:", lead.nome);
+  console.log("Canais disponíveis para prospecção:", canaisDisponiveis.join(", "));
 
-  const canaisPermitidos = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
-    ? lead.canaisProspeccao 
-    : ["email", "whatsapp"];
+  const canaisPermitidos = canaisDisponiveis;
 
   try {
     const requestBody = {
@@ -783,6 +851,7 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
 }
 
 function buildAnalysisPrompt(lead: LeadData): string {
+  // Estes canais já vêm filtrados baseado no que foi detectado
   const canais = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
     ? lead.canaisProspeccao 
     : ["email", "whatsapp"];
@@ -797,13 +866,32 @@ function buildAnalysisPrompt(lead: LeadData): string {
   const estrategiaCadencia = canais.length === 1 
     ? `Use SOMENTE ${canalTexto} para todos os 7 dias`
     : `Distribua os 7 dias entre os canais disponíveis (${canalTexto}), alternando estrategicamente para maximizar engajamento`;
+  
+  // Informação de disponibilidade de canais para a IA entender o contexto
+  const canaisInfo = [];
+  if (lead.whatsapp_on_site || lead.whatsapp_number) {
+    canaisInfo.push("✅ WhatsApp: DISPONÍVEL (detectado no lead)");
+  } else {
+    canaisInfo.push("❌ WhatsApp: NÃO DETECTADO");
+  }
+  if (lead.email) {
+    canaisInfo.push(`✅ Email: DISPONÍVEL (${lead.email})`);
+  } else {
+    canaisInfo.push("❌ Email: NÃO DETECTADO");
+  }
+  if (lead.instagram_url) {
+    canaisInfo.push(`✅ Instagram: DISPONÍVEL (${lead.instagram_url})`);
+  } else {
+    canaisInfo.push("❌ Instagram: NÃO DETECTADO");
+  }
     
   const sinaisMarketing = [];
   if (lead.has_meta_pixel) sinaisMarketing.push("Meta Pixel instalado");
   if (lead.has_gtag) sinaisMarketing.push("Google Analytics configurado");
   if (lead.has_gtm) sinaisMarketing.push("Google Tag Manager ativo");
-  if (lead.whatsapp_on_site) sinaisMarketing.push("WhatsApp visível no site");
+  if (lead.whatsapp_on_site || lead.whatsapp_number) sinaisMarketing.push("WhatsApp detectado");
   if (lead.instagram_url) sinaisMarketing.push(`Instagram: ${lead.instagram_url}`);
+  if (lead.email) sinaisMarketing.push(`Email: ${lead.email}`);
 
   return `Analise este lead B2B e gere um plano de prospecção de alta conversão:
 
@@ -818,6 +906,9 @@ function buildAnalysisPrompt(lead: LeadData): string {
 
 🎯 SINAIS DE MARKETING DIGITAL:
 ${sinaisMarketing.length > 0 ? sinaisMarketing.join("\n") : "Nenhum sinal detectado"}
+
+🔌 STATUS DOS CANAIS DO LEAD:
+${canaisInfo.join("\n")}
 
 ${lead.instagram_context ? `📱 CONTEXTO INSTAGRAM:\n${lead.instagram_context}` : ""}
 
@@ -842,8 +933,12 @@ ${lead.instagram_context ? `📱 CONTEXTO INSTAGRAM:\n${lead.instagram_context}`
 
 3️⃣ PLANO DE PROSPECÇÃO 7 DIAS:
    
-   📢 CANAIS DISPONÍVEIS: ${canalTexto}
-   ⚠️ IMPORTANTE: ${estrategiaCadencia}
+   ⚠️⚠️⚠️ REGRA CRÍTICA ⚠️⚠️⚠️
+   USE APENAS OS CANAIS DISPONÍVEIS: ${canalTexto}
+   NÃO use canais marcados como "NÃO DETECTADO"!
+   
+   📢 CANAIS PERMITIDOS: ${canalTexto}
+   📋 ESTRATÉGIA: ${estrategiaCadencia}
    
    Para CADA dia, gere:
    

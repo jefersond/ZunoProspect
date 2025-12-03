@@ -143,6 +143,7 @@ export const LeadsList = () => {
       // Campos CNPJ
       cnpj: lead.cnpj || null,
       razao_social: lead.razao_social || null,
+      nome_responsavel: lead.nome_responsavel || null,
       cnpj_telefone: lead.cnpj_telefone || null,
       cnpj_email: lead.cnpj_email || null,
       situacao_cadastral: lead.situacao_cadastral || null,

@@ -21,6 +21,13 @@ interface LeadData {
   instagram_url: string | null;
   instagram_context: string | null;
   canaisProspeccao?: ("email" | "whatsapp" | "instagram")[];
+  // CNPJ enrichment fields
+  cnpj?: string | null;
+  razao_social?: string | null;
+  nome_responsavel?: string | null;
+  situacao_cadastral?: string | null;
+  porte_empresa?: string | null;
+  cnae_principal?: string | null;
 }
 
 // Função para filtrar canais baseado no que foi detectado no lead
@@ -64,6 +71,105 @@ interface SiteSignals {
   has_gtm: boolean;
   instagram_url: string | null;
   email: string | null;
+  cnpj: string | null;
+}
+
+interface CNPJData {
+  razao_social: string | null;
+  nome_responsavel: string | null;
+  telefone: string | null;
+  email: string | null;
+  situacao_cadastral: string | null;
+  porte_empresa: string | null;
+  cnae_principal: string | null;
+}
+
+// Função para buscar dados do CNPJ na BrasilAPI
+async function fetchCNPJData(cnpj: string): Promise<CNPJData | null> {
+  try {
+    // Remove caracteres não numéricos
+    const cnpjLimpo = cnpj.replace(/\D/g, '');
+    
+    if (cnpjLimpo.length !== 14) {
+      console.log(`⚠️ CNPJ inválido (não tem 14 dígitos): ${cnpjLimpo}`);
+      return null;
+    }
+    
+    console.log(`🔍 Buscando dados do CNPJ: ${cnpjLimpo}`);
+    
+    const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      console.log(`⚠️ Erro ao buscar CNPJ: ${response.status}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    // Extrai nome do primeiro sócio (QSA = Quadro de Sócios e Administradores)
+    let nomeResponsavel: string | null = null;
+    if (data.qsa && data.qsa.length > 0) {
+      // Procura pelo sócio administrador primeiro
+      const administrador = data.qsa.find((socio: any) => 
+        socio.qualificacao_socio?.toLowerCase().includes('administrador') ||
+        socio.qualificacao_socio?.toLowerCase().includes('diretor')
+      );
+      
+      if (administrador) {
+        nomeResponsavel = administrador.nome_socio;
+      } else {
+        // Se não encontrar administrador, pega o primeiro sócio
+        nomeResponsavel = data.qsa[0].nome_socio;
+      }
+      
+      // Formata o nome (capitaliza corretamente)
+      if (nomeResponsavel) {
+        nomeResponsavel = nomeResponsavel
+          .toLowerCase()
+          .split(' ')
+          .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+      }
+    }
+    
+    // Se não tem sócio, tenta usar nome fantasia ou razão social
+    if (!nomeResponsavel && data.nome_fantasia) {
+      // Extrai primeiro nome do nome fantasia se parecer ser de pessoa
+      const nomeFantasia = data.nome_fantasia;
+      if (nomeFantasia && !nomeFantasia.includes('LTDA') && !nomeFantasia.includes('S/A')) {
+        const palavras = nomeFantasia.split(' ');
+        if (palavras.length <= 3 && palavras[0].length > 2) {
+          nomeResponsavel = palavras[0].charAt(0).toUpperCase() + palavras[0].slice(1).toLowerCase();
+        }
+      }
+    }
+    
+    const cnpjData: CNPJData = {
+      razao_social: data.razao_social || null,
+      nome_responsavel: nomeResponsavel,
+      telefone: data.ddd_telefone_1 ? data.ddd_telefone_1.replace(/\D/g, '') : null,
+      email: data.email ? data.email.toLowerCase() : null,
+      situacao_cadastral: data.descricao_situacao_cadastral || null,
+      porte_empresa: data.porte || null,
+      cnae_principal: data.cnae_fiscal_descricao || null,
+    };
+    
+    console.log(`✅ Dados CNPJ obtidos:`, {
+      razao_social: cnpjData.razao_social,
+      nome_responsavel: cnpjData.nome_responsavel,
+      situacao: cnpjData.situacao_cadastral,
+      porte: cnpjData.porte_empresa,
+    });
+    
+    return cnpjData;
+  } catch (error: any) {
+    console.error(`❌ Erro ao buscar CNPJ:`, error.message);
+    return null;
+  }
 }
 
 interface AnaliseResult {
@@ -89,6 +195,7 @@ async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
     has_gtm: false,
     instagram_url: null,
     email: null,
+    cnpj: null,
   };
 
   try {
@@ -370,6 +477,31 @@ async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
       }
     }
 
+    // ========================================
+    // DETECÇÃO DE CNPJ - MÚLTIPLOS PADRÕES
+    // ========================================
+    
+    // Padrão 1: CNPJ formatado (XX.XXX.XXX/XXXX-XX)
+    const cnpjFormattedPattern = /\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/g;
+    const cnpjFormattedMatches = html.match(cnpjFormattedPattern);
+    if (cnpjFormattedMatches && cnpjFormattedMatches.length > 0) {
+      signals.cnpj = cnpjFormattedMatches[0].replace(/\D/g, '');
+      console.log(`✅ CNPJ encontrado (formatado): ${signals.cnpj}`);
+    }
+    
+    // Padrão 2: CNPJ não formatado (14 dígitos) perto de palavras-chave
+    if (!signals.cnpj) {
+      const cnpjContextPattern = /(?:cnpj|inscri[çc][aã]o)[:\s]*(\d{14}|\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})/gi;
+      const cnpjContextMatches = html.matchAll(cnpjContextPattern);
+      for (const match of cnpjContextMatches) {
+        if (match[1]) {
+          signals.cnpj = match[1].replace(/\D/g, '');
+          console.log(`✅ CNPJ encontrado (contexto): ${signals.cnpj}`);
+          break;
+        }
+      }
+    }
+
     console.log(`📊 Sinais finais:`, signals);
     
   } catch (error: any) {
@@ -435,12 +567,20 @@ serve(async (req) => {
         instagram_url: directLead.instagram_url as string | null,
         instagram_context: directLead.instagram_context as string | null,
         canaisProspeccao: requestData.canaisProspeccao,
+        // CNPJ fields
+        cnpj: directLead.cnpj as string | null,
+        razao_social: directLead.razao_social as string | null,
+        nome_responsavel: directLead.nome_responsavel as string | null,
+        situacao_cadastral: directLead.situacao_cadastral as string | null,
+        porte_empresa: directLead.porte_empresa as string | null,
+        cnae_principal: directLead.cnae_principal as string | null,
       };
       
       console.log("✅ Lead carregado:", leadData.nome);
       console.log("📧 Email existente:", leadData.email);
       console.log("📱 WhatsApp existente:", leadData.whatsapp_number);
       console.log("📸 Instagram existente:", leadData.instagram_url);
+      console.log("👤 Nome responsável existente:", leadData.nome_responsavel);
       
       // RE-ESCANEIA O SITE para detectar novos sinais
       if (websiteUrl) {
@@ -460,6 +600,28 @@ serve(async (req) => {
         console.log("📱 WhatsApp após scraping:", leadData.whatsapp_number);
         console.log("📸 Instagram após scraping:", leadData.instagram_url);
         
+        // Se encontrou CNPJ no site e ainda não temos nome_responsavel, busca na BrasilAPI
+        if (newSignals.cnpj && !leadData.nome_responsavel) {
+          console.log("🏢 CNPJ detectado no site, buscando dados na BrasilAPI...");
+          const cnpjData = await fetchCNPJData(newSignals.cnpj);
+          
+          if (cnpjData) {
+            leadData.cnpj = newSignals.cnpj;
+            leadData.razao_social = cnpjData.razao_social;
+            leadData.nome_responsavel = cnpjData.nome_responsavel;
+            leadData.situacao_cadastral = cnpjData.situacao_cadastral;
+            leadData.porte_empresa = cnpjData.porte_empresa;
+            leadData.cnae_principal = cnpjData.cnae_principal;
+            
+            // Usa telefone e email do CNPJ se não temos
+            if (!leadData.email && cnpjData.email) {
+              leadData.email = cnpjData.email;
+            }
+            
+            console.log("👤 Nome responsável encontrado:", leadData.nome_responsavel);
+          }
+        }
+        
         // Atualiza os sinais no banco (campos não criptografados)
         console.log("💾 Atualizando sinais no banco...");
         const updateData: Record<string, any> = {
@@ -469,7 +631,7 @@ serve(async (req) => {
           has_gtm: leadData.has_gtm,
         };
         
-        // Se encontrou novo WhatsApp, Instagram ou Email, atualiza via campos não criptografados temporariamente
+        // Se encontrou novo WhatsApp, Instagram ou Email, atualiza
         if (newSignals.whatsapp_number) {
           updateData.whatsapp_number = newSignals.whatsapp_number;
         }
@@ -478,6 +640,16 @@ serve(async (req) => {
         }
         if (newSignals.email) {
           updateData.email = newSignals.email;
+        }
+        
+        // Atualiza dados de CNPJ se encontrados
+        if (leadData.cnpj) {
+          updateData.cnpj = leadData.cnpj;
+          updateData.razao_social = leadData.razao_social;
+          updateData.nome_responsavel = leadData.nome_responsavel;
+          updateData.situacao_cadastral = leadData.situacao_cadastral;
+          updateData.porte_empresa = leadData.porte_empresa;
+          updateData.cnae_principal = leadData.cnae_principal;
         }
         
         const { error: updateSignalsError } = await supabase
@@ -928,7 +1100,7 @@ function buildAnalysisPrompt(lead: LeadData): string {
 ${canais.includes("whatsapp") ? `
 💬 WHATSAPP - REGRAS DE OURO:
 • Máximo 4 linhas por mensagem (quebra em parágrafos curtos)
-• Primeiro nome no início (humaniza: "Oi João,")
+• Aborde pelo nome da EMPRESA ou equipe (humaniza sem inventar nome)
 • 1-2 emojis estratégicos no máximo (não decorativos)
 • Pergunta que abre conversa no FINAL
 • Tom como se já se conhecessem (sem formalidade excessiva)
@@ -937,9 +1109,10 @@ ${canais.includes("whatsapp") ? `
 
 ❌ EVITAR (WhatsApp):
 "Olá! Tudo bem? Meu nome é X da empresa Y e gostaria de..."
+"João, vi que a empresa..." (NÃO INVENTE NOMES!)
 
 ✅ USAR (WhatsApp):
-"João, vi que a [Empresa] está em [cidade] há um tempo. Pergunta rápida: vocês já investem em tráfego pago? Pergunto porque um cliente do mesmo nicho triplicou leads em 60 dias. Se fizer sentido, mando o case. Quer?"
+"Pessoal da ${lead.nome}, vi que vocês estão em ${lead.cidade} há um tempo. Pergunta rápida: já investem em tráfego pago? Um cliente do mesmo nicho triplicou leads em 60 dias. Se fizer sentido, mando o case. Quer?"
 ` : ""}
 
 ${canais.includes("email") ? `
@@ -955,13 +1128,14 @@ ${canais.includes("email") ? `
 
 ❌ EVITAR (Email):
 "Prezado(a), venho por meio desta apresentar nossa empresa..."
+"Oi João," (NÃO INVENTE NOMES!)
 
 ✅ USAR (Email):
-"Assunto: [Empresa] + [Cidade] = oportunidade perdida?
+"Assunto: ${lead.nome} + ${lead.cidade} = oportunidade perdida?
 
-Oi [Nome],
+Olá, equipe da ${lead.nome},
 
-Pesquisando [nicho] em [cidade], a [Empresa] apareceu. Analisei rapidamente e notei 3 coisas:
+Pesquisando ${lead.nicho} em ${lead.cidade}, vocês apareceram. Analisei rapidamente e notei 3 coisas:
 
 1. [Observação específica sobre presença digital]
 2. [Gap identificado relacionado ao foco]
@@ -995,7 +1169,7 @@ ${canais.includes("instagram") ? `
 "Olá! Somos uma agência de marketing e gostaríamos de apresentar nossos serviços..."
 
 ✅ USAR (Instagram):
-"Vi o último post sobre [assunto específico]. Muito bom! 🔥 Vocês estão crescendo forte em [cidade]. Trabalho com [foco] e tenho um insight específico pro nicho de vocês. Posso mandar em 30 segundos?"
+"Vi o último post de vocês. Muito bom! 🔥 A ${lead.nome} está crescendo forte em ${lead.cidade}. Trabalho com ${lead.foco} e tenho um insight específico pro nicho de vocês. Posso mandar em 30 segundos?"
 ` : ""}`;
 
   // Instruções de objeções avançadas
@@ -1088,6 +1262,9 @@ CTAs devem escalar em compromisso ao longo da semana:
 • Cidade: ${lead.cidade}
 • Website: ${lead.website || "Não informado"}
 • Foco de Serviço: ${lead.foco}
+${lead.cnae_principal ? `• CNAE: ${lead.cnae_principal}` : ""}
+${lead.porte_empresa ? `• Porte: ${lead.porte_empresa}` : ""}
+${lead.situacao_cadastral ? `• Situação: ${lead.situacao_cadastral}` : ""}
 
 🎯 SINAIS DE MARKETING DETECTADOS:
 ${sinaisMarketing.length > 0 ? sinaisMarketing.join("\n") : "❌ Nenhum sinal de marketing digital detectado - empresa com baixa maturidade digital"}
@@ -1098,7 +1275,33 @@ ${canaisInfo.join("\n")}
 ${lead.instagram_context ? `📱 CONTEXTO DO INSTAGRAM:\n${lead.instagram_context}` : ""}
 
 ════════════════════════════════════════════════════════════════════════════════
-⚠️⚠️⚠️ REGRA CRÍTICA #1 - LEIA COM ATENÇÃO ⚠️⚠️⚠️
+⚠️⚠️⚠️ REGRA CRÍTICA #0 - PERSONALIZAÇÃO DE NOME ⚠️⚠️⚠️
+════════════════════════════════════════════════════════════════════════════════
+
+${lead.nome_responsavel 
+  ? `✅ NOME DO RESPONSÁVEL DETECTADO: "${lead.nome_responsavel}"
+
+USE ESTE NOME nas mensagens para humanizar a abordagem!
+Exemplo: "Oi ${lead.nome_responsavel}, vi que a ${lead.nome} está em ${lead.cidade}..."
+
+IMPORTANTE: Use EXATAMENTE este nome, não invente variações!`
+  : `❌ NOME DO RESPONSÁVEL: NÃO DETECTADO
+
+🚫🚫🚫 NUNCA INVENTE NOMES como "João", "Maria", "Carlos", etc! 🚫🚫🚫
+
+Abordagens corretas SEM nome pessoal:
+• "Pessoal da ${lead.nome},"
+• "Time da ${lead.nome},"
+• "Olá, equipe da ${lead.nome},"
+• "Vi que a ${lead.nome} está em ${lead.cidade}..." (entra direto no assunto)
+
+❌ ERRADO: "João, vi que a ${lead.nome}..." (NOME INVENTADO!)
+❌ ERRADO: "Oi Maria, tudo bem?" (NOME INVENTADO!)
+✅ CORRETO: "Pessoal da ${lead.nome}, vi que vocês..."
+✅ CORRETO: "Vi que a ${lead.nome} está crescendo em ${lead.cidade}..."`}
+
+════════════════════════════════════════════════════════════════════════════════
+⚠️⚠️⚠️ REGRA CRÍTICA #1 - CANAIS DE CONTATO ⚠️⚠️⚠️
 ════════════════════════════════════════════════════════════════════════════════
 
 ${nenhumCanalDetectado 

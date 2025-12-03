@@ -58,6 +58,7 @@ export interface LeadProspeccao {
   // Campos CNPJ
   cnpj: string | null;
   razao_social: string | null;
+  nome_responsavel: string | null;
   cnpj_telefone: string | null;
   cnpj_email: string | null;
   situacao_cadastral: string | null;

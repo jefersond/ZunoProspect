@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { CheckCircle2, QrCode, CreditCard, Copy, Loader2, RefreshCw } from "luci
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plano } from "./data";
+import { trackInitiateCheckout, trackAddPaymentInfo, trackPurchase } from "@/lib/metaPixel";
 
 interface CheckoutDialogProps {
   open: boolean;
@@ -38,6 +39,35 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
     qrCodeBase64: string;
     vencimento: string;
   } | null>(null);
+  const hasTrackedCheckout = useRef(false);
+
+  // Track InitiateCheckout when dialog opens
+  useEffect(() => {
+    if (open && plano && !hasTrackedCheckout.current) {
+      hasTrackedCheckout.current = true;
+      const preco = isAnual ? plano.precoAnual : plano.precoMensal;
+      trackInitiateCheckout({
+        value: preco,
+        currency: 'BRL',
+        content_name: plano.nome,
+        content_category: isAnual ? 'Annual' : 'Monthly',
+        num_items: 1
+      });
+    }
+    if (!open) {
+      hasTrackedCheckout.current = false;
+    }
+  }, [open, plano, isAnual]);
+
+  // Track AddPaymentInfo when payment method changes
+  const handlePaymentMethodChange = (value: "pix" | "cartao") => {
+    setMetodoPagamento(value);
+    trackAddPaymentInfo({
+      content_category: value === 'pix' ? 'PIX' : 'Credit Card',
+      currency: 'BRL',
+      value: plano ? (isAnual ? plano.precoAnual : plano.precoMensal) : 0
+    });
+  };
 
   const passwordValidation = {
     minLength: senha.length >= 8,
@@ -61,7 +91,8 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
   };
 
   useEffect(() => {
-    if (step !== "qrcode" || !pixData?.paymentId) return;
+    if (step !== "qrcode" || !pixData?.paymentId || !plano) return;
+    const currentPreco = isAnual ? plano.precoAnual : plano.precoMensal;
     const interval = setInterval(async () => {
       try {
         const { data, error } = await supabase.functions.invoke("check-pix-payment", {
@@ -69,6 +100,14 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
         });
         if (error) return;
         if (data?.confirmed) {
+          // Track Purchase event
+          trackPurchase({
+            value: currentPreco,
+            currency: 'BRL',
+            content_name: plano.nome,
+            content_type: 'subscription',
+            num_items: 1
+          });
           setStep("confirmed");
           clearInterval(interval);
           toast.success("Pagamento confirmado!");
@@ -79,7 +118,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
       }
     }, 5000);
     return () => clearInterval(interval);
-  }, [step, pixData?.paymentId]);
+  }, [step, pixData?.paymentId, plano, isAnual]);
 
   if (!plano) return null;
 
@@ -186,6 +225,14 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
       const { data, error } = await supabase.functions.invoke("check-pix-payment", { body: { paymentId: pixData.paymentId } });
       if (error) throw error;
       if (data?.confirmed) {
+        // Track Purchase event
+        trackPurchase({
+          value: preco,
+          currency: 'BRL',
+          content_name: plano?.nome || 'Plan',
+          content_type: 'subscription',
+          num_items: 1
+        });
         setStep("confirmed");
         toast.success("Pagamento confirmado!");
         setTimeout(() => handleClose(), 2000);
@@ -210,6 +257,14 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
       const accountCreated = await validateAndCreateAccount();
       if (!accountCreated) { setIsProcessing(false); return; }
       await new Promise(resolve => setTimeout(resolve, 2000));
+      // Track Purchase event for card payment
+      trackPurchase({
+        value: preco,
+        currency: 'BRL',
+        content_name: plano?.nome || 'Plan',
+        content_type: 'subscription',
+        num_items: 1
+      });
       setStep("confirmed");
       toast.success("Conta criada e pagamento processado!");
       setTimeout(() => navigate("/prospeccao"), 2000);
@@ -339,7 +394,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
             {!plano.gratuito && (
               <div className="space-y-4">
                 <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Forma de pagamento</h4>
-                <RadioGroup value={metodoPagamento} onValueChange={value => setMetodoPagamento(value as "pix" | "cartao")} className="grid grid-cols-2 gap-4">
+                <RadioGroup value={metodoPagamento} onValueChange={value => handlePaymentMethodChange(value as "pix" | "cartao")} className="grid grid-cols-2 gap-4">
                   <div>
                     <RadioGroupItem value="pix" id="pix" className="peer sr-only" />
                     <Label htmlFor="pix" className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary cursor-pointer">

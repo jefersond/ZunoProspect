@@ -11,6 +11,7 @@ import { Loader2, CheckCircle2, XCircle, ArrowLeft } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Progress } from "@/components/ui/progress";
 import { z } from "zod";
+import { trackLead, trackCompleteRegistration } from "@/lib/metaPixel";
 const passwordSchema = z.string().min(8, "A senha deve ter no mínimo 8 caracteres").regex(/[A-Z]/, "A senha deve conter pelo menos uma letra maiúscula").regex(/[a-z]/, "A senha deve conter pelo menos uma letra minúscula").regex(/[0-9]/, "A senha deve conter pelo menos um número");
 const emailSchema = z.string().email("Email inválido");
 const Auth = () => {
@@ -124,6 +125,12 @@ const Auth = () => {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
+    // Track Lead event when user attempts signup
+    trackLead({
+      content_name: 'Free Signup',
+      content_category: 'Registration'
+    });
+
     // Validação de nome
     if (!fullName || fullName.trim().length < 3) {
       toast({
@@ -189,6 +196,11 @@ const Auth = () => {
         description: error.message
       });
     } else {
+      // Track CompleteRegistration event
+      trackCompleteRegistration({
+        content_name: 'Free Account',
+        status: 'success'
+      });
       toast({
         title: "Conta criada com sucesso!",
         description: "Você já pode fazer login."

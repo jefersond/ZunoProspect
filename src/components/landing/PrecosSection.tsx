@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,14 +7,50 @@ import { Switch } from "@/components/ui/switch";
 import { CheckCircle2 } from "lucide-react";
 import { PLANOS, Plano } from "./data";
 import { CheckoutDialog } from "./CheckoutDialog";
+import { trackViewContent, trackLead } from "@/lib/metaPixel";
 
 export function PrecosSection() {
   const navigate = useNavigate();
   const [isAnual, setIsAnual] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedPlano, setSelectedPlano] = useState<Plano | null>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const hasTrackedView = useRef(false);
+
+  // Track ViewContent when pricing section enters viewport
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !hasTrackedView.current) {
+            hasTrackedView.current = true;
+            trackViewContent({
+              content_name: 'Pricing Section',
+              content_category: 'Pricing',
+              content_type: 'product_group'
+            });
+          }
+        });
+      },
+      { threshold: 0.3 }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
 
   const handleSelectPlano = (plano: Plano) => {
+    // Track Lead event when user clicks on any plan
+    trackLead({
+      content_name: plano.nome,
+      content_category: plano.gratuito ? 'Free Plan' : 'Paid Plan',
+      value: isAnual ? plano.precoAnual : plano.precoMensal,
+      currency: 'BRL'
+    });
+
     if (plano.gratuito) {
       navigate("/auth?tab=signup");
       return;
@@ -24,7 +60,7 @@ export function PrecosSection() {
   };
 
   return (
-    <section id="precos" className="py-20 bg-background">
+    <section id="precos" ref={sectionRef} className="py-20 bg-background">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <Badge variant="outline" className="mb-4">Planos</Badge>

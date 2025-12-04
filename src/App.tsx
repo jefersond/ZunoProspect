@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { useEffect, Suspense, lazy } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { ExitIntentTracker } from "@/components/ExitIntentTracker";
 import LandingProspeccaoIA from "./pages/LandingProspeccaoIA";
 
 // Lazy load all pages except landing page for code splitting
@@ -54,22 +55,25 @@ const AppContent = () => {
   }, []);
 
   return (
-    <Suspense fallback={<PageLoader />}>
-      <Routes>
-        <Route path="/" element={<LandingProspeccaoIA />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/lp-prospeccao-ia" element={<Navigate to="/" replace />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/prospeccao" element={<Prospeccao />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/templates" element={<Templates />} />
-        <Route path="/historico" element={<Historico />} />
-        <Route path="/leads-salvos" element={<LeadsSalvos />} />
-        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Suspense>
+    <>
+      <ExitIntentTracker />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/" element={<LandingProspeccaoIA />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/lp-prospeccao-ia" element={<Navigate to="/" replace />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/prospeccao" element={<Prospeccao />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/templates" element={<Templates />} />
+          <Route path="/historico" element={<Historico />} />
+          <Route path="/leads-salvos" element={<LeadsSalvos />} />
+          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
+    </>
   );
 };
 

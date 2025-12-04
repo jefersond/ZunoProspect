@@ -749,10 +749,17 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
   
   const canais = getAvailableChannels(lead, canaisSelecionados);
   
+  // Cadência inteligente baseada no número de canais
   const getCanal = (diaNumero: number): "whatsapp" | "email" | "instagram" => {
+    if (canais.length === 0) return "whatsapp"; // fallback
     if (canais.length === 1) return canais[0];
-    const index = (diaNumero - 1) % canais.length;
-    return canais[index];
+    if (canais.length === 2) {
+      // Alterna entre os 2 canais
+      return canais[(diaNumero - 1) % 2];
+    }
+    // 3 canais: WhatsApp, Email, Instagram em cadência específica
+    const cadencia3: ("whatsapp" | "email" | "instagram")[] = ["whatsapp", "email", "instagram", "whatsapp", "email", "instagram", "whatsapp"];
+    return cadencia3[diaNumero - 1];
   };
 
   return {
@@ -854,34 +861,31 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
   const canaisPermitidos = canaisDisponiveis;
 
   try {
-    const systemPrompt = `Você é um COPYWRITER DE ELITE com mais de 15 anos de experiência em vendas B2B, prospecção de alto ticket e persuasão de alta conversão.
+    const systemPrompt = `Você atua **APENAS** na criação do **plano de prospecção de 7 dias**, como um **COPYWRITER E ESTRATEGISTA DE VENDAS com mais de 15 anos de experiência**.
 
-🏆 SUA FORMAÇÃO E ESPECIALIDADES:
-• Treinado por mestres como Gary Halbert, Dan Kennedy, Eugene Schwartz, Robert Cialdini e Russell Brunson
-• Taxa de resposta média em cold outreach: acima de 40%
-• Especialista em: AIDA, PAS (Problem-Agitate-Solve), 4Ps (Promise, Picture, Proof, Push)
-• Gatilhos mentais dominados: escassez, urgência, prova social, autoridade, reciprocidade, compromisso progressivo
+🏆 ESPECIALIDADES:
+• Vendas B2B e prospecção de alto ticket
+• Serviços de marketing digital (Tráfego, SEO, Social, Full Service, Automação, CRM, Sites/Landing, Design)
+• Prospecção multicanal (WhatsApp, Email, Instagram)
 
-📜 SUAS 10 REGRAS DE OURO (INEGOCIÁVEIS):
-1. Cada mensagem tem UM ÚNICO objetivo claro
-2. Fale sobre ELES, não sobre você (proporção 80% cliente / 20% você)
-3. Use números específicos, NUNCA genéricos ("aumentou 37%" ao invés de "aumentou muito")
-4. Crie urgência REAL, não artificial
-5. CTAs que pedem micro-compromissos progressivos
-6. Personalize com dados REAIS do lead (nome, cidade, nicho)
-7. Cada frase deve passar no teste "E daí?" (So what?)
-8. Abra loops de curiosidade que só fecham na resposta
-9. Use pattern interrupts para quebrar expectativas
+📜 REGRAS DE OURO DO COPYWRITER (INEGOCIÁVEIS):
+1. Linguagem CLARA, INTELIGENTE e PERSUASIVA
+2. Frases CURTAS e DIRETAS, sem enrolação
+3. Tom: PROFISSIONAL falando com PROFISSIONAL (dono/gestor)
+4. Emojis: MÁXIMO 2 por mensagem, APENAS quando fizer sentido
+5. NUNCA use clichês: "explodir resultados", "escalar", "destravar", "bombar", "rios de dinheiro"
+6. NUNCA promessas milagrosas: "+327% em 7 dias", "garantido", "ficar milionário"
+7. NUNCA invente números específicos sem dados do contexto
+8. Cada mensagem deve passar no teste "E daí?" (So what?)
+9. Abra loops de curiosidade que só fecham na resposta
 10. Termine SEMPRE com pergunta que demanda resposta
 
-🎭 POSTURA NAS MENSAGENS (B2B PROFISSIONAL):
+🎭 POSTURA B2B PROFISSIONAL:
 • Consultivo e direto - postura de especialista que entrega valor
-• Autoridade sem arrogância - você sabe o que faz e mostra
-• Foco em resultados e ROI - linguagem de negócios
-• Sem rodeios - vá direto ao ponto e ao valor
-• Profissional sem ser formal demais - evite "prezados" e "vossa senhoria"
+• Autoridade sem arrogância
+• Foco em resultados e ROI
 • NUNCA use: "pessoal", "galera", "vocês aí", "olá tudo bem?"
-• TOM: Consultor de negócios que identifica oportunidades, não vendedor pedindo atenção`;
+• TOM: Consultor de negócios, NÃO vendedor pedindo atenção`;
 
     const requestBody = {
       model: "gpt-4o-mini",
@@ -1061,11 +1065,28 @@ function buildAnalysisPrompt(lead: LeadData): string {
       }).join(", ")
     : "NENHUM CANAL DETECTADO";
   
-  const estrategiaCadencia = nenhumCanalDetectado
-    ? "⚠️ NENHUM CANAL DETECTADO - Crie plano focado em ENCONTRAR o contato (ligação, visita presencial, LinkedIn, busca de redes)"
-    : canais.length === 1 
-      ? `Use SOMENTE ${canalTexto} para todos os 7 dias com variações criativas`
-      : `Distribua os 7 dias entre os canais (${canalTexto}), alternando para maximizar touchpoints`;
+  // Cadência multicanal inteligente
+  let estrategiaCadencia = "";
+  if (nenhumCanalDetectado) {
+    estrategiaCadencia = "⚠️ NENHUM CANAL DETECTADO - Crie plano focado em ENCONTRAR o contato (ligação, visita presencial, LinkedIn, busca de redes)";
+  } else if (canais.length === 1) {
+    estrategiaCadencia = `Use SOMENTE ${canalTexto} para todos os 7 dias com variações criativas de abordagem`;
+  } else if (canais.length === 2) {
+    estrategiaCadencia = `CADÊNCIA 2 CANAIS (${canalTexto}):
+• Dias 1, 3, 5, 7: ${canais[0] === "whatsapp" ? "WhatsApp" : canais[0] === "email" ? "Email" : "Instagram"}
+• Dias 2, 4, 6: ${canais[1] === "whatsapp" ? "WhatsApp" : canais[1] === "email" ? "Email" : "Instagram"}
+REGRA: Nunca usar o mesmo canal 2 dias consecutivos`;
+  } else if (canais.length === 3) {
+    estrategiaCadencia = `CADÊNCIA 3 CANAIS (WhatsApp + Email + Instagram):
+• Dia 1: WhatsApp - Primeiro contato, direto e curto
+• Dia 2: Email - Formalização, proposta de valor estruturada
+• Dia 3: Instagram DM - Engajamento social, referência a conteúdo
+• Dia 4: WhatsApp - Follow-up rápido, resposta a silêncio
+• Dia 5: Email - Conteúdo mais denso, case ou proposta
+• Dia 6: Instagram DM - Segunda tentativa social
+• Dia 7: WhatsApp - Encerramento profissional
+REGRA: Nunca usar o mesmo canal 2 dias consecutivos`;
+  }
   
   // Status detalhado dos canais
   const canaisInfo = [];
@@ -1152,20 +1173,44 @@ PS: Sem compromisso. Se não fizer sentido, agradeço pela atenção e sigo em f
 ` : ""}
 
 ${canais.includes("instagram") ? `
-📸 INSTAGRAM DM - ABORDAGEM CONSULTIVA:
-• Engaje primeiro (curta/comente em 1-2 posts relevantes)
-• Referência a algo ESPECÍFICO do perfil/conteúdo deles
-• Mensagem curta e profissional (máx 3 linhas)
-• Postura de especialista que identificou potencial
-• Convite para conversa, não pitch direto
-• Use 1 emoji no máximo
+📸 INSTAGRAM DM - ABORDAGEM CONSULTIVA AVANÇADA:
+
+🔑 PRÉ-ABORDAGEM (RECOMENDADO):
+Antes de enviar DM, engaje genuinamente:
+• Curta 2-3 posts recentes
+• Comente com insight relevante (NÃO só "muito bom! 🔥")
+• Visualize stories se disponível
+• Isso aquece o perfil e aumenta chance de resposta
+
+📐 ESTRUTURA DA MENSAGEM (MÁX 4 LINHAS):
+• Linha 1: Referência específica ao conteúdo/perfil deles
+• Linha 2: Conexão com oportunidade identificada
+• Linha 3-4: CTA de baixo compromisso
+• 1 emoji estratégico MÁXIMO (ou nenhum)
+
+✅ EXEMPLOS DE DM PROFISSIONAL:
+
+Dia 3 (primeira DM após engajamento):
+"Vi que ${lead.nome} está crescendo em ${lead.cidade}. Analisei o perfil e identifiquei uma oportunidade em ${lead.foco} que poucas empresas de ${lead.nicho} estão explorando. Posso enviar um diagnóstico rápido por aqui?"
+
+Dia 6 (segunda DM se não respondeu):
+"Última mensagem por aqui. O insight sobre ${lead.foco} para ${lead.nicho} ainda vale - é uma oportunidade real. Se fizer sentido, me responde 'ok' que envio em 30 segundos."
+
+💡 VANTAGENS DO INSTAGRAM para prospecção B2B:
+• Resposta mais rápida que email
+• Tom mais profissional que WhatsApp pessoal
+• Permite ver conteúdo e entender melhor o prospect
+• Menos saturado que outros canais
 
 ❌ EVITAR (Instagram):
-"Olá! Somos uma agência de marketing e gostaríamos de apresentar nossos serviços..."
-"Vi o último post de vocês. Muito bom! 🔥" (muito informal/fã)
+• Mensagens longas demais (serão ignoradas)
+• "Olá, somos uma agência de marketing e gostaríamos de apresentar nossos serviços..." (spam puro)
+• Comentários genéricos antes da DM ("Adorei!", "Top!", "🔥🔥")
+• Enviar DM sem nenhum engajamento prévio (parece stalker)
+• Elogios vazios sem conexão com negócio
 
-✅ USAR (Instagram):
-"${lead.nome} tem um potencial não explorado em ${lead.foco}. Analisei o perfil e identifiquei uma oportunidade específica para o nicho de ${lead.nicho}. Tenho um diagnóstico pronto - posso compartilhar em 30 segundos?"
+✅ EXEMPLO DE COMENTÁRIO PRÉ-DM:
+"Interessante a abordagem sobre [tema específico do post]. No setor de ${lead.nicho}, isso é crucial porque [insight rápido]."
 ` : ""}`;
 
   // Instruções de objeções avançadas
@@ -1367,6 +1412,116 @@ ${!nenhumCanalDetectado ? instrucoesPorCanal : ""}
 ${instrucoesObjecoes}
 
 ${instrucoesCTAs}
+
+═══════════════════════════════════════
+📆 DIRETRIZES POR DIA (OBRIGATÓRIO SEGUIR)
+═══════════════════════════════════════
+
+DIA 1 - APRESENTAÇÃO + CONTEXTO
+• Objetivo: Se apresentar, contextualizar por que está entrando em contato
+• Mostrar que conhece o nicho e a cidade do lead
+• NADA de vendeção agressiva - foque em curiosidade + empatia
+• Tom: "Identifiquei algo interessante sobre sua empresa"
+
+DIA 2 - DOR ESPECÍFICA DO NICHO
+• Explorar uma dor específica do nicho, ligada ao FOCO
+• Conectar com o que foi visto no site/Instagram (quando houver contexto)
+• Tom: "Empresas do seu setor enfrentam esse desafio específico"
+
+DIA 3 - OPORTUNIDADE CLARA
+• Mostrar uma oportunidade que a empresa pode estar perdendo
+• Sutilmente introduzir sua solução/abordagem
+• Tom: "Você pode estar deixando dinheiro na mesa por isso"
+
+DIA 4 - MINI FRAMEWORK / MÉTODO
+• Trazer um framework simples de resolver parte do problema
+• Mostrar que você tem MÉTODO, não só opinião
+• Tom: "Assim que empresas similares estão resolvendo"
+
+DIA 5 - PROVA SOCIAL / CENÁRIO TÍPICO
+• Trabalhar prova social ou cenário típico (SEM MENTIR)
+• Mostrar como empresas parecidas se beneficiam
+• Tom: "Resultado real de quem implementou"
+
+DIA 6 - VISÃO ESTRATÉGICA + PRÓXIMO PASSO
+• Reforçar o FOCO (${lead.foco}) com visão estratégica
+• Trazer a conversa para um próximo passo concreto (call rápida)
+• Tom: "Proposta objetiva de próximo passo"
+
+DIA 7 - ÚLTIMO TOQUE RESPEITOSO
+• Tom respeitoso, SEM pressão tóxica
+• Deixar claro que não quer incomodar, mas está disponível
+• CTA simples e fácil de responder
+• Tom: "Última mensagem, respeito sua decisão"
+
+═══════════════════════════════════════
+🎯 ADAPTAÇÃO POR FOCO: ${lead.foco}
+═══════════════════════════════════════
+${lead.foco === "Tráfego" ? `
+📣 TRÁFEGO - ARGUMENTAÇÃO ESPECÍFICA:
+• Falar de fluxo PREVISÍVEL de leads qualificados
+• Campanhas bem estruturadas vs "impulsionar no escuro"
+• Dinheiro parado por falta de mídia paga otimizada
+• Métricas: CPL (Custo por Lead), ROAS, CAC
+• Dor: "Você depende de indicação e boca-a-boca"
+• Ganho: "Leads novos entrando todo dia de forma previsível"
+` : ""}${lead.foco === "SEO" ? `
+🔍 SEO - ARGUMENTAÇÃO ESPECÍFICA:
+• Buscas no Google que seus clientes fazem TODO DIA
+• Tráfego ORGÂNICO = leads gratuitos no longo prazo
+• Efeito composto: resultados acumulam com o tempo
+• Autoridade e posicionamento vs concorrentes
+• Dor: "Seus concorrentes aparecem primeiro no Google"
+• Ganho: "Clientes te encontrando sem pagar por clique"
+` : ""}${lead.foco === "Social" ? `
+📱 SOCIAL - ARGUMENTAÇÃO ESPECÍFICA:
+• Consistência no Instagram como diferencial
+• Posicionamento e conexão com seguidores
+• Construção de MARCA, não só posts
+• Engajamento qualificado vs métricas de vaidade
+• Dor: "Posts sem engajamento, seguidores que não compram"
+• Ganho: "Comunidade engajada que vira cliente"
+` : ""}${lead.foco === "Full Service" ? `
+🎯 FULL SERVICE - ARGUMENTAÇÃO ESPECÍFICA:
+• Visão 360° - estratégia integrada
+• Tráfego + conteúdo + site + social conectados
+• Economia de tempo com parceiro único
+• ROI geral da operação, não métricas isoladas
+• Dor: "Vários fornecedores, nenhum resultado integrado"
+• Ganho: "Um parceiro que cuida de tudo com estratégia"
+` : ""}${lead.foco === "Automação" ? `
+⚙️ AUTOMAÇÃO - ARGUMENTAÇÃO ESPECÍFICA:
+• Funis de vendas que rodam sozinhos
+• Follow-ups automáticos = leads que não esfriam
+• Menos tarefas manuais = mais tempo para o que importa
+• Leads esquecidos = dinheiro perdido
+• Dor: "Leads entram e ninguém acompanha direito"
+• Ganho: "Sistema que nutre leads enquanto você dorme"
+` : ""}${lead.foco === "Sites/Landing" ? `
+🖥️ SITES/LANDING - ARGUMENTAÇÃO ESPECÍFICA:
+• Páginas que CONVERTEM, não só "bonitas"
+• Experiência do usuário que guia para ação
+• Clareza de oferta em 5 segundos
+• Taxa de conversão atual vs potencial
+• Dor: "Site que não gera leads, só custa hospedagem"
+• Ganho: "Página que transforma visitante em contato"
+` : ""}${lead.foco === "CRM" ? `
+📊 CRM - ARGUMENTAÇÃO ESPECÍFICA:
+• Organização de pipeline de vendas
+• Follow-up sistemático, não na memória
+• Leads esquecidos = dinheiro perdido
+• Previsibilidade de faturamento
+• Dor: "Vendas desorganizadas, leads perdidos no WhatsApp"
+• Ganho: "Saber exatamente quantas vendas vai fechar"
+` : ""}${lead.foco === "Design" ? `
+🎨 DESIGN - ARGUMENTAÇÃO ESPECÍFICA:
+• Identidade visual como diferencial competitivo
+• Marca que transmite profissionalismo e confiança
+• Design que VENDE, não só bonito
+• Consistência visual em todos os canais
+• Dor: "Visual amador que afasta clientes premium"
+• Ganho: "Marca que atrai os clientes certos"
+` : ""}
 
 ═══════════════════════════════════════
 📋 DIAGNÓSTICO (máximo 6 bullets)

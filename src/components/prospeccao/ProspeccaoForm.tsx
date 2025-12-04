@@ -54,7 +54,7 @@ export const ProspeccaoForm = () => {
       quantidade: 20,
       proximidadeAtiva: false,
       raioKm: 5,
-      canaisProspeccao: ["email", "whatsapp"],
+      canaisProspeccao: ["email", "whatsapp", "instagram"],
     },
   });
 

@@ -6,6 +6,55 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ============================================
+// INPUT VALIDATION
+// ============================================
+
+// UUID validation regex
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isValidUUID(str: string): boolean {
+  return UUID_REGEX.test(str);
+}
+
+function isValidName(name: string): boolean {
+  return typeof name === 'string' && name.trim().length > 0 && name.trim().length <= 100;
+}
+
+// ============================================
+// RATE LIMITING
+// ============================================
+
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 30; // 30 requests per minute for key management
+
+function checkRateLimit(userId: string): { allowed: boolean; remaining: number; resetIn: number } {
+  const now = Date.now();
+  const record = rateLimitMap.get(userId);
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(userId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, resetIn: RATE_LIMIT_WINDOW_MS };
+  }
+
+  if (record.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return { allowed: false, remaining: 0, resetIn: record.resetTime - now };
+  }
+
+  record.count++;
+  return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - record.count, resetIn: record.resetTime - now };
+}
+
+// ============================================
+// ERROR HANDLING
+// ============================================
+
+function sanitizeError(error: unknown): string {
+  console.error('Internal error:', error);
+  return 'Erro interno do servidor';
+}
+
 // Generate a random API key
 function generateApiKey(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -38,7 +87,10 @@ serve(async (req) => {
     // Get user from auth header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Não autorizado' }), {
+      return new Response(JSON.stringify({ 
+        error: 'UNAUTHORIZED',
+        message: 'Não autorizado'
+      }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -51,9 +103,31 @@ serve(async (req) => {
 
     const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Usuário não encontrado' }), {
+      return new Response(JSON.stringify({ 
+        error: 'USER_NOT_FOUND',
+        message: 'Usuário não encontrado'
+      }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check rate limit
+    const rateLimit = checkRateLimit(user.id);
+    const rateLimitHeaders = {
+      'X-RateLimit-Limit': RATE_LIMIT_MAX_REQUESTS.toString(),
+      'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+      'X-RateLimit-Reset': Math.ceil(rateLimit.resetIn / 1000).toString(),
+    };
+
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({ 
+        error: 'RATE_LIMIT_EXCEEDED',
+        message: 'Limite de requisições excedido. Tente novamente em alguns segundos.',
+        retry_after: Math.ceil(rateLimit.resetIn / 1000)
+      }), {
+        status: 429,
+        headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -80,10 +154,11 @@ serve(async (req) => {
 
     if (!isAdmin && !isAgency) {
       return new Response(JSON.stringify({ 
-        error: 'API de Integração disponível apenas para o plano Agência' 
+        error: 'PLAN_NOT_ALLOWED',
+        message: 'API de Integração disponível apenas para o plano Agência' 
       }), {
         status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -97,22 +172,46 @@ serve(async (req) => {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        return new Response(JSON.stringify({ 
+          error: 'DATABASE_ERROR',
+          message: 'Erro ao consultar chaves'
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
       return new Response(JSON.stringify({ success: true, data: keys }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // POST - Create new API key
     if (method === 'POST') {
-      const body = await req.json();
+      let body;
+      try {
+        body = await req.json();
+      } catch {
+        return new Response(JSON.stringify({ 
+          error: 'INVALID_JSON',
+          message: 'Corpo da requisição inválido'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       const { name } = body;
 
-      if (!name || name.trim().length === 0) {
-        return new Response(JSON.stringify({ error: 'Nome da API Key é obrigatório' }), {
+      if (!isValidName(name)) {
+        return new Response(JSON.stringify({ 
+          error: 'INVALID_NAME',
+          message: 'Nome da API Key é obrigatório e deve ter entre 1 e 100 caracteres'
+        }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -125,10 +224,11 @@ serve(async (req) => {
 
       if ((count || 0) >= 5) {
         return new Response(JSON.stringify({ 
-          error: 'Limite de 5 API Keys ativas atingido. Revogue uma key existente.' 
+          error: 'MAX_KEYS_REACHED',
+          message: 'Limite de 5 API Keys ativas atingido. Revogue uma key existente.' 
         }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -149,7 +249,16 @@ serve(async (req) => {
         .select('id, name, key_preview, created_at')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        return new Response(JSON.stringify({ 
+          error: 'DATABASE_ERROR',
+          message: 'Erro ao criar chave'
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
       console.log(`API Key created for user ${user.id}: ${keyPreview}`);
 
@@ -162,19 +271,45 @@ serve(async (req) => {
         },
         message: 'API Key criada com sucesso. Guarde-a em local seguro - ela não será mostrada novamente!'
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // DELETE - Revoke API key
     if (method === 'DELETE') {
-      const body = await req.json();
+      let body;
+      try {
+        body = await req.json();
+      } catch {
+        return new Response(JSON.stringify({ 
+          error: 'INVALID_JSON',
+          message: 'Corpo da requisição inválido'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       const { key_id } = body;
 
       if (!key_id) {
-        return new Response(JSON.stringify({ error: 'ID da API Key é obrigatório' }), {
+        return new Response(JSON.stringify({ 
+          error: 'KEY_ID_REQUIRED',
+          message: 'ID da API Key é obrigatório'
+        }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Validate UUID
+      if (!isValidUUID(key_id)) {
+        return new Response(JSON.stringify({ 
+          error: 'INVALID_KEY_ID_FORMAT',
+          message: 'Formato de ID inválido'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -189,9 +324,12 @@ serve(async (req) => {
         .single();
 
       if (error || !data) {
-        return new Response(JSON.stringify({ error: 'API Key não encontrada ou já revogada' }), {
+        return new Response(JSON.stringify({ 
+          error: 'KEY_NOT_FOUND',
+          message: 'API Key não encontrada ou já revogada'
+        }), {
           status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -201,19 +339,24 @@ serve(async (req) => {
         success: true, 
         message: 'API Key revogada com sucesso' 
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    return new Response(JSON.stringify({ error: 'Método não permitido' }), {
+    return new Response(JSON.stringify({ 
+      error: 'METHOD_NOT_ALLOWED',
+      message: 'Método não permitido'
+    }), {
       status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error: unknown) {
-    console.error('Error in api-keys-manage:', error);
-    const message = error instanceof Error ? error.message : 'Erro interno';
-    return new Response(JSON.stringify({ error: message }), {
+    const errorMessage = sanitizeError(error);
+    return new Response(JSON.stringify({ 
+      error: 'INTERNAL_ERROR',
+      message: errorMessage
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

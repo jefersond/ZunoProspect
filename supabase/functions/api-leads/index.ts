@@ -6,6 +6,77 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
 };
 
+// ============================================
+// INPUT VALIDATION - Security Enhancement
+// ============================================
+
+// Valid status values
+const VALID_STATUS = ['novo', 'contato', 'proposta', 'negociacao', 'fechado', 'perdido'];
+
+// Valid foco values
+const VALID_FOCO = ['Full Service', 'Tráfego', 'Automação', 'Design', 'Social', 'SEO', 'Sites/Landing', 'CRM'];
+
+// UUID validation regex
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isValidUUID(str: string): boolean {
+  return UUID_REGEX.test(str);
+}
+
+function isValidStatus(status: string): boolean {
+  return VALID_STATUS.includes(status);
+}
+
+function isValidFoco(foco: string): boolean {
+  return VALID_FOCO.includes(foco);
+}
+
+function isValidPage(page: number): boolean {
+  return Number.isInteger(page) && page >= 1 && page <= 10000;
+}
+
+function isValidLimit(limit: number): boolean {
+  return Number.isInteger(limit) && limit >= 1 && limit <= 100;
+}
+
+// ============================================
+// RATE LIMITING - Simple in-memory implementation
+// ============================================
+
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 100; // 100 requests per minute
+
+function checkRateLimit(apiKeyId: string): { allowed: boolean; remaining: number; resetIn: number } {
+  const now = Date.now();
+  const record = rateLimitMap.get(apiKeyId);
+
+  if (!record || now > record.resetTime) {
+    // New window or window expired
+    rateLimitMap.set(apiKeyId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, resetIn: RATE_LIMIT_WINDOW_MS };
+  }
+
+  if (record.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return { allowed: false, remaining: 0, resetIn: record.resetTime - now };
+  }
+
+  record.count++;
+  return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - record.count, resetIn: record.resetTime - now };
+}
+
+// ============================================
+// ERROR HANDLING - Generic messages for security
+// ============================================
+
+function sanitizeError(error: unknown): string {
+  // Log the real error server-side
+  console.error('Internal error:', error);
+  
+  // Return generic message to client
+  return 'Erro interno do servidor';
+}
+
 // Hash API key using SHA-256
 async function hashApiKey(key: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -30,8 +101,8 @@ serve(async (req) => {
     const apiKey = req.headers.get('x-api-key');
     if (!apiKey) {
       return new Response(JSON.stringify({ 
-        error: 'API Key não fornecida',
-        hint: 'Adicione o header x-api-key com sua API Key'
+        error: 'API_KEY_REQUIRED',
+        message: 'API Key não fornecida'
       }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -39,8 +110,11 @@ serve(async (req) => {
     }
 
     // Validate API key format
-    if (!apiKey.startsWith('zuno_')) {
-      return new Response(JSON.stringify({ error: 'Formato de API Key inválido' }), {
+    if (!apiKey.startsWith('zuno_') || apiKey.length < 10) {
+      return new Response(JSON.stringify({ 
+        error: 'INVALID_API_KEY_FORMAT',
+        message: 'Formato de API Key inválido'
+      }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -55,16 +129,41 @@ serve(async (req) => {
       .single();
 
     if (keyError || !keyData) {
-      return new Response(JSON.stringify({ error: 'API Key inválida' }), {
+      return new Response(JSON.stringify({ 
+        error: 'INVALID_API_KEY',
+        message: 'API Key inválida'
+      }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     if (keyData.revoked_at) {
-      return new Response(JSON.stringify({ error: 'API Key revogada' }), {
+      return new Response(JSON.stringify({ 
+        error: 'API_KEY_REVOKED',
+        message: 'API Key revogada'
+      }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check rate limit
+    const rateLimit = checkRateLimit(keyData.id);
+    const rateLimitHeaders = {
+      'X-RateLimit-Limit': RATE_LIMIT_MAX_REQUESTS.toString(),
+      'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+      'X-RateLimit-Reset': Math.ceil(rateLimit.resetIn / 1000).toString(),
+    };
+
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({ 
+        error: 'RATE_LIMIT_EXCEEDED',
+        message: 'Limite de requisições excedido. Tente novamente em alguns segundos.',
+        retry_after: Math.ceil(rateLimit.resetIn / 1000)
+      }), {
+        status: 429,
+        headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -95,10 +194,11 @@ serve(async (req) => {
 
     if (!isAdmin && !isAgency) {
       return new Response(JSON.stringify({ 
-        error: 'API de Integração disponível apenas para o plano Agência' 
+        error: 'PLAN_NOT_ALLOWED',
+        message: 'API de Integração disponível apenas para o plano Agência' 
       }), {
         status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -149,12 +249,23 @@ serve(async (req) => {
       });
 
       return new Response(JSON.stringify({ success: true, data: analytics }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // GET /api-leads?id=<uuid> - Get single lead
     if (method === 'GET' && leadId) {
+      // Validate UUID format
+      if (!isValidUUID(leadId)) {
+        return new Response(JSON.stringify({ 
+          error: 'INVALID_ID_FORMAT',
+          message: 'Formato de ID inválido. Use um UUID válido.'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       const { data: lead, error } = await supabaseAdmin
         .rpc('get_leads_decrypted')
         .eq('user_id', userId)
@@ -162,24 +273,74 @@ serve(async (req) => {
         .single();
 
       if (error || !lead) {
-        return new Response(JSON.stringify({ error: 'Lead não encontrado' }), {
+        return new Response(JSON.stringify({ 
+          error: 'LEAD_NOT_FOUND',
+          message: 'Lead não encontrado'
+        }), {
           status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       return new Response(JSON.stringify({ success: true, data: lead }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // GET /api-leads - List leads with pagination
     if (method === 'GET') {
-      const page = parseInt(url.searchParams.get('page') || '1');
-      const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100);
+      const pageStr = url.searchParams.get('page') || '1';
+      const limitStr = url.searchParams.get('limit') || '50';
       const status = url.searchParams.get('status');
       const foco = url.searchParams.get('foco');
       const salvo = url.searchParams.get('salvo');
+
+      // Validate page and limit
+      const page = parseInt(pageStr);
+      const limit = parseInt(limitStr);
+
+      if (!isValidPage(page)) {
+        return new Response(JSON.stringify({ 
+          error: 'INVALID_PAGE',
+          message: 'Parâmetro page deve ser um número entre 1 e 10000'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!isValidLimit(limit)) {
+        return new Response(JSON.stringify({ 
+          error: 'INVALID_LIMIT',
+          message: 'Parâmetro limit deve ser um número entre 1 e 100'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Validate status if provided
+      if (status && !isValidStatus(status)) {
+        return new Response(JSON.stringify({ 
+          error: 'INVALID_STATUS',
+          message: `Status inválido. Valores permitidos: ${VALID_STATUS.join(', ')}`
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Validate foco if provided
+      if (foco && !isValidFoco(foco)) {
+        return new Response(JSON.stringify({ 
+          error: 'INVALID_FOCO',
+          message: `Foco inválido. Valores permitidos: ${VALID_FOCO.join(', ')}`
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       const offset = (page - 1) * limit;
 
       // Build query
@@ -190,13 +351,22 @@ serve(async (req) => {
 
       if (status) query = query.eq('status', status);
       if (foco) query = query.eq('foco', foco);
-      if (salvo !== null) query = query.eq('salvo', salvo === 'true');
+      if (salvo !== null && salvo !== undefined) query = query.eq('salvo', salvo === 'true');
 
       const { data: leads, error, count } = await query
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        return new Response(JSON.stringify({ 
+          error: 'DATABASE_ERROR',
+          message: 'Erro ao consultar leads'
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
       return new Response(JSON.stringify({ 
         success: true, 
@@ -208,31 +378,82 @@ serve(async (req) => {
           total_pages: Math.ceil((count || 0) / limit),
         }
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // PATCH /api-leads - Update lead
     if (method === 'PATCH') {
-      const body = await req.json();
+      let body;
+      try {
+        body = await req.json();
+      } catch {
+        return new Response(JSON.stringify({ 
+          error: 'INVALID_JSON',
+          message: 'Corpo da requisição inválido'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       const { id, status, notas, salvo } = body;
 
       if (!id) {
-        return new Response(JSON.stringify({ error: 'ID do lead é obrigatório' }), {
+        return new Response(JSON.stringify({ 
+          error: 'ID_REQUIRED',
+          message: 'ID do lead é obrigatório'
+        }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Validate UUID
+      if (!isValidUUID(id)) {
+        return new Response(JSON.stringify({ 
+          error: 'INVALID_ID_FORMAT',
+          message: 'Formato de ID inválido. Use um UUID válido.'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Validate status if provided
+      if (status !== undefined && !isValidStatus(status)) {
+        return new Response(JSON.stringify({ 
+          error: 'INVALID_STATUS',
+          message: `Status inválido. Valores permitidos: ${VALID_STATUS.join(', ')}`
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Validate notas length
+      if (notas !== undefined && typeof notas === 'string' && notas.length > 5000) {
+        return new Response(JSON.stringify({ 
+          error: 'NOTES_TOO_LONG',
+          message: 'Notas não podem exceder 5000 caracteres'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       const updateData: Record<string, any> = {};
       if (status !== undefined) updateData.status = status;
       if (notas !== undefined) updateData.notas = notas;
-      if (salvo !== undefined) updateData.salvo = salvo;
+      if (salvo !== undefined) updateData.salvo = !!salvo;
 
       if (Object.keys(updateData).length === 0) {
-        return new Response(JSON.stringify({ error: 'Nenhum campo para atualizar' }), {
+        return new Response(JSON.stringify({ 
+          error: 'NO_FIELDS_TO_UPDATE',
+          message: 'Nenhum campo para atualizar'
+        }), {
           status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -245,28 +466,36 @@ serve(async (req) => {
         .single();
 
       if (error || !data) {
-        return new Response(JSON.stringify({ error: 'Lead não encontrado ou não autorizado' }), {
+        return new Response(JSON.stringify({ 
+          error: 'LEAD_NOT_FOUND',
+          message: 'Lead não encontrado ou não autorizado'
+        }), {
           status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       console.log(`Lead updated via API: ${id} by user ${userId}`);
 
       return new Response(JSON.stringify({ success: true, data }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    return new Response(JSON.stringify({ error: 'Método não permitido' }), {
+    return new Response(JSON.stringify({ 
+      error: 'METHOD_NOT_ALLOWED',
+      message: 'Método não permitido'
+    }), {
       status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error: unknown) {
-    console.error('Error in api-leads:', error);
-    const message = error instanceof Error ? error.message : 'Erro interno';
-    return new Response(JSON.stringify({ error: message }), {
+    const errorMessage = sanitizeError(error);
+    return new Response(JSON.stringify({ 
+      error: 'INTERNAL_ERROR',
+      message: errorMessage
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

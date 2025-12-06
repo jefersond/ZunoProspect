@@ -465,9 +465,27 @@ serve(async (req) => {
       }
     );
   } catch (error: any) {
-    console.error("Erro na busca de leads:", error);
+    // Log detailed error server-side
+    console.error("Erro na busca de leads:", {
+      message: error.message,
+      stack: error.stack,
+    });
+    
+    // Return generic error message to client
+    // Only show specific message for known/expected errors
+    let clientMessage = "Erro ao buscar leads. Tente novamente.";
+    
+    if (error.message?.includes("Cidade") && error.message?.includes("não encontrada")) {
+      clientMessage = error.message; // Safe to show city not found error
+    } else if (error.message?.includes("Token de paginação")) {
+      clientMessage = error.message; // Safe to show pagination token error
+    }
+    
     return new Response(
-      JSON.stringify({ error: error.message || "Erro ao buscar leads" }),
+      JSON.stringify({ 
+        error: 'SEARCH_ERROR',
+        message: clientMessage 
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

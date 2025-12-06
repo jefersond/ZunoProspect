@@ -20,3 +20,9 @@ verify_jwt = true
 
 [functions.check-pix-payment]
 verify_jwt = true
+
+[functions.api-keys-manage]
+verify_jwt = true
+
+[functions.api-leads]
+verify_jwt = false

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LogOut, ArrowLeft, Plus, History, BarChart3, User, FileText, Search, Bookmark } from "lucide-react";
+import { LogOut, ArrowLeft, Plus, History, BarChart3, User, FileText, Search, Bookmark, TrendingUp } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
@@ -70,6 +70,10 @@ const Templates = () => {
                 <Button variant="ghost" size="sm" onClick={() => navigate("/historico")} className="gap-2">
                   <History className="h-4 w-4" />
                   <span className="hidden sm:inline">Histórico</span>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/relatorios")} className="gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  <span className="hidden sm:inline">Relatórios</span>
                 </Button>
               </nav>
 

@@ -25,6 +25,7 @@ import {
   Loader2,
   RefreshCw,
   Mail,
+  TrendingUp,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
@@ -336,6 +337,10 @@ const LeadsSalvos = () => {
                 <Button variant="ghost" size="sm" onClick={() => navigate("/historico")} className="gap-2">
                   <History className="h-4 w-4" />
                   <span className="hidden sm:inline">Histórico</span>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/relatorios")} className="gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  <span className="hidden sm:inline">Relatórios</span>
                 </Button>
               </nav>
 

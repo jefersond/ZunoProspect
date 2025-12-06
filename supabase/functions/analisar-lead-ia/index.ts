@@ -722,11 +722,26 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("❌ Erro fatal na análise:", error);
+    // Log detailed error server-side only
+    console.error("❌ Erro fatal na análise:", {
+      message: error.message,
+      stack: error.stack,
+    });
+    
+    // Return generic error to client - don't expose internal details
+    let clientMessage = "Erro ao analisar lead. Tente novamente.";
+    
+    // Only show specific messages for known/expected errors
+    if (error.message?.includes("Timeout")) {
+      clientMessage = "A análise demorou muito. Tente novamente em alguns segundos.";
+    } else if (error.message?.includes("API Key")) {
+      clientMessage = "Erro de configuração. Entre em contato com o suporte.";
+    }
+    
     return new Response(
       JSON.stringify({ 
-        error: error.message || "Erro ao analisar lead",
-        details: error.stack,
+        error: 'ANALYSIS_ERROR',
+        message: clientMessage,
       }),
       {
         status: 500,

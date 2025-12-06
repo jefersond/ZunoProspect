@@ -19,6 +19,7 @@ const Historico = lazy(() => import("./pages/Historico"));
 const LeadsSalvos = lazy(() => import("./pages/LeadsSalvos"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const ApiDocs = lazy(() => import("./pages/ApiDocs"));
+const Relatorios = lazy(() => import("./pages/Relatorios"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -70,6 +71,7 @@ const AppContent = () => {
           <Route path="/templates" element={<Templates />} />
           <Route path="/historico" element={<Historico />} />
           <Route path="/leads-salvos" element={<LeadsSalvos />} />
+          <Route path="/relatorios" element={<Relatorios />} />
           <Route path="/api-docs" element={<ApiDocs />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

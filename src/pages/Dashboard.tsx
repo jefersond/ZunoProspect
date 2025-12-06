@@ -55,10 +55,11 @@ const Dashboard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Buscar leads
+      // Buscar leads - apenas campos não sensíveis para métricas
+      // Dados sensíveis (telefone, email, etc.) são criptografados e acessados via RPC
       const { data: leads, error: leadsError } = await supabase
         .from("leads")
-        .select("*")
+        .select("id, nome, cidade, nicho, foco, status, probabilidade_conversao, salvo, created_at, updated_at, rating, total_reviews")
         .eq("user_id", user.id);
 
       if (leadsError) throw leadsError;

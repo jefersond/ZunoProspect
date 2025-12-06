@@ -119,10 +119,11 @@ export const useRelatoriosData = (filters: RelatoriosFilters) => {
       const { inicio, fim } = getDateRange();
       const periodoAnteriorInicio = subDays(inicio, Math.ceil((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)));
 
-      // Fetch all leads for the user
+      // Fetch all leads for the user - apenas campos não sensíveis para relatórios
+      // Dados sensíveis (telefone, email, etc.) são criptografados e não necessários para KPIs
       let query = supabase
         .from('leads')
-        .select('*')
+        .select('id, nome, cidade, nicho, foco, status, probabilidade_conversao, salvo, created_at, updated_at, rating, total_reviews, whatsapp_on_site, has_meta_pixel, has_gtag, has_gtm, whatsapp_number_encrypted, email_encrypted, telefone_encrypted, instagram_url_encrypted')
         .eq('user_id', user.id)
         .gte('created_at', inicio.toISOString())
         .lte('created_at', fim.toISOString());

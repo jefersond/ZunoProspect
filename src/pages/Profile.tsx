@@ -14,6 +14,7 @@ import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
 import { Badge } from "@/components/ui/badge";
+import { ApiKeysSection } from "@/components/profile/ApiKeysSection";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -344,6 +345,11 @@ const Profile = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* API Integration Section - Agency plan only */}
+        {(isAdmin || subscription?.plan_name === 'agencia') && (
+          <ApiKeysSection />
+        )}
       </main>
 
       <UpgradePlanDialog 

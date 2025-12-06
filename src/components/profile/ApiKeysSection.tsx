@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,8 @@ import {
   AlertTriangle,
   ExternalLink,
   Clock,
-  Shield
+  Shield,
+  BookOpen
 } from "lucide-react";
 import {
   Dialog,
@@ -47,6 +49,7 @@ interface ApiKey {
 }
 
 export const ApiKeysSection = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -262,6 +265,15 @@ export const ApiKeysSection = () => {
                 <li><code className="bg-muted px-1 rounded">GET /api-leads?action=analytics</code> - Métricas</li>
               </ul>
             </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => navigate('/api-docs')}
+              className="mt-4 gap-2 w-full"
+            >
+              <BookOpen className="h-4 w-4" />
+              Ver Documentação Completa
+            </Button>
           </div>
         </CardContent>
       </Card>

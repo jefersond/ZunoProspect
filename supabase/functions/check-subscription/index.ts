@@ -20,6 +20,21 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
+// Sanitize error messages to prevent internal system details exposure
+const sanitizeError = (error: unknown): string => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error("[CHECK-SUBSCRIPTION] Full error:", message);
+  
+  // Return generic messages for known error patterns
+  if (message.includes("authorization") || message.includes("authenticated") || message.includes("Authentication")) {
+    return "Erro de autenticação. Por favor, faça login novamente.";
+  }
+  if (message.includes("STRIPE") || message.includes("stripe")) {
+    return "Erro ao verificar assinatura. Tente novamente.";
+  }
+  return "Erro ao verificar status da assinatura. Tente novamente.";
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -131,9 +146,8 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR in check-subscription", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    logStep("ERROR in check-subscription", { message: error instanceof Error ? error.message : String(error) });
+    return new Response(JSON.stringify({ error: sanitizeError(error) }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

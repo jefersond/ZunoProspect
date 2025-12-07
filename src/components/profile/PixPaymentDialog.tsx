@@ -36,12 +36,26 @@ export const PixPaymentDialog = ({
   const [customerName, setCustomerName] = useState("");
   const [customerCpf, setCpf] = useState("");
   const [customerWhatsapp, setCustomerWhatsapp] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
   const [pixData, setPixData] = useState<{
     paymentId: string;
     pixCopiaECola: string;
     qrCodeBase64: string;
     vencimento: string;
   } | null>(null);
+
+  // Buscar email do usuário logado ao abrir o dialog
+  useEffect(() => {
+    const fetchUserEmail = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        setCustomerEmail(user.email);
+      }
+    };
+    if (open) {
+      fetchUserEmail();
+    }
+  }, [open]);
 
   // Poll para verificar pagamento
   useEffect(() => {
@@ -119,6 +133,7 @@ export const PixPaymentDialog = ({
           customerName,
           customerCpf,
           customerWhatsapp,
+          customerEmail,
         },
       });
 

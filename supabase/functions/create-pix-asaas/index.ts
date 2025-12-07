@@ -146,8 +146,8 @@ serve(async (req) => {
     const dueDateStr = dueDate.toISOString().split("T")[0];
 
     const descricaoPlano = isAnual 
-      ? `Zuno Prospect ${plano} - Anual`
-      : `Zuno Prospect ${plano} - Mensal`;
+      ? `Zuno Propect ${plano} - Anual`
+      : `Zuno Propect ${plano} - Mensal`;
 
     const createPaymentResponse = await fetch(`${asaasBaseUrl}/payments`, {
       method: "POST",
@@ -161,12 +161,8 @@ serve(async (req) => {
         value: valor,
         dueDate: dueDateStr,
         description: descricaoPlano,
-        externalReference: JSON.stringify({
-          user_id: userId,
-          customer_email: customerEmail,
-          plan_name: plano.toLowerCase(),
-          is_annual: isAnual,
-        }),
+        // Formato compacto: userId|plan_name|is_annual (máx 100 chars)
+        externalReference: `${userId || 'guest'}|${plano.toLowerCase()}|${isAnual ? '1' : '0'}`,
       }),
     });
 

@@ -64,14 +64,27 @@ serve(async (req) => {
     if (payment.status === "CONFIRMED" || payment.status === "RECEIVED") {
       logStep("Payment confirmed, updating subscription");
 
-      // Extrair dados do plano da referência externa
+      // Extrair dados do plano da referência externa (formato: userId|plan_name|is_annual)
       let planData = { plan_name: "pro", is_annual: false };
       try {
         if (payment.externalReference) {
-          planData = JSON.parse(payment.externalReference);
+          const parts = payment.externalReference.split('|');
+          if (parts.length >= 3) {
+            planData = {
+              plan_name: parts[1] || 'pro',
+              is_annual: parts[2] === '1'
+            };
+          } else {
+            // Fallback para formato JSON antigo (compatibilidade)
+            const parsed = JSON.parse(payment.externalReference);
+            planData = {
+              plan_name: parsed.plan_name || 'pro',
+              is_annual: parsed.is_annual || false
+            };
+          }
         }
       } catch (e) {
-        logStep("Could not parse external reference", { ref: payment.externalReference });
+        logStep("Could not parse external reference, using defaults", { ref: payment.externalReference });
       }
 
       // Determinar limites baseado no plano

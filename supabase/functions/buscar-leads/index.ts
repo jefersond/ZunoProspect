@@ -77,7 +77,19 @@ serve(async (req) => {
 
       leads = mockLeads;
     } else {
-      // Busca real com Google Places API
+      // Busca real com Google Places API com paginação automática
+      // Google retorna no máximo 20 resultados por página e 60 no total (3 páginas)
+      const MAX_PAGES = 3;
+      const MAX_RESULTS_PER_PAGE = 20;
+      let allResults: any[] = [];
+      let currentPageToken: string | null = body.pageToken || null;
+      let pageCount = 0;
+      
+      // Determina quantos leads precisamos buscar
+      const targetCount = body.quantidade;
+      
+      console.log(`🔍 Iniciando busca paginada. Objetivo: ${targetCount} leads (máximo ${MAX_PAGES * MAX_RESULTS_PER_PAGE} por limitação do Google)`);
+      
       if (body.proximidadeAtiva && body.raioKm) {
         // Busca por proximidade (Nearby Search)
         console.log("Buscando por proximidade (Nearby Search)...");
@@ -106,67 +118,109 @@ serve(async (req) => {
         const location = geocodeData.results[0].geometry.location;
         console.log("Coordenadas do centro da cidade:", location);
 
-        // Nearby Search com keyword (nicho) e raio
-        let nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
-          searchRadius * 1000
-        }&keyword=${encodeURIComponent(body.nicho)}&key=${GOOGLE_API_KEY}`;
-
-        // Se houver pageToken, usa para paginação (busca incremental)
-        if (body.pageToken) {
-          nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${body.pageToken}&key=${GOOGLE_API_KEY}`;
-          console.log("Usando pageToken para busca incremental");
-        }
-
-        const nearbyResponse = await fetch(nearbyUrl);
-        const nearbyData = await nearbyResponse.json();
-
-      if (nearbyData.status === "OK") {
-          // Se for busca incremental, pega TODOS os resultados (até 20) para filtrar depois
-          // Se não, pega apenas a quantidade solicitada
-          leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
-            ? nearbyData.results // Busca incremental: pega tudo para filtrar
-            : nearbyData.results.slice(0, body.quantidade);
+        // Loop de paginação para Nearby Search
+        while (allResults.length < targetCount && pageCount < MAX_PAGES) {
+          let nearbyUrl: string;
           
-          console.log(`Google retornou ${nearbyData.results.length} resultados`);
-        } else if (nearbyData.status === "INVALID_REQUEST" && body.pageToken) {
-          // PageToken pode ter expirado (válido por ~2 minutos)
-          throw new Error("Token de paginação expirou. Tente fazer uma nova busca.");
-        } else {
-          console.error("Nearby Search falhou:", nearbyData.status, nearbyData.error_message);
-          throw new Error(`Erro na busca: ${nearbyData.error_message || nearbyData.status}`);
+          if (currentPageToken) {
+            // Usa pageToken para próxima página
+            nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${currentPageToken}&key=${GOOGLE_API_KEY}`;
+            // Google exige delay de ~2s antes de usar pageToken
+            console.log(`⏳ Aguardando 2s antes de buscar página ${pageCount + 1}...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } else if (pageCount === 0) {
+            // Primeira página
+            nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
+              searchRadius * 1000
+            }&keyword=${encodeURIComponent(body.nicho)}&key=${GOOGLE_API_KEY}`;
+          } else {
+            // Sem mais páginas
+            break;
+          }
+
+          console.log(`📄 Buscando página ${pageCount + 1}...`);
+          const nearbyResponse = await fetch(nearbyUrl);
+          const nearbyData = await nearbyResponse.json();
+
+          if (nearbyData.status === "OK" && nearbyData.results.length > 0) {
+            allResults = [...allResults, ...nearbyData.results];
+            currentPageToken = nearbyData.next_page_token || null;
+            pageCount++;
+            
+            console.log(`✅ Página ${pageCount}: ${nearbyData.results.length} resultados (total acumulado: ${allResults.length})`);
+            
+            // Se não houver próxima página, para o loop
+            if (!currentPageToken) {
+              console.log("📋 Não há mais páginas disponíveis");
+              break;
+            }
+          } else if (nearbyData.status === "INVALID_REQUEST" && currentPageToken) {
+            throw new Error("Token de paginação expirou. Tente fazer uma nova busca.");
+          } else if (nearbyData.status === "ZERO_RESULTS") {
+            console.log("Nenhum resultado encontrado");
+            break;
+          } else {
+            console.error("Nearby Search falhou:", nearbyData.status, nearbyData.error_message);
+            throw new Error(`Erro na busca: ${nearbyData.error_message || nearbyData.status}`);
+          }
         }
+        
+        leads = allResults;
+        console.log(`🎯 Total de leads encontrados após ${pageCount} página(s): ${leads.length}`);
+        
       } else {
-        // Busca por texto (Text Search)
+        // Busca por texto (Text Search) com paginação
         console.log("Buscando por texto (Text Search)...");
 
-        let textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
-          `${body.nicho} ${body.cidade} ${body.estado}`
-        )}&key=${GOOGLE_API_KEY}`;
-
-        // Se houver pageToken, usa para paginação (busca incremental)
-        if (body.pageToken) {
-          textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?pagetoken=${body.pageToken}&key=${GOOGLE_API_KEY}`;
-          console.log("Usando pageToken para busca incremental");
-        }
-
-        const textResponse = await fetch(textSearchUrl);
-        const textData = await textResponse.json();
-
-        if (textData.status === "OK") {
-          // Se for busca incremental, pega TODOS os resultados (até 20) para filtrar depois
-          // Se não, pega apenas a quantidade solicitada
-          leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
-            ? textData.results // Busca incremental: pega tudo para filtrar
-            : textData.results.slice(0, body.quantidade);
+        // Loop de paginação para Text Search
+        while (allResults.length < targetCount && pageCount < MAX_PAGES) {
+          let textSearchUrl: string;
           
-          console.log(`Google retornou ${textData.results.length} resultados`);
-        } else if (textData.status === "INVALID_REQUEST" && body.pageToken) {
-          // PageToken pode ter expirado (válido por ~2 minutos)
-          throw new Error("Token de paginação expirou. Tente fazer uma nova busca.");
-        } else {
-          console.error("Text Search falhou:", textData.status, textData.error_message);
-          throw new Error(`Erro na busca: ${textData.error_message || textData.status}`);
+          if (currentPageToken) {
+            // Usa pageToken para próxima página
+            textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?pagetoken=${currentPageToken}&key=${GOOGLE_API_KEY}`;
+            // Google exige delay de ~2s antes de usar pageToken
+            console.log(`⏳ Aguardando 2s antes de buscar página ${pageCount + 1}...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } else if (pageCount === 0) {
+            // Primeira página
+            textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
+              `${body.nicho} ${body.cidade} ${body.estado}`
+            )}&key=${GOOGLE_API_KEY}`;
+          } else {
+            // Sem mais páginas
+            break;
+          }
+
+          console.log(`📄 Buscando página ${pageCount + 1}...`);
+          const textResponse = await fetch(textSearchUrl);
+          const textData = await textResponse.json();
+
+          if (textData.status === "OK" && textData.results.length > 0) {
+            allResults = [...allResults, ...textData.results];
+            currentPageToken = textData.next_page_token || null;
+            pageCount++;
+            
+            console.log(`✅ Página ${pageCount}: ${textData.results.length} resultados (total acumulado: ${allResults.length})`);
+            
+            // Se não houver próxima página, para o loop
+            if (!currentPageToken) {
+              console.log("📋 Não há mais páginas disponíveis");
+              break;
+            }
+          } else if (textData.status === "INVALID_REQUEST" && currentPageToken) {
+            throw new Error("Token de paginação expirou. Tente fazer uma nova busca.");
+          } else if (textData.status === "ZERO_RESULTS") {
+            console.log("Nenhum resultado encontrado");
+            break;
+          } else {
+            console.error("Text Search falhou:", textData.status, textData.error_message);
+            throw new Error(`Erro na busca: ${textData.error_message || textData.status}`);
+          }
         }
+        
+        leads = allResults;
+        console.log(`🎯 Total de leads encontrados após ${pageCount} página(s): ${leads.length}`);
       }
     }
 

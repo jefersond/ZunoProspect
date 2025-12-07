@@ -16,6 +16,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { Loader2, Search, Mail, MessageCircle, Instagram, AlertTriangle } from "lucide-react";
 import { SearchProgress } from "./SearchProgress";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
+import { deleteUnsavedLeads } from "@/lib/leadsService";
 
 const formSchema = z.object({
   cidade: z.string().min(1, "Cidade é obrigatória"),
@@ -110,13 +111,13 @@ export const ProspeccaoForm = () => {
         }
       }
       
-      // Se não for incremental, limpa leads NÃO salvos
+      // Se não for incremental, limpa leads NÃO salvos via serviço seguro
       if (!isIncrementalSearch) {
         window.dispatchEvent(new CustomEvent("clearLeads"));
         
         if (user) {
-          // Deleta apenas leads não salvos (salvo=false)
-          await supabase.from("leads").delete().eq("user_id", user.id).eq("salvo", false);
+          // Use application-layer security service instead of direct DB access
+          await deleteUnsavedLeads();
         }
       }
       

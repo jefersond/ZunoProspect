@@ -43,6 +43,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { updateLeadSalvo } from "@/lib/leadsService";
 
 const LeadsSalvos = () => {
   const navigate = useNavigate();
@@ -246,12 +247,11 @@ const LeadsSalvos = () => {
 
   const handleRemoveSaved = async (leadId: string) => {
     try {
-      const { error } = await supabase
-        .from("leads")
-        .update({ salvo: false })
-        .eq("id", leadId);
-
-      if (error) throw error;
+      // Use application-layer security service instead of direct DB access
+      const result = await updateLeadSalvo(leadId, false);
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Erro ao remover lead');
+      }
 
       setLeads((prev) => prev.filter((l) => l.id !== leadId));
       toast({

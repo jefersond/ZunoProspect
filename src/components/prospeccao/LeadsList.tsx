@@ -18,6 +18,7 @@ import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
 import { Progress } from "@/components/ui/progress";
 import { exportLeadsToExcel } from "@/utils/exportToExcel";
+import { deleteLead as deleteLeadService, updateLeadSalvo, bulkUpdateLeadsSalvo } from "@/lib/leadsService";
 
 export const LeadsList = () => {
   const { toast } = useToast();
@@ -244,8 +245,11 @@ export const LeadsList = () => {
 
   const deleteLead = async (id: string) => {
     try {
-      const { error } = await supabase.from("leads").delete().eq("id", id);
-      if (error) throw error;
+      // Use application-layer security service instead of direct DB access
+      const result = await deleteLeadService(id);
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Erro ao remover lead');
+      }
       
       toast({
         title: "Lead removido",
@@ -302,13 +306,11 @@ export const LeadsList = () => {
         return;
       }
 
-      // Marca todos os leads não salvos como salvos
-      const { error } = await supabase
-        .from("leads")
-        .update({ salvo: true })
-        .in("id", leadsNaoSalvos.map(l => l.id));
-
-      if (error) throw error;
+      // Use application-layer security service instead of direct DB access
+      const result = await bulkUpdateLeadsSalvo(leadsNaoSalvos.map(l => l.id), true);
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Erro ao salvar leads');
+      }
 
       toast({
         title: "Leads salvos com sucesso!",
@@ -328,12 +330,11 @@ export const LeadsList = () => {
 
   const toggleSaveLead = async (leadId: string, currentSalvo: boolean) => {
     try {
-      const { error } = await supabase
-        .from("leads")
-        .update({ salvo: !currentSalvo })
-        .eq("id", leadId);
-
-      if (error) throw error;
+      // Use application-layer security service instead of direct DB access
+      const result = await updateLeadSalvo(leadId, !currentSalvo);
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Erro ao atualizar lead');
+      }
 
       toast({
         title: currentSalvo ? "Lead desmarcado" : "Lead salvo",

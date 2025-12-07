@@ -176,21 +176,44 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
 
     setIsProcessing(true);
     try {
-      const accountCreated = await validateAndCreateAccount();
-      if (!accountCreated) { setIsProcessing(false); return; }
+      // Verificar se já está logado antes de criar conta
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      if (!sessionData?.session) {
+        // Só criar conta se não estiver logado
+        const accountCreated = await validateAndCreateAccount();
+        if (!accountCreated) { 
+          setIsProcessing(false); 
+          return; 
+        }
+      }
 
+      console.log("[PIX] Gerando QR Code para:", { plano: plano.nome, isAnual, email });
+      
       const { data, error } = await supabase.functions.invoke("create-pix-asaas", {
         body: { plano: plano.nome, isAnual, customerName: nome, customerCpf: cpf, customerEmail: email, customerWhatsapp: whatsapp }
       });
+      
+      console.log("[PIX] Resposta:", { success: data?.success, hasQrCode: !!data?.qrCodeBase64, error });
+      
       if (error) throw error;
-      if (data?.success) {
-        setPixData({ paymentId: data.paymentId, pixCopiaECola: data.pixCopiaECola, qrCodeBase64: data.qrCodeBase64, vencimento: data.vencimento });
+      
+      if (data?.success && data?.qrCodeBase64) {
+        const pixInfo = { 
+          paymentId: data.paymentId, 
+          pixCopiaECola: data.pixCopiaECola, 
+          qrCodeBase64: data.qrCodeBase64, 
+          vencimento: data.vencimento 
+        };
+        console.log("[PIX] Setando pixData e mudando para step qrcode");
+        setPixData(pixInfo);
         setStep("qrcode");
-        toast.success("Conta criada e QR Code PIX gerado!");
+        toast.success(sessionData?.session ? "QR Code PIX gerado!" : "Conta criada e QR Code PIX gerado!");
       } else {
-        throw new Error(data?.error || "Erro ao gerar PIX");
+        throw new Error(data?.error || "QR Code não foi gerado");
       }
     } catch (error: any) {
+      console.error("[PIX] Erro:", error);
       toast.error("Erro ao gerar PIX", { description: error.message || "Tente novamente mais tarde." });
     } finally {
       setIsProcessing(false);

@@ -22,7 +22,7 @@ const formSchema = z.object({
   cidade: z.string().min(1, "Cidade é obrigatória"),
   estado: z.string().min(2, "Estado é obrigatório"),
   nicho: z.string().min(1, "Nicho é obrigatório"),
-  quantidade: z.number().min(1).max(100),
+  quantidade: z.number().min(1).max(200),
   foco: z.string().min(1, "Foco é obrigatório"),
   proximidadeAtiva: z.boolean(),
   raioKm: z.number().min(1).max(10),
@@ -359,9 +359,12 @@ export const ProspeccaoForm = () => {
                 id="quantidade"
                 type="number"
                 min="1"
-                max="100"
+                max="200"
                 {...register("quantidade", { valueAsNumber: true })}
               />
+              <p className="text-xs text-muted-foreground">
+                Máximo: 200 leads. Buscas acima de 60 podem demorar mais.
+              </p>
               {errors.quantidade && (
                 <p className="text-sm text-destructive">{errors.quantidade.message}</p>
               )}

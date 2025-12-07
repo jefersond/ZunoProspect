@@ -77,30 +77,99 @@ serve(async (req) => {
 
       leads = mockLeads;
     } else {
-      // Busca real com Google Places API com paginação automática
-      // Google retorna no máximo 20 resultados por página e 60 no total (3 páginas)
-      const MAX_PAGES = 3;
-      const MAX_RESULTS_PER_PAGE = 20;
-      let allResults: any[] = [];
-      let currentPageToken: string | null = body.pageToken || null;
-      let pageCount = 0;
+      // Busca real com Google Places API com múltiplas variações de termo
+      // Google retorna no máximo 20 resultados por página e 60 no total (3 páginas) POR BUSCA
+      // Para ultrapassar 60, fazemos múltiplas buscas com variações de termos
       
-      // Determina quantos leads precisamos buscar
+      const MAX_PAGES_PER_SEARCH = 3;
       const targetCount = body.quantidade;
       
-      console.log(`🔍 Iniciando busca paginada. Objetivo: ${targetCount} leads (máximo ${MAX_PAGES * MAX_RESULTS_PER_PAGE} por limitação do Google)`);
+      // Map para armazenar resultados únicos por place_id
+      const uniqueResults: Map<string, any> = new Map();
+      
+      // Função para gerar variações de termo de busca
+      function generateSearchVariations(nicho: string, cidade: string, estado: string): string[] {
+        // Gera plural do nicho
+        const nichoPlural = nicho.endsWith('a') ? nicho + 's' : 
+                           nicho.endsWith('o') ? nicho + 's' : 
+                           nicho.endsWith('e') ? nicho + 's' :
+                           nicho + 'es';
+        
+        // Variações para Text Search
+        return [
+          `${nicho} ${cidade} ${estado}`,           // original
+          `${nicho} em ${cidade} ${estado}`,        // com preposição
+          `${nichoPlural} ${cidade} ${estado}`,     // plural
+          `${nicho} centro ${cidade}`,              // centro
+          `${nicho} ${cidade} zona sul`,            // zona sul
+          `${nicho} ${cidade} zona norte`,          // zona norte
+          `${nicho} ${cidade} zona leste`,          // zona leste
+          `${nicho} ${cidade} zona oeste`,          // zona oeste
+          `melhor ${nicho} ${cidade}`,              // melhor
+          `${nicho} perto ${cidade}`,               // perto
+        ];
+      }
+      
+      // Função para gerar offsets de busca por proximidade (grid de pontos)
+      function generateProximityOffsets(): { lat: number; lng: number; label: string }[] {
+        return [
+          { lat: 0, lng: 0, label: 'centro' },
+          { lat: 0.015, lng: 0.015, label: 'nordeste' },
+          { lat: 0.015, lng: -0.015, label: 'noroeste' },
+          { lat: -0.015, lng: 0.015, label: 'sudeste' },
+          { lat: -0.015, lng: -0.015, label: 'sudoeste' },
+          { lat: 0.025, lng: 0, label: 'norte' },
+          { lat: -0.025, lng: 0, label: 'sul' },
+          { lat: 0, lng: 0.025, label: 'leste' },
+          { lat: 0, lng: -0.025, label: 'oeste' },
+        ];
+      }
+      
+      // Função para fazer busca paginada (até 60 resultados)
+      async function searchWithPagination(searchUrl: string, searchLabel: string): Promise<any[]> {
+        const results: any[] = [];
+        let pageToken: string | null = null;
+        let pageCount = 0;
+        
+        while (pageCount < MAX_PAGES_PER_SEARCH) {
+          let url = searchUrl;
+          
+          if (pageToken) {
+            // Usa pageToken para próxima página - Google exige delay de ~2s
+            url = searchUrl.split('?')[0] + `?pagetoken=${pageToken}&key=${GOOGLE_API_KEY}`;
+            console.log(`⏳ Aguardando 2s antes de buscar página ${pageCount + 1} de "${searchLabel}"...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+          
+          console.log(`📄 Buscando página ${pageCount + 1} de "${searchLabel}"...`);
+          const response = await fetch(url);
+          const data = await response.json();
+          
+          if (data.status === "OK" && data.results?.length > 0) {
+            results.push(...data.results);
+            pageToken = data.next_page_token || null;
+            pageCount++;
+            
+            console.log(`✅ Página ${pageCount}: ${data.results.length} resultados (acumulado: ${results.length})`);
+            
+            if (!pageToken) break;
+          } else if (data.status === "ZERO_RESULTS") {
+            console.log(`📋 Nenhum resultado para "${searchLabel}"`);
+            break;
+          } else {
+            console.log(`⚠️ Status ${data.status} para "${searchLabel}": ${data.error_message || ''}`);
+            break;
+          }
+        }
+        
+        return results;
+      }
+      
+      console.log(`🔍 Iniciando busca multi-variação. Objetivo: ${targetCount} leads únicos`);
       
       if (body.proximidadeAtiva && body.raioKm) {
-        // Busca por proximidade (Nearby Search)
-        console.log("Buscando por proximidade (Nearby Search)...");
-
-        // Se for busca incremental, aumenta o raio em 50% para encontrar novos leads
-        const isIncremental = body.excludePlaceIds && body.excludePlaceIds.length > 0;
-        const searchRadius = isIncremental ? body.raioKm * 1.5 : body.raioKm;
-        
-        if (isIncremental) {
-          console.log(`Busca incremental: raio expandido de ${body.raioKm}km para ${searchRadius}km`);
-        }
+        // Busca por proximidade com múltiplos pontos (grid)
+        console.log("🗺️ Modo: Busca por proximidade com grid de pontos");
 
         // Geocodifica a cidade + estado para obter lat/lng do centro
         const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
@@ -115,113 +184,85 @@ serve(async (req) => {
           throw new Error(`Cidade "${body.cidade}" não encontrada. Verifique se digitou corretamente o nome da cidade.`);
         }
 
-        const location = geocodeData.results[0].geometry.location;
-        console.log("Coordenadas do centro da cidade:", location);
-
-        // Loop de paginação para Nearby Search
-        while (allResults.length < targetCount && pageCount < MAX_PAGES) {
-          let nearbyUrl: string;
-          
-          if (currentPageToken) {
-            // Usa pageToken para próxima página
-            nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${currentPageToken}&key=${GOOGLE_API_KEY}`;
-            // Google exige delay de ~2s antes de usar pageToken
-            console.log(`⏳ Aguardando 2s antes de buscar página ${pageCount + 1}...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          } else if (pageCount === 0) {
-            // Primeira página
-            nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
-              searchRadius * 1000
-            }&keyword=${encodeURIComponent(body.nicho)}&key=${GOOGLE_API_KEY}`;
-          } else {
-            // Sem mais páginas
-            break;
-          }
-
-          console.log(`📄 Buscando página ${pageCount + 1}...`);
-          const nearbyResponse = await fetch(nearbyUrl);
-          const nearbyData = await nearbyResponse.json();
-
-          if (nearbyData.status === "OK" && nearbyData.results.length > 0) {
-            allResults = [...allResults, ...nearbyData.results];
-            currentPageToken = nearbyData.next_page_token || null;
-            pageCount++;
-            
-            console.log(`✅ Página ${pageCount}: ${nearbyData.results.length} resultados (total acumulado: ${allResults.length})`);
-            
-            // Se não houver próxima página, para o loop
-            if (!currentPageToken) {
-              console.log("📋 Não há mais páginas disponíveis");
-              break;
-            }
-          } else if (nearbyData.status === "INVALID_REQUEST" && currentPageToken) {
-            throw new Error("Token de paginação expirou. Tente fazer uma nova busca.");
-          } else if (nearbyData.status === "ZERO_RESULTS") {
-            console.log("Nenhum resultado encontrado");
-            break;
-          } else {
-            console.error("Nearby Search falhou:", nearbyData.status, nearbyData.error_message);
-            throw new Error(`Erro na busca: ${nearbyData.error_message || nearbyData.status}`);
-          }
-        }
+        const centerLocation = geocodeData.results[0].geometry.location;
+        console.log("📍 Centro da cidade:", centerLocation);
         
-        leads = allResults;
-        console.log(`🎯 Total de leads encontrados após ${pageCount} página(s): ${leads.length}`);
+        // Gera pontos de busca baseado na quantidade solicitada
+        const offsets = generateProximityOffsets();
+        // Limita número de buscas baseado na quantidade solicitada
+        const maxSearches = Math.min(Math.ceil(targetCount / 40), offsets.length);
+        const selectedOffsets = offsets.slice(0, maxSearches);
+        
+        // Se for busca incremental, aumenta o raio
+        const isIncremental = body.excludePlaceIds && body.excludePlaceIds.length > 0;
+        const searchRadius = isIncremental ? body.raioKm * 1.5 : body.raioKm;
+        
+        console.log(`🎯 Fazendo ${selectedOffsets.length} buscas em pontos diferentes (raio: ${searchRadius}km)`);
+        
+        for (const offset of selectedOffsets) {
+          if (uniqueResults.size >= targetCount) {
+            console.log(`✅ Objetivo atingido: ${uniqueResults.size} leads únicos`);
+            break;
+          }
+          
+          const searchLat = centerLocation.lat + offset.lat;
+          const searchLng = centerLocation.lng + offset.lng;
+          
+          const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${searchLat},${searchLng}&radius=${
+            searchRadius * 1000
+          }&keyword=${encodeURIComponent(body.nicho)}&key=${GOOGLE_API_KEY}`;
+          
+          const results = await searchWithPagination(nearbyUrl, `proximidade-${offset.label}`);
+          
+          // Adiciona apenas resultados únicos
+          for (const result of results) {
+            if (!uniqueResults.has(result.place_id)) {
+              uniqueResults.set(result.place_id, result);
+            }
+          }
+          
+          console.log(`📊 Total único até agora: ${uniqueResults.size} leads`);
+        }
         
       } else {
-        // Busca por texto (Text Search) com paginação
-        console.log("Buscando por texto (Text Search)...");
-
-        // Loop de paginação para Text Search
-        while (allResults.length < targetCount && pageCount < MAX_PAGES) {
-          let textSearchUrl: string;
-          
-          if (currentPageToken) {
-            // Usa pageToken para próxima página
-            textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?pagetoken=${currentPageToken}&key=${GOOGLE_API_KEY}`;
-            // Google exige delay de ~2s antes de usar pageToken
-            console.log(`⏳ Aguardando 2s antes de buscar página ${pageCount + 1}...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          } else if (pageCount === 0) {
-            // Primeira página
-            textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
-              `${body.nicho} ${body.cidade} ${body.estado}`
-            )}&key=${GOOGLE_API_KEY}`;
-          } else {
-            // Sem mais páginas
-            break;
-          }
-
-          console.log(`📄 Buscando página ${pageCount + 1}...`);
-          const textResponse = await fetch(textSearchUrl);
-          const textData = await textResponse.json();
-
-          if (textData.status === "OK" && textData.results.length > 0) {
-            allResults = [...allResults, ...textData.results];
-            currentPageToken = textData.next_page_token || null;
-            pageCount++;
-            
-            console.log(`✅ Página ${pageCount}: ${textData.results.length} resultados (total acumulado: ${allResults.length})`);
-            
-            // Se não houver próxima página, para o loop
-            if (!currentPageToken) {
-              console.log("📋 Não há mais páginas disponíveis");
-              break;
-            }
-          } else if (textData.status === "INVALID_REQUEST" && currentPageToken) {
-            throw new Error("Token de paginação expirou. Tente fazer uma nova busca.");
-          } else if (textData.status === "ZERO_RESULTS") {
-            console.log("Nenhum resultado encontrado");
-            break;
-          } else {
-            console.error("Text Search falhou:", textData.status, textData.error_message);
-            throw new Error(`Erro na busca: ${textData.error_message || textData.status}`);
-          }
-        }
+        // Busca por texto com múltiplas variações de termo
+        console.log("📝 Modo: Busca por texto com variações de termos");
         
-        leads = allResults;
-        console.log(`🎯 Total de leads encontrados após ${pageCount} página(s): ${leads.length}`);
+        const searchVariations = generateSearchVariations(body.nicho, body.cidade, body.estado);
+        // Limita número de variações baseado na quantidade solicitada
+        const maxVariations = Math.min(Math.ceil(targetCount / 40), searchVariations.length);
+        const selectedVariations = searchVariations.slice(0, maxVariations);
+        
+        console.log(`🎯 Usando ${selectedVariations.length} variações de termo de busca`);
+        
+        for (const query of selectedVariations) {
+          if (uniqueResults.size >= targetCount) {
+            console.log(`✅ Objetivo atingido: ${uniqueResults.size} leads únicos`);
+            break;
+          }
+          
+          console.log(`\n🔎 Buscando: "${query}"`);
+          
+          const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`;
+          
+          const results = await searchWithPagination(textSearchUrl, query);
+          
+          // Adiciona apenas resultados únicos
+          let newCount = 0;
+          for (const result of results) {
+            if (!uniqueResults.has(result.place_id)) {
+              uniqueResults.set(result.place_id, result);
+              newCount++;
+            }
+          }
+          
+          console.log(`📊 Novos leads desta busca: ${newCount} | Total único: ${uniqueResults.size}`);
+        }
       }
+      
+      // Converte Map para array
+      leads = Array.from(uniqueResults.values());
+      console.log(`\n🎯 Total de leads únicos encontrados: ${leads.length}`);
     }
 
     console.log(`Encontrados ${leads.length} leads antes do filtro`);

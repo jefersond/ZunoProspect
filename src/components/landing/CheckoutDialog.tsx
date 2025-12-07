@@ -107,8 +107,8 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
           });
           setStep("confirmed");
           clearInterval(interval);
+          sessionStorage.removeItem("checkout_in_progress");
           toast.success("Pagamento confirmado!");
-          setTimeout(() => handleClose(), 2000);
         }
       } catch (err) {
         console.error("Error in payment check:", err);
@@ -175,6 +175,9 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
     if (!whatsapp || whatsapp.replace(/\D/g, "").length < 10) { toast.error("Informe um WhatsApp válido"); return; }
 
     setIsProcessing(true);
+    // Marcar que checkout está em progresso para evitar redirecionamento
+    sessionStorage.setItem("checkout_in_progress", "true");
+    
     try {
       // Verificar se já está logado antes de criar conta
       const { data: sessionData } = await supabase.auth.getSession();
@@ -243,6 +246,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
           num_items: 1
         });
         setStep("confirmed");
+        sessionStorage.removeItem("checkout_in_progress");
         toast.success("Pagamento confirmado!");
         setTimeout(() => handleClose(), 2000);
       } else {
@@ -307,6 +311,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
 
   const handleClose = () => {
     if (!isProcessing) {
+      sessionStorage.removeItem("checkout_in_progress");
       setStep("form");
       setPixData(null);
       setNome(""); setEmail(""); setSenha(""); setConfirmarSenha("");

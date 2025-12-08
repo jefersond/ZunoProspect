@@ -22,9 +22,6 @@
       fbq('init', '1395903565453591');
       fbq('track', 'PageView');
     </script>
-    <noscript><img height="1" width="1" style="display:none"
-      src="https://www.facebook.com/tr?id=1395903565453591&ev=PageView&noscript=1"
-    /></noscript>
     <!-- End Meta Pixel Code -->
     
     <!-- Google Fonts - preconnect for faster loading -->
@@ -45,6 +42,8 @@
   </head>
 
   <body>
+    <!-- Meta Pixel noscript fallback -->
+    <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=1395903565453591&ev=PageView&noscript=1"/></noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

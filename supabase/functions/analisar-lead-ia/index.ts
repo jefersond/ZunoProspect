@@ -533,87 +533,52 @@ serve(async (req) => {
     let leadData: LeadData;
     let websiteUrl: string | null = null;
     
-    // Se temos leadId, busca os dados do banco com descriptografia manual
+    // Se temos leadId, busca os dados do banco via RPC descriptografada
     if (leadId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-      console.log("📥 Buscando dados do lead no banco com descriptografia...");
+      console.log("📥 Buscando dados do lead no banco via RPC descriptografada...");
       
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       
-      // Busca o lead com campos descriptografados usando SQL direto
-      const { data: decryptedLead, error: queryError } = await supabase
-        .rpc("get_leads_decrypted")
-        .limit(1000); // Busca todos os leads descriptografados
+      // Usa RPC específica que aceita lead_id como parâmetro
+      const { data: decryptedLeads, error: rpcError } = await supabase
+        .rpc("get_lead_decrypted_by_id", { p_lead_id: leadId });
+        
+      if (rpcError) {
+        console.error("❌ Erro na RPC get_lead_decrypted_by_id:", rpcError);
+        throw new Error("Erro ao buscar lead descriptografado");
+      }
       
-      // Filtra pelo ID específico (já que a RPC não aceita filtro por ID diretamente)  
-      const directLead = decryptedLead?.find((lead: any) => lead.id === leadId);
-        
-      if (queryError) {
-        console.error("❌ Erro ao buscar lead:", queryError);
-        
-        // Fallback: busca direto da tabela sem campos sensitivos
-        const { data: basicLead, error: basicError } = await supabase
-          .from("leads")
-          .select("id, nome, nicho, cidade, foco, whatsapp_on_site, has_meta_pixel, has_gtag, has_gtm, cnpj, razao_social, nome_responsavel, situacao_cadastral, porte_empresa, cnae_principal, instagram_context")
-          .eq("id", leadId)
-          .single();
-          
-        if (basicError || !basicLead) {
-          console.error("❌ Lead não encontrado nem via fallback:", basicError);
-          throw new Error("Lead não encontrado no banco de dados");
-        }
-        
-        // Usa dados básicos sem campos criptografados
-        leadData = {
-          nome: basicLead.nome as string,
-          nicho: basicLead.nicho as string,
-          cidade: basicLead.cidade as string,
-          website: null,
-          foco: basicLead.foco as string,
-          whatsapp_on_site: (basicLead.whatsapp_on_site as boolean) || false,
-          whatsapp_number: null,
-          email: null,
-          has_meta_pixel: (basicLead.has_meta_pixel as boolean) || false,
-          has_gtag: (basicLead.has_gtag as boolean) || false,
-          has_gtm: (basicLead.has_gtm as boolean) || false,
-          instagram_url: null,
-          instagram_context: basicLead.instagram_context as string | null,
-          canaisProspeccao: requestData.canaisProspeccao,
-          cnpj: basicLead.cnpj as string | null,
-          razao_social: basicLead.razao_social as string | null,
-          nome_responsavel: basicLead.nome_responsavel as string | null,
-          situacao_cadastral: basicLead.situacao_cadastral as string | null,
-          porte_empresa: basicLead.porte_empresa as string | null,
-          cnae_principal: basicLead.cnae_principal as string | null,
-        };
-        console.log("⚠️ Usando dados básicos (sem campos criptografados)");
-      } else if (!directLead) {
+      const directLead = decryptedLeads && decryptedLeads.length > 0 ? decryptedLeads[0] : null;
+      
+      if (!directLead) {
         console.error("❌ Lead não encontrado no resultado da RPC");
         throw new Error("Lead não encontrado no banco de dados");
-      } else {
-        websiteUrl = directLead.website as string | null;
-        leadData = {
-          nome: directLead.nome as string,
-          nicho: directLead.nicho as string,
-          cidade: directLead.cidade as string,
-          website: directLead.website as string | null,
-          foco: directLead.foco as string,
-          whatsapp_on_site: (directLead.whatsapp_on_site as boolean) || false,
-          whatsapp_number: directLead.whatsapp_number as string | null,
-          email: directLead.email as string | null,
-          has_meta_pixel: (directLead.has_meta_pixel as boolean) || false,
-          has_gtag: (directLead.has_gtag as boolean) || false,
-          has_gtm: (directLead.has_gtm as boolean) || false,
-          instagram_url: directLead.instagram_url as string | null,
-          instagram_context: directLead.instagram_context as string | null,
-          canaisProspeccao: requestData.canaisProspeccao,
-          cnpj: directLead.cnpj as string | null,
-          razao_social: directLead.razao_social as string | null,
-          nome_responsavel: directLead.nome_responsavel as string | null,
-          situacao_cadastral: directLead.situacao_cadastral as string | null,
-          porte_empresa: directLead.porte_empresa as string | null,
-          cnae_principal: directLead.cnae_principal as string | null,
-        };
       }
+      
+      websiteUrl = directLead.website as string | null;
+      leadData = {
+        nome: directLead.nome as string,
+        nicho: directLead.nicho as string,
+        cidade: directLead.cidade as string,
+        website: directLead.website as string | null,
+        foco: directLead.foco as string,
+        whatsapp_on_site: (directLead.whatsapp_on_site as boolean) || false,
+        whatsapp_number: directLead.whatsapp_number as string | null,
+        email: directLead.email as string | null,
+        has_meta_pixel: (directLead.has_meta_pixel as boolean) || false,
+        has_gtag: (directLead.has_gtag as boolean) || false,
+        has_gtm: (directLead.has_gtm as boolean) || false,
+        instagram_url: directLead.instagram_url as string | null,
+        instagram_context: directLead.instagram_context as string | null,
+        canaisProspeccao: requestData.canaisProspeccao,
+        // CNPJ fields
+        cnpj: directLead.cnpj as string | null,
+        razao_social: directLead.razao_social as string | null,
+        nome_responsavel: directLead.nome_responsavel as string | null,
+        situacao_cadastral: directLead.situacao_cadastral as string | null,
+        porte_empresa: directLead.porte_empresa as string | null,
+        cnae_principal: directLead.cnae_principal as string | null,
+      };
       
       console.log("✅ Lead carregado:", leadData.nome);
       console.log("📧 Email existente:", leadData.email);

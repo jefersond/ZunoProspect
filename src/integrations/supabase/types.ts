@@ -443,6 +443,53 @@ export type Database = {
     Functions: {
       decrypt_sensitive: { Args: { encrypted_data: string }; Returns: string }
       encrypt_sensitive: { Args: { plain_text: string }; Returns: string }
+      get_lead_decrypted_by_id: {
+        Args: { p_lead_id: string }
+        Returns: {
+          ai_analise_gerada_em: string
+          cidade: string
+          cnae_principal: string
+          cnpj: string
+          cnpj_email: string
+          cnpj_telefone: string
+          created_at: string
+          diagnostico_bullets: Json
+          digital_signals: Json
+          email: string
+          endereco: string
+          foco: string
+          google_place_id: string
+          has_gtag: boolean
+          has_gtm: boolean
+          has_meta_pixel: boolean
+          id: string
+          instagram_context: string
+          instagram_url: string
+          latitude: number
+          longitude: number
+          nicho: string
+          nome: string
+          nome_responsavel: string
+          notas: string
+          plano_prospeccao: Json
+          porte_empresa: string
+          probabilidade_conversao: number
+          proximidade_ativa: boolean
+          raio_km: number
+          rating: number
+          razao_social: string
+          salvo: boolean
+          situacao_cadastral: string
+          status: string
+          telefone: string
+          total_reviews: number
+          updated_at: string
+          user_id: string
+          website: string
+          whatsapp_number: string
+          whatsapp_on_site: boolean
+        }[]
+      }
       get_leads_decrypted: {
         Args: never
         Returns: {

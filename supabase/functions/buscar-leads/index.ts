@@ -302,6 +302,7 @@ serve(async (req) => {
         has_gtag: false,
         has_gtm: false,
         instagram_url: null as string | null,
+        email: null as string | null,
       };
 
       try {
@@ -517,11 +518,12 @@ serve(async (req) => {
           // Analisa o site se houver website (com timeout)
           let siteSignals = {
             whatsapp_on_site: false,
-            whatsapp_number: null,
+            whatsapp_number: null as string | null,
             has_meta_pixel: false,
             has_gtag: false,
             has_gtm: false,
-            instagram_url: null,
+            instagram_url: null as string | null,
+            email: null as string | null,
           };
 
           if (details.website) {
@@ -586,68 +588,26 @@ serve(async (req) => {
             console.error("Erro ao buscar ID do lead:", selectError);
           }
 
-          // Agenda análise de IA em background com retry
-          const scheduleAnalysisWithRetry = async (retries = 3) => {
-            for (let attempt = 1; attempt <= retries; attempt++) {
-              try {
-                console.log(`🤖 Agendando análise IA (tentativa ${attempt}/${retries}) para: ${details.name}`);
-                
-                const response = await fetch(
-                  `${Deno.env.get("SUPABASE_URL")}/functions/v1/analisar-lead-ia`,
-                  {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: req.headers.get("Authorization")!,
-                    },
-                    body: JSON.stringify({
-                      lead_id: leadData?.id,
-                      nome: details.name,
-                      nicho: body.nicho,
-                      cidade: body.cidade,
-                      website: details.website || null,
-                      foco: body.foco,
-                      whatsapp_on_site: siteSignals.whatsapp_on_site,
-                      has_meta_pixel: siteSignals.has_meta_pixel,
-                      has_gtag: siteSignals.has_gtag,
-                      has_gtm: siteSignals.has_gtm,
-                      instagram_url: siteSignals.instagram_url,
-                      instagram_context: null,
-                      canaisProspeccao: body.canaisProspeccao || ["email", "whatsapp", "instagram"],
-                    }),
-                  }
-                );
-
-                if (response.ok) {
-                  console.log(`✅ Análise IA agendada com sucesso para: ${details.name}`);
-                  return;
-                }
-
-                const errorText = await response.text();
-                console.error(`❌ Erro na análise IA (tentativa ${attempt}):`, response.status, errorText);
-                
-                // Se não for o último retry, aguarda antes de tentar novamente
-                if (attempt < retries) {
-                  await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
-                }
-              } catch (err: any) {
-                console.error(`❌ Erro ao chamar análise IA (tentativa ${attempt}):`, err.message);
-                if (attempt < retries) {
-                  await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
-                }
-              }
-            }
-            console.error(`❌ Falha após ${retries} tentativas de análise IA para: ${details.name}`);
-          };
-
-          // Executa em background
-          scheduleAnalysisWithRetry().catch(err => 
-            console.error("Erro crítico no agendamento de IA:", err)
-          );
-
+          // ✅ OTIMIZAÇÃO: NÃO agenda análise IA aqui
+          // A análise será feita em batch após todos os leads serem coletados
+          // Isso reduz de N chamadas para N/5 chamadas (batch de 5)
+          
           return {
+            id: leadData?.id,
             nome: details.name,
             endereco: details.formatted_address,
+            nicho: body.nicho,
+            cidade: body.cidade,
+            foco: body.foco,
+            website: details.website || null,
+            whatsapp_on_site: siteSignals.whatsapp_on_site,
+            whatsapp_number: siteSignals.whatsapp_number,
+            email: siteSignals.email,
+            has_meta_pixel: siteSignals.has_meta_pixel,
+            has_gtag: siteSignals.has_gtag,
+            has_gtm: siteSignals.has_gtm,
+            instagram_url: siteSignals.instagram_url,
+            canaisProspeccao: body.canaisProspeccao || ["email", "whatsapp", "instagram"],
             sinais: siteSignals,
           };
         }
@@ -667,12 +627,61 @@ serve(async (req) => {
       leadsDetails.push(...results.filter(r => r !== null));
     }
 
+    // ✅ OTIMIZAÇÃO: Agenda análise IA em batch (5 leads por chamada)
+    // Isso é feito em background após retornar os leads para o usuário
+    const leadsParaAnalise = leadsDetails.filter(l => l && l.id);
+    
+    if (leadsParaAnalise.length > 0) {
+      console.log(`🤖 Agendando análise IA em batch para ${leadsParaAnalise.length} leads...`);
+      
+      // Dispara análise em background sem bloquear resposta
+      const analyzeBatch = async () => {
+        const AI_BATCH_SIZE = 5;
+        
+        for (let i = 0; i < leadsParaAnalise.length; i += AI_BATCH_SIZE) {
+          const batch = leadsParaAnalise.slice(i, i + AI_BATCH_SIZE);
+          
+          try {
+            console.log(`📊 Enviando batch ${Math.floor(i / AI_BATCH_SIZE) + 1} (${batch.length} leads)...`);
+            
+            const response = await fetch(
+              `${Deno.env.get("SUPABASE_URL")}/functions/v1/analisar-leads-batch`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: req.headers.get("Authorization")!,
+                },
+                body: JSON.stringify({ leads: batch }),
+              }
+            );
+            
+            if (response.ok) {
+              console.log(`✅ Batch ${Math.floor(i / AI_BATCH_SIZE) + 1} processado`);
+            } else {
+              console.error(`❌ Erro no batch:`, await response.text());
+            }
+            
+            // Delay entre batches para evitar rate limit
+            if (i + AI_BATCH_SIZE < leadsParaAnalise.length) {
+              await new Promise(r => setTimeout(r, 500));
+            }
+          } catch (err: any) {
+            console.error(`❌ Erro ao processar batch:`, err.message);
+          }
+        }
+      };
+      
+      // Executa em background sem bloquear
+      analyzeBatch().catch(err => console.error("Erro no batch analysis:", err));
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         leadsCount: leadsDetails.length,
         leads: leadsDetails,
-        hasMore: leads.length >= body.quantidade, // Indica se provavelmente há mais resultados
+        hasMore: leads.length >= body.quantidade,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

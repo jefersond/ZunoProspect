@@ -6,6 +6,9 @@ verify_jwt = true
 [functions.analisar-lead-ia]
 verify_jwt = true
 
+[functions.analisar-leads-batch]
+verify_jwt = true
+
 [functions.create-checkout]
 verify_jwt = true
 

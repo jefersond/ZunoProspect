@@ -45,13 +45,12 @@ function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "what
     available.push("email");
   }
   
-  // Instagram: disponível se selecionado pelo usuário
-  // Se não tem URL detectada, a IA orientará como encontrar o perfil
-  if (selectedChannels.includes("instagram")) {
+  // Instagram: disponível SOMENTE se foi detectado no site
+  // Se selecionado mas não detectado, sugestões irão para o diagnóstico (não para o plano)
+  if (selectedChannels.includes("instagram") && lead.instagram_url) {
     available.push("instagram");
-    if (!lead.instagram_url) {
-      console.log(`📸 Instagram selecionado mas não detectado - IA orientará como encontrar o perfil`);
-    }
+  } else if (selectedChannels.includes("instagram") && !lead.instagram_url) {
+    console.log(`📸 Instagram selecionado mas NÃO detectado - NÃO será usado no plano (sugestões irão para diagnóstico)`);
   }
   
   // SEM FALLBACK! Se não detectou nenhum canal, retorna array vazio
@@ -914,23 +913,34 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
 }
 
 async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
-  // Filtra canais baseado no que foi detectado no lead
+  // Canais selecionados pelo usuário (originais)
   const canaisSelecionados = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
     ? lead.canaisProspeccao 
     : ["email", "whatsapp"] as ("email" | "whatsapp" | "instagram")[];
   
+  // Filtra para apenas canais realmente detectados
   const canaisDisponiveis = getAvailableChannels(lead, canaisSelecionados);
   
-  // Cria uma versão do lead com os canais filtrados
+  // Verifica se Instagram foi selecionado mas não detectado
+  const instagramSelecionadoMasNaoDetectado = canaisSelecionados.includes("instagram") && !lead.instagram_url;
+  
+  // Cria uma versão do lead com os canais DETECTADOS (não os selecionados)
   const leadComCanaisDisponiveis = {
     ...lead,
     canaisProspeccao: canaisDisponiveis,
+    // Passa info adicional para o prompt saber que Instagram foi selecionado mas não detectado
+    _instagramSelecionadoMasNaoDetectado: instagramSelecionadoMasNaoDetectado,
+    _canaisSelecionadosOriginais: canaisSelecionados,
   };
   
-  const prompt = buildAnalysisPrompt(leadComCanaisDisponiveis);
+  const prompt = buildAnalysisPrompt(leadComCanaisDisponiveis as LeadData & { _instagramSelecionadoMasNaoDetectado?: boolean; _canaisSelecionadosOriginais?: ("email" | "whatsapp" | "instagram")[] });
 
   console.log("Iniciando análise com OpenAI para:", lead.nome);
-  console.log("Canais disponíveis para prospecção:", canaisDisponiveis.join(", "));
+  console.log("Canais SELECIONADOS pelo usuário:", canaisSelecionados.join(", "));
+  console.log("Canais DETECTADOS e disponíveis para prospecção:", canaisDisponiveis.length > 0 ? canaisDisponiveis.join(", ") : "NENHUM");
+  if (instagramSelecionadoMasNaoDetectado) {
+    console.log("⚠️ Instagram foi selecionado mas NÃO foi detectado - sugestões irão para diagnóstico");
+  }
 
   const canaisPermitidos = canaisDisponiveis;
 
@@ -1122,13 +1132,19 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
   }
 }
 
-function buildAnalysisPrompt(lead: LeadData): string {
-  // Estes canais já vêm filtrados baseado no que foi detectado
+function buildAnalysisPrompt(lead: LeadData & { _instagramSelecionadoMasNaoDetectado?: boolean; _canaisSelecionadosOriginais?: ("email" | "whatsapp" | "instagram")[] }): string {
+  // Estes canais já vêm filtrados baseado no que foi DETECTADO (não os selecionados)
   const canais = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
     ? lead.canaisProspeccao 
     : [];
   
   const nenhumCanalDetectado = canais.length === 0;
+  
+  // Verifica se Instagram foi selecionado mas não detectado (para adicionar sugestões ao diagnóstico)
+  const instagramSelecionadoMasNaoDetectado = lead._instagramSelecionadoMasNaoDetectado || false;
+  const instagramVariations = instagramSelecionadoMasNaoDetectado 
+    ? generateInstagramVariations(lead.nome, lead.cidade)
+    : [];
   
   const canalTexto = canais.length > 0 
     ? canais.map(c => {
@@ -1174,18 +1190,14 @@ REGRA: Nunca usar o mesmo canal 2 dias consecutivos`;
   } else {
     canaisInfo.push("❌ Email: NÃO DETECTADO - NÃO USAR!");
   }
-  // Gerar variações de Instagram se não detectado mas selecionado
-  const instagramVariations = !lead.instagram_url && canais.includes("instagram") 
-    ? generateInstagramVariations(lead.nome, lead.cidade)
-    : [];
-    
+  // Instagram: usa instagramVariations já calculada no início da função
   if (lead.instagram_url) {
     canaisInfo.push(`✅ Instagram: DISPONÍVEL (${lead.instagram_url})`);
-  } else if (canais.includes("instagram")) {
-    canaisInfo.push(`⚠️ Instagram: SELECIONADO mas não detectado
-    SUGESTÕES DE PERFIL (geradas automaticamente):
+  } else if (instagramSelecionadoMasNaoDetectado) {
+    canaisInfo.push(`⚠️ Instagram: SELECIONADO pelo usuário mas NÃO DETECTADO no site
+    SUGESTÕES DE PERFIL para o DIAGNÓSTICO (NÃO para o plano):
     ${instagramVariations.join(", ")}
-    ORIENTAR usuário a verificar esses handles antes de abordar`);
+    IMPORTANTE: NÃO use Instagram no plano de 7 dias! Apenas mencione as sugestões no diagnóstico.`);
   } else {
     canaisInfo.push("❌ Instagram: NÃO SELECIONADO");
   }
@@ -1632,6 +1644,12 @@ Gere análise consultiva incluindo:
 • Recomendações prioritárias
 • Potencial de ROI estimado
 ${lead.instagram_context ? "• Insights do Instagram" : ""}
+${instagramSelecionadoMasNaoDetectado ? `
+⚠️ IMPORTANTE - INCLUIR NO DIAGNÓSTICO:
+• Instagram foi selecionado para prospecção mas NÃO foi detectado no site
+• Adicionar um bullet sugerindo verificar estes possíveis handles: ${instagramVariations.slice(0, 4).join(", ")}
+• Orientar o usuário a buscar o perfil manualmente antes de abordar
+• NÃO incluir Instagram no plano de 7 dias!` : ""}
 
 ═══════════════════════════════════════
 📊 PROBABILIDADE DE CONVERSÃO (0-100)

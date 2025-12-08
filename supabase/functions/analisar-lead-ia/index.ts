@@ -230,17 +230,26 @@ async function fetchCNPJData(cnpj: string): Promise<CNPJData | null> {
   }
 }
 
+interface PlanoDia {
+  dia: number;
+  canal: "whatsapp" | "email" | "instagram";
+  mensagem: string;
+  objecao_provavel: string;
+  resposta_sugerida: string;
+  cta: string;
+}
+
+interface PlanosPorCanal {
+  whatsapp?: PlanoDia[];
+  email?: PlanoDia[];
+  instagram?: PlanoDia[];
+  geral?: PlanoDia[];
+}
+
 interface AnaliseResult {
   diagnostico_bullets: string[];
   probabilidade_conversao: number;
-  plano_prospeccao_7dias: Array<{
-    dia: number;
-    canal: "whatsapp" | "email" | "instagram";
-    mensagem: string;
-    objecao_provavel: string;
-    resposta_sugerida: string;
-    cta: string;
-  }>;
+  plano_prospeccao_7dias: PlanosPorCanal;
 }
 
 // Função melhorada para escanear o site em busca de sinais digitais
@@ -821,19 +830,83 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
     : ["email", "whatsapp"] as ("email" | "whatsapp" | "instagram")[];
   
   const canais = getAvailableChannels(lead, canaisSelecionados);
-  
-  // Cadência inteligente baseada no número de canais
+
+  // Gera plano de 7 dias para cada canal disponível
+  const generatePlanForChannel = (canal: "whatsapp" | "email" | "instagram"): PlanoDia[] => {
+    const mensagens = {
+      whatsapp: [
+        { mensagem: `Olá! Notei que ${lead.nome} está em ${lead.cidade}. Estamos ajudando empresas de ${lead.nicho} a ${getFocoMessage(lead.foco)}. Podemos conversar 5min?`, objecao: "Já temos fornecedor", resposta: "Entendo! Não vim substituir ninguém. Vim mostrar como empresas do seu nicho estão conseguindo resultados complementares.", cta: "Responda 'sim' se topar uma conversa" },
+        { mensagem: `Oi! Vi que vocês trabalham com ${lead.nicho}. Temos cases específicos desse nicho que estão gerando ótimos resultados com ${lead.foco}. Posso compartilhar?`, objecao: "Não tenho orçamento", resposta: "Sem problema! Minha ideia é mostrar o potencial primeiro. Investimento só quando fizer sentido.", cta: "Responda 'pode ser' para continuar" },
+        { mensagem: `Case rápido: empresa de ${lead.nicho} aumentou ${getFocoMetric(lead.foco)} em 3 meses. Seu caso é parecido. Posso enviar o resumo?`, objecao: "Estou ocupado", resposta: "Por isso preparei algo objetivo: 1 página, 3 números. Lê em 2 minutos.", cta: "Responda 'manda'" },
+        { mensagem: `Preparei uma análise rápida da presença digital de vocês. Identifiquei 3 oportunidades de ${lead.foco}. Quer receber?`, objecao: "Como sei que funciona?", resposta: "Mostro o plano antes, você aprova cada etapa. Se não bater meta, ajusto sem custo.", cta: "Responda para receber" },
+        { mensagem: `${lead.nome} tem potencial enorme em ${lead.nicho}. Montei uma proposta focada em ${lead.foco}. 15min de call pra mostrar?`, objecao: "Preciso pensar", resposta: "Claro! Na call mostro números, prazos e investimento. Aí dá pra decidir.", cta: "Escolha dia/hora" },
+        { mensagem: `Deixo aqui uma proposta completa: escopo, cronograma e garantias. Sem pressão, só informação pra você decidir.`, objecao: "Vou deixar pra depois", resposta: "Cada mês sem otimizar é oportunidade perdida. Que tal um teste de 30 dias?", cta: "Quer ver a proposta?" },
+        { mensagem: `Última mensagem: fico à disposição. Se mudar de ideia sobre ${lead.foco}, é só chamar. Sucesso! 🚀`, objecao: "Vou entrar em contato depois", resposta: "Combinado! Salva meu contato. Qualquer coisa, pode chamar!", cta: "Salve meu contato" },
+      ],
+      email: [
+        { mensagem: `Assunto: Oportunidade ${lead.foco} para ${lead.nome}\n\nOlá,\n\nIdentifiquei que ${lead.nome} atua em ${lead.nicho} em ${lead.cidade}. Temos ajudado empresas similares a ${getFocoMessage(lead.foco)}.\n\nPodemos agendar uma conversa de 15 minutos?`, objecao: "Já temos fornecedor", resposta: "Entendo perfeitamente. Nossa proposta é complementar - muitos clientes mantêm parcerias existentes.", cta: "Clique aqui para agendar" },
+        { mensagem: `Assunto: Case ${lead.nicho} - ${getFocoMetric(lead.foco)}\n\nOlá,\n\nCompartilho um case de empresa de ${lead.nicho} que obteve resultados expressivos com nossa metodologia de ${lead.foco}.\n\nGostaria de conhecer os detalhes?`, objecao: "Não tenho orçamento", resposta: "Trabalhamos com diferentes modelos de investimento. Vamos primeiro entender as necessidades.", cta: "Responda este email" },
+        { mensagem: `Assunto: Diagnóstico gratuito ${lead.nome}\n\nOlá,\n\nPreparei uma análise preliminar da presença digital de vocês. Identifiquei oportunidades imediatas em ${lead.foco}.\n\nPosso enviar o relatório completo?`, objecao: "Estou ocupado", resposta: "O relatório é objetivo: 1 página com dados e recomendações práticas.", cta: "Responda 'sim'" },
+        { mensagem: `Assunto: Proposta personalizada ${lead.foco}\n\nOlá,\n\nCom base na análise do seu negócio, elaborei uma proposta focada em ${lead.foco} com metas claras e mensuráveis.\n\nGostaria de receber?`, objecao: "Como sei que funciona?", resposta: "Trabalhamos com métricas transparentes e relatórios mensais. Você acompanha cada resultado.", cta: "Agendar apresentação" },
+        { mensagem: `Assunto: Follow-up ${lead.nome}\n\nOlá,\n\nEntro em contato para verificar seu interesse em discutir as oportunidades de ${lead.foco} que identifiquei.\n\nQue tal agendarmos uma call esta semana?`, objecao: "Preciso pensar", resposta: "Claro! Na call apresento todos os detalhes para sua decisão informada.", cta: "Escolha o melhor horário" },
+        { mensagem: `Assunto: Última tentativa - ${lead.nome}\n\nOlá,\n\nSei que está avaliando. Deixo disponível nossa proposta completa com escopo e garantias.\n\nEstou à disposição para esclarecer qualquer dúvida.`, objecao: "Vou deixar pra depois", resposta: "Sem problema. Meu contato fica disponível quando for o momento certo.", cta: "Acesse a proposta" },
+        { mensagem: `Assunto: Até logo, ${lead.nome}\n\nOlá,\n\nRespeito seu tempo e prioridades atuais. Fico à disposição quando ${lead.foco} for prioridade.\n\nSucesso nos seus projetos!`, objecao: "Vou entrar em contato depois", resposta: "Combinado! Mantenho seu contato e fico disponível.", cta: "Salve meu contato" },
+      ],
+      instagram: [
+        { mensagem: `Oi! Vi que vocês fazem um trabalho incrível com ${lead.nicho} aqui em ${lead.cidade}. Curti muito o conteúdo! 👏`, objecao: "Quem é você?", resposta: "Sou especialista em ${lead.foco} e ajudo empresas como a de vocês a crescerem.", cta: "Posso te mostrar como?" },
+        { mensagem: `Adorei o post sobre [tema]. Empresas de ${lead.nicho} têm muito potencial com ${lead.foco}. Posso compartilhar uma ideia?`, objecao: "Não preciso", resposta: "Entendo! Só queria mostrar uma oportunidade que vi no mercado.", cta: "Aceita uma dica?" },
+        { mensagem: `Vi que vocês têm bastante engajamento! Isso é ótimo sinal. Com ${lead.foco} dá pra converter mais dessa audiência.`, objecao: "Já fazemos isso", resposta: "Boa! Mas sempre dá pra otimizar. Posso mostrar o que tem funcionado.", cta: "Quer ver um case?" },
+        { mensagem: `Case rápido: empresa de ${lead.nicho} aumentou vendas com estratégia de ${lead.foco}. Lembrei de vocês!`, objecao: "Estou ocupado", resposta: "É bem rápido! Só uma ideia que pode fazer diferença.", cta: "1 minuto?" },
+        { mensagem: `Oi! Continuo acompanhando o trabalho de vocês. Preparei algo sobre ${lead.foco} que pode ajudar.`, objecao: "Não conheço seu trabalho", resposta: "Posso te mostrar! Temos cases no seu nicho.", cta: "Te mando?" },
+        { mensagem: `Última vez que passo por aqui: tenho uma proposta pronta pra ${lead.nome}. Sem pressão!`, objecao: "Não é prioridade", resposta: "Sem problema! Fica a dica pra quando for o momento.", cta: "Posso enviar?" },
+        { mensagem: `Sucesso aí com ${lead.nome}! Qualquer coisa sobre ${lead.foco}, me chama! 🚀`, objecao: "Vou ver depois", resposta: "Combinado! Tô por aqui se precisar.", cta: "Me segue pra gente trocar mais ideias" },
+      ],
+    };
+
+    return mensagens[canal].map((item, index) => ({
+      dia: index + 1,
+      canal,
+      mensagem: item.mensagem,
+      objecao_provavel: item.objecao,
+      resposta_sugerida: item.resposta,
+      cta: item.cta,
+    }));
+  };
+
+  // Gera plano geral (misto) como antes
   const getCanal = (diaNumero: number): "whatsapp" | "email" | "instagram" => {
-    if (canais.length === 0) return "whatsapp"; // fallback
+    if (canais.length === 0) return "whatsapp";
     if (canais.length === 1) return canais[0];
-    if (canais.length === 2) {
-      // Alterna entre os 2 canais
-      return canais[(diaNumero - 1) % 2];
-    }
-    // 3 canais: WhatsApp, Email, Instagram em cadência específica
+    if (canais.length === 2) return canais[(diaNumero - 1) % 2];
     const cadencia3: ("whatsapp" | "email" | "instagram")[] = ["whatsapp", "email", "instagram", "whatsapp", "email", "instagram", "whatsapp"];
     return cadencia3[diaNumero - 1];
   };
+
+  const planoGeral: PlanoDia[] = [
+    { dia: 1, canal: getCanal(1), mensagem: `Olá! Notei que ${lead.nome} está em ${lead.cidade}. Estamos ajudando empresas de ${lead.nicho} a ${getFocoMessage(lead.foco)}. Podemos conversar 5min?`, objecao_provavel: "Já temos fornecedor", resposta_sugerida: "Entendo! Não vim substituir ninguém.", cta: "Responda 'sim'" },
+    { dia: 2, canal: getCanal(2), mensagem: `Vi que vocês trabalham com ${lead.nicho}. Temos cases desse nicho com ${lead.foco}. Quer ver?`, objecao_provavel: "Não tenho orçamento", resposta_sugerida: "Minha ideia é mostrar o potencial primeiro.", cta: "Agendar 15min" },
+    { dia: 3, canal: getCanal(3), mensagem: `Case rápido: empresa de ${lead.nicho} aumentou ${getFocoMetric(lead.foco)} em 3 meses. Posso enviar?`, objecao_provavel: "Estou ocupado", resposta_sugerida: "Preparei algo objetivo, lê em 2 minutos.", cta: "Responda 'manda'" },
+    { dia: 4, canal: getCanal(4), mensagem: `Preparei análise da presença digital de vocês. 3 oportunidades de ${lead.foco}. Quer receber?`, objecao_provavel: "Como sei que funciona?", resposta_sugerida: "Você aprova cada etapa, medimos tudo.", cta: "Responda para receber" },
+    { dia: 5, canal: getCanal(5), mensagem: `${lead.nome} tem potencial em ${lead.nicho}. Proposta focada em ${lead.foco}. 15min?`, objecao_provavel: "Preciso pensar", resposta_sugerida: "Na call mostro números e investimento.", cta: "Escolha dia/hora" },
+    { dia: 6, canal: getCanal(6), mensagem: `Proposta completa: escopo, cronograma, garantias. Sem pressão!`, objecao_provavel: "Vou deixar pra depois", resposta_sugerida: "Que tal teste de 30 dias?", cta: "Ver proposta" },
+    { dia: 7, canal: getCanal(7), mensagem: `Última mensagem: fico à disposição. Sucesso! 🚀`, objecao_provavel: "Vou entrar em contato depois", resposta_sugerida: "Salva meu contato!", cta: "Salvar contato" },
+  ];
+
+  // Monta o objeto de planos por canal
+  const planosPorCanal: PlanosPorCanal = {
+    geral: planoGeral,
+  };
+
+  // Gera plano específico para cada canal detectado
+  if (canais.includes("whatsapp")) {
+    planosPorCanal.whatsapp = generatePlanForChannel("whatsapp");
+  }
+  if (canais.includes("email")) {
+    planosPorCanal.email = generatePlanForChannel("email");
+  }
+  if (canais.includes("instagram")) {
+    planosPorCanal.instagram = generatePlanForChannel("instagram");
+  }
 
   return {
     diagnostico_bullets: [
@@ -851,64 +924,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       "Potencial para crescimento com estratégia multicanal estruturada",
     ],
     probabilidade_conversao: temMarketing ? 72 : 45,
-    plano_prospeccao_7dias: [
-      {
-        dia: 1,
-        canal: getCanal(1),
-        mensagem: `Olá! Notei que ${lead.nome} está em ${lead.cidade}. Estamos ajudando empresas de ${lead.nicho} a ${getFocoMessage(lead.foco)}. Podemos conversar 5min?`,
-        objecao_provavel: "Já temos fornecedor",
-        resposta_sugerida: "Entendo! Não vim substituir ninguém. Vim mostrar como empresas do seu nicho estão conseguindo resultados complementares. Vale a pena conhecer?",
-        cta: "Responda 'sim' se topar uma conversa rápida",
-      },
-      {
-        dia: 2,
-        canal: getCanal(2),
-        mensagem: `Assunto: ${lead.nome} - Oportunidade de ${lead.foco}\n\nOi! Rápido aqui: vi que vocês estão em ${lead.cidade} e trabalham com ${lead.nicho}. Temos cases específicos desse nicho que estão dobrando resultados com nossa abordagem de ${lead.foco}. Quer ver?`,
-        objecao_provavel: "Não tenho orçamento agora",
-        resposta_sugerida: "Sem problema! Minha ideia é mostrar o potencial primeiro. Depois você decide se faz sentido. Investimento só quando você estiver 100% confortável.",
-        cta: "Clique aqui para agendar 15min",
-      },
-      {
-        dia: 3,
-        canal: getCanal(3),
-        mensagem: `Case rápido: empresa de ${lead.nicho} em cidade similar aumentou ${getFocoMetric(lead.foco)} em 3 meses. Seu caso é parecido. Posso enviar o resumo?`,
-        objecao_provavel: "Estou muito ocupado",
-        resposta_sugerida: "Imagino! Por isso preparei algo bem objetivo: 1 página, 3 números, 0 enrolação. Lê em 2 minutos. Posso mandar?",
-        cta: "Responda 'manda' para receber",
-      },
-      {
-        dia: 4,
-        canal: getCanal(4),
-        mensagem: `Assunto: Diagnóstico ${lead.nome}\n\nPreparei uma análise rápida da presença digital de vocês. ${temMarketing ? "Vi que já usam algumas ferramentas, mas" : "Identifiquei"} 3 oportunidades imediatas de ${lead.foco}. Quer receber?`,
-        objecao_provavel: "Como sei que funciona?",
-        resposta_sugerida: "Justo! Por isso ofereço: mostro o plano completo antes, você aprova cada etapa, e medimos tudo. Se não bater meta, ajusto sem custo. Risco zero.",
-        cta: "Responda para receber o diagnóstico",
-      },
-      {
-        dia: 5,
-        canal: getCanal(5),
-        mensagem: `Última tentativa: ${lead.nome} tem potencial enorme em ${lead.nicho}. Montei uma proposta personalizada focada em ${lead.foco}. 15min de call pra mostrar?`,
-        objecao_provavel: "Preciso pensar",
-        resposta_sugerida: "Claro! Mas antes de pensar, que tal ter todas as informações? Na call vou mostrar números, prazos e investimento. Aí sim dá pra pensar certinho.",
-        cta: "Escolha dia/hora: [link calendário]",
-      },
-      {
-        dia: 6,
-        canal: getCanal(6),
-        mensagem: `Assunto: Proposta Final - ${lead.nome}\n\nOi! Sei que está avaliando. Deixo aqui uma proposta completa: escopo, cronograma, investimento e garantias. Sem pressão, só informação pra você decidir bem. Abre e dá uma olhada?`,
-        objecao_provavel: "Vou deixar pra depois",
-        resposta_sugerida: "Entendo. Mas deixa eu te falar: cada mês que passa sem otimizar ${lead.foco} é oportunidade perdida. Que tal começarmos pequeno? Teste de 30 dias, baixo investimento?",
-        cta: "Clique para ver proposta completa",
-      },
-      {
-        dia: 7,
-        canal: getCanal(7),
-        mensagem: `Última mensagem: vi que ainda não conseguimos conversar. Tudo bem! Fico à disposição. Se mudar de ideia sobre ${lead.foco}, é só chamar. Sucesso aí com ${lead.nome}! 🚀`,
-        objecao_provavel: "Vou entrar em contato depois",
-        resposta_sugerida: "Combinado! Salva meu contato. E olha: se precisar de algo pontual enquanto isso, mesmo que pequeno, pode chamar. A gente se ajuda!",
-        cta: "Salve meu contato para futuro",
-      },
-    ],
+    plano_prospeccao_7dias: planosPorCanal,
   };
 }
 
@@ -1104,9 +1120,49 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
       if (!analise.diagnostico_bullets || !Array.isArray(analise.diagnostico_bullets)) {
         throw new Error("Análise incompleta: diagnóstico inválido");
       }
-      if (!analise.plano_prospeccao_7dias || analise.plano_prospeccao_7dias.length !== 7) {
+      
+      // Converte plano da IA (array) para o novo formato (objeto por canal)
+      const planoArray = analise.plano_prospeccao_7dias as unknown as PlanoDia[];
+      if (!planoArray || !Array.isArray(planoArray) || planoArray.length !== 7) {
         throw new Error("Análise incompleta: plano deve ter 7 dias");
       }
+      
+      // Agrupa o plano por canal
+      const planosPorCanal: PlanosPorCanal = {
+        geral: planoArray,
+      };
+      
+      // Gera planos específicos por canal baseado no que a IA retornou
+      const canaisUsados = [...new Set(planoArray.map(d => d.canal))];
+      
+      for (const canal of canaisUsados) {
+        // Cria 7 dias para cada canal, reaproveitando mensagens do plano geral
+        const planoCanalCompleto: PlanoDia[] = [];
+        for (let dia = 1; dia <= 7; dia++) {
+          // Busca a mensagem do dia correspondente ou usa mensagem de outro dia do mesmo canal
+          const mensagemDoDia = planoArray.find(p => p.dia === dia && p.canal === canal);
+          if (mensagemDoDia) {
+            planoCanalCompleto.push(mensagemDoDia);
+          } else {
+            // Reusa mensagem de outro dia do mesmo canal e adapta
+            const mensagemOutroDia = planoArray.find(p => p.canal === canal);
+            if (mensagemOutroDia) {
+              planoCanalCompleto.push({
+                ...mensagemOutroDia,
+                dia,
+              });
+            }
+          }
+        }
+        
+        // Se conseguiu gerar 7 dias para este canal
+        if (planoCanalCompleto.length === 7) {
+          planosPorCanal[canal] = planoCanalCompleto;
+        }
+      }
+      
+      // Substitui o plano no resultado
+      analise.plano_prospeccao_7dias = planosPorCanal;
 
       console.log("✅ Análise validada com sucesso");
       return analise;

@@ -2,28 +2,126 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Brain, TrendingUp, MessageSquare, Mail, RefreshCw, Instagram, Copy, Check } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Brain, TrendingUp, MessageSquare, Mail, RefreshCw, Instagram, Copy, Check, List } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { copyToClipboard } from "@/utils/templateUtils";
-
-interface PlanoProspeccaoDia {
-  dia: number;
-  canal: "whatsapp" | "email" | "instagram";
-  mensagem: string;
-  objecao_provavel: string;
-  resposta_sugerida: string;
-  cta: string;
-}
+import type { PlanoProspeccaoDia, PlanosPorCanal } from "@/types/lead";
 
 interface LeadAnalysisProps {
   diagnostico: string[] | null;
   probabilidade: number | null;
-  plano: PlanoProspeccaoDia[] | null;
+  plano: PlanoProspeccaoDia[] | PlanosPorCanal | null;
   geradoEm: string | null;
   onReanalyze?: () => void;
   isReanalyzing?: boolean;
 }
+
+// Helper para verificar se é o formato antigo (array) ou novo (objeto por canal)
+function isPlanosPorCanal(plano: PlanoProspeccaoDia[] | PlanosPorCanal): plano is PlanosPorCanal {
+  return !Array.isArray(plano) && typeof plano === 'object';
+}
+
+// Componente para renderizar um dia do plano
+const PlanoDiaItem = ({ 
+  dia, 
+  copiedDia, 
+  onCopy 
+}: { 
+  dia: PlanoProspeccaoDia; 
+  copiedDia: number | null;
+  onCopy: (diaNum: number, mensagem: string) => void;
+}) => (
+  <div className="space-y-3">
+    <div className="flex items-center gap-2">
+      <Badge variant="outline" className="font-semibold">
+        Dia {dia.dia}
+      </Badge>
+      <Badge
+        variant={dia.canal === "whatsapp" ? "default" : dia.canal === "instagram" ? "outline" : "secondary"}
+        className="gap-1"
+      >
+        {dia.canal === "whatsapp" ? (
+          <MessageSquare className="h-3 w-3" />
+        ) : dia.canal === "instagram" ? (
+          <Instagram className="h-3 w-3" />
+        ) : (
+          <Mail className="h-3 w-3" />
+        )}
+        {dia.canal === "whatsapp" ? "WhatsApp" : dia.canal === "instagram" ? "Instagram" : "Email"}
+      </Badge>
+    </div>
+
+    <div className="pl-4 space-y-2 text-sm">
+      <div className="bg-primary/5 p-3 rounded-md border border-primary/10 relative">
+        <div className="flex items-start justify-between">
+          <p className="font-medium text-primary mb-1">Mensagem:</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onCopy(dia.dia, dia.mensagem)}
+            className="h-7 w-7 p-0 -mt-1 -mr-1"
+          >
+            {copiedDia === dia.dia ? (
+              <Check className="h-4 w-4 text-green-600" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+        <p className="whitespace-pre-wrap pr-6">{dia.mensagem}</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded border border-orange-200 dark:border-orange-800">
+          <p className="font-medium text-orange-700 dark:text-orange-400 text-xs mb-1">
+            Objeção Provável:
+          </p>
+          <p className="text-xs text-orange-900 dark:text-orange-300">
+            {dia.objecao_provavel}
+          </p>
+        </div>
+
+        <div className="bg-green-50 dark:bg-green-950/20 p-2 rounded border border-green-200 dark:border-green-800">
+          <p className="font-medium text-green-700 dark:text-green-400 text-xs mb-1">
+            Resposta Sugerida:
+          </p>
+          <p className="text-xs text-green-900 dark:text-green-300">
+            {dia.resposta_sugerida}
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-blue-50 dark:bg-blue-950/20 p-2 rounded border border-blue-200 dark:border-blue-800">
+        <p className="font-medium text-blue-700 dark:text-blue-400 text-xs mb-1">
+          CTA:
+        </p>
+        <p className="text-xs text-blue-900 dark:text-blue-300">{dia.cta}</p>
+      </div>
+    </div>
+  </div>
+);
+
+// Componente para lista de dias de um plano
+const PlanoList = ({ 
+  dias, 
+  copiedDia, 
+  onCopy 
+}: { 
+  dias: PlanoProspeccaoDia[]; 
+  copiedDia: number | null;
+  onCopy: (diaNum: number, mensagem: string) => void;
+}) => (
+  <div className="space-y-6">
+    {dias.map((dia, index) => (
+      <div key={dia.dia}>
+        <PlanoDiaItem dia={dia} copiedDia={copiedDia} onCopy={onCopy} />
+        {index < dias.length - 1 && <Separator className="my-4" />}
+      </div>
+    ))}
+  </div>
+);
 
 export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onReanalyze, isReanalyzing }: LeadAnalysisProps) => {
   const [copiedDia, setCopiedDia] = useState<number | null>(null);
@@ -67,6 +165,23 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
     if (prob >= 40) return "text-yellow-600 bg-yellow-50 border-yellow-200";
     return "text-red-600 bg-red-50 border-red-200";
   };
+
+  // Determina se é formato novo (por canal) ou antigo (array misto)
+  const isPorCanal = isPlanosPorCanal(plano);
+  
+  // Se for formato antigo, converte para geral apenas
+  const planosPorCanal: PlanosPorCanal = isPorCanal 
+    ? plano 
+    : { geral: plano };
+
+  // Detecta quais canais estão disponíveis
+  const hasWhatsApp = planosPorCanal.whatsapp && planosPorCanal.whatsapp.length > 0;
+  const hasEmail = planosPorCanal.email && planosPorCanal.email.length > 0;
+  const hasInstagram = planosPorCanal.instagram && planosPorCanal.instagram.length > 0;
+  const hasGeral = planosPorCanal.geral && planosPorCanal.geral.length > 0;
+
+  // Define aba default
+  const defaultTab = hasWhatsApp ? "whatsapp" : hasEmail ? "email" : hasInstagram ? "instagram" : "geral";
 
   return (
     <div className="space-y-4 mt-4">
@@ -140,7 +255,7 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
         </Card>
       </div>
 
-      {/* Plano de Prospecção 7 Dias */}
+      {/* Plano de Prospecção 7 Dias com abas por canal */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -148,84 +263,78 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
             Plano de Prospecção 7 Dias
           </CardTitle>
           <CardDescription>
-            Cadência multicanal otimizada com copy pronta e respostas para objeções
+            Escolha o canal para ver a cadência completa de 7 dias
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
-            {plano.map((dia) => (
-              <div key={dia.dia} className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="font-semibold">
-                    Dia {dia.dia}
-                  </Badge>
-                  <Badge
-                    variant={dia.canal === "whatsapp" ? "default" : dia.canal === "instagram" ? "outline" : "secondary"}
-                    className="gap-1"
-                  >
-                    {dia.canal === "whatsapp" ? (
-                      <MessageSquare className="h-3 w-3" />
-                    ) : dia.canal === "instagram" ? (
-                      <Instagram className="h-3 w-3" />
-                    ) : (
-                      <Mail className="h-3 w-3" />
-                    )}
-                    {dia.canal === "whatsapp" ? "WhatsApp" : dia.canal === "instagram" ? "Instagram" : "Email"}
-                  </Badge>
-                </div>
+          <Tabs defaultValue={defaultTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-4">
+              {hasWhatsApp && (
+                <TabsTrigger value="whatsapp" className="gap-1.5">
+                  <MessageSquare className="h-4 w-4" />
+                  <span className="hidden sm:inline">WhatsApp</span>
+                </TabsTrigger>
+              )}
+              {hasEmail && (
+                <TabsTrigger value="email" className="gap-1.5">
+                  <Mail className="h-4 w-4" />
+                  <span className="hidden sm:inline">Email</span>
+                </TabsTrigger>
+              )}
+              {hasInstagram && (
+                <TabsTrigger value="instagram" className="gap-1.5">
+                  <Instagram className="h-4 w-4" />
+                  <span className="hidden sm:inline">Instagram</span>
+                </TabsTrigger>
+              )}
+              {hasGeral && (
+                <TabsTrigger value="geral" className="gap-1.5">
+                  <List className="h-4 w-4" />
+                  <span className="hidden sm:inline">Visão Geral</span>
+                </TabsTrigger>
+              )}
+            </TabsList>
 
-                <div className="pl-4 space-y-2 text-sm">
-                  <div className="bg-primary/5 p-3 rounded-md border border-primary/10 relative">
-                    <div className="flex items-start justify-between">
-                      <p className="font-medium text-primary mb-1">Mensagem:</p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopyMessage(dia.dia, dia.mensagem)}
-                        className="h-7 w-7 p-0 -mt-1 -mr-1"
-                      >
-                        {copiedDia === dia.dia ? (
-                          <Check className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                    <p className="whitespace-pre-wrap pr-6">{dia.mensagem}</p>
-                  </div>
+            {hasWhatsApp && (
+              <TabsContent value="whatsapp">
+                <PlanoList 
+                  dias={planosPorCanal.whatsapp!} 
+                  copiedDia={copiedDia} 
+                  onCopy={handleCopyMessage} 
+                />
+              </TabsContent>
+            )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded border border-orange-200 dark:border-orange-800">
-                      <p className="font-medium text-orange-700 dark:text-orange-400 text-xs mb-1">
-                        Objeção Provável:
-                      </p>
-                      <p className="text-xs text-orange-900 dark:text-orange-300">
-                        {dia.objecao_provavel}
-                      </p>
-                    </div>
+            {hasEmail && (
+              <TabsContent value="email">
+                <PlanoList 
+                  dias={planosPorCanal.email!} 
+                  copiedDia={copiedDia} 
+                  onCopy={handleCopyMessage} 
+                />
+              </TabsContent>
+            )}
 
-                    <div className="bg-green-50 dark:bg-green-950/20 p-2 rounded border border-green-200 dark:border-green-800">
-                      <p className="font-medium text-green-700 dark:text-green-400 text-xs mb-1">
-                        Resposta Sugerida:
-                      </p>
-                      <p className="text-xs text-green-900 dark:text-green-300">
-                        {dia.resposta_sugerida}
-                      </p>
-                    </div>
-                  </div>
+            {hasInstagram && (
+              <TabsContent value="instagram">
+                <PlanoList 
+                  dias={planosPorCanal.instagram!} 
+                  copiedDia={copiedDia} 
+                  onCopy={handleCopyMessage} 
+                />
+              </TabsContent>
+            )}
 
-                  <div className="bg-blue-50 dark:bg-blue-950/20 p-2 rounded border border-blue-200 dark:border-blue-800">
-                    <p className="font-medium text-blue-700 dark:text-blue-400 text-xs mb-1">
-                      CTA:
-                    </p>
-                    <p className="text-xs text-blue-900 dark:text-blue-300">{dia.cta}</p>
-                  </div>
-                </div>
-
-                {dia.dia < 7 && <Separator className="my-4" />}
-              </div>
-            ))}
-          </div>
+            {hasGeral && (
+              <TabsContent value="geral">
+                <PlanoList 
+                  dias={planosPorCanal.geral!} 
+                  copiedDia={copiedDia} 
+                  onCopy={handleCopyMessage} 
+                />
+              </TabsContent>
+            )}
+          </Tabs>
         </CardContent>
       </Card>
     </div>

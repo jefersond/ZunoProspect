@@ -24,6 +24,14 @@ export interface PlanoProspeccaoDia {
   cta: string;
 }
 
+// Estrutura para planos separados por canal
+export interface PlanosPorCanal {
+  whatsapp?: PlanoProspeccaoDia[];
+  email?: PlanoProspeccaoDia[];
+  instagram?: PlanoProspeccaoDia[];
+  geral?: PlanoProspeccaoDia[]; // Plano misto para consulta
+}
+
 export interface LeadProspeccao {
   id: string;
   placeId: string | null;

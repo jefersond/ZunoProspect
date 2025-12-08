@@ -45,12 +45,14 @@ function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "what
     available.push("email");
   }
   
-  // Instagram: disponível se selecionado pelo usuário
-  // Se não tem URL detectada, a IA orientará como encontrar o perfil
+  // Instagram: disponível SOMENTE se tem URL detectada
+  // ⚠️ CORREÇÃO CRÍTICA: NÃO adicionar Instagram se instagram_url não existe
   if (selectedChannels.includes("instagram")) {
-    available.push("instagram");
-    if (!lead.instagram_url) {
-      console.log(`📸 Instagram selecionado mas não detectado - IA orientará como encontrar o perfil`);
+    if (lead.instagram_url) {
+      available.push("instagram");
+      console.log(`📸 Instagram DETECTADO e adicionado aos canais: ${lead.instagram_url}`);
+    } else {
+      console.log(`⚠️ Instagram selecionado mas NÃO DETECTADO - NÃO será incluído nos canais disponíveis`);
     }
   }
   
@@ -1174,20 +1176,11 @@ REGRA: Nunca usar o mesmo canal 2 dias consecutivos`;
   } else {
     canaisInfo.push("❌ Email: NÃO DETECTADO - NÃO USAR!");
   }
-  // Gerar variações de Instagram se não detectado mas selecionado
-  const instagramVariations = !lead.instagram_url && canais.includes("instagram") 
-    ? generateInstagramVariations(lead.nome, lead.cidade)
-    : [];
-    
+  // Instagram: status claro baseado na detecção REAL
   if (lead.instagram_url) {
-    canaisInfo.push(`✅ Instagram: DISPONÍVEL (${lead.instagram_url})`);
-  } else if (canais.includes("instagram")) {
-    canaisInfo.push(`⚠️ Instagram: SELECIONADO mas não detectado
-    SUGESTÕES DE PERFIL (geradas automaticamente):
-    ${instagramVariations.join(", ")}
-    ORIENTAR usuário a verificar esses handles antes de abordar`);
+    canaisInfo.push(`✅ Instagram: DETECTADO E CONFIRMADO (${lead.instagram_url})`);
   } else {
-    canaisInfo.push("❌ Instagram: NÃO SELECIONADO");
+    canaisInfo.push("❌ Instagram: NÃO DETECTADO NO SITE - NÃO INCLUIR NO PLANO");
   }
     
   const sinaisMarketing = [];
@@ -1256,29 +1249,35 @@ Vale 10 minutos para mostrar como aplicar isso no caso de vocês?
 PS: Sem compromisso. Se não fizer sentido, agradeço pela atenção e sigo em frente."
 ` : ""}
 
-${canais.includes("instagram") ? `
-📸 INSTAGRAM DM - ABORDAGEM CONSULTIVA AVANÇADA:
+${canais.includes("instagram") && lead.instagram_url ? `
+📸 INSTAGRAM DM - CANAL CONFIRMADO E ATIVO:
 
-${!lead.instagram_url ? `
-⚠️ ATENÇÃO: Instagram SELECIONADO mas NÃO DETECTADO no site!
+════════════════════════════════════════════════════════════════════════════════
+🚨🚨🚨 ATENÇÃO MÁXIMA - INSTAGRAM EXISTE! 🚨🚨🚨
+════════════════════════════════════════════════════════════════════════════════
 
-📋 HANDLES SUGERIDOS (gerados automaticamente baseado no nome):
-${generateInstagramVariations(lead.nome, lead.cidade).map(v => `• ${v}`).join("\n")}
+✅ INSTAGRAM DETECTADO: ${lead.instagram_url}
 
-Para dias de Instagram no plano, a mensagem DEVE incluir:
-1. PRIMEIRO: Instrução para o usuário VERIFICAR se um desses handles existe
-2. Alternativamente: "Pesquise '${lead.nome} ${lead.cidade}' diretamente no Instagram"
-3. "Verifique o Google Maps ou site oficial para link direto do Instagram"
-4. DEPOIS: Template de mensagem para usar quando encontrar o perfil
+Este lead TEM Instagram CONFIRMADO. Trate como canal REAL e ATIVO!
 
-Após encontrar, use o template de DM abaixo.
-` : ""}
+🚫🚫🚫 PROIBIDO TOTALMENTE (ERRO GRAVE):
+• NUNCA diga "se a empresa ainda não usa Instagram..."
+• NUNCA diga "uma alternativa seria criar um Instagram..."
+• NUNCA diga "quando tiverem presença no Instagram..."
+• NUNCA diga "se tiverem Instagram..." ou "caso usem Instagram..."
+• NUNCA trate o Instagram como canal futuro ou hipotético
 
-🔑 PRÉ-ABORDAGEM (RECOMENDADO):
-Antes de enviar DM, engaje genuinamente:
-• Curta 2-3 posts recentes
-• Comente com insight relevante (NÃO só "muito bom! 🔥")
-• Visualize stories se disponível
+✅ OBRIGATÓRIO (SIGA ESTAS REGRAS):
+• Tratar Instagram como canal 100% ATIVO e REAL
+• Usar para prospecção DIRETA via DM
+• Referenciar o perfil real: ${lead.instagram_url}
+• Seguir as regras de engajamento pré-DM abaixo
+
+🔑 PRÉ-ABORDAGEM OBRIGATÓRIA:
+Antes de enviar DM, o usuário deve:
+• Curtir 2-3 posts recentes do perfil
+• Comentar com insight relevante (NÃO só "muito bom! 🔥")
+• Visualizar stories se disponível
 • Isso aquece o perfil e aumenta chance de resposta
 
 📐 ESTRUTURA DA MENSAGEM (MÁX 4 LINHAS):
@@ -1294,12 +1293,6 @@ Dia 3 (primeira DM após engajamento):
 
 Dia 6 (segunda DM se não respondeu):
 "Última mensagem por aqui. O insight sobre ${lead.foco} para ${lead.nicho} ainda vale - é uma oportunidade real. Se fizer sentido, me responde 'ok' que envio em 30 segundos."
-
-💡 VANTAGENS DO INSTAGRAM para prospecção B2B:
-• Resposta mais rápida que email
-• Tom mais profissional que WhatsApp pessoal
-• Permite ver conteúdo e entender melhor o prospect
-• Menos saturado que outros canais
 
 ❌ EVITAR (Instagram):
 • Mensagens longas demais (serão ignoradas)

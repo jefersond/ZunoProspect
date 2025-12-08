@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.leads-manage]
 verify_jwt = true
+
+[functions.leads-read]
+verify_jwt = true

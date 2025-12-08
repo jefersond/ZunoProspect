@@ -43,7 +43,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { updateLeadSalvo } from "@/lib/leadsService";
+import { updateLeadSalvo, fetchLeads } from "@/lib/leadsService";
 
 const LeadsSalvos = () => {
   const navigate = useNavigate();
@@ -162,14 +162,16 @@ const LeadsSalvos = () => {
   const loadSavedLeads = async (userId: string) => {
     try {
       setLoading(true);
-      // Usa função RPC para obter dados descriptografados
-      // p_salvo = true para buscar apenas leads salvos
-      const { data, error } = await supabase
-        .rpc("get_leads_decrypted_filtered", { p_salvo: true });
+      
+      // Use application-layer security service instead of direct RPC access
+      // This goes through the leads-read edge function which validates auth + ownership
+      const result = await fetchLeads(true); // salvo = true for saved leads only
+      
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Erro ao carregar leads');
+      }
 
-      if (error) throw error;
-
-      const transformedLeads: LeadProspeccao[] = (data || []).map((lead: any) => {
+      const transformedLeads: LeadProspeccao[] = (result.data || []).map((lead: any) => {
         return {
           id: lead.id,
           placeId: lead.google_place_id,

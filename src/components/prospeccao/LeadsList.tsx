@@ -18,7 +18,12 @@ import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
 import { Progress } from "@/components/ui/progress";
 import { exportLeadsToExcel } from "@/utils/exportToExcel";
-import { deleteLead as deleteLeadService, updateLeadSalvo, bulkUpdateLeadsSalvo } from "@/lib/leadsService";
+import { 
+  deleteLead as deleteLeadService, 
+  updateLeadSalvo, 
+  bulkUpdateLeadsSalvo,
+  fetchLeads 
+} from "@/lib/leadsService";
 
 export const LeadsList = () => {
   const { toast } = useToast();
@@ -155,14 +160,15 @@ export const LeadsList = () => {
 
   const loadLeads = async () => {
     try {
-      // Usa função RPC para obter dados descriptografados
-      // p_salvo = false para buscar apenas leads não salvos
-      const { data, error } = await supabase
-        .rpc("get_leads_decrypted_filtered", { p_salvo: false });
-
-      if (error) throw error;
+      // Use application-layer security service instead of direct RPC access
+      // This goes through the leads-read edge function which validates auth + ownership
+      const result = await fetchLeads(false); // salvo = false for unsaved leads only
       
-      const leadsFormatted: LeadProspeccao[] = (data || []).map(transformLeadFromDb);
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Erro ao carregar leads');
+      }
+      
+      const leadsFormatted: LeadProspeccao[] = (result.data || []).map(transformLeadFromDb);
       
       setLeads(leadsFormatted);
     } catch (error: any) {

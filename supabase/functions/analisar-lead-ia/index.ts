@@ -45,9 +45,13 @@ function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "what
     available.push("email");
   }
   
-  // Instagram: disponível SOMENTE se tem URL
-  if (selectedChannels.includes("instagram") && lead.instagram_url) {
+  // Instagram: disponível se selecionado pelo usuário
+  // Se não tem URL detectada, a IA orientará como encontrar o perfil
+  if (selectedChannels.includes("instagram")) {
     available.push("instagram");
+    if (!lead.instagram_url) {
+      console.log(`📸 Instagram selecionado mas não detectado - IA orientará como encontrar o perfil`);
+    }
   }
   
   // SEM FALLBACK! Se não detectou nenhum canal, retorna array vazio
@@ -1117,8 +1121,10 @@ REGRA: Nunca usar o mesmo canal 2 dias consecutivos`;
   }
   if (lead.instagram_url) {
     canaisInfo.push(`✅ Instagram: DISPONÍVEL (${lead.instagram_url})`);
+  } else if (canais.includes("instagram")) {
+    canaisInfo.push("⚠️ Instagram: SELECIONADO mas não detectado - ORIENTAR como encontrar o perfil antes de abordar");
   } else {
-    canaisInfo.push("❌ Instagram: NÃO DETECTADO - NÃO USAR!");
+    canaisInfo.push("❌ Instagram: NÃO SELECIONADO");
   }
     
   const sinaisMarketing = [];
@@ -1189,6 +1195,20 @@ PS: Sem compromisso. Se não fizer sentido, agradeço pela atenção e sigo em f
 
 ${canais.includes("instagram") ? `
 📸 INSTAGRAM DM - ABORDAGEM CONSULTIVA AVANÇADA:
+
+${!lead.instagram_url ? `
+⚠️ ATENÇÃO: Instagram SELECIONADO mas NÃO DETECTADO no site!
+Para dias de Instagram no plano, a mensagem DEVE incluir:
+1. PRIMEIRO: Instrução de como ENCONTRAR o perfil (@nomedaempresa, busca no Google, busca local no Instagram)
+2. DEPOIS: Template de mensagem para usar quando encontrar
+
+Exemplos de orientação para encontrar Instagram:
+• "Pesquise '${lead.nome} ${lead.cidade}' no Instagram"
+• "Busque variações: @${lead.nome.toLowerCase().replace(/\s+/g, '')}, @${lead.nome.toLowerCase().replace(/\s+/g, '_')}"
+• "Verifique o Google Maps ou site da empresa para link do Instagram"
+
+Após encontrar, use o template de DM abaixo.
+` : ""}
 
 🔑 PRÉ-ABORDAGEM (RECOMENDADO):
 Antes de enviar DM, engaje genuinamente:

@@ -494,7 +494,7 @@ serve(async (req) => {
                       has_gtm: siteSignals.has_gtm,
                       instagram_url: siteSignals.instagram_url,
                       instagram_context: null,
-                      canaisProspeccao: body.canaisProspeccao || "ambos",
+                      canaisProspeccao: body.canaisProspeccao || ["email", "whatsapp", "instagram"],
                     }),
                   }
                 );

@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Brain, FileText } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
+import { fetchLeadById } from "@/lib/leadsService";
 
 interface LeadPlanDialogProps {
   lead: LeadProspeccao | null;
@@ -62,16 +63,15 @@ export const LeadPlanDialog = ({ lead, open, onOpenChange, onLeadUpdate }: LeadP
 
       if (functionError) throw functionError;
 
-      // Buscar lead atualizado do banco
-      const { data: updatedLead, error: fetchError } = await supabase
-        .from('leads')
-        .select('*')
-        .eq('id', lead.id)
-        .single();
+      // Buscar lead atualizado via serviço seguro (edge function)
+      const response = await fetchLeadById(lead.id);
+      if (!response.success || !response.data) {
+        throw new Error('Não foi possível buscar o lead atualizado');
+      }
 
-      if (fetchError) throw fetchError;
+      const updatedLead = response.data;
 
-      // Transformar dados do banco para o formato LeadProspeccao
+      // Transformar dados do serviço para o formato LeadProspeccao
       const transformedLead: LeadProspeccao = {
         ...lead,
         diagnostico_bullets: updatedLead.diagnostico_bullets as string[],

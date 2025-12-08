@@ -94,13 +94,172 @@ serve(async (req) => {
     const { action, leadId, salvo } = body;
 
     // Validate action
-    const validActions = ['list', 'get_by_id', 'get_filtered'];
+    const validActions = ['list', 'get_by_id', 'get_filtered', 'get_place_ids', 'get_stats', 'get_reports_data'];
     if (!action || !validActions.includes(action)) {
       return new Response(JSON.stringify({ 
         error: 'INVALID_ACTION',
         message: 'Ação inválida'
       }), {
         status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // GET PLACE IDS - For duplicate detection (returns minimal data)
+    if (action === 'get_place_ids') {
+      const { salvo } = body;
+      console.log(`Fetching place IDs for user ${userId} with salvo=${salvo}`);
+
+      // Use service role to access non-sensitive data efficiently
+      const supabaseService = createClient(supabaseUrl, supabaseServiceKey);
+      
+      let query = supabaseService
+        .from('leads')
+        .select('google_place_id')
+        .eq('user_id', userId)
+        .not('google_place_id', 'is', null);
+      
+      if (salvo === true || salvo === false) {
+        query = query.eq('salvo', salvo);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Query error:', error);
+        return new Response(JSON.stringify({ 
+          error: 'FETCH_FAILED',
+          message: 'Erro ao buscar place IDs'
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const placeIds = (data || []).map(l => l.google_place_id).filter(Boolean);
+      
+      console.log(`Returned ${placeIds.length} place IDs for user ${userId}`);
+
+      return new Response(JSON.stringify({ 
+        success: true,
+        data: placeIds 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // GET STATS - For dashboard metrics (non-sensitive aggregates only)
+    if (action === 'get_stats') {
+      console.log(`Fetching stats for user ${userId}`);
+
+      const supabaseService = createClient(supabaseUrl, supabaseServiceKey);
+      
+      const { data, error } = await supabaseService
+        .from('leads')
+        .select('id, nome, cidade, nicho, foco, status, probabilidade_conversao, salvo, created_at, updated_at, rating, total_reviews, whatsapp_on_site, has_meta_pixel, has_gtag, has_gtm')
+        .eq('user_id', userId);
+      
+      if (error) {
+        console.error('Query error:', error);
+        return new Response(JSON.stringify({ 
+          error: 'FETCH_FAILED',
+          message: 'Erro ao buscar estatísticas'
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      console.log(`Returned stats for ${(data || []).length} leads`);
+
+      return new Response(JSON.stringify({ 
+        success: true,
+        data: data || []
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // GET REPORTS DATA - For advanced reports with filtering (non-sensitive data + encrypted presence check)
+    if (action === 'get_reports_data') {
+      const { dateStart, dateEnd, nicho, foco, cidade } = body;
+      console.log(`Fetching reports data for user ${userId}`);
+
+      const supabaseService = createClient(supabaseUrl, supabaseServiceKey);
+      
+      let query = supabaseService
+        .from('leads')
+        .select('id, nome, cidade, nicho, foco, status, probabilidade_conversao, salvo, created_at, updated_at, rating, total_reviews, whatsapp_on_site, has_meta_pixel, has_gtag, has_gtm, whatsapp_number_encrypted, email_encrypted, telefone_encrypted, instagram_url_encrypted')
+        .eq('user_id', userId);
+      
+      // Apply date filters if provided
+      if (dateStart) {
+        query = query.gte('created_at', dateStart);
+      }
+      if (dateEnd) {
+        query = query.lte('created_at', dateEnd);
+      }
+      
+      // Apply field filters
+      if (nicho) query = query.eq('nicho', nicho);
+      if (foco) query = query.eq('foco', foco);
+      if (cidade) query = query.eq('cidade', cidade);
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Query error:', error);
+        return new Response(JSON.stringify({ 
+          error: 'FETCH_FAILED',
+          message: 'Erro ao buscar dados de relatórios'
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Transform data to indicate presence of contact info without exposing encrypted data
+      const safeData = (data || []).map((lead: any) => ({
+        id: lead.id,
+        nome: lead.nome,
+        cidade: lead.cidade,
+        nicho: lead.nicho,
+        foco: lead.foco,
+        status: lead.status,
+        probabilidade_conversao: lead.probabilidade_conversao,
+        salvo: lead.salvo,
+        created_at: lead.created_at,
+        updated_at: lead.updated_at,
+        rating: lead.rating,
+        total_reviews: lead.total_reviews,
+        whatsapp_on_site: lead.whatsapp_on_site,
+        has_meta_pixel: lead.has_meta_pixel,
+        has_gtag: lead.has_gtag,
+        has_gtm: lead.has_gtm,
+        // Only expose boolean presence of contact info, not the actual encrypted data
+        has_whatsapp: !!lead.whatsapp_number_encrypted,
+        has_email: !!lead.email_encrypted,
+        has_telefone: !!lead.telefone_encrypted,
+        has_instagram: !!lead.instagram_url_encrypted,
+      }));
+
+      // Also fetch filter options (distinct values)
+      const { data: filterOptions } = await supabaseService
+        .from('leads')
+        .select('nicho, foco, cidade')
+        .eq('user_id', userId);
+
+      console.log(`Returned reports data for ${safeData.length} leads`);
+
+      return new Response(JSON.stringify({ 
+        success: true,
+        data: safeData,
+        filterOptions: {
+          nichos: [...new Set((filterOptions || []).map((l: any) => l.nicho).filter(Boolean))],
+          focos: [...new Set((filterOptions || []).map((l: any) => l.foco).filter(Boolean))],
+          cidades: [...new Set((filterOptions || []).map((l: any) => l.cidade).filter(Boolean))],
+        }
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

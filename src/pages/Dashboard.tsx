@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { fetchLeadsStats } from "@/lib/leadsService";
 
 interface DashboardMetrics {
   totalLeads: number;
@@ -55,14 +56,13 @@ const Dashboard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Buscar leads - apenas campos não sensíveis para métricas
-      // Dados sensíveis (telefone, email, etc.) são criptografados e acessados via RPC
-      const { data: leads, error: leadsError } = await supabase
-        .from("leads")
-        .select("id, nome, cidade, nicho, foco, status, probabilidade_conversao, salvo, created_at, updated_at, rating, total_reviews")
-        .eq("user_id", user.id);
-
-      if (leadsError) throw leadsError;
+      // Buscar leads via serviço seguro (edge function)
+      // Retorna apenas campos não sensíveis para métricas
+      const leadsResponse = await fetchLeadsStats();
+      if (!leadsResponse.success) {
+        throw new Error(leadsResponse.error?.message || 'Erro ao buscar leads');
+      }
+      const leads = leadsResponse.data || [];
 
       // Buscar campanhas
       const { data: campanhas, error: campanhasError } = await supabase

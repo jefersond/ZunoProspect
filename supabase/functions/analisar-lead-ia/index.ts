@@ -67,6 +67,61 @@ function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "what
   return available;
 }
 
+// Gera variações prováveis do handle do Instagram baseado no nome da empresa
+function generateInstagramVariations(nome: string, cidade: string): string[] {
+  // Remove acentos
+  const removeAccents = (str: string) => 
+    str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  
+  // Versão sem espaços e caracteres especiais
+  const normalized = removeAccents(nome.toLowerCase())
+    .replace(/[^a-z0-9]/g, '');
+  
+  // Versão com underscores
+  const withUnderscores = removeAccents(nome.toLowerCase())
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+    
+  // Versão com pontos
+  const withDots = removeAccents(nome.toLowerCase())
+    .replace(/\s+/g, '.')
+    .replace(/[^a-z0-9.]/g, '');
+    
+  // Cidade normalizada
+  const cidadeNorm = removeAccents(cidade.toLowerCase())
+    .replace(/[^a-z]/g, '');
+  
+  // Gera variações
+  const variations = new Set<string>();
+  
+  // Variações básicas
+  variations.add(`@${normalized}`);
+  variations.add(`@${withUnderscores}`);
+  variations.add(`@${withDots}`);
+  
+  // Com "oficial"
+  variations.add(`@${normalized}oficial`);
+  variations.add(`@${normalized}_oficial`);
+  
+  // Com cidade
+  if (cidadeNorm.length > 0) {
+    variations.add(`@${normalized}${cidadeNorm}`);
+    variations.add(`@${normalized}_${cidadeNorm}`);
+    variations.add(`@${withUnderscores}_${cidadeNorm}`);
+  }
+  
+  // Abreviações comuns (primeiras letras de cada palavra)
+  const words = removeAccents(nome.toLowerCase()).split(/\s+/).filter(w => w.length > 2);
+  if (words.length > 1) {
+    const initials = words.map(w => w[0]).join('');
+    variations.add(`@${initials}`);
+    variations.add(`@${initials}${cidadeNorm}`);
+  }
+  
+  return Array.from(variations).slice(0, 6); // Máximo 6 sugestões
+}
+
+
 interface SiteSignals {
   whatsapp_on_site: boolean;
   whatsapp_number: string | null;
@@ -1119,10 +1174,18 @@ REGRA: Nunca usar o mesmo canal 2 dias consecutivos`;
   } else {
     canaisInfo.push("❌ Email: NÃO DETECTADO - NÃO USAR!");
   }
+  // Gerar variações de Instagram se não detectado mas selecionado
+  const instagramVariations = !lead.instagram_url && canais.includes("instagram") 
+    ? generateInstagramVariations(lead.nome, lead.cidade)
+    : [];
+    
   if (lead.instagram_url) {
     canaisInfo.push(`✅ Instagram: DISPONÍVEL (${lead.instagram_url})`);
   } else if (canais.includes("instagram")) {
-    canaisInfo.push("⚠️ Instagram: SELECIONADO mas não detectado - ORIENTAR como encontrar o perfil antes de abordar");
+    canaisInfo.push(`⚠️ Instagram: SELECIONADO mas não detectado
+    SUGESTÕES DE PERFIL (geradas automaticamente):
+    ${instagramVariations.join(", ")}
+    ORIENTAR usuário a verificar esses handles antes de abordar`);
   } else {
     canaisInfo.push("❌ Instagram: NÃO SELECIONADO");
   }
@@ -1198,14 +1261,15 @@ ${canais.includes("instagram") ? `
 
 ${!lead.instagram_url ? `
 ⚠️ ATENÇÃO: Instagram SELECIONADO mas NÃO DETECTADO no site!
-Para dias de Instagram no plano, a mensagem DEVE incluir:
-1. PRIMEIRO: Instrução de como ENCONTRAR o perfil (@nomedaempresa, busca no Google, busca local no Instagram)
-2. DEPOIS: Template de mensagem para usar quando encontrar
 
-Exemplos de orientação para encontrar Instagram:
-• "Pesquise '${lead.nome} ${lead.cidade}' no Instagram"
-• "Busque variações: @${lead.nome.toLowerCase().replace(/\s+/g, '')}, @${lead.nome.toLowerCase().replace(/\s+/g, '_')}"
-• "Verifique o Google Maps ou site da empresa para link do Instagram"
+📋 HANDLES SUGERIDOS (gerados automaticamente baseado no nome):
+${generateInstagramVariations(lead.nome, lead.cidade).map(v => `• ${v}`).join("\n")}
+
+Para dias de Instagram no plano, a mensagem DEVE incluir:
+1. PRIMEIRO: Instrução para o usuário VERIFICAR se um desses handles existe
+2. Alternativamente: "Pesquise '${lead.nome} ${lead.cidade}' diretamente no Instagram"
+3. "Verifique o Google Maps ou site oficial para link direto do Instagram"
+4. DEPOIS: Template de mensagem para usar quando encontrar o perfil
 
 Após encontrar, use o template de DM abaixo.
 ` : ""}

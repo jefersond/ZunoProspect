@@ -361,10 +361,129 @@ serve(async (req) => {
           signals.has_gtm = true;
         }
 
-        // Detectar Instagram URL
-        const instagramMatch = html.match(/instagram\.com\/([a-zA-Z0-9._]+)/i);
-        if (instagramMatch) {
-          signals.instagram_url = `https://instagram.com/${instagramMatch[1]}`;
+        // ========================================
+        // DETECÇÃO DE INSTAGRAM - MÚLTIPLOS PADRÕES
+        // ========================================
+        
+        // Lista de usernames a ignorar (páginas genéricas do Instagram)
+        const ignoredUsernames = ['p', 'reel', 'reels', 'stories', 'explore', 'accounts', 'about', 'legal', 'help', 'direct', 'tv', 'accounts'];
+        
+        // Padrões de link do Instagram
+        const instagramPatterns = [
+          /(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)/gi,
+          /(?:https?:\/\/)?(?:www\.)?instagr\.am\/([a-zA-Z0-9._]+)/gi,
+          /href\s*=\s*["'][^"']*instagram\.com\/([a-zA-Z0-9._]+)[^"']*["']/gi,
+        ];
+        
+        for (const pattern of instagramPatterns) {
+          const matches = html.matchAll(pattern);
+          for (const match of matches) {
+            if (match[1] && !ignoredUsernames.includes(match[1].toLowerCase())) {
+              signals.instagram_url = `https://instagram.com/${match[1]}`;
+              console.log(`✅ Instagram encontrado via link: ${signals.instagram_url}`);
+              break;
+            }
+          }
+          if (signals.instagram_url) break;
+        }
+
+        // Procura por classe/id com instagram
+        if (!signals.instagram_url) {
+          const instagramClassPatterns = [
+            /class\s*=\s*["'][^"']*instagram[^"']*["']/gi,
+            /id\s*=\s*["'][^"']*instagram[^"']*["']/gi,
+            /class\s*=\s*["'][^"']*insta[^"']*["']/gi,
+            /data-instagram\s*=\s*["']@?([a-zA-Z0-9._]+)["']/gi,
+          ];
+          
+          for (const pattern of instagramClassPatterns) {
+            if (pattern.test(html)) {
+              // Há um elemento Instagram, tenta encontrar o link próximo
+              const linkNearby = html.match(/instagram\.com\/([a-zA-Z0-9._]+)/gi);
+              if (linkNearby && linkNearby[0]) {
+                const username = linkNearby[0].replace(/instagram\.com\//i, '');
+                if (!ignoredUsernames.includes(username.toLowerCase())) {
+                  signals.instagram_url = `https://instagram.com/${username}`;
+                  console.log(`✅ Instagram detectado via classe CSS: ${signals.instagram_url}`);
+                }
+              }
+              break;
+            }
+          }
+        }
+
+        // Procura por SVG icons com links de Instagram
+        if (!signals.instagram_url) {
+          const svgInstagramPattern = /<a[^>]*href\s*=\s*["'][^"']*instagram\.com\/([a-zA-Z0-9._]+)[^"']*["'][^>]*>[\s\S]*?<svg/gi;
+          const svgMatch = html.match(svgInstagramPattern);
+          if (svgMatch) {
+            const usernameMatch = svgMatch[0].match(/instagram\.com\/([a-zA-Z0-9._]+)/i);
+            if (usernameMatch && usernameMatch[1] && !ignoredUsernames.includes(usernameMatch[1].toLowerCase())) {
+              signals.instagram_url = `https://instagram.com/${usernameMatch[1]}`;
+              console.log(`✅ Instagram detectado via ícone SVG: ${signals.instagram_url}`);
+            }
+          }
+        }
+
+        // Procura por imagens/ícones de Instagram
+        if (!signals.instagram_url) {
+          const instagramImagePatterns = [
+            /src\s*=\s*["'][^"']*instagram[^"']*\.(png|jpg|jpeg|svg|gif|webp)["']/gi,
+            /src\s*=\s*["'][^"']*insta[^"']*\.(png|jpg|jpeg|svg|gif|webp)["']/gi,
+          ];
+          
+          for (const pattern of instagramImagePatterns) {
+            if (pattern.test(html)) {
+              const linkMatch = html.match(/instagram\.com\/([a-zA-Z0-9._]+)/gi);
+              if (linkMatch) {
+                const username = linkMatch[0].replace(/instagram\.com\//i, '');
+                if (!ignoredUsernames.includes(username.toLowerCase())) {
+                  signals.instagram_url = `https://instagram.com/${username}`;
+                  console.log(`✅ Instagram detectado via ícone: ${signals.instagram_url}`);
+                }
+              }
+              break;
+            }
+          }
+        }
+
+        // Procura por @username próximo a "Instagram"
+        if (!signals.instagram_url) {
+          const atUsernamePatterns = [
+            /instagram[^\n]{0,80}@([a-zA-Z0-9._]{3,30})/gi,
+            /@([a-zA-Z0-9._]{3,30})[^\n]{0,80}instagram/gi,
+          ];
+          
+          for (const pattern of atUsernamePatterns) {
+            const match = html.match(pattern);
+            if (match) {
+              const usernameMatch = match[0].match(/@([a-zA-Z0-9._]{3,30})/);
+              if (usernameMatch && usernameMatch[1] && !ignoredUsernames.includes(usernameMatch[1].toLowerCase())) {
+                signals.instagram_url = `https://instagram.com/${usernameMatch[1]}`;
+                console.log(`✅ Instagram detectado via @username: ${signals.instagram_url}`);
+                break;
+              }
+            }
+          }
+        }
+
+        // Procura em áreas comuns (footer, social links)
+        if (!signals.instagram_url) {
+          const socialSectionPatterns = [
+            /(?:footer|social|redes|siga)[^]*?instagram\.com\/([a-zA-Z0-9._]+)/gi,
+          ];
+          
+          for (const pattern of socialSectionPatterns) {
+            const match = html.match(pattern);
+            if (match) {
+              const usernameMatch = match[0].match(/instagram\.com\/([a-zA-Z0-9._]+)/i);
+              if (usernameMatch && usernameMatch[1] && !ignoredUsernames.includes(usernameMatch[1].toLowerCase())) {
+                signals.instagram_url = `https://instagram.com/${usernameMatch[1]}`;
+                console.log(`✅ Instagram detectado em seção social: ${signals.instagram_url}`);
+                break;
+              }
+            }
+          }
         }
 
         console.log(`Sinais detectados:`, signals);

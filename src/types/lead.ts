@@ -24,13 +24,6 @@ export interface PlanoProspeccaoDia {
   cta: string;
 }
 
-// Estrutura para planos separados por canal (7 dias cada)
-export interface PlanosPorCanal {
-  whatsapp?: PlanoProspeccaoDia[];
-  email?: PlanoProspeccaoDia[];
-  instagram?: PlanoProspeccaoDia[];
-}
-
 export interface LeadProspeccao {
   id: string;
   placeId: string | null;

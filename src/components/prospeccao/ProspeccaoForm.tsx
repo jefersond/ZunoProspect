@@ -16,7 +16,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { Loader2, Search, Mail, MessageCircle, Instagram, AlertTriangle } from "lucide-react";
 import { SearchProgress } from "./SearchProgress";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
-import { deleteUnsavedLeads, fetchPlaceIds } from "@/lib/leadsService";
+import { deleteUnsavedLeads } from "@/lib/leadsService";
 
 const formSchema = z.object({
   cidade: z.string().min(1, "Cidade é obrigatória"),
@@ -89,23 +89,25 @@ export const ProspeccaoForm = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      // Buscar google_place_ids via serviço seguro para evitar duplicatas
+      // Buscar google_place_ids já existentes para evitar duplicatas
       let existingPlaceIds: string[] = [];
       if (user) {
         // Em busca incremental, evita todos os leads existentes
         // Em busca normal, evita apenas os leads SALVOS (permite re-análise com novo foco)
+        const query = supabase
+          .from("leads")
+          .select("google_place_id")
+          .eq("user_id", user.id)
+          .not("google_place_id", "is", null);
+        
         if (isIncrementalSearch) {
           // Incremental: exclui todos os place_ids
-          const response = await fetchPlaceIds();
-          if (response.success) {
-            existingPlaceIds = response.data || [];
-          }
+          const { data: existingLeads } = await query;
+          existingPlaceIds = existingLeads?.map(lead => lead.google_place_id).filter(Boolean) || [];
         } else {
           // Normal: exclui apenas leads salvos (permite re-buscar leads não salvos com novo foco)
-          const response = await fetchPlaceIds(true);
-          if (response.success) {
-            existingPlaceIds = response.data || [];
-          }
+          const { data: existingLeads } = await query.eq("salvo", true);
+          existingPlaceIds = existingLeads?.map(lead => lead.google_place_id).filter(Boolean) || [];
         }
       }
       

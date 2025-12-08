@@ -30,46 +30,41 @@ interface LeadData {
   cnae_principal?: string | null;
 }
 
-// Função que retorna os canais selecionados pelo usuário
-// SEMPRE gera planos para os canais selecionados, mesmo se não foram detectados
-// A IA adapta as mensagens quando o canal não foi detectado
+// Função para filtrar canais baseado no que foi detectado no lead
+// SEM FALLBACK - só retorna canais que realmente foram detectados
 function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "whatsapp" | "instagram")[]): ("email" | "whatsapp" | "instagram")[] {
-  // Retorna TODOS os canais selecionados pelo usuário
-  // A IA irá gerar planos para todos eles
-  const canais = selectedChannels.length > 0 
-    ? selectedChannels 
-    : ["email", "whatsapp", "instagram"] as ("email" | "whatsapp" | "instagram")[];
+  const available: ("email" | "whatsapp" | "instagram")[] = [];
   
-  // Log para debug - quais foram detectados vs selecionados
-  const detectados: string[] = [];
-  if (lead.whatsapp_number || lead.whatsapp_on_site) detectados.push("whatsapp");
-  if (lead.email) detectados.push("email");
-  if (lead.instagram_url) detectados.push("instagram");
-  
-  console.log(`📢 Canais SELECIONADOS pelo usuário: ${canais.join(", ")}`);
-  console.log(`🔍 Canais DETECTADOS no site: ${detectados.length > 0 ? detectados.join(", ") : "NENHUM"}`);
-  
-  // Alerta sobre canais não detectados
-  const naoDetectados = canais.filter(c => !detectados.includes(c));
-  if (naoDetectados.length > 0) {
-    console.log(`⚠️ Canais selecionados mas NÃO detectados: ${naoDetectados.join(", ")} - IA irá sugerir como encontrar`);
+  // WhatsApp: disponível SOMENTE se tem número ou está no site
+  if (selectedChannels.includes("whatsapp") && (lead.whatsapp_number || lead.whatsapp_on_site)) {
+    available.push("whatsapp");
   }
   
-  return canais;
-}
-
-// Função auxiliar para verificar se um canal específico foi detectado
-function isChannelDetected(lead: LeadData, channel: "email" | "whatsapp" | "instagram"): boolean {
-  switch (channel) {
-    case "whatsapp":
-      return !!(lead.whatsapp_number || lead.whatsapp_on_site);
-    case "email":
-      return !!lead.email;
-    case "instagram":
-      return !!lead.instagram_url;
-    default:
-      return false;
+  // Email: disponível SOMENTE se foi detectado
+  if (selectedChannels.includes("email") && lead.email) {
+    available.push("email");
   }
+  
+  // Instagram: disponível se selecionado pelo usuário
+  // Se não tem URL detectada, a IA orientará como encontrar o perfil
+  if (selectedChannels.includes("instagram")) {
+    available.push("instagram");
+    if (!lead.instagram_url) {
+      console.log(`📸 Instagram selecionado mas não detectado - IA orientará como encontrar o perfil`);
+    }
+  }
+  
+  // SEM FALLBACK! Se não detectou nenhum canal, retorna array vazio
+  // A IA será instruída a criar plano alternativo de como ENCONTRAR contato
+  
+  console.log(`📢 Canais selecionados pelo usuário: ${selectedChannels.join(", ")}`);
+  console.log(`✅ Canais REALMENTE detectados: ${available.length > 0 ? available.join(", ") : "NENHUM"}`);
+  
+  if (available.length === 0) {
+    console.log(`⚠️ ATENÇÃO: Nenhum canal de contato foi detectado para este lead!`);
+  }
+  
+  return available;
 }
 
 // Gera variações prováveis do handle do Instagram baseado no nome da empresa
@@ -236,25 +231,17 @@ async function fetchCNPJData(cnpj: string): Promise<CNPJData | null> {
   }
 }
 
-interface PlanoDia {
-  dia: number;
-  canal: "whatsapp" | "email" | "instagram";
-  mensagem: string;
-  objecao_provavel: string;
-  resposta_sugerida: string;
-  cta: string;
-}
-
-interface PlanosPorCanal {
-  whatsapp?: PlanoDia[];
-  email?: PlanoDia[];
-  instagram?: PlanoDia[];
-}
-
 interface AnaliseResult {
   diagnostico_bullets: string[];
   probabilidade_conversao: number;
-  plano_prospeccao_7dias: PlanosPorCanal;
+  plano_prospeccao_7dias: Array<{
+    dia: number;
+    canal: "whatsapp" | "email" | "instagram";
+    mensagem: string;
+    objecao_provavel: string;
+    resposta_sugerida: string;
+    cta: string;
+  }>;
 }
 
 // Função melhorada para escanear o site em busca de sinais digitais
@@ -835,62 +822,19 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
     : ["email", "whatsapp"] as ("email" | "whatsapp" | "instagram")[];
   
   const canais = getAvailableChannels(lead, canaisSelecionados);
-
-  // Gera plano de 7 dias para cada canal disponível
-  const generatePlanForChannel = (canal: "whatsapp" | "email" | "instagram"): PlanoDia[] => {
-    const mensagens = {
-      whatsapp: [
-        { mensagem: `Olá! Notei que ${lead.nome} está em ${lead.cidade}. Estamos ajudando empresas de ${lead.nicho} a ${getFocoMessage(lead.foco)}. Podemos conversar 5min?`, objecao: "Já temos fornecedor", resposta: "Entendo! Não vim substituir ninguém. Vim mostrar como empresas do seu nicho estão conseguindo resultados complementares.", cta: "Responda 'sim' se topar uma conversa" },
-        { mensagem: `Oi! Vi que vocês trabalham com ${lead.nicho}. Temos cases específicos desse nicho que estão gerando ótimos resultados com ${lead.foco}. Posso compartilhar?`, objecao: "Não tenho orçamento", resposta: "Sem problema! Minha ideia é mostrar o potencial primeiro. Investimento só quando fizer sentido.", cta: "Responda 'pode ser' para continuar" },
-        { mensagem: `Case rápido: empresa de ${lead.nicho} aumentou ${getFocoMetric(lead.foco)} em 3 meses. Seu caso é parecido. Posso enviar o resumo?`, objecao: "Estou ocupado", resposta: "Por isso preparei algo objetivo: 1 página, 3 números. Lê em 2 minutos.", cta: "Responda 'manda'" },
-        { mensagem: `Preparei uma análise rápida da presença digital de vocês. Identifiquei 3 oportunidades de ${lead.foco}. Quer receber?`, objecao: "Como sei que funciona?", resposta: "Mostro o plano antes, você aprova cada etapa. Se não bater meta, ajusto sem custo.", cta: "Responda para receber" },
-        { mensagem: `${lead.nome} tem potencial enorme em ${lead.nicho}. Montei uma proposta focada em ${lead.foco}. 15min de call pra mostrar?`, objecao: "Preciso pensar", resposta: "Claro! Na call mostro números, prazos e investimento. Aí dá pra decidir.", cta: "Escolha dia/hora" },
-        { mensagem: `Deixo aqui uma proposta completa: escopo, cronograma e garantias. Sem pressão, só informação pra você decidir.`, objecao: "Vou deixar pra depois", resposta: "Cada mês sem otimizar é oportunidade perdida. Que tal um teste de 30 dias?", cta: "Quer ver a proposta?" },
-        { mensagem: `Última mensagem: fico à disposição. Se mudar de ideia sobre ${lead.foco}, é só chamar. Sucesso! 🚀`, objecao: "Vou entrar em contato depois", resposta: "Combinado! Salva meu contato. Qualquer coisa, pode chamar!", cta: "Salve meu contato" },
-      ],
-      email: [
-        { mensagem: `Assunto: Oportunidade ${lead.foco} para ${lead.nome}\n\nOlá,\n\nIdentifiquei que ${lead.nome} atua em ${lead.nicho} em ${lead.cidade}. Temos ajudado empresas similares a ${getFocoMessage(lead.foco)}.\n\nPodemos agendar uma conversa de 15 minutos?`, objecao: "Já temos fornecedor", resposta: "Entendo perfeitamente. Nossa proposta é complementar - muitos clientes mantêm parcerias existentes.", cta: "Clique aqui para agendar" },
-        { mensagem: `Assunto: Case ${lead.nicho} - ${getFocoMetric(lead.foco)}\n\nOlá,\n\nCompartilho um case de empresa de ${lead.nicho} que obteve resultados expressivos com nossa metodologia de ${lead.foco}.\n\nGostaria de conhecer os detalhes?`, objecao: "Não tenho orçamento", resposta: "Trabalhamos com diferentes modelos de investimento. Vamos primeiro entender as necessidades.", cta: "Responda este email" },
-        { mensagem: `Assunto: Diagnóstico gratuito ${lead.nome}\n\nOlá,\n\nPreparei uma análise preliminar da presença digital de vocês. Identifiquei oportunidades imediatas em ${lead.foco}.\n\nPosso enviar o relatório completo?`, objecao: "Estou ocupado", resposta: "O relatório é objetivo: 1 página com dados e recomendações práticas.", cta: "Responda 'sim'" },
-        { mensagem: `Assunto: Proposta personalizada ${lead.foco}\n\nOlá,\n\nCom base na análise do seu negócio, elaborei uma proposta focada em ${lead.foco} com metas claras e mensuráveis.\n\nGostaria de receber?`, objecao: "Como sei que funciona?", resposta: "Trabalhamos com métricas transparentes e relatórios mensais. Você acompanha cada resultado.", cta: "Agendar apresentação" },
-        { mensagem: `Assunto: Follow-up ${lead.nome}\n\nOlá,\n\nEntro em contato para verificar seu interesse em discutir as oportunidades de ${lead.foco} que identifiquei.\n\nQue tal agendarmos uma call esta semana?`, objecao: "Preciso pensar", resposta: "Claro! Na call apresento todos os detalhes para sua decisão informada.", cta: "Escolha o melhor horário" },
-        { mensagem: `Assunto: Última tentativa - ${lead.nome}\n\nOlá,\n\nSei que está avaliando. Deixo disponível nossa proposta completa com escopo e garantias.\n\nEstou à disposição para esclarecer qualquer dúvida.`, objecao: "Vou deixar pra depois", resposta: "Sem problema. Meu contato fica disponível quando for o momento certo.", cta: "Acesse a proposta" },
-        { mensagem: `Assunto: Até logo, ${lead.nome}\n\nOlá,\n\nRespeito seu tempo e prioridades atuais. Fico à disposição quando ${lead.foco} for prioridade.\n\nSucesso nos seus projetos!`, objecao: "Vou entrar em contato depois", resposta: "Combinado! Mantenho seu contato e fico disponível.", cta: "Salve meu contato" },
-      ],
-      instagram: [
-        { mensagem: `Oi! Vi que vocês fazem um trabalho incrível com ${lead.nicho} aqui em ${lead.cidade}. Curti muito o conteúdo! 👏`, objecao: "Quem é você?", resposta: "Sou especialista em ${lead.foco} e ajudo empresas como a de vocês a crescerem.", cta: "Posso te mostrar como?" },
-        { mensagem: `Adorei o post sobre [tema]. Empresas de ${lead.nicho} têm muito potencial com ${lead.foco}. Posso compartilhar uma ideia?`, objecao: "Não preciso", resposta: "Entendo! Só queria mostrar uma oportunidade que vi no mercado.", cta: "Aceita uma dica?" },
-        { mensagem: `Vi que vocês têm bastante engajamento! Isso é ótimo sinal. Com ${lead.foco} dá pra converter mais dessa audiência.`, objecao: "Já fazemos isso", resposta: "Boa! Mas sempre dá pra otimizar. Posso mostrar o que tem funcionado.", cta: "Quer ver um case?" },
-        { mensagem: `Case rápido: empresa de ${lead.nicho} aumentou vendas com estratégia de ${lead.foco}. Lembrei de vocês!`, objecao: "Estou ocupado", resposta: "É bem rápido! Só uma ideia que pode fazer diferença.", cta: "1 minuto?" },
-        { mensagem: `Oi! Continuo acompanhando o trabalho de vocês. Preparei algo sobre ${lead.foco} que pode ajudar.`, objecao: "Não conheço seu trabalho", resposta: "Posso te mostrar! Temos cases no seu nicho.", cta: "Te mando?" },
-        { mensagem: `Última vez que passo por aqui: tenho uma proposta pronta pra ${lead.nome}. Sem pressão!`, objecao: "Não é prioridade", resposta: "Sem problema! Fica a dica pra quando for o momento.", cta: "Posso enviar?" },
-        { mensagem: `Sucesso aí com ${lead.nome}! Qualquer coisa sobre ${lead.foco}, me chama! 🚀`, objecao: "Vou ver depois", resposta: "Combinado! Tô por aqui se precisar.", cta: "Me segue pra gente trocar mais ideias" },
-      ],
-    };
-
-    return mensagens[canal].map((item, index) => ({
-      dia: index + 1,
-      canal,
-      mensagem: item.mensagem,
-      objecao_provavel: item.objecao,
-      resposta_sugerida: item.resposta,
-      cta: item.cta,
-    }));
+  
+  // Cadência inteligente baseada no número de canais
+  const getCanal = (diaNumero: number): "whatsapp" | "email" | "instagram" => {
+    if (canais.length === 0) return "whatsapp"; // fallback
+    if (canais.length === 1) return canais[0];
+    if (canais.length === 2) {
+      // Alterna entre os 2 canais
+      return canais[(diaNumero - 1) % 2];
+    }
+    // 3 canais: WhatsApp, Email, Instagram em cadência específica
+    const cadencia3: ("whatsapp" | "email" | "instagram")[] = ["whatsapp", "email", "instagram", "whatsapp", "email", "instagram", "whatsapp"];
+    return cadencia3[diaNumero - 1];
   };
-
-  // Monta o objeto de planos por canal (apenas canais detectados)
-  const planosPorCanal: PlanosPorCanal = {};
-
-  // Gera plano específico para cada canal detectado
-  if (canais.includes("whatsapp")) {
-    planosPorCanal.whatsapp = generatePlanForChannel("whatsapp");
-  }
-  if (canais.includes("email")) {
-    planosPorCanal.email = generatePlanForChannel("email");
-  }
-  if (canais.includes("instagram")) {
-    planosPorCanal.instagram = generatePlanForChannel("instagram");
-  }
 
   return {
     diagnostico_bullets: [
@@ -908,44 +852,87 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       "Potencial para crescimento com estratégia multicanal estruturada",
     ],
     probabilidade_conversao: temMarketing ? 72 : 45,
-    plano_prospeccao_7dias: planosPorCanal,
+    plano_prospeccao_7dias: [
+      {
+        dia: 1,
+        canal: getCanal(1),
+        mensagem: `Olá! Notei que ${lead.nome} está em ${lead.cidade}. Estamos ajudando empresas de ${lead.nicho} a ${getFocoMessage(lead.foco)}. Podemos conversar 5min?`,
+        objecao_provavel: "Já temos fornecedor",
+        resposta_sugerida: "Entendo! Não vim substituir ninguém. Vim mostrar como empresas do seu nicho estão conseguindo resultados complementares. Vale a pena conhecer?",
+        cta: "Responda 'sim' se topar uma conversa rápida",
+      },
+      {
+        dia: 2,
+        canal: getCanal(2),
+        mensagem: `Assunto: ${lead.nome} - Oportunidade de ${lead.foco}\n\nOi! Rápido aqui: vi que vocês estão em ${lead.cidade} e trabalham com ${lead.nicho}. Temos cases específicos desse nicho que estão dobrando resultados com nossa abordagem de ${lead.foco}. Quer ver?`,
+        objecao_provavel: "Não tenho orçamento agora",
+        resposta_sugerida: "Sem problema! Minha ideia é mostrar o potencial primeiro. Depois você decide se faz sentido. Investimento só quando você estiver 100% confortável.",
+        cta: "Clique aqui para agendar 15min",
+      },
+      {
+        dia: 3,
+        canal: getCanal(3),
+        mensagem: `Case rápido: empresa de ${lead.nicho} em cidade similar aumentou ${getFocoMetric(lead.foco)} em 3 meses. Seu caso é parecido. Posso enviar o resumo?`,
+        objecao_provavel: "Estou muito ocupado",
+        resposta_sugerida: "Imagino! Por isso preparei algo bem objetivo: 1 página, 3 números, 0 enrolação. Lê em 2 minutos. Posso mandar?",
+        cta: "Responda 'manda' para receber",
+      },
+      {
+        dia: 4,
+        canal: getCanal(4),
+        mensagem: `Assunto: Diagnóstico ${lead.nome}\n\nPreparei uma análise rápida da presença digital de vocês. ${temMarketing ? "Vi que já usam algumas ferramentas, mas" : "Identifiquei"} 3 oportunidades imediatas de ${lead.foco}. Quer receber?`,
+        objecao_provavel: "Como sei que funciona?",
+        resposta_sugerida: "Justo! Por isso ofereço: mostro o plano completo antes, você aprova cada etapa, e medimos tudo. Se não bater meta, ajusto sem custo. Risco zero.",
+        cta: "Responda para receber o diagnóstico",
+      },
+      {
+        dia: 5,
+        canal: getCanal(5),
+        mensagem: `Última tentativa: ${lead.nome} tem potencial enorme em ${lead.nicho}. Montei uma proposta personalizada focada em ${lead.foco}. 15min de call pra mostrar?`,
+        objecao_provavel: "Preciso pensar",
+        resposta_sugerida: "Claro! Mas antes de pensar, que tal ter todas as informações? Na call vou mostrar números, prazos e investimento. Aí sim dá pra pensar certinho.",
+        cta: "Escolha dia/hora: [link calendário]",
+      },
+      {
+        dia: 6,
+        canal: getCanal(6),
+        mensagem: `Assunto: Proposta Final - ${lead.nome}\n\nOi! Sei que está avaliando. Deixo aqui uma proposta completa: escopo, cronograma, investimento e garantias. Sem pressão, só informação pra você decidir bem. Abre e dá uma olhada?`,
+        objecao_provavel: "Vou deixar pra depois",
+        resposta_sugerida: "Entendo. Mas deixa eu te falar: cada mês que passa sem otimizar ${lead.foco} é oportunidade perdida. Que tal começarmos pequeno? Teste de 30 dias, baixo investimento?",
+        cta: "Clique para ver proposta completa",
+      },
+      {
+        dia: 7,
+        canal: getCanal(7),
+        mensagem: `Última mensagem: vi que ainda não conseguimos conversar. Tudo bem! Fico à disposição. Se mudar de ideia sobre ${lead.foco}, é só chamar. Sucesso aí com ${lead.nome}! 🚀`,
+        objecao_provavel: "Vou entrar em contato depois",
+        resposta_sugerida: "Combinado! Salva meu contato. E olha: se precisar de algo pontual enquanto isso, mesmo que pequeno, pode chamar. A gente se ajuda!",
+        cta: "Salve meu contato para futuro",
+      },
+    ],
   };
 }
 
 async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
-  // Canais selecionados pelo usuário - SEMPRE usar os 3 se selecionados
+  // Filtra canais baseado no que foi detectado no lead
   const canaisSelecionados = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
     ? lead.canaisProspeccao 
-    : ["email", "whatsapp", "instagram"] as ("email" | "whatsapp" | "instagram")[];
+    : ["email", "whatsapp"] as ("email" | "whatsapp" | "instagram")[];
   
-  // Verifica quais canais foram detectados (para informar a IA)
-  const canaisDetectados: ("email" | "whatsapp" | "instagram")[] = [];
-  if (lead.whatsapp_number || lead.whatsapp_on_site) canaisDetectados.push("whatsapp");
-  if (lead.email) canaisDetectados.push("email");
-  if (lead.instagram_url) canaisDetectados.push("instagram");
+  const canaisDisponiveis = getAvailableChannels(lead, canaisSelecionados);
   
-  // Informações sobre canais não detectados
-  const canaisNaoDetectados = canaisSelecionados.filter(c => !canaisDetectados.includes(c));
-  
-  // Cria uma versão do lead com TODOS os canais selecionados
-  const leadParaPrompt = {
+  // Cria uma versão do lead com os canais filtrados
+  const leadComCanaisDisponiveis = {
     ...lead,
-    canaisProspeccao: canaisSelecionados, // Usa os SELECIONADOS, não os detectados
-    _canaisDetectados: canaisDetectados,
-    _canaisNaoDetectados: canaisNaoDetectados,
+    canaisProspeccao: canaisDisponiveis,
   };
   
-  const prompt = buildAnalysisPrompt(leadParaPrompt as LeadData & { _canaisDetectados?: ("email" | "whatsapp" | "instagram")[]; _canaisNaoDetectados?: ("email" | "whatsapp" | "instagram")[] });
+  const prompt = buildAnalysisPrompt(leadComCanaisDisponiveis);
 
   console.log("Iniciando análise com OpenAI para:", lead.nome);
-  console.log("Canais SELECIONADOS pelo usuário:", canaisSelecionados.join(", "));
-  console.log("Canais DETECTADOS no site:", canaisDetectados.length > 0 ? canaisDetectados.join(", ") : "NENHUM");
-  if (canaisNaoDetectados.length > 0) {
-    console.log(`⚠️ Canais selecionados mas NÃO detectados: ${canaisNaoDetectados.join(", ")} - IA irá adaptar mensagens`);
-  }
+  console.log("Canais disponíveis para prospecção:", canaisDisponiveis.join(", "));
 
-  // SEMPRE gerar para os canais SELECIONADOS, não apenas os detectados
-  const canaisPermitidos = canaisSelecionados;
+  const canaisPermitidos = canaisDisponiveis;
 
   try {
     const systemPrompt = `Você atua **APENAS** na criação do **plano de prospecção de 7 dias**, como um **COPYWRITER E ESTRATEGISTA DE VENDAS com mais de 15 anos de experiência**.
@@ -1009,65 +996,22 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
                   maximum: 100,
                 },
                 plano_prospeccao_7dias: {
-                  type: "object",
-                  description: "Planos de 7 dias SEPARADOS para CADA canal disponível. CADA canal deve ter sua própria progressão única de 7 dias.",
-                  properties: {
-                    whatsapp: canaisPermitidos.includes("whatsapp") ? {
-                      type: "array",
-                      description: "7 dias de cadência EXCLUSIVA para WhatsApp com progressão única",
-                      items: {
-                        type: "object",
-                        properties: {
-                          dia: { type: "number", minimum: 1, maximum: 7 },
-                          canal: { type: "string", enum: ["whatsapp"] },
-                          mensagem: { type: "string" },
-                          objecao_provavel: { type: "string" },
-                          resposta_sugerida: { type: "string" },
-                          cta: { type: "string" },
-                        },
-                        required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"],
-                      },
-                      minItems: 7,
-                      maxItems: 7,
-                    } : undefined,
-                    email: canaisPermitidos.includes("email") ? {
-                      type: "array",
-                      description: "7 dias de cadência EXCLUSIVA para Email com progressão única",
-                      items: {
-                        type: "object",
-                        properties: {
-                          dia: { type: "number", minimum: 1, maximum: 7 },
-                          canal: { type: "string", enum: ["email"] },
-                          mensagem: { type: "string" },
-                          objecao_provavel: { type: "string" },
-                          resposta_sugerida: { type: "string" },
-                          cta: { type: "string" },
-                        },
-                        required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"],
-                      },
-                      minItems: 7,
-                      maxItems: 7,
-                    } : undefined,
-                    instagram: canaisPermitidos.includes("instagram") ? {
-                      type: "array",
-                      description: "7 dias de cadência EXCLUSIVA para Instagram DM com progressão única",
-                      items: {
-                        type: "object",
-                        properties: {
-                          dia: { type: "number", minimum: 1, maximum: 7 },
-                          canal: { type: "string", enum: ["instagram"] },
-                          mensagem: { type: "string" },
-                          objecao_provavel: { type: "string" },
-                          resposta_sugerida: { type: "string" },
-                          cta: { type: "string" },
-                        },
-                        required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"],
-                      },
-                      minItems: 7,
-                      maxItems: 7,
-                    } : undefined,
+                  type: "array",
+                  description: "Plano de 7 dias de prospecção multicanal",
+                  items: {
+                    type: "object",
+                    properties: {
+                      dia: { type: "number" },
+                      canal: { type: "string", enum: canaisPermitidos, description: "USAR APENAS OS CANAIS PERMITIDOS PELO USUÁRIO" },
+                      mensagem: { type: "string" },
+                      objecao_provavel: { type: "string" },
+                      resposta_sugerida: { type: "string" },
+                      cta: { type: "string" },
+                    },
+                    required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"],
                   },
-                  required: canaisPermitidos,
+                  minItems: 7,
+                  maxItems: 7,
                 },
               },
               required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"],
@@ -1150,30 +1094,9 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
       if (!analise.diagnostico_bullets || !Array.isArray(analise.diagnostico_bullets)) {
         throw new Error("Análise incompleta: diagnóstico inválido");
       }
-      
-      // A IA agora retorna diretamente no formato por canal
-      const planosPorCanal = analise.plano_prospeccao_7dias as PlanosPorCanal;
-      
-      // Valida que cada canal tenha 7 dias
-      const canaisRetornados = Object.keys(planosPorCanal) as ("whatsapp" | "email" | "instagram")[];
-      for (const canal of canaisRetornados) {
-        const planoCanalData = planosPorCanal[canal];
-        if (!planoCanalData || !Array.isArray(planoCanalData) || planoCanalData.length !== 7) {
-          console.warn(`⚠️ Canal ${canal} não tem 7 dias, ignorando...`);
-          delete planosPorCanal[canal];
-        }
+      if (!analise.plano_prospeccao_7dias || analise.plano_prospeccao_7dias.length !== 7) {
+        throw new Error("Análise incompleta: plano deve ter 7 dias");
       }
-      
-      // Verifica se pelo menos um canal foi retornado com sucesso
-      const canaisValidos = Object.keys(planosPorCanal).filter(c => planosPorCanal[c as keyof PlanosPorCanal]?.length === 7);
-      if (canaisValidos.length === 0) {
-        throw new Error("Análise incompleta: nenhum canal com plano de 7 dias válido");
-      }
-      
-      console.log(`✅ Planos gerados para canais: ${canaisValidos.join(", ")}`);
-      
-      // Atualiza o resultado com os planos validados
-      analise.plano_prospeccao_7dias = planosPorCanal;
 
       console.log("✅ Análise validada com sucesso");
       return analise;
@@ -1199,31 +1122,28 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
   }
 }
 
-function buildAnalysisPrompt(lead: LeadData & { _canaisDetectados?: ("email" | "whatsapp" | "instagram")[]; _canaisNaoDetectados?: ("email" | "whatsapp" | "instagram")[] }): string {
-  // Canais SELECIONADOS pelo usuário (todos que devem ter plano gerado)
+function buildAnalysisPrompt(lead: LeadData): string {
+  // Estes canais já vêm filtrados baseado no que foi detectado
   const canais = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
     ? lead.canaisProspeccao 
-    : ["email", "whatsapp", "instagram"] as ("email" | "whatsapp" | "instagram")[];
-  
-  // Canais detectados e não detectados
-  const canaisDetectados = lead._canaisDetectados || [];
-  const canaisNaoDetectados = lead._canaisNaoDetectados || [];
-  
-  // Variações de Instagram se não detectado
-  const instagramVariations = canaisNaoDetectados.includes("instagram")
-    ? generateInstagramVariations(lead.nome, lead.cidade)
     : [];
   
-  const canalTexto = canais.map(c => {
-    if (c === "email") return "Email";
-    if (c === "whatsapp") return "WhatsApp";
-    if (c === "instagram") return "Instagram DM";
-    return c;
-  }).join(", ");
+  const nenhumCanalDetectado = canais.length === 0;
   
-  // Cadência multicanal - SEMPRE para os 3 canais selecionados
+  const canalTexto = canais.length > 0 
+    ? canais.map(c => {
+        if (c === "email") return "Email";
+        if (c === "whatsapp") return "WhatsApp";
+        if (c === "instagram") return "Instagram DM";
+        return c;
+      }).join(", ")
+    : "NENHUM CANAL DETECTADO";
+  
+  // Cadência multicanal inteligente
   let estrategiaCadencia = "";
-  if (canais.length === 1) {
+  if (nenhumCanalDetectado) {
+    estrategiaCadencia = "⚠️ NENHUM CANAL DETECTADO - Crie plano focado em ENCONTRAR o contato (ligação, visita presencial, LinkedIn, busca de redes)";
+  } else if (canais.length === 1) {
     estrategiaCadencia = `Use SOMENTE ${canalTexto} para todos os 7 dias com variações criativas de abordagem`;
   } else if (canais.length === 2) {
     estrategiaCadencia = `CADÊNCIA 2 CANAIS (${canalTexto}):
@@ -1232,35 +1152,42 @@ function buildAnalysisPrompt(lead: LeadData & { _canaisDetectados?: ("email" | "
 REGRA: Nunca usar o mesmo canal 2 dias consecutivos`;
   } else if (canais.length === 3) {
     estrategiaCadencia = `CADÊNCIA 3 CANAIS (WhatsApp + Email + Instagram):
-Gerar 7 dias ÚNICOS para CADA um dos 3 canais separadamente.
-Cada canal deve ter sua própria progressão de 7 dias com mensagens únicas.`;
+• Dia 1: WhatsApp - Primeiro contato, direto e curto
+• Dia 2: Email - Formalização, proposta de valor estruturada
+• Dia 3: Instagram DM - Engajamento social, referência a conteúdo
+• Dia 4: WhatsApp - Follow-up rápido, resposta a silêncio
+• Dia 5: Email - Conteúdo mais denso, case ou proposta
+• Dia 6: Instagram DM - Segunda tentativa social
+• Dia 7: WhatsApp - Encerramento profissional
+REGRA: Nunca usar o mesmo canal 2 dias consecutivos`;
   }
   
-  // Status detalhado dos canais - adaptado para canais não detectados
+  // Status detalhado dos canais
   const canaisInfo = [];
-  
-  // WhatsApp
-  if (canaisDetectados.includes("whatsapp")) {
-    canaisInfo.push(`✅ WhatsApp: DETECTADO${lead.whatsapp_number ? ` (${lead.whatsapp_number})` : " (no site)"}`);
-  } else if (canais.includes("whatsapp")) {
-    canaisInfo.push(`⚠️ WhatsApp: SELECIONADO mas NÃO DETECTADO - Gerar plano com instruções para ENCONTRAR o número (Google, site, redes sociais)`);
+  if (lead.whatsapp_on_site || lead.whatsapp_number) {
+    canaisInfo.push(`✅ WhatsApp: DISPONÍVEL${lead.whatsapp_number ? ` (${lead.whatsapp_number})` : " (detectado no site)"}`);
+  } else {
+    canaisInfo.push("❌ WhatsApp: NÃO DETECTADO - NÃO USAR!");
   }
-  
-  // Email
-  if (canaisDetectados.includes("email")) {
-    canaisInfo.push(`✅ Email: DETECTADO (${lead.email})`);
-  } else if (canais.includes("email")) {
-    canaisInfo.push(`⚠️ Email: SELECIONADO mas NÃO DETECTADO - Gerar plano com instruções para ENCONTRAR o email (site/contato, CNPJ, formulários)`);
+  if (lead.email) {
+    canaisInfo.push(`✅ Email: DISPONÍVEL (${lead.email})`);
+  } else {
+    canaisInfo.push("❌ Email: NÃO DETECTADO - NÃO USAR!");
   }
-  
-  // Instagram
-  if (canaisDetectados.includes("instagram")) {
-    canaisInfo.push(`✅ Instagram: DETECTADO (${lead.instagram_url})`);
+  // Gerar variações de Instagram se não detectado mas selecionado
+  const instagramVariations = !lead.instagram_url && canais.includes("instagram") 
+    ? generateInstagramVariations(lead.nome, lead.cidade)
+    : [];
+    
+  if (lead.instagram_url) {
+    canaisInfo.push(`✅ Instagram: DISPONÍVEL (${lead.instagram_url})`);
   } else if (canais.includes("instagram")) {
-    canaisInfo.push(`⚠️ Instagram: SELECIONADO mas NÃO DETECTADO
-    SUGESTÕES DE PERFIL para buscar:
+    canaisInfo.push(`⚠️ Instagram: SELECIONADO mas não detectado
+    SUGESTÕES DE PERFIL (geradas automaticamente):
     ${instagramVariations.join(", ")}
-    Gerar plano com instruções para ENCONTRAR e VERIFICAR o perfil antes de contatar`);
+    ORIENTAR usuário a verificar esses handles antes de abordar`);
+  } else {
+    canaisInfo.push("❌ Instagram: NÃO SELECIONADO");
   }
     
   const sinaisMarketing = [];
@@ -1562,53 +1489,24 @@ Abordagens B2B CORRETAS sem nome pessoal (entre direto no valor):
 ⚠️⚠️⚠️ REGRA CRÍTICA #1 - CANAIS DE CONTATO ⚠️⚠️⚠️
 ════════════════════════════════════════════════════════════════════════════════
 
-${canaisNaoDetectados.length === canais.length 
+${nenhumCanalDetectado 
   ? `🚨 NENHUM CANAL DE CONTATO FOI DETECTADO!
 
-Mesmo assim, gere planos de 7 dias para CADA canal selecionado com instruções de COMO ENCONTRAR o contato:
-• WhatsApp: Dias focados em buscar telefone em Google, site, redes sociais
-• Email: Dias focados em encontrar email em formulários, CNPJ, LinkedIn
-• Instagram: Dias focados em buscar perfil usando sugestões de handles`
-  : `═══════════════════════════════════════
-📋 ESTRUTURA DO PLANO - GERAR PLANOS SEPARADOS POR CANAL
-═══════════════════════════════════════
+Como não temos email, WhatsApp ou Instagram, o plano deve focar em:
+- Use "whatsapp" como canal nos campos (para o sistema aceitar)
+- Mas a MENSAGEM deve ser sobre COMO ENCONTRAR o contato:
+  • Dia 1-2: Buscar telefone em Google, Reclame Aqui, LinkedIn
+  • Dia 3-4: Tentar contato via formulário do site
+  • Dia 5-6: Buscar redes sociais alternativas
+  • Dia 7: Considerar visita presencial ou carta`
+  : `📢 CANAIS PERMITIDOS PARA USAR: ${canalTexto}
 
-🚨 REGRA CRÍTICA: Você DEVE gerar 7 DIAS ÚNICOS para CADA canal selecionado!
+🚫 NÃO USE canais marcados como "NÃO DETECTADO"!
+Se usou um canal que NÃO FOI DETECTADO, sua resposta será REJEITADA.
 
-Canais selecionados: ${canalTexto}
-Canais detectados: ${canaisDetectados.length > 0 ? canaisDetectados.join(", ") : "NENHUM"}
-${canaisNaoDetectados.length > 0 ? `Canais NÃO detectados (adaptar mensagens): ${canaisNaoDetectados.join(", ")}` : ""}
+📋 ESTRATÉGIA DE CADÊNCIA: ${estrategiaCadencia}`}
 
-${canais.includes("whatsapp") ? `
-📱 plano_prospeccao_7dias.whatsapp (OBRIGATÓRIO - 7 dias):
-${canaisDetectados.includes("whatsapp") 
-  ? `• 7 mensagens ÚNICAS para o número ${lead.whatsapp_number || "detectado"}`
-  : `• WhatsApp NÃO detectado - Dia 1-2 foque em COMO ENCONTRAR o número, Dias 3-7 templates para quando encontrar`}
-• Progressão: Dia 1 (apresentação) → Dia 7 (encerramento)
-• Tom conversacional B2B, máximo 4 linhas` : ""}
-
-${canais.includes("email") ? `
-✉️ plano_prospeccao_7dias.email (OBRIGATÓRIO - 7 dias):
-${canaisDetectados.includes("email") 
-  ? `• 7 emails ÚNICOS para ${lead.email}`
-  : `• Email NÃO detectado - Dia 1-2 foque em COMO ENCONTRAR o email (formulário do site, CNPJ, LinkedIn), Dias 3-7 templates para quando encontrar`}
-• Progressão: Dia 1 (apresentação) → Dia 7 (encerramento)
-• Incluir assunto em cada mensagem` : ""}
-
-${canais.includes("instagram") ? `
-📸 plano_prospeccao_7dias.instagram (OBRIGATÓRIO - 7 dias):
-${canaisDetectados.includes("instagram") 
-  ? `• 7 DMs ÚNICOS para ${lead.instagram_url}`
-  : `• Instagram NÃO detectado - Dia 1-2 foque em COMO ENCONTRAR o perfil:
-    Sugestões: ${instagramVariations.slice(0, 4).join(", ")}
-    Buscar no Google: "${lead.nome} ${lead.cidade} instagram"
-    Dias 3-7 templates para quando encontrar`}
-• Progressão: Dia 1 (engajamento) → Dia 7 (encerramento)
-• Máximo 4 linhas, tom casual-profissional` : ""}
-
-⚠️ CADA CANAL TEM SUA PRÓPRIA CADÊNCIA DE 7 DIAS!`}
-
-${instrucoesPorCanal}
+${!nenhumCanalDetectado ? instrucoesPorCanal : ""}
 
 ${instrucoesObjecoes}
 
@@ -1734,11 +1632,6 @@ Gere análise consultiva incluindo:
 • Recomendações prioritárias
 • Potencial de ROI estimado
 ${lead.instagram_context ? "• Insights do Instagram" : ""}
-${canaisNaoDetectados.length > 0 ? `
-⚠️ IMPORTANTE - INCLUIR NO DIAGNÓSTICO:
-${canaisNaoDetectados.includes("instagram") ? `• Instagram selecionado mas NÃO detectado - sugerir buscar: ${instagramVariations.slice(0, 4).join(", ")}` : ""}
-${canaisNaoDetectados.includes("email") ? `• Email NÃO detectado - sugerir buscar em formulário do site, CNPJ, ou LinkedIn` : ""}
-${canaisNaoDetectados.includes("whatsapp") ? `• WhatsApp NÃO detectado - sugerir buscar no Google ou redes sociais` : ""}` : ""}
 
 ═══════════════════════════════════════
 📊 PROBABILIDADE DE CONVERSÃO (0-100)

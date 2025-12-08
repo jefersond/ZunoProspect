@@ -2,9 +2,6 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { subDays, startOfDay, endOfDay, format } from 'date-fns';
 
-// Maximum leads to prevent bulk export abuse
-const MAX_LEADS_FOR_EXPORT = 1000;
-
 export interface RelatoriosFilters {
   periodo: '7d' | '30d' | '90d' | '365d' | 'custom';
   dataInicio?: Date;
@@ -122,51 +119,49 @@ export const useRelatoriosData = (filters: RelatoriosFilters) => {
       const { inicio, fim } = getDateRange();
       const periodoAnteriorInicio = subDays(inicio, Math.ceil((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)));
 
-      // Fetch leads via secure edge function - dados não sensíveis para relatórios
-      const { data: response, error } = await supabase.functions.invoke('leads-read', {
-        body: {
-          action: 'get_reports_data',
-          dateStart: inicio.toISOString(),
-          dateEnd: fim.toISOString(),
-          nicho: filters.nicho || undefined,
-          foco: filters.foco || undefined,
-          cidade: filters.cidade || undefined,
-        }
-      });
+      // Fetch all leads for the user - apenas campos não sensíveis para relatórios
+      // Dados sensíveis (telefone, email, etc.) são criptografados e não necessários para KPIs
+      let query = supabase
+        .from('leads')
+        .select('id, nome, cidade, nicho, foco, status, probabilidade_conversao, salvo, created_at, updated_at, rating, total_reviews, whatsapp_on_site, has_meta_pixel, has_gtag, has_gtm, whatsapp_number_encrypted, email_encrypted, telefone_encrypted, instagram_url_encrypted')
+        .eq('user_id', user.id)
+        .gte('created_at', inicio.toISOString())
+        .lte('created_at', fim.toISOString());
 
+      if (filters.nicho) query = query.eq('nicho', filters.nicho);
+      if (filters.foco) query = query.eq('foco', filters.foco);
+      if (filters.cidade) query = query.eq('cidade', filters.cidade);
+
+      const { data: leads, error } = await query;
       if (error) throw error;
-      if (!response?.success) throw new Error('Falha ao buscar dados de relatórios');
 
-      const leads = response.data || [];
-      
-      // Enforce export limit for security
-      const limitedLeads = leads.slice(0, MAX_LEADS_FOR_EXPORT);
-      if (leads.length > MAX_LEADS_FOR_EXPORT) {
-        console.warn(`Relatórios limitados a ${MAX_LEADS_FOR_EXPORT} leads para segurança`);
+      // Fetch previous period for comparison
+      let queryAnterior = supabase
+        .from('leads')
+        .select('id')
+        .eq('user_id', user.id)
+        .gte('created_at', periodoAnteriorInicio.toISOString())
+        .lt('created_at', inicio.toISOString());
+
+      if (filters.nicho) queryAnterior = queryAnterior.eq('nicho', filters.nicho);
+      if (filters.foco) queryAnterior = queryAnterior.eq('foco', filters.foco);
+      if (filters.cidade) queryAnterior = queryAnterior.eq('cidade', filters.cidade);
+
+      const { data: leadsAnteriores } = await queryAnterior;
+
+      // Fetch all leads for filter options
+      const { data: allLeads } = await supabase
+        .from('leads')
+        .select('nicho, foco, cidade')
+        .eq('user_id', user.id);
+
+      if (allLeads) {
+        setNichos([...new Set(allLeads.map(l => l.nicho).filter(Boolean))]);
+        setFocos([...new Set(allLeads.map(l => l.foco).filter(Boolean))]);
+        setCidades([...new Set(allLeads.map(l => l.cidade).filter(Boolean))]);
       }
 
-      // Update filter options from response
-      if (response.filterOptions) {
-        setNichos(response.filterOptions.nichos || []);
-        setFocos(response.filterOptions.focos || []);
-        setCidades(response.filterOptions.cidades || []);
-      }
-
-      // Fetch previous period count via edge function for comparison
-      const { data: previousResponse } = await supabase.functions.invoke('leads-read', {
-        body: {
-          action: 'get_reports_data',
-          dateStart: periodoAnteriorInicio.toISOString(),
-          dateEnd: inicio.toISOString(),
-          nicho: filters.nicho || undefined,
-          foco: filters.foco || undefined,
-          cidade: filters.cidade || undefined,
-        }
-      });
-      
-      const leadsAnteriores = previousResponse?.data || [];
-      // Use limited leads for all calculations
-      if (!limitedLeads || limitedLeads.length === 0) {
+      if (!leads || leads.length === 0) {
         setKpis({ totalLeads: 0, leadsSalvos: 0, taxaSalvos: 0, probMediaConversao: 0, leadsComContato: 0, crescimentoPercent: 0 });
         setLeadsPorPeriodo([]);
         setFunil([]);
@@ -179,13 +174,12 @@ export const useRelatoriosData = (filters: RelatoriosFilters) => {
         return;
       }
 
-      // Calculate KPIs using secure data (has_* booleans instead of encrypted columns)
-      const totalLeads = limitedLeads.length;
-      const leadsSalvos = limitedLeads.filter((l: any) => l.salvo).length;
+      // Calculate KPIs
+      const totalLeads = leads.length;
+      const leadsSalvos = leads.filter(l => l.salvo).length;
       const taxaSalvos = totalLeads > 0 ? (leadsSalvos / totalLeads) * 100 : 0;
-      const probMediaConversao = limitedLeads.reduce((acc: number, l: any) => acc + (l.probabilidade_conversao || 0), 0) / totalLeads;
-      // Use secure boolean flags instead of checking encrypted columns directly
-      const leadsComContato = limitedLeads.filter((l: any) => l.has_whatsapp || l.has_email || l.has_telefone).length;
+      const probMediaConversao = leads.reduce((acc, l) => acc + (l.probabilidade_conversao || 0), 0) / totalLeads;
+      const leadsComContato = leads.filter(l => l.whatsapp_number_encrypted || l.email_encrypted || l.telefone_encrypted).length;
       const crescimentoPercent = leadsAnteriores && leadsAnteriores.length > 0 
         ? ((totalLeads - leadsAnteriores.length) / leadsAnteriores.length) * 100 
         : 0;
@@ -194,7 +188,7 @@ export const useRelatoriosData = (filters: RelatoriosFilters) => {
 
       // Leads por período (group by day)
       const leadsByDay: Record<string, { leads: number; salvos: number }> = {};
-      limitedLeads.forEach((lead: any) => {
+      leads.forEach(lead => {
         const day = format(new Date(lead.created_at), 'yyyy-MM-dd');
         if (!leadsByDay[day]) leadsByDay[day] = { leads: 0, salvos: 0 };
         leadsByDay[day].leads++;
@@ -206,8 +200,8 @@ export const useRelatoriosData = (filters: RelatoriosFilters) => {
           .sort((a, b) => a.data.localeCompare(b.data))
       );
 
-      // Funil de prospecção - use secure boolean flags
-      const comWhatsapp = limitedLeads.filter((l: any) => l.has_whatsapp || l.whatsapp_on_site).length;
+      // Funil de prospecção
+      const comWhatsapp = leads.filter(l => l.whatsapp_number_encrypted || l.whatsapp_on_site).length;
       const funilData: FunilData[] = [
         { etapa: 'Leads Encontrados', valor: totalLeads, percentual: 100 },
         { etapa: 'Com WhatsApp', valor: comWhatsapp, percentual: (comWhatsapp / totalLeads) * 100 },
@@ -217,7 +211,7 @@ export const useRelatoriosData = (filters: RelatoriosFilters) => {
 
       // Performance por foco
       const focoMap: Record<string, { count: number; prob: number; salvos: number }> = {};
-      limitedLeads.forEach((lead: any) => {
+      leads.forEach(lead => {
         const f = lead.foco || 'Não definido';
         if (!focoMap[f]) focoMap[f] = { count: 0, prob: 0, salvos: 0 };
         focoMap[f].count++;
@@ -233,19 +227,19 @@ export const useRelatoriosData = (filters: RelatoriosFilters) => {
         }))
       );
 
-      // Sinais digitais - use secure boolean flags
+      // Sinais digitais
       const sinais = [
-        { nome: 'WhatsApp', valor: limitedLeads.filter((l: any) => l.whatsapp_on_site || l.has_whatsapp).length },
-        { nome: 'Meta Pixel', valor: limitedLeads.filter((l: any) => l.has_meta_pixel).length },
-        { nome: 'Google Analytics', valor: limitedLeads.filter((l: any) => l.has_gtag).length },
-        { nome: 'GTM', valor: limitedLeads.filter((l: any) => l.has_gtm).length },
-        { nome: 'Instagram', valor: limitedLeads.filter((l: any) => l.has_instagram).length },
+        { nome: 'WhatsApp', valor: leads.filter(l => l.whatsapp_on_site || l.whatsapp_number_encrypted).length },
+        { nome: 'Meta Pixel', valor: leads.filter(l => l.has_meta_pixel).length },
+        { nome: 'Google Analytics', valor: leads.filter(l => l.has_gtag).length },
+        { nome: 'GTM', valor: leads.filter(l => l.has_gtm).length },
+        { nome: 'Instagram', valor: leads.filter(l => l.instagram_url_encrypted).length },
       ];
       setSinaisDigitais(sinais.map(s => ({ ...s, percentual: (s.valor / totalLeads) * 100 })));
 
       // Performance por cidade
       const cidadeMap: Record<string, { count: number; prob: number; salvos: number }> = {};
-      limitedLeads.forEach((lead: any) => {
+      leads.forEach(lead => {
         const c = lead.cidade || 'Não definido';
         if (!cidadeMap[c]) cidadeMap[c] = { count: 0, prob: 0, salvos: 0 };
         cidadeMap[c].count++;
@@ -275,21 +269,21 @@ export const useRelatoriosData = (filters: RelatoriosFilters) => {
       setDistribuicaoProb(
         faixas.map(f => ({
           faixa: f.faixa,
-          quantidade: limitedLeads.filter((l: any) => (l.probabilidade_conversao || 0) >= f.min && (l.probabilidade_conversao || 0) <= f.max).length,
+          quantidade: leads.filter(l => (l.probabilidade_conversao || 0) >= f.min && (l.probabilidade_conversao || 0) <= f.max).length,
         }))
       );
 
-      // Análise por nicho - use secure boolean flags
+      // Análise por nicho
       const nichoMap: Record<string, { count: number; salvos: number; prob: number; whatsapp: number; email: number; instagram: number }> = {};
-      limitedLeads.forEach((lead: any) => {
+      leads.forEach(lead => {
         const n = lead.nicho || 'Não definido';
         if (!nichoMap[n]) nichoMap[n] = { count: 0, salvos: 0, prob: 0, whatsapp: 0, email: 0, instagram: 0 };
         nichoMap[n].count++;
         nichoMap[n].prob += lead.probabilidade_conversao || 0;
         if (lead.salvo) nichoMap[n].salvos++;
-        if (lead.has_whatsapp || lead.whatsapp_on_site) nichoMap[n].whatsapp++;
-        if (lead.has_email) nichoMap[n].email++;
-        if (lead.has_instagram) nichoMap[n].instagram++;
+        if (lead.whatsapp_number_encrypted || lead.whatsapp_on_site) nichoMap[n].whatsapp++;
+        if (lead.email_encrypted) nichoMap[n].email++;
+        if (lead.instagram_url_encrypted) nichoMap[n].instagram++;
       });
       setAnaliseNicho(
         Object.entries(nichoMap).map(([nicho, v]) => ({

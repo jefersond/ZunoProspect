@@ -20,24 +20,6 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
 
-// Sanitize error messages to prevent internal system details exposure
-const sanitizeError = (error: unknown): string => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error("[CREATE-CHECKOUT] Full error:", message);
-  
-  // Return generic messages for known error patterns
-  if (message.includes("authorization") || message.includes("authenticated")) {
-    return "Erro de autenticação. Por favor, faça login novamente.";
-  }
-  if (message.includes("STRIPE") || message.includes("stripe")) {
-    return "Erro ao processar pagamento. Tente novamente.";
-  }
-  if (message.includes("Invalid plan")) {
-    return "Plano selecionado inválido.";
-  }
-  return "Erro ao processar checkout. Tente novamente.";
-};
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -115,8 +97,9 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    logStep("ERROR", { message: error instanceof Error ? error.message : String(error) });
-    return new Response(JSON.stringify({ error: sanitizeError(error) }), {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logStep("ERROR", { message: errorMessage });
+    return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

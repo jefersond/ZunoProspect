@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
-import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink, TrendingUp } from "lucide-react";
+import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
@@ -193,10 +193,6 @@ const Profile = () => {
                 <Button variant="ghost" size="sm" onClick={() => navigate("/historico")} className="gap-2">
                   <History className="h-4 w-4" />
                   <span className="hidden sm:inline">Histórico</span>
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/relatorios")} className="gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  <span className="hidden sm:inline">Relatórios</span>
                 </Button>
               </nav>
 

@@ -16,13 +16,12 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { Loader2, Search, Mail, MessageCircle, Instagram, AlertTriangle } from "lucide-react";
 import { SearchProgress } from "./SearchProgress";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
-import { deleteUnsavedLeads } from "@/lib/leadsService";
 
 const formSchema = z.object({
   cidade: z.string().min(1, "Cidade é obrigatória"),
   estado: z.string().min(2, "Estado é obrigatório"),
   nicho: z.string().min(1, "Nicho é obrigatório"),
-  quantidade: z.number().min(1).max(200),
+  quantidade: z.number().min(1).max(100),
   foco: z.string().min(1, "Foco é obrigatório"),
   proximidadeAtiva: z.boolean(),
   raioKm: z.number().min(1).max(10),
@@ -111,13 +110,13 @@ export const ProspeccaoForm = () => {
         }
       }
       
-      // Se não for incremental, limpa leads NÃO salvos via serviço seguro
+      // Se não for incremental, limpa leads NÃO salvos
       if (!isIncrementalSearch) {
         window.dispatchEvent(new CustomEvent("clearLeads"));
         
         if (user) {
-          // Use application-layer security service instead of direct DB access
-          await deleteUnsavedLeads();
+          // Deleta apenas leads não salvos (salvo=false)
+          await supabase.from("leads").delete().eq("user_id", user.id).eq("salvo", false);
         }
       }
       
@@ -359,21 +358,9 @@ export const ProspeccaoForm = () => {
                 id="quantidade"
                 type="number"
                 min="1"
-                max="200"
+                max="100"
                 {...register("quantidade", { valueAsNumber: true })}
               />
-              {quantidade && quantidade > 30 ? (
-                <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  {quantidade > 60 
-                    ? "Buscas grandes podem levar 1-2 minutos. Os leads aparecem primeiro, planos são gerados em seguida." 
-                    : "Os leads aparecem imediatamente. Planos de IA são gerados em paralelo."}
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Máximo: 200 leads. Planos de IA são gerados em paralelo após a busca.
-                </p>
-              )}
               {errors.quantidade && (
                 <p className="text-sm text-destructive">{errors.quantidade.message}</p>
               )}

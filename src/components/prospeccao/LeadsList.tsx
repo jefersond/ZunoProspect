@@ -13,17 +13,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Loader2 } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
 import { Progress } from "@/components/ui/progress";
 import { exportLeadsToExcel } from "@/utils/exportToExcel";
-import { 
-  deleteLead as deleteLeadService, 
-  updateLeadSalvo, 
-  bulkUpdateLeadsSalvo,
-  fetchLeads 
-} from "@/lib/leadsService";
 
 export const LeadsList = () => {
   const { toast } = useToast();
@@ -160,15 +154,14 @@ export const LeadsList = () => {
 
   const loadLeads = async () => {
     try {
-      // Use application-layer security service instead of direct RPC access
-      // This goes through the leads-read edge function which validates auth + ownership
-      const result = await fetchLeads(false); // salvo = false for unsaved leads only
+      // Usa função RPC para obter dados descriptografados
+      // p_salvo = false para buscar apenas leads não salvos
+      const { data, error } = await supabase
+        .rpc("get_leads_decrypted_filtered", { p_salvo: false });
+
+      if (error) throw error;
       
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Erro ao carregar leads');
-      }
-      
-      const leadsFormatted: LeadProspeccao[] = (result.data || []).map(transformLeadFromDb);
+      const leadsFormatted: LeadProspeccao[] = (data || []).map(transformLeadFromDb);
       
       setLeads(leadsFormatted);
     } catch (error: any) {
@@ -251,11 +244,8 @@ export const LeadsList = () => {
 
   const deleteLead = async (id: string) => {
     try {
-      // Use application-layer security service instead of direct DB access
-      const result = await deleteLeadService(id);
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Erro ao remover lead');
-      }
+      const { error } = await supabase.from("leads").delete().eq("id", id);
+      if (error) throw error;
       
       toast({
         title: "Lead removido",
@@ -312,11 +302,13 @@ export const LeadsList = () => {
         return;
       }
 
-      // Use application-layer security service instead of direct DB access
-      const result = await bulkUpdateLeadsSalvo(leadsNaoSalvos.map(l => l.id), true);
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Erro ao salvar leads');
-      }
+      // Marca todos os leads não salvos como salvos
+      const { error } = await supabase
+        .from("leads")
+        .update({ salvo: true })
+        .in("id", leadsNaoSalvos.map(l => l.id));
+
+      if (error) throw error;
 
       toast({
         title: "Leads salvos com sucesso!",
@@ -336,11 +328,12 @@ export const LeadsList = () => {
 
   const toggleSaveLead = async (leadId: string, currentSalvo: boolean) => {
     try {
-      // Use application-layer security service instead of direct DB access
-      const result = await updateLeadSalvo(leadId, !currentSalvo);
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Erro ao atualizar lead');
-      }
+      const { error } = await supabase
+        .from("leads")
+        .update({ salvo: !currentSalvo })
+        .eq("id", leadId);
+
+      if (error) throw error;
 
       toast({
         title: currentSalvo ? "Lead desmarcado" : "Lead salvo",
@@ -557,13 +550,7 @@ export const LeadsList = () => {
                             />
                           </>
                         ) : (
-                          <div className="flex flex-col items-center gap-1">
-                            <div className="flex items-center gap-2">
-                              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                              <span className="text-xs text-muted-foreground">Analisando...</span>
-                            </div>
-                            <Progress value={33} className="h-1 w-16 animate-pulse" />
-                          </div>
+                          <span className="text-sm text-muted-foreground">Aguardando IA</span>
                         )}
                       </div>
                     </TableCell>
@@ -582,10 +569,8 @@ export const LeadsList = () => {
                               >
                                 {lead.plano_prospecao_7dias[0].canal === "whatsapp" ? (
                                   <MessageSquare className="h-3 w-3 mr-1" />
-                                ) : lead.plano_prospecao_7dias[0].canal === "instagram" ? (
-                                  <Instagram className="h-3 w-3 mr-1" />
                                 ) : (
-                                  <Mail className="h-3 w-3 mr-1" />
+                                  "📧"
                                 )}
                                 {lead.plano_prospecao_7dias[0].canal}
                               </Badge>
@@ -595,14 +580,7 @@ export const LeadsList = () => {
                             </p>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2 py-2">
-                            <div className="flex gap-1">
-                              <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '0ms' }} />
-                              <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
-                              <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '300ms' }} />
-                            </div>
-                            <span className="text-xs text-muted-foreground">Gerando plano com IA...</span>
-                          </div>
+                          <span className="text-xs text-muted-foreground">Plano em geração...</span>
                         )}
                       </div>
                     </TableCell>

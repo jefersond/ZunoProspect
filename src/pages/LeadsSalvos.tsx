@@ -25,7 +25,6 @@ import {
   Loader2,
   RefreshCw,
   Mail,
-  TrendingUp,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
@@ -43,7 +42,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { updateLeadSalvo, fetchLeads } from "@/lib/leadsService";
 
 const LeadsSalvos = () => {
   const navigate = useNavigate();
@@ -162,16 +160,14 @@ const LeadsSalvos = () => {
   const loadSavedLeads = async (userId: string) => {
     try {
       setLoading(true);
-      
-      // Use application-layer security service instead of direct RPC access
-      // This goes through the leads-read edge function which validates auth + ownership
-      const result = await fetchLeads(true); // salvo = true for saved leads only
-      
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Erro ao carregar leads');
-      }
+      // Usa função RPC para obter dados descriptografados
+      // p_salvo = true para buscar apenas leads salvos
+      const { data, error } = await supabase
+        .rpc("get_leads_decrypted_filtered", { p_salvo: true });
 
-      const transformedLeads: LeadProspeccao[] = (result.data || []).map((lead: any) => {
+      if (error) throw error;
+
+      const transformedLeads: LeadProspeccao[] = (data || []).map((lead: any) => {
         return {
           id: lead.id,
           placeId: lead.google_place_id,
@@ -249,11 +245,12 @@ const LeadsSalvos = () => {
 
   const handleRemoveSaved = async (leadId: string) => {
     try {
-      // Use application-layer security service instead of direct DB access
-      const result = await updateLeadSalvo(leadId, false);
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Erro ao remover lead');
-      }
+      const { error } = await supabase
+        .from("leads")
+        .update({ salvo: false })
+        .eq("id", leadId);
+
+      if (error) throw error;
 
       setLeads((prev) => prev.filter((l) => l.id !== leadId));
       toast({
@@ -339,10 +336,6 @@ const LeadsSalvos = () => {
                 <Button variant="ghost" size="sm" onClick={() => navigate("/historico")} className="gap-2">
                   <History className="h-4 w-4" />
                   <span className="hidden sm:inline">Histórico</span>
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/relatorios")} className="gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  <span className="hidden sm:inline">Relatórios</span>
                 </Button>
               </nav>
 

@@ -47,24 +47,6 @@ export type Database = {
         }
         Relationships: []
       }
-      app_config: {
-        Row: {
-          created_at: string | null
-          key: string
-          value: string
-        }
-        Insert: {
-          created_at?: string | null
-          key: string
-          value: string
-        }
-        Update: {
-          created_at?: string | null
-          key?: string
-          value?: string
-        }
-        Relationships: []
-      }
       campanhas: {
         Row: {
           created_at: string
@@ -150,7 +132,9 @@ export type Database = {
           created_at: string
           diagnostico_bullets: Json | null
           digital_signals: Json | null
+          email: string | null
           email_encrypted: string | null
+          endereco: string | null
           endereco_encrypted: string | null
           foco: string
           google_place_id: string | null
@@ -159,6 +143,7 @@ export type Database = {
           has_meta_pixel: boolean | null
           id: string
           instagram_context: string | null
+          instagram_url: string | null
           instagram_url_encrypted: string | null
           latitude: number | null
           longitude: number | null
@@ -176,11 +161,14 @@ export type Database = {
           salvo: boolean | null
           situacao_cadastral: string | null
           status: string | null
+          telefone: string | null
           telefone_encrypted: string | null
           total_reviews: number | null
           updated_at: string
           user_id: string
+          website: string | null
           website_encrypted: string | null
+          whatsapp_number: string | null
           whatsapp_number_encrypted: string | null
           whatsapp_on_site: boolean | null
         }
@@ -194,7 +182,9 @@ export type Database = {
           created_at?: string
           diagnostico_bullets?: Json | null
           digital_signals?: Json | null
+          email?: string | null
           email_encrypted?: string | null
+          endereco?: string | null
           endereco_encrypted?: string | null
           foco: string
           google_place_id?: string | null
@@ -203,6 +193,7 @@ export type Database = {
           has_meta_pixel?: boolean | null
           id?: string
           instagram_context?: string | null
+          instagram_url?: string | null
           instagram_url_encrypted?: string | null
           latitude?: number | null
           longitude?: number | null
@@ -220,11 +211,14 @@ export type Database = {
           salvo?: boolean | null
           situacao_cadastral?: string | null
           status?: string | null
+          telefone?: string | null
           telefone_encrypted?: string | null
           total_reviews?: number | null
           updated_at?: string
           user_id: string
+          website?: string | null
           website_encrypted?: string | null
+          whatsapp_number?: string | null
           whatsapp_number_encrypted?: string | null
           whatsapp_on_site?: boolean | null
         }
@@ -238,7 +232,9 @@ export type Database = {
           created_at?: string
           diagnostico_bullets?: Json | null
           digital_signals?: Json | null
+          email?: string | null
           email_encrypted?: string | null
+          endereco?: string | null
           endereco_encrypted?: string | null
           foco?: string
           google_place_id?: string | null
@@ -247,6 +243,7 @@ export type Database = {
           has_meta_pixel?: boolean | null
           id?: string
           instagram_context?: string | null
+          instagram_url?: string | null
           instagram_url_encrypted?: string | null
           latitude?: number | null
           longitude?: number | null
@@ -264,11 +261,14 @@ export type Database = {
           salvo?: boolean | null
           situacao_cadastral?: string | null
           status?: string | null
+          telefone?: string | null
           telefone_encrypted?: string | null
           total_reviews?: number | null
           updated_at?: string
           user_id?: string
+          website?: string | null
           website_encrypted?: string | null
+          whatsapp_number?: string | null
           whatsapp_number_encrypted?: string | null
           whatsapp_on_site?: boolean | null
         }
@@ -587,15 +587,6 @@ export type Database = {
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       reset_monthly_leads_count: { Args: never; Returns: undefined }
-      update_lead_encrypted_fields: {
-        Args: {
-          p_email?: string
-          p_instagram_url?: string
-          p_lead_id: string
-          p_whatsapp_number?: string
-        }
-        Returns: undefined
-      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

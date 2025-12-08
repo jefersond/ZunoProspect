@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, TrendingUp, Users, Target, Activity, Loader2, History, BarChart3, Search, FileText, User, LogOut, Bookmark, LineChart } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, Target, Activity, Loader2, History, BarChart3, Search, FileText, User, LogOut, Bookmark } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
@@ -55,11 +55,10 @@ const Dashboard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Buscar leads - apenas campos não sensíveis para métricas
-      // Dados sensíveis (telefone, email, etc.) são criptografados e acessados via RPC
+      // Buscar leads
       const { data: leads, error: leadsError } = await supabase
         .from("leads")
-        .select("id, nome, cidade, nicho, foco, status, probabilidade_conversao, salvo, created_at, updated_at, rating, total_reviews")
+        .select("*")
         .eq("user_id", user.id);
 
       if (leadsError) throw leadsError;
@@ -158,10 +157,6 @@ const Dashboard = () => {
                 <Button variant="ghost" size="sm" onClick={() => navigate("/historico")} className="gap-2">
                   <History className="h-4 w-4" />
                   <span className="hidden sm:inline">Histórico</span>
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/relatorios")} className="gap-2">
-                  <LineChart className="h-4 w-4" />
-                  <span className="hidden sm:inline">Relatórios</span>
                 </Button>
               </nav>
 

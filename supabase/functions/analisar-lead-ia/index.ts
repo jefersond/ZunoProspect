@@ -45,15 +45,9 @@ function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "what
     available.push("email");
   }
   
-  // Instagram: disponível SOMENTE se tem URL detectada
-  // ⚠️ CORREÇÃO CRÍTICA: NÃO adicionar Instagram se instagram_url não existe
-  if (selectedChannels.includes("instagram")) {
-    if (lead.instagram_url) {
-      available.push("instagram");
-      console.log(`📸 Instagram DETECTADO e adicionado aos canais: ${lead.instagram_url}`);
-    } else {
-      console.log(`⚠️ Instagram selecionado mas NÃO DETECTADO - NÃO será incluído nos canais disponíveis`);
-    }
+  // Instagram: disponível SOMENTE se tem URL
+  if (selectedChannels.includes("instagram") && lead.instagram_url) {
+    available.push("instagram");
   }
   
   // SEM FALLBACK! Se não detectou nenhum canal, retorna array vazio
@@ -68,61 +62,6 @@ function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "what
   
   return available;
 }
-
-// Gera variações prováveis do handle do Instagram baseado no nome da empresa
-function generateInstagramVariations(nome: string, cidade: string): string[] {
-  // Remove acentos
-  const removeAccents = (str: string) => 
-    str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  
-  // Versão sem espaços e caracteres especiais
-  const normalized = removeAccents(nome.toLowerCase())
-    .replace(/[^a-z0-9]/g, '');
-  
-  // Versão com underscores
-  const withUnderscores = removeAccents(nome.toLowerCase())
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_]/g, '');
-    
-  // Versão com pontos
-  const withDots = removeAccents(nome.toLowerCase())
-    .replace(/\s+/g, '.')
-    .replace(/[^a-z0-9.]/g, '');
-    
-  // Cidade normalizada
-  const cidadeNorm = removeAccents(cidade.toLowerCase())
-    .replace(/[^a-z]/g, '');
-  
-  // Gera variações
-  const variations = new Set<string>();
-  
-  // Variações básicas
-  variations.add(`@${normalized}`);
-  variations.add(`@${withUnderscores}`);
-  variations.add(`@${withDots}`);
-  
-  // Com "oficial"
-  variations.add(`@${normalized}oficial`);
-  variations.add(`@${normalized}_oficial`);
-  
-  // Com cidade
-  if (cidadeNorm.length > 0) {
-    variations.add(`@${normalized}${cidadeNorm}`);
-    variations.add(`@${normalized}_${cidadeNorm}`);
-    variations.add(`@${withUnderscores}_${cidadeNorm}`);
-  }
-  
-  // Abreviações comuns (primeiras letras de cada palavra)
-  const words = removeAccents(nome.toLowerCase()).split(/\s+/).filter(w => w.length > 2);
-  if (words.length > 1) {
-    const initials = words.map(w => w[0]).join('');
-    variations.add(`@${initials}`);
-    variations.add(`@${initials}${cidadeNorm}`);
-  }
-  
-  return Array.from(variations).slice(0, 6); // Máximo 6 sugestões
-}
-
 
 interface SiteSignals {
   whatsapp_on_site: boolean;
@@ -596,30 +535,22 @@ serve(async (req) => {
     
     // Se temos leadId, busca os dados do banco e re-escaneia o site
     if (leadId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-      console.log("📥 Buscando dados do lead no banco via RPC descriptografada...");
+      console.log("📥 Buscando dados do lead no banco...");
       
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       
-      // ✅ CORREÇÃO CRÍTICA: Usa RPC que descriptografa os dados
-      // A tabela leads não tem mais campos de texto plano (instagram_url, email, etc.)
-      // Eles foram movidos para versões _encrypted e precisam ser descriptografados
-      const { data: decryptedLeads, error: rpcError } = await supabase
-        .rpc('get_leads_decrypted');
+      // Busca o lead direto da tabela
+      const { data: directLead, error: directError } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("id", leadId)
+        .single();
         
-      if (rpcError) {
-        console.error("❌ Erro ao buscar leads descriptografados:", rpcError);
-        throw new Error("Erro ao buscar dados do lead");
-      }
-      
-      // Filtra o lead específico
-      const directLead = decryptedLeads?.find((l: any) => l.id === leadId);
-        
-      if (!directLead) {
-        console.error("❌ Lead não encontrado no resultado da RPC");
+      if (directError || !directLead) {
+        console.error("❌ Lead não encontrado:", directError);
         throw new Error("Lead não encontrado no banco de dados");
       }
       
-      // ✅ Agora os campos vêm descriptografados corretamente!
       websiteUrl = directLead.website as string | null;
       leadData = {
         nome: directLead.nome as string,
@@ -691,10 +622,8 @@ serve(async (req) => {
           }
         }
         
-        // ✅ CORREÇÃO: Separa campos criptografados dos não-criptografados
+        // Atualiza os sinais no banco (campos não criptografados)
         console.log("💾 Atualizando sinais no banco...");
-        
-        // Campos NÃO criptografados - atualiza diretamente na tabela
         const updateData: Record<string, any> = {
           whatsapp_on_site: leadData.whatsapp_on_site,
           has_meta_pixel: leadData.has_meta_pixel,
@@ -702,7 +631,18 @@ serve(async (req) => {
           has_gtm: leadData.has_gtm,
         };
         
-        // Atualiza dados de CNPJ se encontrados (campos não criptografados)
+        // Se encontrou novo WhatsApp, Instagram ou Email, atualiza
+        if (newSignals.whatsapp_number) {
+          updateData.whatsapp_number = newSignals.whatsapp_number;
+        }
+        if (newSignals.instagram_url) {
+          updateData.instagram_url = newSignals.instagram_url;
+        }
+        if (newSignals.email) {
+          updateData.email = newSignals.email;
+        }
+        
+        // Atualiza dados de CNPJ se encontrados
         if (leadData.cnpj) {
           updateData.cnpj = leadData.cnpj;
           updateData.razao_social = leadData.razao_social;
@@ -712,37 +652,10 @@ serve(async (req) => {
           updateData.cnae_principal = leadData.cnae_principal;
         }
         
-        // Atualiza campos não-criptografados
         const { error: updateSignalsError } = await supabase
           .from("leads")
           .update(updateData)
           .eq("id", leadId);
-          
-        if (updateSignalsError) {
-          console.error("⚠️ Erro ao atualizar sinais não-criptografados:", updateSignalsError);
-        }
-        
-        // ✅ CORREÇÃO CRÍTICA: Atualiza campos criptografados via RPC
-        // Os campos instagram_url, email, whatsapp_number foram movidos para versões _encrypted
-        if (newSignals.whatsapp_number || newSignals.instagram_url || newSignals.email) {
-          console.log("🔐 Atualizando campos criptografados via RPC...");
-          console.log("  📱 WhatsApp:", newSignals.whatsapp_number || "(não atualizar)");
-          console.log("  📸 Instagram:", newSignals.instagram_url || "(não atualizar)");
-          console.log("  📧 Email:", newSignals.email || "(não atualizar)");
-          
-          const { error: encryptedUpdateError } = await supabase.rpc('update_lead_encrypted_fields', {
-            p_lead_id: leadId,
-            p_instagram_url: newSignals.instagram_url || null,
-            p_email: newSignals.email || null,
-            p_whatsapp_number: newSignals.whatsapp_number || null,
-          });
-          
-          if (encryptedUpdateError) {
-            console.error("⚠️ Erro ao atualizar campos criptografados:", encryptedUpdateError);
-          } else {
-            console.log("✅ Campos criptografados atualizados com sucesso");
-          }
-        }
           
         if (updateSignalsError) {
           console.error("⚠️ Erro ao atualizar sinais:", updateSignalsError);
@@ -809,26 +722,11 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    // Log detailed error server-side only
-    console.error("❌ Erro fatal na análise:", {
-      message: error.message,
-      stack: error.stack,
-    });
-    
-    // Return generic error to client - don't expose internal details
-    let clientMessage = "Erro ao analisar lead. Tente novamente.";
-    
-    // Only show specific messages for known/expected errors
-    if (error.message?.includes("Timeout")) {
-      clientMessage = "A análise demorou muito. Tente novamente em alguns segundos.";
-    } else if (error.message?.includes("API Key")) {
-      clientMessage = "Erro de configuração. Entre em contato com o suporte.";
-    }
-    
+    console.error("❌ Erro fatal na análise:", error);
     return new Response(
       JSON.stringify({ 
-        error: 'ANALYSIS_ERROR',
-        message: clientMessage,
+        error: error.message || "Erro ao analisar lead",
+        details: error.stack,
       }),
       {
         status: 500,
@@ -1202,11 +1100,10 @@ REGRA: Nunca usar o mesmo canal 2 dias consecutivos`;
   } else {
     canaisInfo.push("❌ Email: NÃO DETECTADO - NÃO USAR!");
   }
-  // Instagram: status claro baseado na detecção REAL
   if (lead.instagram_url) {
-    canaisInfo.push(`✅ Instagram: DETECTADO E CONFIRMADO (${lead.instagram_url})`);
+    canaisInfo.push(`✅ Instagram: DISPONÍVEL (${lead.instagram_url})`);
   } else {
-    canaisInfo.push("❌ Instagram: NÃO DETECTADO NO SITE - NÃO INCLUIR NO PLANO");
+    canaisInfo.push("❌ Instagram: NÃO DETECTADO - NÃO USAR!");
   }
     
   const sinaisMarketing = [];
@@ -1275,35 +1172,14 @@ Vale 10 minutos para mostrar como aplicar isso no caso de vocês?
 PS: Sem compromisso. Se não fizer sentido, agradeço pela atenção e sigo em frente."
 ` : ""}
 
-${canais.includes("instagram") && lead.instagram_url ? `
-📸 INSTAGRAM DM - CANAL CONFIRMADO E ATIVO:
+${canais.includes("instagram") ? `
+📸 INSTAGRAM DM - ABORDAGEM CONSULTIVA AVANÇADA:
 
-════════════════════════════════════════════════════════════════════════════════
-🚨🚨🚨 ATENÇÃO MÁXIMA - INSTAGRAM EXISTE! 🚨🚨🚨
-════════════════════════════════════════════════════════════════════════════════
-
-✅ INSTAGRAM DETECTADO: ${lead.instagram_url}
-
-Este lead TEM Instagram CONFIRMADO. Trate como canal REAL e ATIVO!
-
-🚫🚫🚫 PROIBIDO TOTALMENTE (ERRO GRAVE):
-• NUNCA diga "se a empresa ainda não usa Instagram..."
-• NUNCA diga "uma alternativa seria criar um Instagram..."
-• NUNCA diga "quando tiverem presença no Instagram..."
-• NUNCA diga "se tiverem Instagram..." ou "caso usem Instagram..."
-• NUNCA trate o Instagram como canal futuro ou hipotético
-
-✅ OBRIGATÓRIO (SIGA ESTAS REGRAS):
-• Tratar Instagram como canal 100% ATIVO e REAL
-• Usar para prospecção DIRETA via DM
-• Referenciar o perfil real: ${lead.instagram_url}
-• Seguir as regras de engajamento pré-DM abaixo
-
-🔑 PRÉ-ABORDAGEM OBRIGATÓRIA:
-Antes de enviar DM, o usuário deve:
-• Curtir 2-3 posts recentes do perfil
-• Comentar com insight relevante (NÃO só "muito bom! 🔥")
-• Visualizar stories se disponível
+🔑 PRÉ-ABORDAGEM (RECOMENDADO):
+Antes de enviar DM, engaje genuinamente:
+• Curta 2-3 posts recentes
+• Comente com insight relevante (NÃO só "muito bom! 🔥")
+• Visualize stories se disponível
 • Isso aquece o perfil e aumenta chance de resposta
 
 📐 ESTRUTURA DA MENSAGEM (MÁX 4 LINHAS):
@@ -1319,6 +1195,12 @@ Dia 3 (primeira DM após engajamento):
 
 Dia 6 (segunda DM se não respondeu):
 "Última mensagem por aqui. O insight sobre ${lead.foco} para ${lead.nicho} ainda vale - é uma oportunidade real. Se fizer sentido, me responde 'ok' que envio em 30 segundos."
+
+💡 VANTAGENS DO INSTAGRAM para prospecção B2B:
+• Resposta mais rápida que email
+• Tom mais profissional que WhatsApp pessoal
+• Permite ver conteúdo e entender melhor o prospect
+• Menos saturado que outros canais
 
 ❌ EVITAR (Instagram):
 • Mensagens longas demais (serão ignoradas)

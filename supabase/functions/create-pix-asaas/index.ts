@@ -19,30 +19,6 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-PIX-ASAAS] ${step}${detailsStr}`);
 };
 
-// Sanitize error messages to prevent internal system details exposure
-const sanitizeError = (error: unknown): string => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error("[CREATE-PIX-ASAAS] Full error:", message);
-  
-  // Return generic messages for known error patterns
-  if (message.includes("Email") || message.includes("Nome") || message.includes("CPF")) {
-    return message; // Keep validation messages as they're user-facing
-  }
-  if (message.includes("ASAAS") || message.includes("asaas")) {
-    return "Erro ao processar pagamento PIX. Tente novamente.";
-  }
-  if (message.includes("Invalid plan")) {
-    return "Plano selecionado inválido.";
-  }
-  if (message.includes("cliente") || message.includes("customer")) {
-    return "Erro ao processar dados do cliente. Verifique as informações.";
-  }
-  if (message.includes("QR Code") || message.includes("PIX")) {
-    return "Erro ao gerar código PIX. Tente novamente.";
-  }
-  return "Erro ao processar pagamento. Tente novamente.";
-};
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -146,8 +122,8 @@ serve(async (req) => {
     const dueDateStr = dueDate.toISOString().split("T")[0];
 
     const descricaoPlano = isAnual 
-      ? `Zuno Propect ${plano} - Anual`
-      : `Zuno Propect ${plano} - Mensal`;
+      ? `Zuno Prospect ${plano} - Anual`
+      : `Zuno Prospect ${plano} - Mensal`;
 
     const createPaymentResponse = await fetch(`${asaasBaseUrl}/payments`, {
       method: "POST",
@@ -161,8 +137,12 @@ serve(async (req) => {
         value: valor,
         dueDate: dueDateStr,
         description: descricaoPlano,
-        // Formato compacto: userId|plan_name|is_annual (máx 100 chars)
-        externalReference: `${userId || 'guest'}|${plano.toLowerCase()}|${isAnual ? '1' : '0'}`,
+        externalReference: JSON.stringify({
+          user_id: userId,
+          customer_email: customerEmail,
+          plan_name: plano.toLowerCase(),
+          is_annual: isAnual,
+        }),
       }),
     });
 
@@ -201,8 +181,9 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    logStep("ERROR", { message: error instanceof Error ? error.message : String(error) });
-    return new Response(JSON.stringify({ error: sanitizeError(error) }), {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logStep("ERROR", { message: errorMessage });
+    return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

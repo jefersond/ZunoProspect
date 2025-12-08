@@ -30,7 +30,7 @@ export const Logo = ({ className = "" }: LogoProps) => {
         Zuno
       </span>
       <span className="text-xl font-semibold text-muted-foreground transition-colors duration-300 group-hover:text-foreground">
-        Propect
+        Prospect
       </span>
     </div>
   );

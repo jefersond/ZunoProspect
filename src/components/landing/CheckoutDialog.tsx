@@ -28,6 +28,9 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
   const [cpf, setCpf] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [metodoPagamento, setMetodoPagamento] = useState<"pix" | "cartao">("pix");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [pixData, setPixData] = useState<{
@@ -107,8 +110,8 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
           });
           setStep("confirmed");
           clearInterval(interval);
-          sessionStorage.removeItem("checkout_in_progress");
           toast.success("Pagamento confirmado!");
+          setTimeout(() => handleClose(), 2000);
         }
       } catch (err) {
         console.error("Error in payment check:", err);
@@ -131,6 +134,17 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
   const formatWhatsapp = (value: string) => {
     const numbers = value.replace(/\D/g, "");
     return numbers.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2").replace(/(-\d{4})\d+?$/, "$1");
+  };
+
+  const formatCardNumber = (value: string) => {
+    const cleaned = value.replace(/\D/g, "").slice(0, 16);
+    return cleaned.replace(/(\d{4})/g, "$1 ").trim();
+  };
+
+  const formatExpiry = (value: string) => {
+    const cleaned = value.replace(/\D/g, "").slice(0, 4);
+    if (cleaned.length >= 2) return cleaned.slice(0, 2) + "/" + cleaned.slice(2);
+    return cleaned;
   };
 
   const validateAndCreateAccount = async (): Promise<boolean> => {
@@ -175,48 +189,22 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
     if (!whatsapp || whatsapp.replace(/\D/g, "").length < 10) { toast.error("Informe um WhatsApp válido"); return; }
 
     setIsProcessing(true);
-    // Marcar que checkout está em progresso para evitar redirecionamento
-    sessionStorage.setItem("checkout_in_progress", "true");
-    
     try {
-      // Verificar se já está logado antes de criar conta
-      const { data: sessionData } = await supabase.auth.getSession();
-      
-      if (!sessionData?.session) {
-        // Só criar conta se não estiver logado
-        const accountCreated = await validateAndCreateAccount();
-        if (!accountCreated) { 
-          setIsProcessing(false); 
-          return; 
-        }
-      }
+      const accountCreated = await validateAndCreateAccount();
+      if (!accountCreated) { setIsProcessing(false); return; }
 
-      console.log("[PIX] Gerando QR Code para:", { plano: plano.nome, isAnual, email });
-      
       const { data, error } = await supabase.functions.invoke("create-pix-asaas", {
         body: { plano: plano.nome, isAnual, customerName: nome, customerCpf: cpf, customerEmail: email, customerWhatsapp: whatsapp }
       });
-      
-      console.log("[PIX] Resposta:", { success: data?.success, hasQrCode: !!data?.qrCodeBase64, error });
-      
       if (error) throw error;
-      
-      if (data?.success && data?.qrCodeBase64) {
-        const pixInfo = { 
-          paymentId: data.paymentId, 
-          pixCopiaECola: data.pixCopiaECola, 
-          qrCodeBase64: data.qrCodeBase64, 
-          vencimento: data.vencimento 
-        };
-        console.log("[PIX] Setando pixData e mudando para step qrcode");
-        setPixData(pixInfo);
+      if (data?.success) {
+        setPixData({ paymentId: data.paymentId, pixCopiaECola: data.pixCopiaECola, qrCodeBase64: data.qrCodeBase64, vencimento: data.vencimento });
         setStep("qrcode");
-        toast.success(sessionData?.session ? "QR Code PIX gerado!" : "Conta criada e QR Code PIX gerado!");
+        toast.success("Conta criada e QR Code PIX gerado!");
       } else {
-        throw new Error(data?.error || "QR Code não foi gerado");
+        throw new Error(data?.error || "Erro ao gerar PIX");
       }
     } catch (error: any) {
-      console.error("[PIX] Erro:", error);
       toast.error("Erro ao gerar PIX", { description: error.message || "Tente novamente mais tarde." });
     } finally {
       setIsProcessing(false);
@@ -246,7 +234,6 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
           num_items: 1
         });
         setStep("confirmed");
-        sessionStorage.removeItem("checkout_in_progress");
         toast.success("Pagamento confirmado!");
         setTimeout(() => handleClose(), 2000);
       } else {
@@ -261,47 +248,26 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!nome || !email || !cpf) { toast.error("Preencha todos os campos obrigatórios"); return; }
+    if (metodoPagamento === "pix") { await handleGeneratePix(); return; }
+    if (metodoPagamento === "cartao" && (!cardNumber || !cardExpiry || !cardCvv)) { toast.error("Preencha todos os dados do cartão"); return; }
     
-    // Validação básica para todos
-    if (!nome.trim()) { toast.error("Informe seu nome completo"); return; }
-    if (!email.trim()) { toast.error("Informe seu email"); return; }
-    
-    // Para PIX, validar CPF e WhatsApp
-    if (metodoPagamento === "pix") {
-      if (!cpf || cpf.replace(/\D/g, "").length < 11) { toast.error("Informe um CPF válido"); return; }
-      if (!whatsapp || whatsapp.replace(/\D/g, "").length < 10) { toast.error("Informe um WhatsApp válido"); return; }
-      await handleGeneratePix();
-      return;
-    }
-    
-    // Fluxo de cartão - só precisa de nome, email e senha
     setIsProcessing(true);
     try {
       const accountCreated = await validateAndCreateAccount();
       if (!accountCreated) { setIsProcessing(false); return; }
-      
-      // Chamar Stripe Checkout para pagamento com cartão
-      const { data, error } = await supabase.functions.invoke("create-checkout", {
-        body: { plano: plano.nome, isAnual }
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Track Purchase event for card payment
+      trackPurchase({
+        value: preco,
+        currency: 'BRL',
+        content_name: plano?.nome || 'Plan',
+        content_type: 'subscription',
+        num_items: 1
       });
-      
-      if (error) throw error;
-      
-      if (data?.url) {
-        // Track Purchase intent (será confirmado pelo Stripe)
-        trackPurchase({
-          value: preco,
-          currency: 'BRL',
-          content_name: plano?.nome || 'Plan',
-          content_type: 'subscription',
-          num_items: 1
-        });
-        toast.success("Conta criada! Redirecionando para pagamento...");
-        // Redirecionar para Stripe Checkout
-        window.location.href = data.url;
-      } else {
-        throw new Error("Não foi possível iniciar o checkout");
-      }
+      setStep("confirmed");
+      toast.success("Conta criada e pagamento processado!");
+      setTimeout(() => navigate("/prospeccao"), 2000);
     } catch (error: any) {
       toast.error("Erro ao processar pagamento", { description: error.message });
     } finally {
@@ -311,11 +277,10 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
 
   const handleClose = () => {
     if (!isProcessing) {
-      sessionStorage.removeItem("checkout_in_progress");
       setStep("form");
       setPixData(null);
       setNome(""); setEmail(""); setSenha(""); setConfirmarSenha("");
-      setCpf(""); setWhatsapp("");
+      setCpf(""); setWhatsapp(""); setCardNumber(""); setCardExpiry(""); setCardCvv("");
       onOpenChange(false);
     }
   };
@@ -416,6 +381,14 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
                 <Input id="confirmarSenha" type="password" placeholder="Repita a senha" value={confirmarSenha} onChange={e => setConfirmarSenha(e.target.value)} required />
                 {confirmarSenha && senha !== confirmarSenha && <p className="text-xs text-red-500">As senhas não coincidem</p>}
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="cpf">CPF *</Label>
+                <Input id="cpf" placeholder="000.000.000-00" value={cpf} onChange={e => setCpf(formatCPF(e.target.value))} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="whatsapp">WhatsApp *</Label>
+                <Input id="whatsapp" placeholder="(11) 99999-9999" value={whatsapp} onChange={e => setWhatsapp(formatWhatsapp(e.target.value))} maxLength={15} required />
+              </div>
             </div>
 
             {!plano.gratuito && (
@@ -436,25 +409,28 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
                   </div>
                 </RadioGroup>
 
-                {metodoPagamento === "pix" && (
+                {metodoPagamento === "cartao" && (
                   <div className="space-y-4 pt-4 border-t">
                     <div className="space-y-2">
-                      <Label htmlFor="cpf">CPF *</Label>
-                      <Input id="cpf" placeholder="000.000.000-00" value={cpf} onChange={e => setCpf(formatCPF(e.target.value))} required />
+                      <Label htmlFor="cardNumber">Número do cartão</Label>
+                      <Input id="cardNumber" placeholder="0000 0000 0000 0000" value={cardNumber} onChange={e => setCardNumber(formatCardNumber(e.target.value))} />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="whatsapp">WhatsApp *</Label>
-                      <Input id="whatsapp" placeholder="(11) 99999-9999" value={whatsapp} onChange={e => setWhatsapp(formatWhatsapp(e.target.value))} maxLength={15} required />
-                    </div>
-                    <div className="p-4 bg-secondary/50 rounded-lg border border-border/50">
-                      <p className="text-sm text-muted-foreground">O QR Code PIX será exibido na tela para pagamento imediato.</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="cardExpiry">Validade</Label>
+                        <Input id="cardExpiry" placeholder="MM/AA" value={cardExpiry} onChange={e => setCardExpiry(formatExpiry(e.target.value))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="cardCvv">CVV</Label>
+                        <Input id="cardCvv" placeholder="123" maxLength={4} value={cardCvv} onChange={e => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4))} />
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {metodoPagamento === "cartao" && (
+                {metodoPagamento === "pix" && (
                   <div className="p-4 bg-secondary/50 rounded-lg border border-border/50">
-                    <p className="text-sm text-muted-foreground">Você será redirecionado para o ambiente seguro de pagamento após criar sua conta.</p>
+                    <p className="text-sm text-muted-foreground">O QR Code PIX será exibido na tela para pagamento imediato.</p>
                   </div>
                 )}
               </div>
@@ -475,7 +451,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
             <Button type="submit" className="w-full" size="lg" disabled={isProcessing}>
               {isProcessing ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processando...</>
-              ) : plano.gratuito ? "Criar conta gratuita" : metodoPagamento === "pix" ? "Gerar QR Code PIX" : "Criar conta e pagar"}
+              ) : plano.gratuito ? "Criar conta gratuita" : metodoPagamento === "pix" ? "Gerar QR Code PIX" : "Finalizar pagamento"}
             </Button>
           </form>
         )}

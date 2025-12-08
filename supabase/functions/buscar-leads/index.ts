@@ -77,99 +77,18 @@ serve(async (req) => {
 
       leads = mockLeads;
     } else {
-      // Busca real com Google Places API com múltiplas variações de termo
-      // Google retorna no máximo 20 resultados por página e 60 no total (3 páginas) POR BUSCA
-      // Para ultrapassar 60, fazemos múltiplas buscas com variações de termos
-      
-      const MAX_PAGES_PER_SEARCH = 3;
-      const targetCount = body.quantidade;
-      
-      // Map para armazenar resultados únicos por place_id
-      const uniqueResults: Map<string, any> = new Map();
-      
-      // Função para gerar variações de termo de busca
-      function generateSearchVariations(nicho: string, cidade: string, estado: string): string[] {
-        // Gera plural do nicho
-        const nichoPlural = nicho.endsWith('a') ? nicho + 's' : 
-                           nicho.endsWith('o') ? nicho + 's' : 
-                           nicho.endsWith('e') ? nicho + 's' :
-                           nicho + 'es';
-        
-        // Variações para Text Search
-        return [
-          `${nicho} ${cidade} ${estado}`,           // original
-          `${nicho} em ${cidade} ${estado}`,        // com preposição
-          `${nichoPlural} ${cidade} ${estado}`,     // plural
-          `${nicho} centro ${cidade}`,              // centro
-          `${nicho} ${cidade} zona sul`,            // zona sul
-          `${nicho} ${cidade} zona norte`,          // zona norte
-          `${nicho} ${cidade} zona leste`,          // zona leste
-          `${nicho} ${cidade} zona oeste`,          // zona oeste
-          `melhor ${nicho} ${cidade}`,              // melhor
-          `${nicho} perto ${cidade}`,               // perto
-        ];
-      }
-      
-      // Função para gerar offsets de busca por proximidade (grid de pontos)
-      function generateProximityOffsets(): { lat: number; lng: number; label: string }[] {
-        return [
-          { lat: 0, lng: 0, label: 'centro' },
-          { lat: 0.015, lng: 0.015, label: 'nordeste' },
-          { lat: 0.015, lng: -0.015, label: 'noroeste' },
-          { lat: -0.015, lng: 0.015, label: 'sudeste' },
-          { lat: -0.015, lng: -0.015, label: 'sudoeste' },
-          { lat: 0.025, lng: 0, label: 'norte' },
-          { lat: -0.025, lng: 0, label: 'sul' },
-          { lat: 0, lng: 0.025, label: 'leste' },
-          { lat: 0, lng: -0.025, label: 'oeste' },
-        ];
-      }
-      
-      // Função para fazer busca paginada (até 60 resultados)
-      async function searchWithPagination(searchUrl: string, searchLabel: string): Promise<any[]> {
-        const results: any[] = [];
-        let pageToken: string | null = null;
-        let pageCount = 0;
-        
-        while (pageCount < MAX_PAGES_PER_SEARCH) {
-          let url = searchUrl;
-          
-          if (pageToken) {
-            // Usa pageToken para próxima página - Google exige delay de ~2s
-            url = searchUrl.split('?')[0] + `?pagetoken=${pageToken}&key=${GOOGLE_API_KEY}`;
-            console.log(`⏳ Aguardando 2s antes de buscar página ${pageCount + 1} de "${searchLabel}"...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
-          
-          console.log(`📄 Buscando página ${pageCount + 1} de "${searchLabel}"...`);
-          const response = await fetch(url);
-          const data = await response.json();
-          
-          if (data.status === "OK" && data.results?.length > 0) {
-            results.push(...data.results);
-            pageToken = data.next_page_token || null;
-            pageCount++;
-            
-            console.log(`✅ Página ${pageCount}: ${data.results.length} resultados (acumulado: ${results.length})`);
-            
-            if (!pageToken) break;
-          } else if (data.status === "ZERO_RESULTS") {
-            console.log(`📋 Nenhum resultado para "${searchLabel}"`);
-            break;
-          } else {
-            console.log(`⚠️ Status ${data.status} para "${searchLabel}": ${data.error_message || ''}`);
-            break;
-          }
-        }
-        
-        return results;
-      }
-      
-      console.log(`🔍 Iniciando busca multi-variação. Objetivo: ${targetCount} leads únicos`);
-      
+      // Busca real com Google Places API
       if (body.proximidadeAtiva && body.raioKm) {
-        // Busca por proximidade com múltiplos pontos (grid)
-        console.log("🗺️ Modo: Busca por proximidade com grid de pontos");
+        // Busca por proximidade (Nearby Search)
+        console.log("Buscando por proximidade (Nearby Search)...");
+
+        // Se for busca incremental, aumenta o raio em 50% para encontrar novos leads
+        const isIncremental = body.excludePlaceIds && body.excludePlaceIds.length > 0;
+        const searchRadius = isIncremental ? body.raioKm * 1.5 : body.raioKm;
+        
+        if (isIncremental) {
+          console.log(`Busca incremental: raio expandido de ${body.raioKm}km para ${searchRadius}km`);
+        }
 
         // Geocodifica a cidade + estado para obter lat/lng do centro
         const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
@@ -184,85 +103,71 @@ serve(async (req) => {
           throw new Error(`Cidade "${body.cidade}" não encontrada. Verifique se digitou corretamente o nome da cidade.`);
         }
 
-        const centerLocation = geocodeData.results[0].geometry.location;
-        console.log("📍 Centro da cidade:", centerLocation);
-        
-        // Gera pontos de busca baseado na quantidade solicitada
-        const offsets = generateProximityOffsets();
-        // Limita número de buscas baseado na quantidade solicitada
-        const maxSearches = Math.min(Math.ceil(targetCount / 40), offsets.length);
-        const selectedOffsets = offsets.slice(0, maxSearches);
-        
-        // Se for busca incremental, aumenta o raio
-        const isIncremental = body.excludePlaceIds && body.excludePlaceIds.length > 0;
-        const searchRadius = isIncremental ? body.raioKm * 1.5 : body.raioKm;
-        
-        console.log(`🎯 Fazendo ${selectedOffsets.length} buscas em pontos diferentes (raio: ${searchRadius}km)`);
-        
-        for (const offset of selectedOffsets) {
-          if (uniqueResults.size >= targetCount) {
-            console.log(`✅ Objetivo atingido: ${uniqueResults.size} leads únicos`);
-            break;
-          }
-          
-          const searchLat = centerLocation.lat + offset.lat;
-          const searchLng = centerLocation.lng + offset.lng;
-          
-          const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${searchLat},${searchLng}&radius=${
-            searchRadius * 1000
-          }&keyword=${encodeURIComponent(body.nicho)}&key=${GOOGLE_API_KEY}`;
-          
-          const results = await searchWithPagination(nearbyUrl, `proximidade-${offset.label}`);
-          
-          // Adiciona apenas resultados únicos
-          for (const result of results) {
-            if (!uniqueResults.has(result.place_id)) {
-              uniqueResults.set(result.place_id, result);
-            }
-          }
-          
-          console.log(`📊 Total único até agora: ${uniqueResults.size} leads`);
+        const location = geocodeData.results[0].geometry.location;
+        console.log("Coordenadas do centro da cidade:", location);
+
+        // Nearby Search com keyword (nicho) e raio
+        let nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
+          searchRadius * 1000
+        }&keyword=${encodeURIComponent(body.nicho)}&key=${GOOGLE_API_KEY}`;
+
+        // Se houver pageToken, usa para paginação (busca incremental)
+        if (body.pageToken) {
+          nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${body.pageToken}&key=${GOOGLE_API_KEY}`;
+          console.log("Usando pageToken para busca incremental");
         }
-        
+
+        const nearbyResponse = await fetch(nearbyUrl);
+        const nearbyData = await nearbyResponse.json();
+
+      if (nearbyData.status === "OK") {
+          // Se for busca incremental, pega TODOS os resultados (até 20) para filtrar depois
+          // Se não, pega apenas a quantidade solicitada
+          leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
+            ? nearbyData.results // Busca incremental: pega tudo para filtrar
+            : nearbyData.results.slice(0, body.quantidade);
+          
+          console.log(`Google retornou ${nearbyData.results.length} resultados`);
+        } else if (nearbyData.status === "INVALID_REQUEST" && body.pageToken) {
+          // PageToken pode ter expirado (válido por ~2 minutos)
+          throw new Error("Token de paginação expirou. Tente fazer uma nova busca.");
+        } else {
+          console.error("Nearby Search falhou:", nearbyData.status, nearbyData.error_message);
+          throw new Error(`Erro na busca: ${nearbyData.error_message || nearbyData.status}`);
+        }
       } else {
-        // Busca por texto com múltiplas variações de termo
-        console.log("📝 Modo: Busca por texto com variações de termos");
-        
-        const searchVariations = generateSearchVariations(body.nicho, body.cidade, body.estado);
-        // Limita número de variações baseado na quantidade solicitada
-        const maxVariations = Math.min(Math.ceil(targetCount / 40), searchVariations.length);
-        const selectedVariations = searchVariations.slice(0, maxVariations);
-        
-        console.log(`🎯 Usando ${selectedVariations.length} variações de termo de busca`);
-        
-        for (const query of selectedVariations) {
-          if (uniqueResults.size >= targetCount) {
-            console.log(`✅ Objetivo atingido: ${uniqueResults.size} leads únicos`);
-            break;
-          }
+        // Busca por texto (Text Search)
+        console.log("Buscando por texto (Text Search)...");
+
+        let textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
+          `${body.nicho} ${body.cidade} ${body.estado}`
+        )}&key=${GOOGLE_API_KEY}`;
+
+        // Se houver pageToken, usa para paginação (busca incremental)
+        if (body.pageToken) {
+          textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?pagetoken=${body.pageToken}&key=${GOOGLE_API_KEY}`;
+          console.log("Usando pageToken para busca incremental");
+        }
+
+        const textResponse = await fetch(textSearchUrl);
+        const textData = await textResponse.json();
+
+        if (textData.status === "OK") {
+          // Se for busca incremental, pega TODOS os resultados (até 20) para filtrar depois
+          // Se não, pega apenas a quantidade solicitada
+          leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
+            ? textData.results // Busca incremental: pega tudo para filtrar
+            : textData.results.slice(0, body.quantidade);
           
-          console.log(`\n🔎 Buscando: "${query}"`);
-          
-          const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`;
-          
-          const results = await searchWithPagination(textSearchUrl, query);
-          
-          // Adiciona apenas resultados únicos
-          let newCount = 0;
-          for (const result of results) {
-            if (!uniqueResults.has(result.place_id)) {
-              uniqueResults.set(result.place_id, result);
-              newCount++;
-            }
-          }
-          
-          console.log(`📊 Novos leads desta busca: ${newCount} | Total único: ${uniqueResults.size}`);
+          console.log(`Google retornou ${textData.results.length} resultados`);
+        } else if (textData.status === "INVALID_REQUEST" && body.pageToken) {
+          // PageToken pode ter expirado (válido por ~2 minutos)
+          throw new Error("Token de paginação expirou. Tente fazer uma nova busca.");
+        } else {
+          console.error("Text Search falhou:", textData.status, textData.error_message);
+          throw new Error(`Erro na busca: ${textData.error_message || textData.status}`);
         }
       }
-      
-      // Converte Map para array
-      leads = Array.from(uniqueResults.values());
-      console.log(`\n🎯 Total de leads únicos encontrados: ${leads.length}`);
     }
 
     console.log(`Encontrados ${leads.length} leads antes do filtro`);
@@ -302,7 +207,6 @@ serve(async (req) => {
         has_gtag: false,
         has_gtm: false,
         instagram_url: null as string | null,
-        email: null as string | null,
       };
 
       try {
@@ -362,129 +266,10 @@ serve(async (req) => {
           signals.has_gtm = true;
         }
 
-        // ========================================
-        // DETECÇÃO DE INSTAGRAM - MÚLTIPLOS PADRÕES
-        // ========================================
-        
-        // Lista de usernames a ignorar (páginas genéricas do Instagram)
-        const ignoredUsernames = ['p', 'reel', 'reels', 'stories', 'explore', 'accounts', 'about', 'legal', 'help', 'direct', 'tv', 'accounts'];
-        
-        // Padrões de link do Instagram
-        const instagramPatterns = [
-          /(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)/gi,
-          /(?:https?:\/\/)?(?:www\.)?instagr\.am\/([a-zA-Z0-9._]+)/gi,
-          /href\s*=\s*["'][^"']*instagram\.com\/([a-zA-Z0-9._]+)[^"']*["']/gi,
-        ];
-        
-        for (const pattern of instagramPatterns) {
-          const matches = html.matchAll(pattern);
-          for (const match of matches) {
-            if (match[1] && !ignoredUsernames.includes(match[1].toLowerCase())) {
-              signals.instagram_url = `https://instagram.com/${match[1]}`;
-              console.log(`✅ Instagram encontrado via link: ${signals.instagram_url}`);
-              break;
-            }
-          }
-          if (signals.instagram_url) break;
-        }
-
-        // Procura por classe/id com instagram
-        if (!signals.instagram_url) {
-          const instagramClassPatterns = [
-            /class\s*=\s*["'][^"']*instagram[^"']*["']/gi,
-            /id\s*=\s*["'][^"']*instagram[^"']*["']/gi,
-            /class\s*=\s*["'][^"']*insta[^"']*["']/gi,
-            /data-instagram\s*=\s*["']@?([a-zA-Z0-9._]+)["']/gi,
-          ];
-          
-          for (const pattern of instagramClassPatterns) {
-            if (pattern.test(html)) {
-              // Há um elemento Instagram, tenta encontrar o link próximo
-              const linkNearby = html.match(/instagram\.com\/([a-zA-Z0-9._]+)/gi);
-              if (linkNearby && linkNearby[0]) {
-                const username = linkNearby[0].replace(/instagram\.com\//i, '');
-                if (!ignoredUsernames.includes(username.toLowerCase())) {
-                  signals.instagram_url = `https://instagram.com/${username}`;
-                  console.log(`✅ Instagram detectado via classe CSS: ${signals.instagram_url}`);
-                }
-              }
-              break;
-            }
-          }
-        }
-
-        // Procura por SVG icons com links de Instagram
-        if (!signals.instagram_url) {
-          const svgInstagramPattern = /<a[^>]*href\s*=\s*["'][^"']*instagram\.com\/([a-zA-Z0-9._]+)[^"']*["'][^>]*>[\s\S]*?<svg/gi;
-          const svgMatch = html.match(svgInstagramPattern);
-          if (svgMatch) {
-            const usernameMatch = svgMatch[0].match(/instagram\.com\/([a-zA-Z0-9._]+)/i);
-            if (usernameMatch && usernameMatch[1] && !ignoredUsernames.includes(usernameMatch[1].toLowerCase())) {
-              signals.instagram_url = `https://instagram.com/${usernameMatch[1]}`;
-              console.log(`✅ Instagram detectado via ícone SVG: ${signals.instagram_url}`);
-            }
-          }
-        }
-
-        // Procura por imagens/ícones de Instagram
-        if (!signals.instagram_url) {
-          const instagramImagePatterns = [
-            /src\s*=\s*["'][^"']*instagram[^"']*\.(png|jpg|jpeg|svg|gif|webp)["']/gi,
-            /src\s*=\s*["'][^"']*insta[^"']*\.(png|jpg|jpeg|svg|gif|webp)["']/gi,
-          ];
-          
-          for (const pattern of instagramImagePatterns) {
-            if (pattern.test(html)) {
-              const linkMatch = html.match(/instagram\.com\/([a-zA-Z0-9._]+)/gi);
-              if (linkMatch) {
-                const username = linkMatch[0].replace(/instagram\.com\//i, '');
-                if (!ignoredUsernames.includes(username.toLowerCase())) {
-                  signals.instagram_url = `https://instagram.com/${username}`;
-                  console.log(`✅ Instagram detectado via ícone: ${signals.instagram_url}`);
-                }
-              }
-              break;
-            }
-          }
-        }
-
-        // Procura por @username próximo a "Instagram"
-        if (!signals.instagram_url) {
-          const atUsernamePatterns = [
-            /instagram[^\n]{0,80}@([a-zA-Z0-9._]{3,30})/gi,
-            /@([a-zA-Z0-9._]{3,30})[^\n]{0,80}instagram/gi,
-          ];
-          
-          for (const pattern of atUsernamePatterns) {
-            const match = html.match(pattern);
-            if (match) {
-              const usernameMatch = match[0].match(/@([a-zA-Z0-9._]{3,30})/);
-              if (usernameMatch && usernameMatch[1] && !ignoredUsernames.includes(usernameMatch[1].toLowerCase())) {
-                signals.instagram_url = `https://instagram.com/${usernameMatch[1]}`;
-                console.log(`✅ Instagram detectado via @username: ${signals.instagram_url}`);
-                break;
-              }
-            }
-          }
-        }
-
-        // Procura em áreas comuns (footer, social links)
-        if (!signals.instagram_url) {
-          const socialSectionPatterns = [
-            /(?:footer|social|redes|siga)[^]*?instagram\.com\/([a-zA-Z0-9._]+)/gi,
-          ];
-          
-          for (const pattern of socialSectionPatterns) {
-            const match = html.match(pattern);
-            if (match) {
-              const usernameMatch = match[0].match(/instagram\.com\/([a-zA-Z0-9._]+)/i);
-              if (usernameMatch && usernameMatch[1] && !ignoredUsernames.includes(usernameMatch[1].toLowerCase())) {
-                signals.instagram_url = `https://instagram.com/${usernameMatch[1]}`;
-                console.log(`✅ Instagram detectado em seção social: ${signals.instagram_url}`);
-                break;
-              }
-            }
-          }
+        // Detectar Instagram URL
+        const instagramMatch = html.match(/instagram\.com\/([a-zA-Z0-9._]+)/i);
+        if (instagramMatch) {
+          signals.instagram_url = `https://instagram.com/${instagramMatch[1]}`;
         }
 
         console.log(`Sinais detectados:`, signals);
@@ -518,12 +303,11 @@ serve(async (req) => {
           // Analisa o site se houver website (com timeout)
           let siteSignals = {
             whatsapp_on_site: false,
-            whatsapp_number: null as string | null,
+            whatsapp_number: null,
             has_meta_pixel: false,
             has_gtag: false,
             has_gtm: false,
-            instagram_url: null as string | null,
-            email: null as string | null,
+            instagram_url: null,
           };
 
           if (details.website) {
@@ -588,26 +372,68 @@ serve(async (req) => {
             console.error("Erro ao buscar ID do lead:", selectError);
           }
 
-          // ✅ OTIMIZAÇÃO: NÃO agenda análise IA aqui
-          // A análise será feita em batch após todos os leads serem coletados
-          // Isso reduz de N chamadas para N/5 chamadas (batch de 5)
-          
+          // Agenda análise de IA em background com retry
+          const scheduleAnalysisWithRetry = async (retries = 3) => {
+            for (let attempt = 1; attempt <= retries; attempt++) {
+              try {
+                console.log(`🤖 Agendando análise IA (tentativa ${attempt}/${retries}) para: ${details.name}`);
+                
+                const response = await fetch(
+                  `${Deno.env.get("SUPABASE_URL")}/functions/v1/analisar-lead-ia`,
+                  {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: req.headers.get("Authorization")!,
+                    },
+                    body: JSON.stringify({
+                      lead_id: leadData?.id,
+                      nome: details.name,
+                      nicho: body.nicho,
+                      cidade: body.cidade,
+                      website: details.website || null,
+                      foco: body.foco,
+                      whatsapp_on_site: siteSignals.whatsapp_on_site,
+                      has_meta_pixel: siteSignals.has_meta_pixel,
+                      has_gtag: siteSignals.has_gtag,
+                      has_gtm: siteSignals.has_gtm,
+                      instagram_url: siteSignals.instagram_url,
+                      instagram_context: null,
+                      canaisProspeccao: body.canaisProspeccao || "ambos",
+                    }),
+                  }
+                );
+
+                if (response.ok) {
+                  console.log(`✅ Análise IA agendada com sucesso para: ${details.name}`);
+                  return;
+                }
+
+                const errorText = await response.text();
+                console.error(`❌ Erro na análise IA (tentativa ${attempt}):`, response.status, errorText);
+                
+                // Se não for o último retry, aguarda antes de tentar novamente
+                if (attempt < retries) {
+                  await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+                }
+              } catch (err: any) {
+                console.error(`❌ Erro ao chamar análise IA (tentativa ${attempt}):`, err.message);
+                if (attempt < retries) {
+                  await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+                }
+              }
+            }
+            console.error(`❌ Falha após ${retries} tentativas de análise IA para: ${details.name}`);
+          };
+
+          // Executa em background
+          scheduleAnalysisWithRetry().catch(err => 
+            console.error("Erro crítico no agendamento de IA:", err)
+          );
+
           return {
-            id: leadData?.id,
             nome: details.name,
             endereco: details.formatted_address,
-            nicho: body.nicho,
-            cidade: body.cidade,
-            foco: body.foco,
-            website: details.website || null,
-            whatsapp_on_site: siteSignals.whatsapp_on_site,
-            whatsapp_number: siteSignals.whatsapp_number,
-            email: siteSignals.email,
-            has_meta_pixel: siteSignals.has_meta_pixel,
-            has_gtag: siteSignals.has_gtag,
-            has_gtm: siteSignals.has_gtm,
-            instagram_url: siteSignals.instagram_url,
-            canaisProspeccao: body.canaisProspeccao || ["email", "whatsapp", "instagram"],
             sinais: siteSignals,
           };
         }
@@ -627,88 +453,21 @@ serve(async (req) => {
       leadsDetails.push(...results.filter(r => r !== null));
     }
 
-    // ✅ OTIMIZAÇÃO: Agenda análise IA em batch (5 leads por chamada)
-    // Isso é feito em background após retornar os leads para o usuário
-    const leadsParaAnalise = leadsDetails.filter(l => l && l.id);
-    
-    if (leadsParaAnalise.length > 0) {
-      console.log(`🤖 Agendando análise IA em batch para ${leadsParaAnalise.length} leads...`);
-      
-      // Dispara análise em background sem bloquear resposta
-      const analyzeBatch = async () => {
-        const AI_BATCH_SIZE = 5;
-        
-        for (let i = 0; i < leadsParaAnalise.length; i += AI_BATCH_SIZE) {
-          const batch = leadsParaAnalise.slice(i, i + AI_BATCH_SIZE);
-          
-          try {
-            console.log(`📊 Enviando batch ${Math.floor(i / AI_BATCH_SIZE) + 1} (${batch.length} leads)...`);
-            
-            const response = await fetch(
-              `${Deno.env.get("SUPABASE_URL")}/functions/v1/analisar-leads-batch`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: req.headers.get("Authorization")!,
-                },
-                body: JSON.stringify({ leads: batch }),
-              }
-            );
-            
-            if (response.ok) {
-              console.log(`✅ Batch ${Math.floor(i / AI_BATCH_SIZE) + 1} processado`);
-            } else {
-              console.error(`❌ Erro no batch:`, await response.text());
-            }
-            
-            // Delay entre batches para evitar rate limit
-            if (i + AI_BATCH_SIZE < leadsParaAnalise.length) {
-              await new Promise(r => setTimeout(r, 500));
-            }
-          } catch (err: any) {
-            console.error(`❌ Erro ao processar batch:`, err.message);
-          }
-        }
-      };
-      
-      // Executa em background sem bloquear
-      analyzeBatch().catch(err => console.error("Erro no batch analysis:", err));
-    }
-
     return new Response(
       JSON.stringify({
         success: true,
         leadsCount: leadsDetails.length,
         leads: leadsDetails,
-        hasMore: leads.length >= body.quantidade,
+        hasMore: leads.length >= body.quantidade, // Indica se provavelmente há mais resultados
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
   } catch (error: any) {
-    // Log detailed error server-side
-    console.error("Erro na busca de leads:", {
-      message: error.message,
-      stack: error.stack,
-    });
-    
-    // Return generic error message to client
-    // Only show specific message for known/expected errors
-    let clientMessage = "Erro ao buscar leads. Tente novamente.";
-    
-    if (error.message?.includes("Cidade") && error.message?.includes("não encontrada")) {
-      clientMessage = error.message; // Safe to show city not found error
-    } else if (error.message?.includes("Token de paginação")) {
-      clientMessage = error.message; // Safe to show pagination token error
-    }
-    
+    console.error("Erro na busca de leads:", error);
     return new Response(
-      JSON.stringify({ 
-        error: 'SEARCH_ERROR',
-        message: clientMessage 
-      }),
+      JSON.stringify({ error: error.message || "Erro ao buscar leads" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

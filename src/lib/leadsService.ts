@@ -285,3 +285,96 @@ export async function bulkUpdateLeadsSalvo(leadIds: string[], salvo: boolean): P
     };
   }
 }
+
+// ============================================
+// UTILITY OPERATIONS - For specific data needs
+// ============================================
+
+interface PlaceIdsResponse {
+  success: boolean;
+  data?: string[];
+  error?: LeadsServiceError;
+}
+
+interface LeadsStatsResponse {
+  success: boolean;
+  data?: Array<{
+    id: string;
+    nome: string;
+    cidade: string;
+    nicho: string;
+    foco: string;
+    status: string | null;
+    probabilidade_conversao: number | null;
+    salvo: boolean;
+    created_at: string;
+    updated_at: string;
+    rating: number | null;
+    total_reviews: number | null;
+    whatsapp_on_site: boolean;
+    has_meta_pixel: boolean;
+    has_gtag: boolean;
+    has_gtm: boolean;
+  }>;
+  error?: LeadsServiceError;
+}
+
+/**
+ * Fetch google_place_ids for duplicate detection
+ * @param salvo - optional filter for saved/unsaved leads
+ */
+export async function fetchPlaceIds(salvo?: boolean): Promise<PlaceIdsResponse> {
+  try {
+    const { data, error } = await supabase.functions.invoke('leads-read', {
+      body: {
+        action: 'get_place_ids',
+        salvo
+      }
+    });
+
+    if (error) {
+      console.error('Error fetching place IDs:', error);
+      return { 
+        success: false, 
+        error: { error: 'FETCH_FAILED', message: error.message } 
+      };
+    }
+
+    return { success: true, data: data?.data ?? [] };
+  } catch (err: any) {
+    console.error('Fetch place IDs error:', err);
+    return { 
+      success: false, 
+      error: { error: 'NETWORK_ERROR', message: 'Erro de conexão' } 
+    };
+  }
+}
+
+/**
+ * Fetch leads stats for dashboard/reports (non-sensitive data only)
+ */
+export async function fetchLeadsStats(): Promise<LeadsStatsResponse> {
+  try {
+    const { data, error } = await supabase.functions.invoke('leads-read', {
+      body: {
+        action: 'get_stats'
+      }
+    });
+
+    if (error) {
+      console.error('Error fetching leads stats:', error);
+      return { 
+        success: false, 
+        error: { error: 'FETCH_FAILED', message: error.message } 
+      };
+    }
+
+    return { success: true, data: data?.data ?? [] };
+  } catch (err: any) {
+    console.error('Fetch leads stats error:', err);
+    return { 
+      success: false, 
+      error: { error: 'NETWORK_ERROR', message: 'Erro de conexão' } 
+    };
+  }
+}

@@ -742,6 +742,695 @@ Mensagens humanas e personalizadas = respondidas.`;
 }
 
 // =============================================================================
+// BIBLIOTECA DE NICHOS COM EXEMPLOS ESPECÍFICOS
+// =============================================================================
+interface NichoContext {
+  dor_principal: string;
+  dor_secundaria: string;
+  ganho_principal: string;
+  metrica_chave: string;
+  exemplo_whatsapp: string;
+  exemplo_email: string;
+  exemplo_instagram: string;
+  objecoes: { objecao: string; resposta: string }[];
+  jargoes: string[];
+}
+
+const NICHO_DATABASE: Record<string, NichoContext> = {
+  // ═══════════════════════════════════════
+  // SAÚDE & ESTÉTICA
+  // ═══════════════════════════════════════
+  "clinica_estetica": {
+    dor_principal: "agenda com buracos e dependência de indicação boca-a-boca",
+    dor_secundaria: "concorrência com clínicas que fazem promoção de procedimentos",
+    ganho_principal: "agenda lotada de procedimentos de alto ticket (harmonização, lipo, skincare)",
+    metrica_chave: "taxa de ocupação da agenda e ticket médio",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋 
+Vi que a [empresa] trabalha com estética em [cidade].
+Muitas clínicas aqui estão usando tráfego pago para lotar a agenda de harmonização e lipo.
+Reparei que vocês ainda não exploram isso.
+Posso te mostrar como funciona em 5 min?`,
+    exemplo_email: `Assunto: [Nome], agenda de estética em [cidade]
+
+[Nome], tudo bem?
+
+Analisei clínicas de estética em [cidade] e percebi um padrão: as que investem em anúncios online lotam agenda de lipo, harmonização e skincare.
+As que não investem dependem de indicação e têm buracos na agenda.
+
+Vi que a [empresa] ainda não explora isso. Posso te enviar um diagnóstico gratuito?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi seu antes/depois de harmonização - resultado incrível!
+Trabalho ajudando clínicas a lotar agenda com pacientes de alto ticket.
+Posso te mandar uma ideia rápida?`,
+    objecoes: [
+      { objecao: "Minha agenda já é cheia por indicação", resposta: "Ótimo sinal de qualidade! Mas indicação é imprevisível - você não controla quantos pacientes entram por semana. Com tráfego, você decide: 'quero 10 agendamentos de harmonização essa semana'. Posso mostrar como funciona?" },
+      { objecao: "Meu público é mais velho, não usa internet", resposta: "Interessante - e onde esse público pesquisa quando quer fazer um procedimento estético? Google. 78% das pessoas de 40+ buscam 'clínica de estética perto de mim' antes de agendar. Posso mostrar como aparecer primeiro?" }
+    ],
+    jargoes: ["ticket médio", "recorrência", "protocolos", "agenda lotada", "procedimento de alto valor"]
+  },
+
+  "dentista": {
+    dor_principal: "agenda vazia às segundas e horários ociosos à tarde",
+    dor_secundaria: "pacientes que somem depois do orçamento por causa do preço",
+    ganho_principal: "pacientes novos toda semana para implantes e harmonização facial",
+    metrica_chave: "taxa de conversão de orçamento e novos pacientes/mês",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei consultórios odontológicos em [cidade] e percebi algo.
+Muitos dentistas têm agenda vazia às segundas e horários ociosos.
+A [empresa] está captando pacientes novos toda semana ou depende de indicação?
+Posso mostrar como resolver isso em 5 min?`,
+    exemplo_email: `Assunto: [Nome], agenda de implantes em [cidade]
+
+[Nome], tudo bem?
+
+Consultórios que dependem só de indicação têm um problema: não controlam quantos pacientes novos entram por mês.
+
+Vi que a [empresa] pode estar perdendo pacientes de implante e harmonização para concorrentes que aparecem primeiro no Google.
+
+Posso te mostrar como mudar isso?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi que vocês fazem harmonização - área que está explodindo!
+Ajudo dentistas a lotar agenda de implantes e harmô sem depender de indicação.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Paciente de implante vem por indicação", resposta: "Verdade, indicação é o melhor canal. Mas você controla quantas indicações recebe por mês? Com tráfego pago, você decide: 'quero 5 orçamentos de implante essa semana'. Posso mostrar como funciona sem compromisso?" },
+      { objecao: "Já fiz Google Ads e não deu certo", resposta: "Entendo - infelizmente muitas campanhas são mal configuradas. O segredo está na página de destino e no follow-up. Posso analisar o que pode ter dado errado e mostrar a estratégia correta?" }
+    ],
+    jargoes: ["conversão de orçamento", "ticket médio de implante", "recorrência", "harmô", "pacientes qualificados"]
+  },
+
+  "psicologo": {
+    dor_principal: "dificuldade em lotar agenda de sessões particulares",
+    dor_secundaria: "pacientes que abandonam terapia após poucas sessões",
+    ganho_principal: "agenda cheia de pacientes particulares com recorrência mensal",
+    metrica_chave: "taxa de retenção e novos pacientes/mês",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Vi que você atende em [cidade] como psicóloga.
+Muitos psicólogos dependem de plano de saúde e têm agenda vazia no particular.
+Consegue lotar agenda só com pacientes particulares ou ainda depende de convênio?
+Posso mostrar uma estratégia em 5 min?`,
+    exemplo_email: `Assunto: [Nome], pacientes particulares em [cidade]
+
+[Nome], tudo bem?
+
+A maioria dos psicólogos depende de convênio e tem horários vagos no particular.
+Mas existe uma estratégia para atrair pacientes que buscam atendimento de qualidade e pagam bem.
+
+Posso te mostrar como funciona?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi seu conteúdo sobre ansiedade - muito relevante!
+Ajudo psicólogos a lotar agenda de particulares sem depender de convênio.
+Posso mandar uma ideia rápida?`,
+    objecoes: [
+      { objecao: "Meus pacientes vêm por indicação", resposta: "Indicação é ótimo sinal de competência! Mas você consegue prever quantos novos pacientes terá mês que vem? Com uma estratégia de conteúdo + anúncios, você atrai pessoas que já estão buscando ajuda. Posso mostrar?" },
+      { objecao: "Não gosto de me expor nas redes", resposta: "Entendo perfeitamente. A boa notícia: dá pra atrair pacientes sem dançar no TikTok. Usamos conteúdo educativo + Google Ads para quem já está buscando. Posso mostrar essa abordagem mais discreta?" }
+    ],
+    jargoes: ["recorrência mensal", "pacientes particulares", "taxa de retenção", "agenda lotada"]
+  },
+
+  "veterinario": {
+    dor_principal: "dependência de emergências e baixa recorrência de consultas preventivas",
+    dor_secundaria: "tutores que só aparecem quando o pet está doente",
+    ganho_principal: "agenda cheia de consultas preventivas e pacotes de acompanhamento",
+    metrica_chave: "recorrência de clientes e ticket médio por pet",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei clínicas veterinárias em [cidade] e vi um padrão.
+A maioria depende de emergências e perde faturamento por não ter recorrência.
+A [empresa] já trabalha com pacotes de acompanhamento ou planos de saúde pet?
+Posso mostrar como implementar?`,
+    exemplo_email: `Assunto: [Nome], recorrência na clínica veterinária
+
+[Nome], tudo bem?
+
+Clínicas que dependem só de emergências têm faturamento imprevisível.
+Mas dá pra criar recorrência com pacotes de acompanhamento e planos de saúde pet.
+
+Posso te mostrar como outras clínicas em [cidade] estão fazendo isso?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi as fotos dos pets que vocês atendem - fofura demais!
+Ajudo clínicas a criar recorrência com planos de saúde pet.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Tutor não paga plano de saúde pra pet", resposta: "Entendo a preocupação. Mas 62% dos tutores consideram o pet um membro da família. Com a comunicação certa, eles veem o plano como proteção, não gasto. Posso mostrar como apresentar?" },
+      { objecao: "Já tenho clientes fiéis", resposta: "Ótimo! E você sabe quantos deles têm outros pets que não trazem pra você? Com uma estratégia de retenção, você atende toda a família e aumenta ticket. Posso mostrar como?" }
+    ],
+    jargoes: ["recorrência", "ticket médio", "plano de saúde pet", "consulta preventiva"]
+  },
+
+  // ═══════════════════════════════════════
+  // SERVIÇOS PROFISSIONAIS
+  // ═══════════════════════════════════════
+  "advocacia": {
+    dor_principal: "dependência de indicação e dificuldade em captar clientes corporativos",
+    dor_secundaria: "precificação por hora que limita faturamento",
+    ganho_principal: "fluxo previsível de consultas qualificadas em sua área de especialidade",
+    metrica_chave: "leads qualificados por mês e taxa de conversão",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Vi que o escritório atua em [cidade] na área de [especialidade].
+Muitos advogados dependem de indicação e têm meses imprevisíveis.
+Vocês conseguem prever quantos clientes novos entram por mês?
+Posso mostrar uma estratégia em 5 min?`,
+    exemplo_email: `Assunto: [Nome], captação de clientes para o escritório
+
+[Nome], tudo bem?
+
+A maioria dos escritórios depende de indicação - o que significa faturamento imprevisível.
+Mas existe uma estratégia para atrair clientes que já estão buscando advogado na sua área.
+
+Posso te mostrar como funciona para escritórios de [cidade]?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi seu conteúdo sobre [área jurídica] - muito didático!
+Ajudo advogados a captar clientes qualificados sem depender só de indicação.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Cliente de advocacia vem por indicação", resposta: "Indicação é o melhor canal, concordo. Mas você controla quantas indicações recebe por mês? Com uma estratégia de Google Ads, você atrai quem já está buscando advogado na sua área. Posso mostrar?" },
+      { objecao: "OAB tem restrições de publicidade", resposta: "Verdade, e respeitamos 100%. A estratégia que usamos é educativa - conteúdo que posiciona você como autoridade, não anúncio de 'advogado barato'. Posso mostrar exemplos que funcionam dentro das regras?" }
+    ],
+    jargoes: ["leads qualificados", "taxa de conversão", "autoridade na área", "posicionamento"]
+  },
+
+  "contabilidade": {
+    dor_principal: "clientes que pedem desconto e veem contabilidade como custo",
+    dor_secundaria: "dificuldade em vender serviços consultivos além do básico",
+    ganho_principal: "carteira de clientes que valorizam consultoria e pagam ticket maior",
+    metrica_chave: "ticket médio e retenção de clientes",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei escritórios de contabilidade em [cidade].
+A maioria reclama que cliente só quer preço baixo e não valoriza o serviço.
+Vocês conseguem vender consultoria além do básico ou ficam presos no honorário mínimo?
+Posso mostrar como mudar isso?`,
+    exemplo_email: `Assunto: [Nome], ticket maior na contabilidade
+
+[Nome], tudo bem?
+
+O maior desafio dos contadores: cliente que compara preço e não vê valor.
+Mas existe uma estratégia para atrair empresas que buscam consultoria, não só obrigações.
+
+Posso te mostrar como outros escritórios em [cidade] estão aumentando ticket?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi seu conteúdo sobre impostos - super didático!
+Ajudo contadores a atrair clientes que pagam bem por consultoria.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Empresário só quer pagar barato", resposta: "Entendo a frustração. Mas existe um perfil de empresário que quer conselho, não só guias. O segredo está na comunicação - mostrar que você resolve problemas, não só cumpre obrigações. Posso mostrar como atrair esse perfil?" },
+      { objecao: "Mercado está saturado", resposta: "Concordo que tem muito contador. Mas poucos se posicionam como consultores. Quando você muda a comunicação de 'abro empresas' para 'ajudo empresas a pagar menos impostos legalmente', atrai outro público. Posso mostrar?" }
+    ],
+    jargoes: ["ticket médio", "serviços consultivos", "retenção", "carteira qualificada"]
+  },
+
+  "imobiliaria": {
+    dor_principal: "leads frios que somem depois da visita ao imóvel",
+    dor_secundaria: "corretores que dependem de plantão e não têm carteira própria",
+    ganho_principal: "fluxo constante de leads qualificados prontos para comprar/alugar",
+    metrica_chave: "taxa de conversão de visita e ciclo de venda",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Vi que a [empresa] atua no mercado imobiliário de [cidade].
+Muitas imobiliárias reclamam: lead entra, faz visita, some.
+Vocês conseguem converter quantos % dos leads que entram?
+Posso mostrar como melhorar isso em 5 min?`,
+    exemplo_email: `Assunto: [Nome], conversão de leads imobiliários
+
+[Nome], tudo bem?
+
+O maior desafio do mercado imobiliário: leads que fazem visita e desaparecem.
+Mas existe uma estratégia de follow-up que aumenta conversão em até 40%.
+
+Posso te mostrar como funciona para imobiliárias de [cidade]?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi os imóveis que vocês trabalham em [cidade] - carteira bonita!
+Ajudo imobiliárias a converter mais leads em vendas.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Lead imobiliário é muito frio", resposta: "Verdade, a maioria está só pesquisando. Mas você sabe quem está pronto pra comprar? Com um sistema de qualificação, você identifica os 20% que estão prontos e foca energia neles. Posso mostrar como?" },
+      { objecao: "Corretor não segue processo", resposta: "Entendo - é o maior desafio da gestão. Por isso usamos automação: o sistema faz follow-up mesmo que o corretor esqueça. Posso mostrar como funciona?" }
+    ],
+    jargoes: ["taxa de conversão", "lead qualificado", "ciclo de venda", "follow-up", "fechamento"]
+  },
+
+  // ═══════════════════════════════════════
+  // FITNESS & ACADEMIAS
+  // ═══════════════════════════════════════
+  "academia": {
+    dor_principal: "alta taxa de cancelamento e sazonalidade (verão lotado, inverno vazio)",
+    dor_secundaria: "dificuldade em vender planos anuais em vez de mensais",
+    ganho_principal: "retenção alta e fluxo constante de novos alunos o ano todo",
+    metrica_chave: "taxa de retenção e novos alunos/mês",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei academias em [cidade] e vi um padrão.
+A maioria lota em janeiro e esvazia em abril.
+A [empresa] consegue manter retenção alta o ano todo?
+Posso mostrar como resolver isso?`,
+    exemplo_email: `Assunto: [Nome], retenção na academia
+
+[Nome], tudo bem?
+
+O maior desafio das academias: aluno entra em janeiro, cancela em março.
+Mas existe uma estratégia de engajamento que mantém retenção acima de 80%.
+
+Posso te mostrar como funciona para academias de [cidade]?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi os treinos que vocês postam - estrutura top!
+Ajudo academias a manter retenção alta o ano todo.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Aluno cancela porque é preguiçoso", resposta: "Entendo a frustração. Mas academias com alta retenção não dependem da motivação do aluno - elas criam sistemas de engajamento. App de treino, desafios, comunidade. Posso mostrar como implementar?" },
+      { objecao: "Concorrência de preço é muito forte", resposta: "Verdade, low cost cresceu muito. Mas você não compete com eles em preço - compete em experiência. O segredo está em atrair quem busca resultado, não quem busca barato. Posso mostrar como?" }
+    ],
+    jargoes: ["taxa de retenção", "churn", "plano anual", "engajamento", "LTV"]
+  },
+
+  "personal": {
+    dor_principal: "agenda que depende de poucos clientes que podem cancelar a qualquer momento",
+    dor_secundaria: "dificuldade em cobrar mais caro sem perder alunos",
+    ganho_principal: "carteira diversificada de clientes que valorizam seu trabalho",
+    metrica_chave: "ticket médio e recorrência",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Vi que você atua como personal trainer em [cidade].
+A maioria dos personais depende de 5-10 clientes - se 2 cancelam, o mês quebra.
+Você consegue atrair clientes novos toda semana ou depende de indicação?
+Posso mostrar uma estratégia em 5 min?`,
+    exemplo_email: `Assunto: [Nome], carteira de clientes de personal
+
+[Nome], tudo bem?
+
+O maior risco do personal: depender de poucos clientes.
+Mas existe uma estratégia para atrair clientes de alto ticket que valorizam seu trabalho.
+
+Posso te mostrar como funciona?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi os resultados dos seus alunos - transformações incríveis!
+Ajudo personais a atrair clientes que pagam bem.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Meus clientes vêm por indicação", resposta: "Indicação é o melhor canal! Mas você controla quantas indicações recebe por mês? Com uma estratégia de conteúdo, você atrai quem já está buscando personal e não conhece ninguém. Posso mostrar?" },
+      { objecao: "Personal é muito caro pra maioria", resposta: "Verdade pra maioria. Mas existe um público que quer resultado e paga bem por isso. O segredo está em atrair esse público certo. Posso mostrar como?" }
+    ],
+    jargoes: ["ticket médio", "recorrência", "carteira diversificada", "resultado"]
+  },
+
+  // ═══════════════════════════════════════
+  // ALIMENTAÇÃO
+  // ═══════════════════════════════════════
+  "restaurante": {
+    dor_principal: "movimento concentrado no fim de semana e mesas vazias durante a semana",
+    dor_secundaria: "dependência de apps de delivery que cobram 30% de comissão",
+    ganho_principal: "casa cheia todos os dias e delivery próprio com margem saudável",
+    metrica_chave: "ticket médio e fluxo por dia da semana",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei restaurantes em [cidade] e vi um padrão.
+A maioria lota sexta e sábado, mas fica vazio terça e quarta.
+A [empresa] consegue manter movimento durante a semana?
+Posso mostrar como resolver isso?`,
+    exemplo_email: `Assunto: [Nome], movimento durante a semana
+
+[Nome], tudo bem?
+
+O maior desafio dos restaurantes: fim de semana lotado, semana vazia.
+Mas existe uma estratégia para atrair clientes nos dias mais fracos.
+
+Posso te mostrar como funciona para restaurantes de [cidade]?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi os pratos que vocês postam - deu água na boca!
+Ajudo restaurantes a lotar durante a semana, não só fim de semana.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Meu movimento já é bom", resposta: "Ótimo sinal! E durante a semana, como está? A maioria dos restaurantes perde dinheiro terça e quarta. Se você já está bem nesses dias, parabéns - é exceção. Se não, posso mostrar como melhorar?" },
+      { objecao: "iFood já traz pedidos", resposta: "Traz, mas quanto você paga de comissão? 30%? Com delivery próprio e uma base de clientes, você paga 0% e ainda fideliza. Posso mostrar como montar?" }
+    ],
+    jargoes: ["ticket médio", "giro de mesas", "delivery próprio", "fidelização"]
+  },
+
+  "pizzaria": {
+    dor_principal: "guerra de preço com concorrentes e dependência de promoção",
+    dor_secundaria: "comissões altas de apps de delivery",
+    ganho_principal: "clientes fiéis que pedem direto sem precisar de desconto",
+    metrica_chave: "pedidos diretos vs apps e ticket médio",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei pizzarias em [cidade] e percebi algo.
+A maioria compete por preço e perde margem no iFood.
+A [empresa] consegue ter pedidos diretos ou depende muito dos apps?
+Posso mostrar como mudar isso?`,
+    exemplo_email: `Assunto: [Nome], pedidos diretos na pizzaria
+
+[Nome], tudo bem?
+
+Pizzarias que dependem de iFood pagam 30% de comissão.
+Mas existe uma estratégia para ter base própria de clientes que pedem direto.
+
+Posso te mostrar como funciona?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi as pizzas que vocês postam - massa linda!
+Ajudo pizzarias a ter mais pedidos diretos e depender menos de apps.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Preciso do iFood pra ter movimento", resposta: "Entendo - o app traz visibilidade. Mas cada pedido do iFood, você paga 30%. Se você converter esses clientes pra pedir direto, a margem muda completamente. Posso mostrar como fazer essa conversão?" },
+      { objecao: "Cliente só quer promoção", resposta: "Alguns sim. Mas existe um público que quer qualidade e conveniência, não só preço. O segredo está em atrair esse público certo com a comunicação certa. Posso mostrar?" }
+    ],
+    jargoes: ["pedido direto", "margem", "fidelização", "ticket médio", "recorrência"]
+  },
+
+  "confeitaria": {
+    dor_principal: "demanda concentrada em datas comemorativas e meses parados",
+    dor_secundaria: "dificuldade em mostrar valor para cobrar mais caro",
+    ganho_principal: "encomendas constantes o ano todo e clientes que pagam pelo diferencial",
+    metrica_chave: "encomendas/mês e ticket médio",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Vi que a [empresa] trabalha com confeitaria em [cidade].
+A maioria das confeiteiras lota em Páscoa e Natal, mas fica parada no resto do ano.
+Você consegue ter encomendas constantes?
+Posso mostrar uma estratégia?`,
+    exemplo_email: `Assunto: [Nome], encomendas o ano todo
+
+[Nome], tudo bem?
+
+O maior desafio das confeitarias: datas comemorativas lotam, resto do ano esvazia.
+Mas existe uma estratégia para ter fluxo constante de encomendas.
+
+Posso te mostrar como funciona?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi os bolos que você posta - arte pura!
+Ajudo confeitarias a ter encomendas o ano todo, não só em datas.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Meu produto é mais caro que mercado", resposta: "E deve ser mesmo! Você faz arte, não bolo de supermercado. O desafio é atrair quem valoriza isso. Com a comunicação certa, você atrai clientes que pagam pelo diferencial. Posso mostrar como?" },
+      { objecao: "Cliente pede muito desconto", resposta: "Alguns sim. Mas você quer trabalhar pra quem não valoriza seu trabalho? Com posicionamento certo, você atrai quem paga bem. Posso mostrar como?" }
+    ],
+    jargoes: ["encomendas", "ticket médio", "posicionamento premium", "diferencial"]
+  },
+
+  // ═══════════════════════════════════════
+  // COMÉRCIO
+  // ═══════════════════════════════════════
+  "loja_roupas": {
+    dor_principal: "estoque parado e dificuldade em competir com e-commerce",
+    dor_secundaria: "clientes que olham na loja e compram online mais barato",
+    ganho_principal: "clientes fiéis que voltam todo mês e indicam amigos",
+    metrica_chave: "giro de estoque e recorrência de clientes",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei lojas de roupa em [cidade] e vi um padrão.
+A maioria reclama de estoque parado e concorrência online.
+A [empresa] consegue girar estoque rápido ou tem peças há meses?
+Posso mostrar uma estratégia?`,
+    exemplo_email: `Assunto: [Nome], giro de estoque da loja
+
+[Nome], tudo bem?
+
+Lojas físicas que competem só em preço perdem pra online.
+Mas lojas que criam experiência e relacionamento vendem mais caro e giram estoque.
+
+Posso te mostrar como funciona para lojas de [cidade]?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi os looks que vocês postam - estilo incrível!
+Ajudo lojas a girar estoque e fidelizar clientes.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Cliente compara preço com online", resposta: "Alguns sim. Mas você oferece algo que a internet não tem: experimentar, tocar, ter consultoria. O segredo está em destacar esses diferenciais. Posso mostrar como comunicar isso?" },
+      { objecao: "Loja física está morrendo", resposta: "Loja genérica sim. Mas loja com experiência e comunidade está crescendo. As pessoas querem conexão, não só produto. Posso mostrar como criar isso?" }
+    ],
+    jargoes: ["giro de estoque", "recorrência", "ticket médio", "experiência de compra"]
+  },
+
+  "petshop": {
+    dor_principal: "concorrência de preço com grandes redes e e-commerce",
+    dor_secundaria: "dificuldade em fidelizar além do banho e tosa",
+    ganho_principal: "clientes que compram de tudo e voltam toda semana",
+    metrica_chave: "ticket médio e frequência de visita",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei petshops em [cidade] e percebi algo.
+A maioria vende banho e ração, mas perde pro preço da internet.
+A [empresa] consegue vender acessórios, brinquedos, produtos premium?
+Posso mostrar como aumentar ticket?`,
+    exemplo_email: `Assunto: [Nome], ticket médio do petshop
+
+[Nome], tudo bem?
+
+Petshops que vendem só banho e ração competem em preço.
+Mas petshops que vendem experiência e consultoria cobram mais e fidelizam.
+
+Posso te mostrar como funciona?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi os pets que passam por vocês - fofura demais!
+Ajudo petshops a aumentar ticket e fidelizar tutores.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Cliente compara preço com Cobasi", resposta: "Alguns sim. Mas você oferece algo que rede grande não tem: atendimento personalizado, conhecer o pet pelo nome, recomendação certeira. O segredo está em destacar isso. Posso mostrar como?" },
+      { objecao: "Banho e tosa já dá trabalho demais", resposta: "Entendo - serviço é puxado. Mas e se você vendesse mais produtos sem aumentar mão de obra? Com uma estratégia de venda consultiva, você aumenta ticket sem mais trabalho. Posso mostrar?" }
+    ],
+    jargoes: ["ticket médio", "recorrência", "venda consultiva", "fidelização"]
+  },
+
+  // ═══════════════════════════════════════
+  // BELEZA
+  // ═══════════════════════════════════════
+  "salao_beleza": {
+    dor_principal: "agenda com buracos e dependência de promoção para atrair clientes",
+    dor_secundaria: "profissionais que levam clientes quando saem",
+    ganho_principal: "agenda lotada com clientes que voltam todo mês",
+    metrica_chave: "taxa de retorno e ticket médio",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei salões de beleza em [cidade] e vi um padrão.
+A maioria depende de promoção pra lotar - o que corrói margem.
+A [empresa] consegue lotar agenda sem desconto?
+Posso mostrar como?`,
+    exemplo_email: `Assunto: [Nome], agenda lotada sem promoção
+
+[Nome], tudo bem?
+
+Salões que dependem de promoção atraem clientes de preço, não de valor.
+Mas existe uma estratégia para lotar agenda com clientes que pagam bem.
+
+Posso te mostrar como funciona?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi os trabalhos que vocês postam - técnica impecável!
+Ajudo salões a lotar agenda sem depender de promoção.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Concorrência de preço é muito forte", resposta: "Verdade, tem muito salão barato. Mas você não quer competir com eles - quer atrair quem paga por qualidade. O segredo está no posicionamento. Posso mostrar como atrair esse público?" },
+      { objecao: "Profissional boa sai e leva clientes", resposta: "Infelizmente acontece. Por isso é importante a marca do salão ser mais forte que a marca do profissional. Posso mostrar como construir isso?" }
+    ],
+    jargoes: ["taxa de retorno", "ticket médio", "agenda lotada", "posicionamento"]
+  },
+
+  "barbearia": {
+    dor_principal: "cliente que vai em qualquer barbearia e não tem fidelidade",
+    dor_secundaria: "dificuldade em vender serviços além do corte básico",
+    ganho_principal: "clientes fiéis que cortam todo mês e indicam amigos",
+    metrica_chave: "frequência de retorno e serviços adicionais/cliente",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei barbearias em [cidade] e percebi algo.
+A maioria tem clientes que vão em qualquer lugar - sem fidelidade.
+A [empresa] consegue ter clientes que voltam todo mês certinho?
+Posso mostrar como criar isso?`,
+    exemplo_email: `Assunto: [Nome], clientes fiéis na barbearia
+
+[Nome], tudo bem?
+
+Barbearias que vendem só corte competem em preço.
+Mas barbearias que criam experiência e comunidade têm clientes fiéis.
+
+Posso te mostrar como funciona?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi os cortes que vocês postam - nível premium!
+Ajudo barbearias a criar clientes fiéis que voltam todo mês.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Homem vai onde é mais perto", resposta: "Alguns sim. Mas existe um público que quer experiência, não só corte. Cerveja, papo, ambiente. O segredo está em atrair esse público. Posso mostrar como?" },
+      { objecao: "Já tenho bastante movimento", resposta: "Ótimo! E você consegue vender barba, produtos, assinatura? Muitas barbearias aumentam 40% o faturamento sem aumentar cadeiras. Posso mostrar como?" }
+    ],
+    jargoes: ["recorrência", "ticket médio", "experiência", "comunidade", "assinatura"]
+  },
+
+  // ═══════════════════════════════════════
+  // EDUCAÇÃO
+  // ═══════════════════════════════════════
+  "escola_idiomas": {
+    dor_principal: "alta taxa de desistência após 3-6 meses",
+    dor_secundaria: "concorrência de apps gratuitos e cursos online baratos",
+    ganho_principal: "alunos que completam o curso e indicam amigos",
+    metrica_chave: "taxa de retenção e NPS",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei escolas de idiomas em [cidade] e vi um padrão.
+A maioria perde alunos depois de 3-6 meses - antes de fluência.
+A [empresa] consegue manter alunos até o final?
+Posso mostrar como melhorar retenção?`,
+    exemplo_email: `Assunto: [Nome], retenção de alunos de idiomas
+
+[Nome], tudo bem?
+
+O maior desafio das escolas: aluno entra motivado, desiste em 6 meses.
+Mas existe uma estratégia de engajamento que mantém alunos até a fluência.
+
+Posso te mostrar como funciona?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi que vocês trabalham com [idioma] em [cidade]!
+Ajudo escolas a manter alunos até a fluência, não só matricular.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Aluno desiste porque não tem tempo", resposta: "Verdade, tempo é desafio. Mas escolas com alta retenção criam sistemas que cabem na rotina do aluno. App, microaulas, acompanhamento. Posso mostrar como implementar?" },
+      { objecao: "Duolingo é de graça", resposta: "É sim, e 95% desiste em 3 meses. Seu diferencial é o acompanhamento humano, a correção personalizada, a comunidade. O segredo está em destacar isso. Posso mostrar como?" }
+    ],
+    jargoes: ["taxa de retenção", "LTV", "NPS", "engajamento", "fluência"]
+  },
+
+  "curso_profissionalizante": {
+    dor_principal: "alunos que não completam o curso ou não conseguem emprego depois",
+    dor_secundaria: "concorrência de cursos online gratuitos",
+    ganho_principal: "alunos empregados que indicam a escola como diferencial na carreira",
+    metrica_chave: "taxa de conclusão e empregabilidade",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei cursos profissionalizantes em [cidade] e percebi algo.
+Muitos alunos se matriculam, mas não completam ou não conseguem emprego.
+A [empresa] acompanha empregabilidade dos formandos?
+Posso mostrar uma estratégia?`,
+    exemplo_email: `Assunto: [Nome], empregabilidade dos alunos
+
+[Nome], tudo bem?
+
+O maior diferencial de um curso: aluno empregado que indica.
+Mas a maioria das escolas não acompanha isso.
+
+Posso te mostrar como criar um sistema de empregabilidade que vira marketing?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi que vocês formam profissionais em [área]!
+Ajudo cursos a ter alunos empregados que viram cases de sucesso.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Mercado de trabalho está difícil", resposta: "Verdade, mas isso é ainda mais motivo pra você se diferenciar. Cursos que entregam empregabilidade se destacam. Posso mostrar como criar parcerias com empresas?" },
+      { objecao: "YouTube ensina de graça", resposta: "Ensina, mas não dá certificado, não acompanha, não coloca no mercado. Seu diferencial é o caminho completo. Posso mostrar como comunicar isso?" }
+    ],
+    jargoes: ["empregabilidade", "taxa de conclusão", "cases de sucesso", "parceria empresas"]
+  },
+
+  // ═══════════════════════════════════════
+  // AUTOMOTIVO
+  // ═══════════════════════════════════════
+  "oficina_mecanica": {
+    dor_principal: "cliente que só aparece quando quebra e não faz manutenção preventiva",
+    dor_secundaria: "desconfiança do cliente sobre serviços 'desnecessários'",
+    ganho_principal: "clientes recorrentes que fazem manutenção regular e indicam",
+    metrica_chave: "recorrência e ticket médio",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei oficinas mecânicas em [cidade] e vi um padrão.
+A maioria depende de emergência - cliente só aparece quando quebra.
+A [empresa] consegue ter clientes de manutenção preventiva?
+Posso mostrar como criar recorrência?`,
+    exemplo_email: `Assunto: [Nome], recorrência na oficina
+
+[Nome], tudo bem?
+
+Oficinas que dependem de emergência têm faturamento imprevisível.
+Mas existe uma estratégia para criar recorrência com manutenção preventiva.
+
+Posso te mostrar como funciona?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi os serviços que vocês fazem - trabalho caprichado!
+Ajudo oficinas a ter clientes recorrentes, não só emergências.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Cliente não quer gastar com prevenção", resposta: "Alguns não. Mas quando você mostra quanto custa o conserto vs quanto custa a prevenção, muitos mudam de ideia. O segredo está na comunicação. Posso mostrar como?" },
+      { objecao: "Mercado muito informal", resposta: "Verdade, tem muita oficina de fundo de quintal. Mas você pode se posicionar como premium - cliente que quer qualidade paga mais. Posso mostrar como atrair esse público?" }
+    ],
+    jargoes: ["recorrência", "manutenção preventiva", "ticket médio", "confiança"]
+  },
+
+  "lava_jato": {
+    dor_principal: "demanda concentrada no fim de semana e capacidade ociosa na semana",
+    dor_secundaria: "concorrência de preço e guerra de promoção",
+    ganho_principal: "clientes com plano mensal que vêm regularmente",
+    metrica_chave: "assinaturas ativas e frequência",
+    exemplo_whatsapp: `Bom dia, [nome]! 👋
+Analisei lava-jatos em [cidade] e percebi algo.
+A maioria lota sábado e fica vazio segunda a quinta.
+A [empresa] consegue ter movimento durante a semana?
+Posso mostrar uma estratégia?`,
+    exemplo_email: `Assunto: [Nome], movimento durante a semana
+
+[Nome], tudo bem?
+
+Lava-jatos que dependem de fim de semana têm capacidade ociosa.
+Mas existe uma estratégia de assinatura mensal que garante fluxo constante.
+
+Posso te mostrar como funciona?
+
+Abraço`,
+    exemplo_instagram: `Oi [nome]! 😊 Vi os carros que vocês cuidam - acabamento impecável!
+Ajudo lava-jatos a ter movimento o dia todo com assinaturas.
+Posso mandar uma ideia?`,
+    objecoes: [
+      { objecao: "Cliente só quer promoção", resposta: "Alguns sim. Mas existe um público que quer praticidade - lavar toda semana sem pensar. Com assinatura, você atrai esse público e garante receita previsível. Posso mostrar como?" },
+      { objecao: "Lava-jato é commodity", resposta: "Básico sim. Mas você pode se diferenciar: higienização interna, proteção de pintura, serviços premium. Posso mostrar como posicionar?" }
+    ],
+    jargoes: ["assinatura mensal", "recorrência", "ticket médio", "capacidade ociosa"]
+  }
+};
+
+function getNichoExamples(nicho: string): NichoContext | null {
+  const nichoLower = nicho.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  
+  // Direct match first
+  const patterns: Record<string, string[]> = {
+    "clinica_estetica": ["clinica de estetica", "estetica", "clinica estetica", "estetica facial", "harmonizacao", "estetica corporal"],
+    "dentista": ["dentista", "odontologia", "odonto", "clinica odontologica", "consultorio odontologico", "clinica dentaria"],
+    "psicologo": ["psicologo", "psicologia", "psicologa", "terapeuta", "terapia", "consultorio psicologico"],
+    "veterinario": ["veterinario", "clinica veterinaria", "pet care", "hospital veterinario", "vet"],
+    "advocacia": ["advocacia", "advogado", "escritorio de advocacia", "advogados", "juridico"],
+    "contabilidade": ["contabilidade", "contador", "escritorio contabil", "contadores"],
+    "imobiliaria": ["imobiliaria", "corretor", "imobiliarias", "corretor de imoveis"],
+    "academia": ["academia", "fitness", "musculacao", "treino"],
+    "personal": ["personal", "personal trainer", "treinador pessoal"],
+    "restaurante": ["restaurante", "gastronomia", "self service", "buffet"],
+    "pizzaria": ["pizzaria", "pizza", "pizzas"],
+    "confeitaria": ["confeitaria", "confeiteira", "bolos", "doces", "cake designer"],
+    "loja_roupas": ["loja de roupas", "moda", "boutique", "vestuario", "roupa feminina", "roupa masculina"],
+    "petshop": ["petshop", "pet shop", "loja de pet", "agropet"],
+    "salao_beleza": ["salao de beleza", "salao", "cabeleireiro", "hair", "cabelos"],
+    "barbearia": ["barbearia", "barbeiro", "barber", "barba"],
+    "escola_idiomas": ["escola de idiomas", "ingles", "idiomas", "espanhol", "curso de ingles"],
+    "curso_profissionalizante": ["curso profissionalizante", "curso tecnico", "escola tecnica", "formacao profissional"],
+    "oficina_mecanica": ["oficina mecanica", "mecanica", "oficina", "mecanico", "auto center"],
+    "lava_jato": ["lava jato", "lavajato", "lavagem", "lava car", "lava rapido"]
+  };
+  
+  // Find best match
+  for (const [key, keywords] of Object.entries(patterns)) {
+    for (const keyword of keywords) {
+      if (nichoLower.includes(keyword)) {
+        return NICHO_DATABASE[key] || null;
+      }
+    }
+  }
+  
+  // Partial match fallback
+  for (const [key, context] of Object.entries(NICHO_DATABASE)) {
+    const keyNormalized = key.replace(/_/g, " ");
+    if (nichoLower.includes(keyNormalized) || keyNormalized.includes(nichoLower)) {
+      return context;
+    }
+  }
+  
+  return null;
+}
+
+// =============================================================================
 // USER PROMPT - DADOS DO LEAD
 // =============================================================================
 function buildEliteUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsapp" | "instagram")[]): string {
@@ -770,6 +1459,51 @@ function buildEliteUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "wha
   }
 
   const focoArgs = getFocoArguments(lead.foco);
+  
+  // Get niche-specific context
+  const nichoContext = getNichoExamples(lead.nicho);
+
+  let nichoSection = "";
+  if (nichoContext) {
+    nichoSection = `
+═══════════════════════════════════════
+🎯 REFERÊNCIA ESPECÍFICA PARA: ${lead.nicho.toUpperCase()}
+═══════════════════════════════════════
+
+📌 DORES DO NICHO (use nas mensagens):
+• Principal: ${nichoContext.dor_principal}
+• Secundária: ${nichoContext.dor_secundaria}
+
+🎁 GANHO PRINCIPAL:
+• ${nichoContext.ganho_principal}
+
+📊 MÉTRICA-CHAVE:
+• ${nichoContext.metrica_chave}
+
+💬 EXEMPLO DE WHATSAPP (use como referência):
+${nichoContext.exemplo_whatsapp}
+
+✉️ EXEMPLO DE EMAIL (use como referência):
+${nichoContext.exemplo_email}
+
+📸 EXEMPLO DE INSTAGRAM DM (use como referência):
+${nichoContext.exemplo_instagram}
+
+🚫 OBJEÇÕES COMUNS DESTE NICHO:
+${nichoContext.objecoes.map(o => `• "${o.objecao}" → ${o.resposta}`).join("\n")}
+
+📝 JARGÕES DO NICHO (use para parecer especialista):
+${nichoContext.jargoes.join(", ")}
+`;
+  } else {
+    nichoSection = `
+═══════════════════════════════════════
+⚠️ NICHO SEM REFERÊNCIA ESPECÍFICA: ${lead.nicho}
+═══════════════════════════════════════
+Use sua expertise para criar mensagens personalizadas.
+Pesquise mentalmente: quais são as dores típicas deste tipo de negócio?
+`;
+  }
 
   return `═══════════════════════════════════════
 📊 DADOS DO LEAD PARA ANÁLISE
@@ -791,7 +1525,7 @@ ${lead.nome_responsavel
 
 🎯 FOCO DO SERVIÇO: ${lead.foco}
 ${focoArgs}
-
+${nichoSection}
 📊 SINAIS DE MARKETING DETECTADOS:
 ${sinaisMarketing.length > 0 ? sinaisMarketing.map(s => `• ${s}`).join("\n") : "• Nenhum sinal detectado - empresa com baixa maturidade digital"}
 
@@ -806,6 +1540,7 @@ ${sinaisMarketing.length > 0 ? sinaisMarketing.map(s => `• ${s}`).join("\n") :
 ═══════════════════════════════════════
 
 1. DIAGNÓSTICO (6-8 bullets consultivos)
+   • Use as dores específicas do nicho acima
    • Analise maturidade digital real
    • Identifique gaps críticos
    • Aponte oportunidades para ${lead.foco}
@@ -815,25 +1550,30 @@ ${sinaisMarketing.length > 0 ? sinaisMarketing.map(s => `• ${s}`).join("\n") :
    ${canaisDisponiveis.length === 0 ? "• Máximo 30% se nenhum canal detectado" : ""}
 
 3. PLANO DE PROSPECÇÃO 7 DIAS
+   • BASEIE-SE NOS EXEMPLOS DO NICHO ACIMA!
    • Cada dia: mensagem pronta para copiar e colar
-   • Objeções: frases EXATAS que clientes dizem
+   • Objeções: use as objeções específicas do nicho
    • Respostas: técnica consultiva profissional
    • CTAs: progressivos e específicos
    
    Progressão obrigatória:
-   - Dia 1: Apresentação + contexto
+   - Dia 1: Apresentação + contexto (use dor principal)
    - Dia 2: Dor específica do nicho
-   - Dia 3: Oportunidade clara
+   - Dia 3: Oportunidade clara (use ganho principal)
    - Dia 4: Framework/método
    - Dia 5: Prova social/cenário
    - Dia 6: Visão estratégica + próximo passo
    - Dia 7: Último toque respeitoso
 
 ═══════════════════════════════════════
-🎯 LEMBRE-SE: VOCÊ É COPYWRITER DE ELITE
+🎯 LEMBRE-SE: USE OS DADOS DO NICHO!
 ═══════════════════════════════════════
-Cada mensagem deve ser memorável e fazer o prospect QUERER responder.
-Use os dados REAIS: ${lead.nome}, ${lead.cidade}, ${lead.nicho}, ${lead.foco}.`;
+Os exemplos acima são REFERÊNCIA - adapte para os dados REAIS:
+• Empresa: ${lead.nome}
+• Cidade: ${lead.cidade}
+• Nicho: ${lead.nicho}
+• Foco: ${lead.foco}
+${lead.nome_responsavel ? `• Responsável: ${lead.nome_responsavel}` : ""}`;
 }
 
 function getFocoArguments(foco: string): string {

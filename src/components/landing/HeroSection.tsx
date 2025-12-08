@@ -3,14 +3,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, Zap, ArrowRight, Building2 } from "lucide-react";
 import { HERO_AVATARS } from "./data";
-
 export function HeroSection() {
   const scrollToSection = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    document.getElementById(id)?.scrollIntoView({
+      behavior: "smooth"
+    });
   };
-
-  return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-background via-primary/5 to-accent/10 dark:from-background dark:via-primary/10 dark:to-accent/5 pt-24 pb-16 md:py-24">
+  return <section className="relative overflow-hidden bg-gradient-to-br from-background via-primary/5 to-accent/10 dark:from-background dark:via-primary/10 dark:to-accent/5 pt-24 pb-16 md:py-24">
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl dark:bg-primary/20" />
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl dark:bg-accent/15" />
 
@@ -43,27 +42,7 @@ export function HeroSection() {
               </Button>
             </div>
 
-            <div className="flex items-center gap-4 sm:gap-6 pt-2 sm:pt-4">
-              <div className="flex -space-x-2">
-                {HERO_AVATARS.map((avatar, i) => (
-                  <img
-                    key={i}
-                    src={avatar}
-                    alt={`Usuário ${i + 1}`}
-                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-background object-cover"
-                    loading="lazy"
-                  />
-                ))}
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary border-2 border-background flex items-center justify-center">
-                  <span className="text-[10px] sm:text-xs font-bold text-primary-foreground">+500</span>
-                </div>
-              </div>
-              <div className="text-xs sm:text-sm text-muted-foreground">
-                <span className="font-semibold text-foreground">+500 profissionais</span>
-                <br />
-                já usam a plataforma
-              </div>
-            </div>
+            
           </div>
 
           <div className="relative hidden lg:block">
@@ -90,8 +69,7 @@ export function HeroSection() {
 
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Leads encontrados</div>
-                  {["Restaurante Sabor & Arte", "Bistrô da Vila", "Cantina Italiana"].map((nome, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg border border-border/30">
+                  {["Restaurante Sabor & Arte", "Bistrô da Vila", "Cantina Italiana"].map((nome, i) => <div key={i} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg border border-border/30">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                           <Building2 className="h-4 w-4 text-primary" />
@@ -101,8 +79,7 @@ export function HeroSection() {
                       <Badge variant={i === 0 ? "default" : "secondary"} className="text-xs">
                         {85 - i * 10}%
                       </Badge>
-                    </div>
-                  ))}
+                    </div>)}
                 </div>
 
                 <div className="p-3 border border-primary/30 rounded-lg bg-primary/5 dark:bg-primary/10">
@@ -119,6 +96,5 @@ export function HeroSection() {
           </div>
         </div>
       </div>
-    </section>
-  );
+    </section>;
 }

@@ -243,7 +243,6 @@ interface PlanosPorCanal {
   whatsapp?: PlanoDia[];
   email?: PlanoDia[];
   instagram?: PlanoDia[];
-  geral?: PlanoDia[];
 }
 
 interface AnaliseResult {
@@ -873,29 +872,8 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
     }));
   };
 
-  // Gera plano geral (misto) como antes
-  const getCanal = (diaNumero: number): "whatsapp" | "email" | "instagram" => {
-    if (canais.length === 0) return "whatsapp";
-    if (canais.length === 1) return canais[0];
-    if (canais.length === 2) return canais[(diaNumero - 1) % 2];
-    const cadencia3: ("whatsapp" | "email" | "instagram")[] = ["whatsapp", "email", "instagram", "whatsapp", "email", "instagram", "whatsapp"];
-    return cadencia3[diaNumero - 1];
-  };
-
-  const planoGeral: PlanoDia[] = [
-    { dia: 1, canal: getCanal(1), mensagem: `Olá! Notei que ${lead.nome} está em ${lead.cidade}. Estamos ajudando empresas de ${lead.nicho} a ${getFocoMessage(lead.foco)}. Podemos conversar 5min?`, objecao_provavel: "Já temos fornecedor", resposta_sugerida: "Entendo! Não vim substituir ninguém.", cta: "Responda 'sim'" },
-    { dia: 2, canal: getCanal(2), mensagem: `Vi que vocês trabalham com ${lead.nicho}. Temos cases desse nicho com ${lead.foco}. Quer ver?`, objecao_provavel: "Não tenho orçamento", resposta_sugerida: "Minha ideia é mostrar o potencial primeiro.", cta: "Agendar 15min" },
-    { dia: 3, canal: getCanal(3), mensagem: `Case rápido: empresa de ${lead.nicho} aumentou ${getFocoMetric(lead.foco)} em 3 meses. Posso enviar?`, objecao_provavel: "Estou ocupado", resposta_sugerida: "Preparei algo objetivo, lê em 2 minutos.", cta: "Responda 'manda'" },
-    { dia: 4, canal: getCanal(4), mensagem: `Preparei análise da presença digital de vocês. 3 oportunidades de ${lead.foco}. Quer receber?`, objecao_provavel: "Como sei que funciona?", resposta_sugerida: "Você aprova cada etapa, medimos tudo.", cta: "Responda para receber" },
-    { dia: 5, canal: getCanal(5), mensagem: `${lead.nome} tem potencial em ${lead.nicho}. Proposta focada em ${lead.foco}. 15min?`, objecao_provavel: "Preciso pensar", resposta_sugerida: "Na call mostro números e investimento.", cta: "Escolha dia/hora" },
-    { dia: 6, canal: getCanal(6), mensagem: `Proposta completa: escopo, cronograma, garantias. Sem pressão!`, objecao_provavel: "Vou deixar pra depois", resposta_sugerida: "Que tal teste de 30 dias?", cta: "Ver proposta" },
-    { dia: 7, canal: getCanal(7), mensagem: `Última mensagem: fico à disposição. Sucesso! 🚀`, objecao_provavel: "Vou entrar em contato depois", resposta_sugerida: "Salva meu contato!", cta: "Salvar contato" },
-  ];
-
-  // Monta o objeto de planos por canal
-  const planosPorCanal: PlanosPorCanal = {
-    geral: planoGeral,
-  };
+  // Monta o objeto de planos por canal (apenas canais detectados)
+  const planosPorCanal: PlanosPorCanal = {};
 
   // Gera plano específico para cada canal detectado
   if (canais.includes("whatsapp")) {
@@ -1022,22 +1000,65 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
                   maximum: 100,
                 },
                 plano_prospeccao_7dias: {
-                  type: "array",
-                  description: "Plano de 7 dias de prospecção multicanal",
-                  items: {
-                    type: "object",
-                    properties: {
-                      dia: { type: "number" },
-                      canal: { type: "string", enum: canaisPermitidos, description: "USAR APENAS OS CANAIS PERMITIDOS PELO USUÁRIO" },
-                      mensagem: { type: "string" },
-                      objecao_provavel: { type: "string" },
-                      resposta_sugerida: { type: "string" },
-                      cta: { type: "string" },
-                    },
-                    required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"],
+                  type: "object",
+                  description: "Planos de 7 dias SEPARADOS para CADA canal disponível. CADA canal deve ter sua própria progressão única de 7 dias.",
+                  properties: {
+                    whatsapp: canaisPermitidos.includes("whatsapp") ? {
+                      type: "array",
+                      description: "7 dias de cadência EXCLUSIVA para WhatsApp com progressão única",
+                      items: {
+                        type: "object",
+                        properties: {
+                          dia: { type: "number", minimum: 1, maximum: 7 },
+                          canal: { type: "string", enum: ["whatsapp"] },
+                          mensagem: { type: "string" },
+                          objecao_provavel: { type: "string" },
+                          resposta_sugerida: { type: "string" },
+                          cta: { type: "string" },
+                        },
+                        required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"],
+                      },
+                      minItems: 7,
+                      maxItems: 7,
+                    } : undefined,
+                    email: canaisPermitidos.includes("email") ? {
+                      type: "array",
+                      description: "7 dias de cadência EXCLUSIVA para Email com progressão única",
+                      items: {
+                        type: "object",
+                        properties: {
+                          dia: { type: "number", minimum: 1, maximum: 7 },
+                          canal: { type: "string", enum: ["email"] },
+                          mensagem: { type: "string" },
+                          objecao_provavel: { type: "string" },
+                          resposta_sugerida: { type: "string" },
+                          cta: { type: "string" },
+                        },
+                        required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"],
+                      },
+                      minItems: 7,
+                      maxItems: 7,
+                    } : undefined,
+                    instagram: canaisPermitidos.includes("instagram") ? {
+                      type: "array",
+                      description: "7 dias de cadência EXCLUSIVA para Instagram DM com progressão única",
+                      items: {
+                        type: "object",
+                        properties: {
+                          dia: { type: "number", minimum: 1, maximum: 7 },
+                          canal: { type: "string", enum: ["instagram"] },
+                          mensagem: { type: "string" },
+                          objecao_provavel: { type: "string" },
+                          resposta_sugerida: { type: "string" },
+                          cta: { type: "string" },
+                        },
+                        required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"],
+                      },
+                      minItems: 7,
+                      maxItems: 7,
+                    } : undefined,
                   },
-                  minItems: 7,
-                  maxItems: 7,
+                  required: canaisPermitidos,
                 },
               },
               required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"],
@@ -1121,47 +1142,28 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
         throw new Error("Análise incompleta: diagnóstico inválido");
       }
       
-      // Converte plano da IA (array) para o novo formato (objeto por canal)
-      const planoArray = analise.plano_prospeccao_7dias as unknown as PlanoDia[];
-      if (!planoArray || !Array.isArray(planoArray) || planoArray.length !== 7) {
-        throw new Error("Análise incompleta: plano deve ter 7 dias");
-      }
+      // A IA agora retorna diretamente no formato por canal
+      const planosPorCanal = analise.plano_prospeccao_7dias as PlanosPorCanal;
       
-      // Agrupa o plano por canal
-      const planosPorCanal: PlanosPorCanal = {
-        geral: planoArray,
-      };
-      
-      // Gera planos específicos por canal baseado no que a IA retornou
-      const canaisUsados = [...new Set(planoArray.map(d => d.canal))];
-      
-      for (const canal of canaisUsados) {
-        // Cria 7 dias para cada canal, reaproveitando mensagens do plano geral
-        const planoCanalCompleto: PlanoDia[] = [];
-        for (let dia = 1; dia <= 7; dia++) {
-          // Busca a mensagem do dia correspondente ou usa mensagem de outro dia do mesmo canal
-          const mensagemDoDia = planoArray.find(p => p.dia === dia && p.canal === canal);
-          if (mensagemDoDia) {
-            planoCanalCompleto.push(mensagemDoDia);
-          } else {
-            // Reusa mensagem de outro dia do mesmo canal e adapta
-            const mensagemOutroDia = planoArray.find(p => p.canal === canal);
-            if (mensagemOutroDia) {
-              planoCanalCompleto.push({
-                ...mensagemOutroDia,
-                dia,
-              });
-            }
-          }
-        }
-        
-        // Se conseguiu gerar 7 dias para este canal
-        if (planoCanalCompleto.length === 7) {
-          planosPorCanal[canal] = planoCanalCompleto;
+      // Valida que cada canal tenha 7 dias
+      const canaisRetornados = Object.keys(planosPorCanal) as ("whatsapp" | "email" | "instagram")[];
+      for (const canal of canaisRetornados) {
+        const planoCanalData = planosPorCanal[canal];
+        if (!planoCanalData || !Array.isArray(planoCanalData) || planoCanalData.length !== 7) {
+          console.warn(`⚠️ Canal ${canal} não tem 7 dias, ignorando...`);
+          delete planosPorCanal[canal];
         }
       }
       
-      // Substitui o plano no resultado
+      // Verifica se pelo menos um canal foi retornado com sucesso
+      const canaisValidos = Object.keys(planosPorCanal).filter(c => planosPorCanal[c as keyof PlanosPorCanal]?.length === 7);
+      if (canaisValidos.length === 0) {
+        throw new Error("Análise incompleta: nenhum canal com plano de 7 dias válido");
+      }
+      
+      console.log(`✅ Planos gerados para canais: ${canaisValidos.join(", ")}`);
+      
+      // Atualiza o resultado com os planos validados
       analise.plano_prospeccao_7dias = planosPorCanal;
 
       console.log("✅ Análise validada com sucesso");
@@ -1560,19 +1562,46 @@ Abordagens B2B CORRETAS sem nome pessoal (entre direto no valor):
 ${nenhumCanalDetectado 
   ? `🚨 NENHUM CANAL DE CONTATO FOI DETECTADO!
 
-Como não temos email, WhatsApp ou Instagram, o plano deve focar em:
+Como não temos email, WhatsApp ou Instagram, crie um plano de whatsapp com 7 dias focado em:
 - Use "whatsapp" como canal nos campos (para o sistema aceitar)
 - Mas a MENSAGEM deve ser sobre COMO ENCONTRAR o contato:
   • Dia 1-2: Buscar telefone em Google, Reclame Aqui, LinkedIn
   • Dia 3-4: Tentar contato via formulário do site
   • Dia 5-6: Buscar redes sociais alternativas
   • Dia 7: Considerar visita presencial ou carta`
-  : `📢 CANAIS PERMITIDOS PARA USAR: ${canalTexto}
+  : `═══════════════════════════════════════
+📋 ESTRUTURA DO PLANO - GERAR PLANOS SEPARADOS POR CANAL
+═══════════════════════════════════════
 
-🚫 NÃO USE canais marcados como "NÃO DETECTADO"!
-Se usou um canal que NÃO FOI DETECTADO, sua resposta será REJEITADA.
+🚨 REGRA CRÍTICA: Você DEVE gerar 7 DIAS ÚNICOS para CADA canal detectado!
 
-📋 ESTRATÉGIA DE CADÊNCIA: ${estrategiaCadencia}`}
+Canais detectados: ${canalTexto}
+
+${canais.includes("whatsapp") ? `
+📱 plano_prospeccao_7dias.whatsapp (OBRIGATÓRIO - 7 dias):
+• 7 mensagens ÚNICAS e DIFERENTES de WhatsApp
+• Progressão: Dia 1 (apresentação) → Dia 7 (encerramento)
+• Tom conversacional B2B, máximo 4 linhas
+• Cada dia aborda uma fase diferente do funil` : ""}
+
+${canais.includes("email") ? `
+✉️ plano_prospeccao_7dias.email (OBRIGATÓRIO - 7 dias):
+• 7 emails ÚNICOS e DIFERENTES
+• Progressão: Dia 1 (apresentação) → Dia 7 (encerramento)
+• Incluir assunto em cada mensagem
+• Estrutura formal, máximo 150 palavras` : ""}
+
+${canais.includes("instagram") ? `
+📸 plano_prospeccao_7dias.instagram (OBRIGATÓRIO - 7 dias):
+• 7 DMs ÚNICOS e DIFERENTES
+• Progressão: Dia 1 (engajamento) → Dia 7 (encerramento)
+• Máximo 4 linhas, tom casual-profissional
+• Sugestão de pré-engajamento (curtir posts)` : ""}
+
+⚠️ CADA CANAL TEM SUA PRÓPRIA CADÊNCIA DE 7 DIAS!
+• Dia 1 do WhatsApp é DIFERENTE do Dia 1 do Email
+• Dia 1 do Email é DIFERENTE do Dia 1 do Instagram
+• NUNCA repita mensagens entre canais!`}
 
 ${!nenhumCanalDetectado ? instrucoesPorCanal : ""}
 

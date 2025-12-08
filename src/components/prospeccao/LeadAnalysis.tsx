@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, TrendingUp, MessageSquare, Mail, RefreshCw, Instagram, Copy, Check, List } from "lucide-react";
+import { Brain, TrendingUp, MessageSquare, Mail, RefreshCw, Instagram, Copy, Check } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { copyToClipboard } from "@/utils/templateUtils";
@@ -169,19 +169,27 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
   // Determina se é formato novo (por canal) ou antigo (array misto)
   const isPorCanal = isPlanosPorCanal(plano);
   
-  // Se for formato antigo, converte para geral apenas
-  const planosPorCanal: PlanosPorCanal = isPorCanal 
-    ? plano 
-    : { geral: plano };
+  // Converte formato antigo (array) para novo formato (objeto por canal)
+  let planosPorCanal: PlanosPorCanal;
+  if (isPorCanal) {
+    planosPorCanal = plano;
+  } else {
+    // Formato antigo: agrupa por canal
+    const planoArray = plano as PlanoProspeccaoDia[];
+    planosPorCanal = {};
+    const canaisEncontrados = [...new Set(planoArray.map(p => p.canal))];
+    for (const canal of canaisEncontrados) {
+      planosPorCanal[canal] = planoArray.filter(p => p.canal === canal);
+    }
+  }
 
   // Detecta quais canais estão disponíveis
   const hasWhatsApp = planosPorCanal.whatsapp && planosPorCanal.whatsapp.length > 0;
   const hasEmail = planosPorCanal.email && planosPorCanal.email.length > 0;
   const hasInstagram = planosPorCanal.instagram && planosPorCanal.instagram.length > 0;
-  const hasGeral = planosPorCanal.geral && planosPorCanal.geral.length > 0;
 
   // Define aba default
-  const defaultTab = hasWhatsApp ? "whatsapp" : hasEmail ? "email" : hasInstagram ? "instagram" : "geral";
+  const defaultTab = hasWhatsApp ? "whatsapp" : hasEmail ? "email" : hasInstagram ? "instagram" : "whatsapp";
 
   return (
     <div className="space-y-4 mt-4">
@@ -268,7 +276,7 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
         </CardHeader>
         <CardContent>
           <Tabs defaultValue={defaultTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-4">
+            <TabsList className="grid w-full grid-cols-3 mb-4">
               {hasWhatsApp && (
                 <TabsTrigger value="whatsapp" className="gap-1.5">
                   <MessageSquare className="h-4 w-4" />
@@ -285,12 +293,6 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
                 <TabsTrigger value="instagram" className="gap-1.5">
                   <Instagram className="h-4 w-4" />
                   <span className="hidden sm:inline">Instagram</span>
-                </TabsTrigger>
-              )}
-              {hasGeral && (
-                <TabsTrigger value="geral" className="gap-1.5">
-                  <List className="h-4 w-4" />
-                  <span className="hidden sm:inline">Visão Geral</span>
                 </TabsTrigger>
               )}
             </TabsList>
@@ -319,16 +321,6 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
               <TabsContent value="instagram">
                 <PlanoList 
                   dias={planosPorCanal.instagram!} 
-                  copiedDia={copiedDia} 
-                  onCopy={handleCopyMessage} 
-                />
-              </TabsContent>
-            )}
-
-            {hasGeral && (
-              <TabsContent value="geral">
-                <PlanoList 
-                  dias={planosPorCanal.geral!} 
                   copiedDia={copiedDia} 
                   onCopy={handleCopyMessage} 
                 />

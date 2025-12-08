@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Loader2 } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
 import { Progress } from "@/components/ui/progress";
@@ -557,7 +557,13 @@ export const LeadsList = () => {
                             />
                           </>
                         ) : (
-                          <span className="text-sm text-muted-foreground">Aguardando IA</span>
+                          <div className="flex flex-col items-center gap-1">
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                              <span className="text-xs text-muted-foreground">Analisando...</span>
+                            </div>
+                            <Progress value={33} className="h-1 w-16 animate-pulse" />
+                          </div>
                         )}
                       </div>
                     </TableCell>
@@ -576,8 +582,10 @@ export const LeadsList = () => {
                               >
                                 {lead.plano_prospecao_7dias[0].canal === "whatsapp" ? (
                                   <MessageSquare className="h-3 w-3 mr-1" />
+                                ) : lead.plano_prospecao_7dias[0].canal === "instagram" ? (
+                                  <Instagram className="h-3 w-3 mr-1" />
                                 ) : (
-                                  "📧"
+                                  <Mail className="h-3 w-3 mr-1" />
                                 )}
                                 {lead.plano_prospecao_7dias[0].canal}
                               </Badge>
@@ -587,7 +595,14 @@ export const LeadsList = () => {
                             </p>
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground">Plano em geração...</span>
+                          <div className="flex items-center gap-2 py-2">
+                            <div className="flex gap-1">
+                              <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                            <span className="text-xs text-muted-foreground">Gerando plano com IA...</span>
+                          </div>
                         )}
                       </div>
                     </TableCell>

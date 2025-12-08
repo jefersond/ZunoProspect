@@ -362,9 +362,18 @@ export const ProspeccaoForm = () => {
                 max="200"
                 {...register("quantidade", { valueAsNumber: true })}
               />
-              <p className="text-xs text-muted-foreground">
-                Máximo: 200 leads. Buscas acima de 60 podem demorar mais.
-              </p>
+              {quantidade && quantidade > 30 ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  {quantidade > 60 
+                    ? "Buscas grandes podem levar 1-2 minutos. Os leads aparecem primeiro, planos são gerados em seguida." 
+                    : "Os leads aparecem imediatamente. Planos de IA são gerados em paralelo."}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Máximo: 200 leads. Planos de IA são gerados em paralelo após a busca.
+                </p>
+              )}
               {errors.quantidade && (
                 <p className="text-sm text-destructive">{errors.quantidade.message}</p>
               )}

@@ -209,7 +209,7 @@ serve(async (req) => {
     
     console.log("🔍 Iniciando análise:", { leadId, hasNome: !!requestData.nome });
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -317,10 +317,20 @@ serve(async (req) => {
 
     let analise: AnaliseResult;
 
-    // Prioriza Lovable AI (Gemini), fallback para OpenAI
-    if (LOVABLE_API_KEY) {
-      console.log("🚀 Usando Lovable AI (Gemini 2.5 Pro)...");
-      analise = await analyzeWithLovableAI(leadData, LOVABLE_API_KEY);
+    // Prioriza Gemini Direto → OpenAI Fallback → Mock
+    if (GOOGLE_GEMINI_API_KEY) {
+      console.log("🚀 Usando Google Gemini 2.5 Pro (API direta)...");
+      try {
+        analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
+      } catch (geminiError: any) {
+        console.log(`⚠️ Gemini falhou: ${geminiError.message}`);
+        if (OPENAI_API_KEY) {
+          console.log("🔄 Fallback para OpenAI...");
+          analise = await analyzeWithOpenAI(leadData, OPENAI_API_KEY);
+        } else {
+          throw geminiError;
+        }
+      }
     } else if (OPENAI_API_KEY) {
       console.log("🤖 Usando OpenAI...");
       analise = await analyzeWithOpenAI(leadData, OPENAI_API_KEY);
@@ -354,9 +364,9 @@ serve(async (req) => {
 });
 
 // =============================================================================
-// LOVABLE AI (GEMINI 2.5 PRO) - MODELO PRINCIPAL
+// GOOGLE GEMINI DIRETO (API KEY DO USUÁRIO) - MODELO PRINCIPAL
 // =============================================================================
-async function analyzeWithLovableAI(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
+async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
   const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
   const canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
   
@@ -367,83 +377,96 @@ async function analyzeWithLovableAI(lead: LeadData, apiKey: string): Promise<Ana
   const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
 
   try {
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        tools: [{
-          type: "function",
-          function: {
-            name: "gerar_analise_lead",
-            description: "Gera análise completa do lead com diagnóstico, probabilidade e plano de prospecção de 7 dias",
-            parameters: {
-              type: "object",
-              properties: {
-                diagnostico_bullets: {
-                  type: "array",
-                  items: { type: "string" },
-                  description: "6-8 bullets de diagnóstico consultivo profundo"
-                },
-                probabilidade_conversao: {
-                  type: "number",
-                  description: "Probabilidade de conversão de 0-100"
-                },
-                plano_prospeccao_7dias: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      dia: { type: "number" },
-                      canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
-                      mensagem: { type: "string" },
-                      objecao_provavel: { type: "string" },
-                      resposta_sugerida: { type: "string" },
-                      cta: { type: "string" }
-                    },
-                    required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-06-05:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 8000,
+          },
+          tools: [{
+            functionDeclarations: [{
+              name: "gerar_analise_lead",
+              description: "Gera análise completa do lead com diagnóstico, probabilidade e plano de prospecção de 7 dias",
+              parameters: {
+                type: "object",
+                properties: {
+                  diagnostico_bullets: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "6-8 bullets de diagnóstico consultivo profundo"
+                  },
+                  probabilidade_conversao: {
+                    type: "number",
+                    description: "Probabilidade de conversão de 0-100"
+                  },
+                  plano_prospeccao_7dias: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        dia: { type: "number" },
+                        canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
+                        mensagem: { type: "string" },
+                        objecao_provavel: { type: "string" },
+                        resposta_sugerida: { type: "string" },
+                        cta: { type: "string" }
+                      },
+                      required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
+                    }
                   }
-                }
-              },
-              required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"]
+                },
+                required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"]
+              }
+            }]
+          }],
+          toolConfig: {
+            functionCallingConfig: {
+              mode: "ANY",
+              allowedFunctionNames: ["gerar_analise_lead"]
             }
           }
-        }],
-        tool_choice: { type: "function", function: { name: "gerar_analise_lead" } }
-      }),
-      signal: controller.signal,
-    });
+        }),
+        signal: controller.signal,
+      }
+    );
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("❌ Lovable AI error:", response.status, errorText);
-      throw new Error(`Lovable AI error: ${response.status}`);
+      console.error("❌ Gemini API error:", response.status, errorText);
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     
-    if (!toolCall) {
+    // Parse Gemini response format
+    const candidate = data.candidates?.[0];
+    if (!candidate?.content?.parts) {
+      throw new Error("Resposta inválida do Gemini");
+    }
+
+    // Find the function call in parts
+    const functionCallPart = candidate.content.parts.find((p: any) => p.functionCall);
+    if (!functionCallPart?.functionCall?.args) {
       throw new Error("IA não retornou análise estruturada");
     }
 
-    const analise: AnaliseResult = JSON.parse(toolCall.function.arguments);
+    const analise: AnaliseResult = functionCallPart.functionCall.args;
     
     // Validate and ensure 7 days
     if (!analise.plano_prospeccao_7dias || analise.plano_prospeccao_7dias.length !== 7) {
       throw new Error("Plano deve ter exatamente 7 dias");
     }
 
-    console.log("✅ Análise gerada com sucesso via Lovable AI");
+    console.log("✅ Análise gerada com sucesso via Gemini 2.5 Pro (direto)");
     return analise;
 
   } catch (error: any) {

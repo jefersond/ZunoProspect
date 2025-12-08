@@ -30,40 +30,46 @@ interface LeadData {
   cnae_principal?: string | null;
 }
 
-// Função para filtrar canais baseado no que foi detectado no lead
-// SEM FALLBACK - só retorna canais que realmente foram detectados
+// Função que retorna os canais selecionados pelo usuário
+// SEMPRE gera planos para os canais selecionados, mesmo se não foram detectados
+// A IA adapta as mensagens quando o canal não foi detectado
 function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "whatsapp" | "instagram")[]): ("email" | "whatsapp" | "instagram")[] {
-  const available: ("email" | "whatsapp" | "instagram")[] = [];
+  // Retorna TODOS os canais selecionados pelo usuário
+  // A IA irá gerar planos para todos eles
+  const canais = selectedChannels.length > 0 
+    ? selectedChannels 
+    : ["email", "whatsapp", "instagram"] as ("email" | "whatsapp" | "instagram")[];
   
-  // WhatsApp: disponível SOMENTE se tem número ou está no site
-  if (selectedChannels.includes("whatsapp") && (lead.whatsapp_number || lead.whatsapp_on_site)) {
-    available.push("whatsapp");
+  // Log para debug - quais foram detectados vs selecionados
+  const detectados: string[] = [];
+  if (lead.whatsapp_number || lead.whatsapp_on_site) detectados.push("whatsapp");
+  if (lead.email) detectados.push("email");
+  if (lead.instagram_url) detectados.push("instagram");
+  
+  console.log(`📢 Canais SELECIONADOS pelo usuário: ${canais.join(", ")}`);
+  console.log(`🔍 Canais DETECTADOS no site: ${detectados.length > 0 ? detectados.join(", ") : "NENHUM"}`);
+  
+  // Alerta sobre canais não detectados
+  const naoDetectados = canais.filter(c => !detectados.includes(c));
+  if (naoDetectados.length > 0) {
+    console.log(`⚠️ Canais selecionados mas NÃO detectados: ${naoDetectados.join(", ")} - IA irá sugerir como encontrar`);
   }
   
-  // Email: disponível SOMENTE se foi detectado
-  if (selectedChannels.includes("email") && lead.email) {
-    available.push("email");
+  return canais;
+}
+
+// Função auxiliar para verificar se um canal específico foi detectado
+function isChannelDetected(lead: LeadData, channel: "email" | "whatsapp" | "instagram"): boolean {
+  switch (channel) {
+    case "whatsapp":
+      return !!(lead.whatsapp_number || lead.whatsapp_on_site);
+    case "email":
+      return !!lead.email;
+    case "instagram":
+      return !!lead.instagram_url;
+    default:
+      return false;
   }
-  
-  // Instagram: disponível SOMENTE se foi detectado no site
-  // Se selecionado mas não detectado, sugestões irão para o diagnóstico (não para o plano)
-  if (selectedChannels.includes("instagram") && lead.instagram_url) {
-    available.push("instagram");
-  } else if (selectedChannels.includes("instagram") && !lead.instagram_url) {
-    console.log(`📸 Instagram selecionado mas NÃO detectado - NÃO será usado no plano (sugestões irão para diagnóstico)`);
-  }
-  
-  // SEM FALLBACK! Se não detectou nenhum canal, retorna array vazio
-  // A IA será instruída a criar plano alternativo de como ENCONTRAR contato
-  
-  console.log(`📢 Canais selecionados pelo usuário: ${selectedChannels.join(", ")}`);
-  console.log(`✅ Canais REALMENTE detectados: ${available.length > 0 ? available.join(", ") : "NENHUM"}`);
-  
-  if (available.length === 0) {
-    console.log(`⚠️ ATENÇÃO: Nenhum canal de contato foi detectado para este lead!`);
-  }
-  
-  return available;
 }
 
 // Gera variações prováveis do handle do Instagram baseado no nome da empresa
@@ -907,36 +913,39 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
 }
 
 async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
-  // Canais selecionados pelo usuário (originais)
+  // Canais selecionados pelo usuário - SEMPRE usar os 3 se selecionados
   const canaisSelecionados = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
     ? lead.canaisProspeccao 
-    : ["email", "whatsapp"] as ("email" | "whatsapp" | "instagram")[];
+    : ["email", "whatsapp", "instagram"] as ("email" | "whatsapp" | "instagram")[];
   
-  // Filtra para apenas canais realmente detectados
-  const canaisDisponiveis = getAvailableChannels(lead, canaisSelecionados);
+  // Verifica quais canais foram detectados (para informar a IA)
+  const canaisDetectados: ("email" | "whatsapp" | "instagram")[] = [];
+  if (lead.whatsapp_number || lead.whatsapp_on_site) canaisDetectados.push("whatsapp");
+  if (lead.email) canaisDetectados.push("email");
+  if (lead.instagram_url) canaisDetectados.push("instagram");
   
-  // Verifica se Instagram foi selecionado mas não detectado
-  const instagramSelecionadoMasNaoDetectado = canaisSelecionados.includes("instagram") && !lead.instagram_url;
+  // Informações sobre canais não detectados
+  const canaisNaoDetectados = canaisSelecionados.filter(c => !canaisDetectados.includes(c));
   
-  // Cria uma versão do lead com os canais DETECTADOS (não os selecionados)
-  const leadComCanaisDisponiveis = {
+  // Cria uma versão do lead com TODOS os canais selecionados
+  const leadParaPrompt = {
     ...lead,
-    canaisProspeccao: canaisDisponiveis,
-    // Passa info adicional para o prompt saber que Instagram foi selecionado mas não detectado
-    _instagramSelecionadoMasNaoDetectado: instagramSelecionadoMasNaoDetectado,
-    _canaisSelecionadosOriginais: canaisSelecionados,
+    canaisProspeccao: canaisSelecionados, // Usa os SELECIONADOS, não os detectados
+    _canaisDetectados: canaisDetectados,
+    _canaisNaoDetectados: canaisNaoDetectados,
   };
   
-  const prompt = buildAnalysisPrompt(leadComCanaisDisponiveis as LeadData & { _instagramSelecionadoMasNaoDetectado?: boolean; _canaisSelecionadosOriginais?: ("email" | "whatsapp" | "instagram")[] });
+  const prompt = buildAnalysisPrompt(leadParaPrompt as LeadData & { _canaisDetectados?: ("email" | "whatsapp" | "instagram")[]; _canaisNaoDetectados?: ("email" | "whatsapp" | "instagram")[] });
 
   console.log("Iniciando análise com OpenAI para:", lead.nome);
   console.log("Canais SELECIONADOS pelo usuário:", canaisSelecionados.join(", "));
-  console.log("Canais DETECTADOS e disponíveis para prospecção:", canaisDisponiveis.length > 0 ? canaisDisponiveis.join(", ") : "NENHUM");
-  if (instagramSelecionadoMasNaoDetectado) {
-    console.log("⚠️ Instagram foi selecionado mas NÃO foi detectado - sugestões irão para diagnóstico");
+  console.log("Canais DETECTADOS no site:", canaisDetectados.length > 0 ? canaisDetectados.join(", ") : "NENHUM");
+  if (canaisNaoDetectados.length > 0) {
+    console.log(`⚠️ Canais selecionados mas NÃO detectados: ${canaisNaoDetectados.join(", ")} - IA irá adaptar mensagens`);
   }
 
-  const canaisPermitidos = canaisDisponiveis;
+  // SEMPRE gerar para os canais SELECIONADOS, não apenas os detectados
+  const canaisPermitidos = canaisSelecionados;
 
   try {
     const systemPrompt = `Você atua **APENAS** na criação do **plano de prospecção de 7 dias**, como um **COPYWRITER E ESTRATEGISTA DE VENDAS com mais de 15 anos de experiência**.
@@ -1190,34 +1199,31 @@ async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseRes
   }
 }
 
-function buildAnalysisPrompt(lead: LeadData & { _instagramSelecionadoMasNaoDetectado?: boolean; _canaisSelecionadosOriginais?: ("email" | "whatsapp" | "instagram")[] }): string {
-  // Estes canais já vêm filtrados baseado no que foi DETECTADO (não os selecionados)
+function buildAnalysisPrompt(lead: LeadData & { _canaisDetectados?: ("email" | "whatsapp" | "instagram")[]; _canaisNaoDetectados?: ("email" | "whatsapp" | "instagram")[] }): string {
+  // Canais SELECIONADOS pelo usuário (todos que devem ter plano gerado)
   const canais = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
     ? lead.canaisProspeccao 
-    : [];
+    : ["email", "whatsapp", "instagram"] as ("email" | "whatsapp" | "instagram")[];
   
-  const nenhumCanalDetectado = canais.length === 0;
+  // Canais detectados e não detectados
+  const canaisDetectados = lead._canaisDetectados || [];
+  const canaisNaoDetectados = lead._canaisNaoDetectados || [];
   
-  // Verifica se Instagram foi selecionado mas não detectado (para adicionar sugestões ao diagnóstico)
-  const instagramSelecionadoMasNaoDetectado = lead._instagramSelecionadoMasNaoDetectado || false;
-  const instagramVariations = instagramSelecionadoMasNaoDetectado 
+  // Variações de Instagram se não detectado
+  const instagramVariations = canaisNaoDetectados.includes("instagram")
     ? generateInstagramVariations(lead.nome, lead.cidade)
     : [];
   
-  const canalTexto = canais.length > 0 
-    ? canais.map(c => {
-        if (c === "email") return "Email";
-        if (c === "whatsapp") return "WhatsApp";
-        if (c === "instagram") return "Instagram DM";
-        return c;
-      }).join(", ")
-    : "NENHUM CANAL DETECTADO";
+  const canalTexto = canais.map(c => {
+    if (c === "email") return "Email";
+    if (c === "whatsapp") return "WhatsApp";
+    if (c === "instagram") return "Instagram DM";
+    return c;
+  }).join(", ");
   
-  // Cadência multicanal inteligente
+  // Cadência multicanal - SEMPRE para os 3 canais selecionados
   let estrategiaCadencia = "";
-  if (nenhumCanalDetectado) {
-    estrategiaCadencia = "⚠️ NENHUM CANAL DETECTADO - Crie plano focado em ENCONTRAR o contato (ligação, visita presencial, LinkedIn, busca de redes)";
-  } else if (canais.length === 1) {
+  if (canais.length === 1) {
     estrategiaCadencia = `Use SOMENTE ${canalTexto} para todos os 7 dias com variações criativas de abordagem`;
   } else if (canais.length === 2) {
     estrategiaCadencia = `CADÊNCIA 2 CANAIS (${canalTexto}):
@@ -1226,38 +1232,35 @@ function buildAnalysisPrompt(lead: LeadData & { _instagramSelecionadoMasNaoDetec
 REGRA: Nunca usar o mesmo canal 2 dias consecutivos`;
   } else if (canais.length === 3) {
     estrategiaCadencia = `CADÊNCIA 3 CANAIS (WhatsApp + Email + Instagram):
-• Dia 1: WhatsApp - Primeiro contato, direto e curto
-• Dia 2: Email - Formalização, proposta de valor estruturada
-• Dia 3: Instagram DM - Engajamento social, referência a conteúdo
-• Dia 4: WhatsApp - Follow-up rápido, resposta a silêncio
-• Dia 5: Email - Conteúdo mais denso, case ou proposta
-• Dia 6: Instagram DM - Segunda tentativa social
-• Dia 7: WhatsApp - Encerramento profissional
-REGRA: Nunca usar o mesmo canal 2 dias consecutivos`;
+Gerar 7 dias ÚNICOS para CADA um dos 3 canais separadamente.
+Cada canal deve ter sua própria progressão de 7 dias com mensagens únicas.`;
   }
   
-  // Status detalhado dos canais
+  // Status detalhado dos canais - adaptado para canais não detectados
   const canaisInfo = [];
-  if (lead.whatsapp_on_site || lead.whatsapp_number) {
-    canaisInfo.push(`✅ WhatsApp: DISPONÍVEL${lead.whatsapp_number ? ` (${lead.whatsapp_number})` : " (detectado no site)"}`);
-  } else {
-    canaisInfo.push("❌ WhatsApp: NÃO DETECTADO - NÃO USAR!");
+  
+  // WhatsApp
+  if (canaisDetectados.includes("whatsapp")) {
+    canaisInfo.push(`✅ WhatsApp: DETECTADO${lead.whatsapp_number ? ` (${lead.whatsapp_number})` : " (no site)"}`);
+  } else if (canais.includes("whatsapp")) {
+    canaisInfo.push(`⚠️ WhatsApp: SELECIONADO mas NÃO DETECTADO - Gerar plano com instruções para ENCONTRAR o número (Google, site, redes sociais)`);
   }
-  if (lead.email) {
-    canaisInfo.push(`✅ Email: DISPONÍVEL (${lead.email})`);
-  } else {
-    canaisInfo.push("❌ Email: NÃO DETECTADO - NÃO USAR!");
+  
+  // Email
+  if (canaisDetectados.includes("email")) {
+    canaisInfo.push(`✅ Email: DETECTADO (${lead.email})`);
+  } else if (canais.includes("email")) {
+    canaisInfo.push(`⚠️ Email: SELECIONADO mas NÃO DETECTADO - Gerar plano com instruções para ENCONTRAR o email (site/contato, CNPJ, formulários)`);
   }
-  // Instagram: usa instagramVariations já calculada no início da função
-  if (lead.instagram_url) {
-    canaisInfo.push(`✅ Instagram: DISPONÍVEL (${lead.instagram_url})`);
-  } else if (instagramSelecionadoMasNaoDetectado) {
-    canaisInfo.push(`⚠️ Instagram: SELECIONADO pelo usuário mas NÃO DETECTADO no site
-    SUGESTÕES DE PERFIL para o DIAGNÓSTICO (NÃO para o plano):
+  
+  // Instagram
+  if (canaisDetectados.includes("instagram")) {
+    canaisInfo.push(`✅ Instagram: DETECTADO (${lead.instagram_url})`);
+  } else if (canais.includes("instagram")) {
+    canaisInfo.push(`⚠️ Instagram: SELECIONADO mas NÃO DETECTADO
+    SUGESTÕES DE PERFIL para buscar:
     ${instagramVariations.join(", ")}
-    IMPORTANTE: NÃO use Instagram no plano de 7 dias! Apenas mencione as sugestões no diagnóstico.`);
-  } else {
-    canaisInfo.push("❌ Instagram: NÃO SELECIONADO");
+    Gerar plano com instruções para ENCONTRAR e VERIFICAR o perfil antes de contatar`);
   }
     
   const sinaisMarketing = [];
@@ -1559,51 +1562,53 @@ Abordagens B2B CORRETAS sem nome pessoal (entre direto no valor):
 ⚠️⚠️⚠️ REGRA CRÍTICA #1 - CANAIS DE CONTATO ⚠️⚠️⚠️
 ════════════════════════════════════════════════════════════════════════════════
 
-${nenhumCanalDetectado 
+${canaisNaoDetectados.length === canais.length 
   ? `🚨 NENHUM CANAL DE CONTATO FOI DETECTADO!
 
-Como não temos email, WhatsApp ou Instagram, crie um plano de whatsapp com 7 dias focado em:
-- Use "whatsapp" como canal nos campos (para o sistema aceitar)
-- Mas a MENSAGEM deve ser sobre COMO ENCONTRAR o contato:
-  • Dia 1-2: Buscar telefone em Google, Reclame Aqui, LinkedIn
-  • Dia 3-4: Tentar contato via formulário do site
-  • Dia 5-6: Buscar redes sociais alternativas
-  • Dia 7: Considerar visita presencial ou carta`
+Mesmo assim, gere planos de 7 dias para CADA canal selecionado com instruções de COMO ENCONTRAR o contato:
+• WhatsApp: Dias focados em buscar telefone em Google, site, redes sociais
+• Email: Dias focados em encontrar email em formulários, CNPJ, LinkedIn
+• Instagram: Dias focados em buscar perfil usando sugestões de handles`
   : `═══════════════════════════════════════
 📋 ESTRUTURA DO PLANO - GERAR PLANOS SEPARADOS POR CANAL
 ═══════════════════════════════════════
 
-🚨 REGRA CRÍTICA: Você DEVE gerar 7 DIAS ÚNICOS para CADA canal detectado!
+🚨 REGRA CRÍTICA: Você DEVE gerar 7 DIAS ÚNICOS para CADA canal selecionado!
 
-Canais detectados: ${canalTexto}
+Canais selecionados: ${canalTexto}
+Canais detectados: ${canaisDetectados.length > 0 ? canaisDetectados.join(", ") : "NENHUM"}
+${canaisNaoDetectados.length > 0 ? `Canais NÃO detectados (adaptar mensagens): ${canaisNaoDetectados.join(", ")}` : ""}
 
 ${canais.includes("whatsapp") ? `
 📱 plano_prospeccao_7dias.whatsapp (OBRIGATÓRIO - 7 dias):
-• 7 mensagens ÚNICAS e DIFERENTES de WhatsApp
+${canaisDetectados.includes("whatsapp") 
+  ? `• 7 mensagens ÚNICAS para o número ${lead.whatsapp_number || "detectado"}`
+  : `• WhatsApp NÃO detectado - Dia 1-2 foque em COMO ENCONTRAR o número, Dias 3-7 templates para quando encontrar`}
 • Progressão: Dia 1 (apresentação) → Dia 7 (encerramento)
-• Tom conversacional B2B, máximo 4 linhas
-• Cada dia aborda uma fase diferente do funil` : ""}
+• Tom conversacional B2B, máximo 4 linhas` : ""}
 
 ${canais.includes("email") ? `
 ✉️ plano_prospeccao_7dias.email (OBRIGATÓRIO - 7 dias):
-• 7 emails ÚNICOS e DIFERENTES
+${canaisDetectados.includes("email") 
+  ? `• 7 emails ÚNICOS para ${lead.email}`
+  : `• Email NÃO detectado - Dia 1-2 foque em COMO ENCONTRAR o email (formulário do site, CNPJ, LinkedIn), Dias 3-7 templates para quando encontrar`}
 • Progressão: Dia 1 (apresentação) → Dia 7 (encerramento)
-• Incluir assunto em cada mensagem
-• Estrutura formal, máximo 150 palavras` : ""}
+• Incluir assunto em cada mensagem` : ""}
 
 ${canais.includes("instagram") ? `
 📸 plano_prospeccao_7dias.instagram (OBRIGATÓRIO - 7 dias):
-• 7 DMs ÚNICOS e DIFERENTES
+${canaisDetectados.includes("instagram") 
+  ? `• 7 DMs ÚNICOS para ${lead.instagram_url}`
+  : `• Instagram NÃO detectado - Dia 1-2 foque em COMO ENCONTRAR o perfil:
+    Sugestões: ${instagramVariations.slice(0, 4).join(", ")}
+    Buscar no Google: "${lead.nome} ${lead.cidade} instagram"
+    Dias 3-7 templates para quando encontrar`}
 • Progressão: Dia 1 (engajamento) → Dia 7 (encerramento)
-• Máximo 4 linhas, tom casual-profissional
-• Sugestão de pré-engajamento (curtir posts)` : ""}
+• Máximo 4 linhas, tom casual-profissional` : ""}
 
-⚠️ CADA CANAL TEM SUA PRÓPRIA CADÊNCIA DE 7 DIAS!
-• Dia 1 do WhatsApp é DIFERENTE do Dia 1 do Email
-• Dia 1 do Email é DIFERENTE do Dia 1 do Instagram
-• NUNCA repita mensagens entre canais!`}
+⚠️ CADA CANAL TEM SUA PRÓPRIA CADÊNCIA DE 7 DIAS!`}
 
-${!nenhumCanalDetectado ? instrucoesPorCanal : ""}
+${instrucoesPorCanal}
 
 ${instrucoesObjecoes}
 
@@ -1729,12 +1734,11 @@ Gere análise consultiva incluindo:
 • Recomendações prioritárias
 • Potencial de ROI estimado
 ${lead.instagram_context ? "• Insights do Instagram" : ""}
-${instagramSelecionadoMasNaoDetectado ? `
+${canaisNaoDetectados.length > 0 ? `
 ⚠️ IMPORTANTE - INCLUIR NO DIAGNÓSTICO:
-• Instagram foi selecionado para prospecção mas NÃO foi detectado no site
-• Adicionar um bullet sugerindo verificar estes possíveis handles: ${instagramVariations.slice(0, 4).join(", ")}
-• Orientar o usuário a buscar o perfil manualmente antes de abordar
-• NÃO incluir Instagram no plano de 7 dias!` : ""}
+${canaisNaoDetectados.includes("instagram") ? `• Instagram selecionado mas NÃO detectado - sugerir buscar: ${instagramVariations.slice(0, 4).join(", ")}` : ""}
+${canaisNaoDetectados.includes("email") ? `• Email NÃO detectado - sugerir buscar em formulário do site, CNPJ, ou LinkedIn` : ""}
+${canaisNaoDetectados.includes("whatsapp") ? `• WhatsApp NÃO detectado - sugerir buscar no Google ou redes sociais` : ""}` : ""}
 
 ═══════════════════════════════════════
 📊 PROBABILIDADE DE CONVERSÃO (0-100)

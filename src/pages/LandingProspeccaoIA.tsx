@@ -11,52 +11,71 @@ import { HeroSection } from "@/components/landing/HeroSection";
 import { BeneficiosSection } from "@/components/landing/BeneficiosSection";
 
 // Lazy loaded components - below the fold
-const ComoFuncionaSection = lazy(() => import("@/components/landing/ComoFuncionaSection").then(m => ({ default: m.ComoFuncionaSection })));
-const DepoimentosSection = lazy(() => import("@/components/landing/DepoimentosSection").then(m => ({ default: m.DepoimentosSection })));
-const MetricasSection = lazy(() => import("@/components/landing/MetricasSection").then(m => ({ default: m.MetricasSection })));
-const ParaQuemSection = lazy(() => import("@/components/landing/ParaQuemSection").then(m => ({ default: m.ParaQuemSection })));
-const PrecosSection = lazy(() => import("@/components/landing/PrecosSection").then(m => ({ default: m.PrecosSection })));
-const FAQSection = lazy(() => import("@/components/landing/FAQSection").then(m => ({ default: m.FAQSection })));
-const CTAFinalSection = lazy(() => import("@/components/landing/CTAFinalSection").then(m => ({ default: m.CTAFinalSection })));
-const Footer = lazy(() => import("@/components/landing/Footer").then(m => ({ default: m.Footer })));
-
-const SectionSkeleton = () => (
-  <div className="py-16 flex items-center justify-center">
+const ComoFuncionaSection = lazy(() => import("@/components/landing/ComoFuncionaSection").then(m => ({
+  default: m.ComoFuncionaSection
+})));
+const DepoimentosSection = lazy(() => import("@/components/landing/DepoimentosSection").then(m => ({
+  default: m.DepoimentosSection
+})));
+const MetricasSection = lazy(() => import("@/components/landing/MetricasSection").then(m => ({
+  default: m.MetricasSection
+})));
+const ParaQuemSection = lazy(() => import("@/components/landing/ParaQuemSection").then(m => ({
+  default: m.ParaQuemSection
+})));
+const PrecosSection = lazy(() => import("@/components/landing/PrecosSection").then(m => ({
+  default: m.PrecosSection
+})));
+const FAQSection = lazy(() => import("@/components/landing/FAQSection").then(m => ({
+  default: m.FAQSection
+})));
+const CTAFinalSection = lazy(() => import("@/components/landing/CTAFinalSection").then(m => ({
+  default: m.CTAFinalSection
+})));
+const Footer = lazy(() => import("@/components/landing/Footer").then(m => ({
+  default: m.Footer
+})));
+const SectionSkeleton = () => <div className="py-16 flex items-center justify-center">
     <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
-  </div>
-);
-
+  </div>;
 export default function LandingProspeccaoIA() {
   const navigate = useNavigate();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: {
+          session
+        }
+      } = await supabase.auth.getSession();
       if (session?.user) {
-        navigate("/prospeccao", { replace: true });
+        navigate("/prospeccao", {
+          replace: true
+        });
       } else {
         setIsCheckingAuth(false);
       }
     };
     checkAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: {
+        subscription
+      }
+    } = supabase.auth.onAuthStateChange((event, session) => {
       // Não redirecionar se checkout estiver em progresso
       const checkoutInProgress = sessionStorage.getItem("checkout_in_progress");
       if (session?.user && !checkoutInProgress) {
-        navigate("/prospeccao", { replace: true });
+        navigate("/prospeccao", {
+          replace: true
+        });
       }
     });
     return () => subscription.unsubscribe();
   }, [navigate]);
-
   if (isCheckingAuth) {
     return <LandingPageSkeleton />;
   }
-
-  return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
+  return <div className="min-h-screen bg-background overflow-x-hidden">
       <LPHeader />
       <HeroSection />
       <BeneficiosSection />
@@ -66,7 +85,7 @@ export default function LandingProspeccaoIA() {
       </Suspense>
       
       <Suspense fallback={<SectionSkeleton />}>
-        <DepoimentosSection />
+        
       </Suspense>
       
       <Suspense fallback={<SectionSkeleton />}>
@@ -94,6 +113,5 @@ export default function LandingProspeccaoIA() {
       </Suspense>
       
       <FloatingWhatsAppButton />
-    </div>
-  );
+    </div>;
 }

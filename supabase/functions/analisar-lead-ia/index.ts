@@ -21,7 +21,6 @@ interface LeadData {
   instagram_url: string | null;
   instagram_context: string | null;
   canaisProspeccao?: ("email" | "whatsapp" | "instagram")[];
-  // CNPJ enrichment fields
   cnpj?: string | null;
   razao_social?: string | null;
   nome_responsavel?: string | null;
@@ -30,36 +29,20 @@ interface LeadData {
   cnae_principal?: string | null;
 }
 
-// Função para filtrar canais baseado no que foi detectado no lead
-// SEM FALLBACK - só retorna canais que realmente foram detectados
 function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "whatsapp" | "instagram")[]): ("email" | "whatsapp" | "instagram")[] {
   const available: ("email" | "whatsapp" | "instagram")[] = [];
   
-  // WhatsApp: disponível SOMENTE se tem número ou está no site
   if (selectedChannels.includes("whatsapp") && (lead.whatsapp_number || lead.whatsapp_on_site)) {
     available.push("whatsapp");
   }
-  
-  // Email: disponível SOMENTE se foi detectado
   if (selectedChannels.includes("email") && lead.email) {
     available.push("email");
   }
-  
-  // Instagram: disponível SOMENTE se tem URL
   if (selectedChannels.includes("instagram") && lead.instagram_url) {
     available.push("instagram");
   }
   
-  // SEM FALLBACK! Se não detectou nenhum canal, retorna array vazio
-  // A IA será instruída a criar plano alternativo de como ENCONTRAR contato
-  
-  console.log(`📢 Canais selecionados pelo usuário: ${selectedChannels.join(", ")}`);
-  console.log(`✅ Canais REALMENTE detectados: ${available.length > 0 ? available.join(", ") : "NENHUM"}`);
-  
-  if (available.length === 0) {
-    console.log(`⚠️ ATENÇÃO: Nenhum canal de contato foi detectado para este lead!`);
-  }
-  
+  console.log(`📢 Canais selecionados: ${selectedChannels.join(", ")} | Detectados: ${available.length > 0 ? available.join(", ") : "NENHUM"}`);
   return available;
 }
 
@@ -84,71 +67,33 @@ interface CNPJData {
   cnae_principal: string | null;
 }
 
-// Função para buscar dados do CNPJ na BrasilAPI
 async function fetchCNPJData(cnpj: string): Promise<CNPJData | null> {
   try {
-    // Remove caracteres não numéricos
     const cnpjLimpo = cnpj.replace(/\D/g, '');
-    
-    if (cnpjLimpo.length !== 14) {
-      console.log(`⚠️ CNPJ inválido (não tem 14 dígitos): ${cnpjLimpo}`);
-      return null;
-    }
-    
-    console.log(`🔍 Buscando dados do CNPJ: ${cnpjLimpo}`);
+    if (cnpjLimpo.length !== 14) return null;
     
     const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`, {
-      headers: {
-        'Accept': 'application/json',
-      },
+      headers: { 'Accept': 'application/json' },
     });
     
-    if (!response.ok) {
-      console.log(`⚠️ Erro ao buscar CNPJ: ${response.status}`);
-      return null;
-    }
+    if (!response.ok) return null;
     
     const data = await response.json();
     
-    // Extrai nome do primeiro sócio (QSA = Quadro de Sócios e Administradores)
     let nomeResponsavel: string | null = null;
     if (data.qsa && data.qsa.length > 0) {
-      // Procura pelo sócio administrador primeiro
       const administrador = data.qsa.find((socio: any) => 
         socio.qualificacao_socio?.toLowerCase().includes('administrador') ||
         socio.qualificacao_socio?.toLowerCase().includes('diretor')
       );
-      
-      if (administrador) {
-        nomeResponsavel = administrador.nome_socio;
-      } else {
-        // Se não encontrar administrador, pega o primeiro sócio
-        nomeResponsavel = data.qsa[0].nome_socio;
-      }
-      
-      // Formata o nome (capitaliza corretamente)
+      nomeResponsavel = (administrador || data.qsa[0]).nome_socio;
       if (nomeResponsavel) {
-        nomeResponsavel = nomeResponsavel
-          .toLowerCase()
-          .split(' ')
-          .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(' ');
+        nomeResponsavel = nomeResponsavel.toLowerCase().split(' ')
+          .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
       }
     }
     
-    // Se não tem sócio, tenta usar nome fantasia ou razão social
-    if (!nomeResponsavel && data.nome_fantasia) {
-      // Extrai primeiro nome do nome fantasia se parecer ser de pessoa
-      const nomeFantasia = data.nome_fantasia;
-      if (nomeFantasia && !nomeFantasia.includes('LTDA') && !nomeFantasia.includes('S/A')) {
-        const palavras = nomeFantasia.split(' ');
-        if (palavras.length <= 3 && palavras[0].length > 2) {
-          nomeResponsavel = palavras[0].charAt(0).toUpperCase() + palavras[0].slice(1).toLowerCase();
-        }
-      }
-    }
-    
-    const cnpjData: CNPJData = {
+    return {
       razao_social: data.razao_social || null,
       nome_responsavel: nomeResponsavel,
       telefone: data.ddd_telefone_1 ? data.ddd_telefone_1.replace(/\D/g, '') : null,
@@ -157,17 +102,7 @@ async function fetchCNPJData(cnpj: string): Promise<CNPJData | null> {
       porte_empresa: data.porte || null,
       cnae_principal: data.cnae_fiscal_descricao || null,
     };
-    
-    console.log(`✅ Dados CNPJ obtidos:`, {
-      razao_social: cnpjData.razao_social,
-      nome_responsavel: cnpjData.nome_responsavel,
-      situacao: cnpjData.situacao_cadastral,
-      porte: cnpjData.porte_empresa,
-    });
-    
-    return cnpjData;
-  } catch (error: any) {
-    console.error(`❌ Erro ao buscar CNPJ:`, error.message);
+  } catch {
     return null;
   }
 }
@@ -185,7 +120,6 @@ interface AnaliseResult {
   }>;
 }
 
-// Função melhorada para escanear o site em busca de sinais digitais
 async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
   const signals: SiteSignals = {
     whatsapp_on_site: false,
@@ -199,317 +133,66 @@ async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
   };
 
   try {
-    console.log(`🔍 Escaneando site: ${websiteUrl}`);
-    
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
     
     const siteResponse = await fetch(websiteUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
       },
       redirect: 'follow',
       signal: controller.signal,
     });
 
     clearTimeout(timeoutId);
-
-    if (!siteResponse.ok) {
-      console.log(`⚠️ Erro ao acessar site: ${siteResponse.status}`);
-      return signals;
-    }
+    if (!siteResponse.ok) return signals;
 
     const html = await siteResponse.text();
-    console.log(`📄 HTML recebido: ${html.length} caracteres`);
     
-    // ========================================
-    // DETECÇÃO DE WHATSAPP - MÚLTIPLOS PADRÕES
-    // ========================================
-    
-    // Padrões de link direto do WhatsApp
-    const whatsappLinkPatterns = [
+    // WhatsApp detection
+    const whatsappPatterns = [
       /wa\.me\/(\+?[0-9]+)/gi,
       /api\.whatsapp\.com\/send\?phone=(\+?[0-9]+)/gi,
-      /web\.whatsapp\.com\/send\?phone=(\+?[0-9]+)/gi,
-      /whatsapp:\/\/send\?phone=(\+?[0-9]+)/gi,
     ];
     
-    for (const pattern of whatsappLinkPatterns) {
+    for (const pattern of whatsappPatterns) {
       const matches = html.matchAll(pattern);
       for (const match of matches) {
         if (match[1]) {
           signals.whatsapp_on_site = true;
           signals.whatsapp_number = match[1].replace(/\D/g, '');
-          console.log(`✅ WhatsApp encontrado via link: ${signals.whatsapp_number}`);
           break;
         }
       }
       if (signals.whatsapp_on_site) break;
     }
 
-    // Procura por href com whatsapp
-    if (!signals.whatsapp_on_site) {
-      const hrefWhatsappPattern = /href\s*=\s*["'][^"']*whatsapp[^"']*["']/gi;
-      const hrefMatches = html.match(hrefWhatsappPattern);
-      if (hrefMatches && hrefMatches.length > 0) {
-        // Tenta extrair número do href
-        const numberMatch = hrefMatches[0].match(/(\d{10,15})/);
-        if (numberMatch) {
-          signals.whatsapp_on_site = true;
-          signals.whatsapp_number = numberMatch[1];
-          console.log(`✅ WhatsApp encontrado via href: ${signals.whatsapp_number}`);
-        } else {
-          signals.whatsapp_on_site = true;
-          console.log(`✅ Link WhatsApp detectado (sem número específico)`);
-        }
-      }
+    if (!signals.whatsapp_on_site && /whatsapp/i.test(html)) {
+      signals.whatsapp_on_site = true;
     }
 
-    // Procura por classe/id com whatsapp
-    if (!signals.whatsapp_on_site) {
-      const whatsappClassPatterns = [
-        /class\s*=\s*["'][^"']*whatsapp[^"']*["']/gi,
-        /id\s*=\s*["'][^"']*whatsapp[^"']*["']/gi,
-        /class\s*=\s*["'][^"']*wpp[^"']*["']/gi,
-        /class\s*=\s*["'][^"']*zap[^"']*["']/gi,
-      ];
-      
-      for (const pattern of whatsappClassPatterns) {
-        if (pattern.test(html)) {
-          signals.whatsapp_on_site = true;
-          console.log(`✅ WhatsApp detectado via classe/id CSS`);
-          break;
-        }
-      }
+    // Instagram detection
+    const instagramMatch = html.match(/instagram\.com\/([a-zA-Z0-9._]+)/i);
+    if (instagramMatch && !['p', 'reel', 'stories', 'explore'].includes(instagramMatch[1].toLowerCase())) {
+      signals.instagram_url = `https://instagram.com/${instagramMatch[1]}`;
     }
 
-    // Procura por imagens/ícones de WhatsApp
-    if (!signals.whatsapp_on_site) {
-      const whatsappImagePatterns = [
-        /src\s*=\s*["'][^"']*whatsapp[^"']*\.(png|jpg|jpeg|svg|gif|webp)["']/gi,
-        /src\s*=\s*["'][^"']*wpp[^"']*\.(png|jpg|jpeg|svg|gif|webp)["']/gi,
-        /src\s*=\s*["'][^"']*zap[^"']*\.(png|jpg|jpeg|svg|gif|webp)["']/gi,
-      ];
-      
-      for (const pattern of whatsappImagePatterns) {
-        if (pattern.test(html)) {
-          signals.whatsapp_on_site = true;
-          console.log(`✅ WhatsApp detectado via imagem/ícone`);
-          break;
-        }
-      }
-    }
+    // Marketing tools
+    if (/fbq\s*\(|facebook\.com\/tr\?id=/i.test(html)) signals.has_meta_pixel = true;
+    if (/gtag\s*\(|googletagmanager\.com\/gtag/i.test(html)) signals.has_gtag = true;
+    if (/GTM-[A-Z0-9]+/i.test(html)) signals.has_gtm = true;
 
-    // Procura por texto "WhatsApp" próximo a números de telefone
-    if (!signals.whatsapp_on_site) {
-      const whatsappContextPattern = /whatsapp[^0-9]{0,80}(\+?55\s*)?(\(?[0-9]{2}\)?[\s\-]?[0-9]{4,5}[\s\-]?[0-9]{4})/gi;
-      const contextMatch = html.match(whatsappContextPattern);
-      if (contextMatch) {
-        signals.whatsapp_on_site = true;
-        const numberMatch = contextMatch[0].match(/(\d{10,13})/);
-        if (numberMatch) {
-          signals.whatsapp_number = numberMatch[1];
-        }
-        console.log(`✅ WhatsApp encontrado via contexto de texto`);
-      }
-    }
+    // Email detection
+    const emailMatch = html.match(/mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+    if (emailMatch) signals.email = emailMatch[1].toLowerCase();
 
-    // ========================================
-    // DETECÇÃO DE INSTAGRAM - MÚLTIPLOS PADRÕES
-    // ========================================
-    
-    // Padrões de link do Instagram
-    const instagramPatterns = [
-      /(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)/gi,
-      /href\s*=\s*["'][^"']*instagram\.com\/([a-zA-Z0-9._]+)[^"']*["']/gi,
-    ];
-    
-    for (const pattern of instagramPatterns) {
-      const matches = html.matchAll(pattern);
-      for (const match of matches) {
-        if (match[1] && !['p', 'reel', 'stories', 'explore', 'accounts', 'about', 'legal', 'help'].includes(match[1].toLowerCase())) {
-          signals.instagram_url = `https://instagram.com/${match[1]}`;
-          console.log(`✅ Instagram encontrado: ${signals.instagram_url}`);
-          break;
-        }
-      }
-      if (signals.instagram_url) break;
-    }
+    // CNPJ detection
+    const cnpjMatch = html.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);
+    if (cnpjMatch) signals.cnpj = cnpjMatch[0].replace(/\D/g, '');
 
-    // Procura por classe/id com instagram
-    if (!signals.instagram_url) {
-      const instagramClassPatterns = [
-        /class\s*=\s*["'][^"']*instagram[^"']*["']/gi,
-        /id\s*=\s*["'][^"']*instagram[^"']*["']/gi,
-        /class\s*=\s*["'][^"']*insta[^"']*["']/gi,
-      ];
-      
-      for (const pattern of instagramClassPatterns) {
-        if (pattern.test(html)) {
-          // Há um elemento Instagram, tenta encontrar o link
-          const linkNearby = html.match(/instagram\.com\/([a-zA-Z0-9._]+)/gi);
-          if (linkNearby && linkNearby[0]) {
-            const username = linkNearby[0].replace(/instagram\.com\//i, '');
-            if (!['p', 'reel', 'stories', 'explore'].includes(username.toLowerCase())) {
-              signals.instagram_url = `https://instagram.com/${username}`;
-              console.log(`✅ Instagram detectado via classe CSS: ${signals.instagram_url}`);
-            }
-          }
-          break;
-        }
-      }
-    }
-
-    // Procura por imagens/ícones de Instagram
-    if (!signals.instagram_url) {
-      const instagramImagePatterns = [
-        /src\s*=\s*["'][^"']*instagram[^"']*\.(png|jpg|jpeg|svg|gif|webp)["']/gi,
-        /src\s*=\s*["'][^"']*insta[^"']*\.(png|jpg|jpeg|svg|gif|webp)["']/gi,
-      ];
-      
-      for (const pattern of instagramImagePatterns) {
-        if (pattern.test(html)) {
-          // Tem ícone de Instagram, tenta achar o link
-          const linkMatch = html.match(/instagram\.com\/([a-zA-Z0-9._]+)/gi);
-          if (linkMatch) {
-            const username = linkMatch[0].replace(/instagram\.com\//i, '');
-            if (!['p', 'reel', 'stories', 'explore'].includes(username.toLowerCase())) {
-              signals.instagram_url = `https://instagram.com/${username}`;
-              console.log(`✅ Instagram detectado via ícone: ${signals.instagram_url}`);
-            }
-          }
-          break;
-        }
-      }
-    }
-
-    // ========================================
-    // DETECÇÃO DE FERRAMENTAS DE MARKETING
-    // ========================================
-    
-    // Meta Pixel
-    if (/fbq\s*\(\s*['"]init['"]/i.test(html) || 
-        /facebook\.com\/tr\?id=/i.test(html) ||
-        /connect\.facebook\.net\/.*\/fbevents\.js/i.test(html)) {
-      signals.has_meta_pixel = true;
-      console.log(`✅ Meta Pixel detectado`);
-    }
-
-    // Google Analytics / gtag
-    if (/gtag\s*\(\s*['"]config['"]/i.test(html) || 
-        /googletagmanager\.com\/gtag\/js/i.test(html) ||
-        /google-analytics\.com\/analytics\.js/i.test(html) ||
-        /UA-[0-9]+-[0-9]+/i.test(html) ||
-        /G-[A-Z0-9]+/i.test(html)) {
-      signals.has_gtag = true;
-      console.log(`✅ Google Analytics detectado`);
-    }
-
-    // Google Tag Manager
-    if (/GTM-[A-Z0-9]+/i.test(html) || 
-        /googletagmanager\.com\/gtm\.js/i.test(html) ||
-        /googletagmanager\.com\/ns\.html/i.test(html)) {
-      signals.has_gtm = true;
-      console.log(`✅ Google Tag Manager detectado`);
-    }
-
-    // ========================================
-    // DETECÇÃO DE EMAIL - MÚLTIPLOS PADRÕES
-    // ========================================
-    
-    // Padrão 1: Links mailto:
-    const mailtoPattern = /mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
-    const mailtoMatches = html.matchAll(mailtoPattern);
-    for (const match of mailtoMatches) {
-      if (match[1]) {
-        signals.email = match[1].toLowerCase();
-        console.log(`✅ Email encontrado via mailto: ${signals.email}`);
-        break;
-      }
-    }
-
-    // Padrão 2: Emails em texto geral (se não encontrou via mailto)
-    if (!signals.email) {
-      // Regex para emails - exclui domínios comuns de imagens/assets
-      const emailTextPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
-      const emailMatches = html.match(emailTextPattern);
-      
-      if (emailMatches && emailMatches.length > 0) {
-        // Filtra emails inválidos ou de domínios de sistema
-        const excludedDomains = ['example.com', 'sentry.io', 'wixpress.com', 'google.com', 'facebook.com', 'twitter.com', 'instagram.com'];
-        const excludedPatterns = ['noreply', 'no-reply', 'donotreply', 'mailer-daemon'];
-        
-        for (const email of emailMatches) {
-          const emailLower = email.toLowerCase();
-          const domain = emailLower.split('@')[1];
-          
-          // Pula emails de sistema ou domínios excluídos
-          if (excludedDomains.some(d => domain?.includes(d))) continue;
-          if (excludedPatterns.some(p => emailLower.includes(p))) continue;
-          
-          // Email válido encontrado
-          signals.email = emailLower;
-          console.log(`✅ Email encontrado via texto: ${signals.email}`);
-          break;
-        }
-      }
-    }
-
-    // Padrão 3: Busca por contexto (email perto de palavras-chave)
-    if (!signals.email) {
-      const emailContextPatterns = [
-        /(?:contato|email|e-mail|fale\s*conosco|atendimento)[:\s]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi,
-        /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?:[:\s]*(?:contato|email|e-mail))/gi,
-      ];
-      
-      for (const pattern of emailContextPatterns) {
-        const matches = html.matchAll(pattern);
-        for (const match of matches) {
-          if (match[1]) {
-            signals.email = match[1].toLowerCase();
-            console.log(`✅ Email encontrado via contexto: ${signals.email}`);
-            break;
-          }
-        }
-        if (signals.email) break;
-      }
-    }
-
-    // ========================================
-    // DETECÇÃO DE CNPJ - MÚLTIPLOS PADRÕES
-    // ========================================
-    
-    // Padrão 1: CNPJ formatado (XX.XXX.XXX/XXXX-XX)
-    const cnpjFormattedPattern = /\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/g;
-    const cnpjFormattedMatches = html.match(cnpjFormattedPattern);
-    if (cnpjFormattedMatches && cnpjFormattedMatches.length > 0) {
-      signals.cnpj = cnpjFormattedMatches[0].replace(/\D/g, '');
-      console.log(`✅ CNPJ encontrado (formatado): ${signals.cnpj}`);
-    }
-    
-    // Padrão 2: CNPJ não formatado (14 dígitos) perto de palavras-chave
-    if (!signals.cnpj) {
-      const cnpjContextPattern = /(?:cnpj|inscri[çc][aã]o)[:\s]*(\d{14}|\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})/gi;
-      const cnpjContextMatches = html.matchAll(cnpjContextPattern);
-      for (const match of cnpjContextMatches) {
-        if (match[1]) {
-          signals.cnpj = match[1].replace(/\D/g, '');
-          console.log(`✅ CNPJ encontrado (contexto): ${signals.cnpj}`);
-          break;
-        }
-      }
-    }
-
-    console.log(`📊 Sinais finais:`, signals);
-    
   } catch (error: any) {
-    if (error.name === 'AbortError') {
-      console.log(`⏱️ Timeout ao acessar site: ${websiteUrl}`);
-    } else {
-      console.error(`❌ Erro ao escanear site ${websiteUrl}:`, error.message);
-    }
+    console.log(`⚠️ Erro ao escanear site: ${error.message}`);
   }
 
   return signals;
@@ -524,151 +207,93 @@ serve(async (req) => {
     const requestData = await req.json();
     const leadId = requestData.leadId || requestData.lead_id;
     
-    console.log("🔍 Recebido request:", { leadId, hasNome: !!requestData.nome });
+    console.log("🔍 Iniciando análise:", { leadId, hasNome: !!requestData.nome });
 
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     let leadData: LeadData;
-    let websiteUrl: string | null = null;
     
-    // Se temos leadId, busca os dados do banco via RPC descriptografada
     if (leadId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-      console.log("📥 Buscando dados do lead no banco via RPC descriptografada...");
-      
+      console.log("📥 Buscando lead via RPC...");
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       
-      // Usa RPC específica que aceita lead_id como parâmetro
       const { data: decryptedLeads, error: rpcError } = await supabase
         .rpc("get_lead_decrypted_by_id", { p_lead_id: leadId });
         
-      if (rpcError) {
-        console.error("❌ Erro na RPC get_lead_decrypted_by_id:", rpcError);
-        throw new Error("Erro ao buscar lead descriptografado");
+      if (rpcError || !decryptedLeads?.length) {
+        throw new Error("Lead não encontrado");
       }
       
-      const directLead = decryptedLeads && decryptedLeads.length > 0 ? decryptedLeads[0] : null;
-      
-      if (!directLead) {
-        console.error("❌ Lead não encontrado no resultado da RPC");
-        throw new Error("Lead não encontrado no banco de dados");
-      }
-      
-      websiteUrl = directLead.website as string | null;
+      const lead = decryptedLeads[0];
       leadData = {
-        nome: directLead.nome as string,
-        nicho: directLead.nicho as string,
-        cidade: directLead.cidade as string,
-        website: directLead.website as string | null,
-        foco: directLead.foco as string,
-        whatsapp_on_site: (directLead.whatsapp_on_site as boolean) || false,
-        whatsapp_number: directLead.whatsapp_number as string | null,
-        email: directLead.email as string | null,
-        has_meta_pixel: (directLead.has_meta_pixel as boolean) || false,
-        has_gtag: (directLead.has_gtag as boolean) || false,
-        has_gtm: (directLead.has_gtm as boolean) || false,
-        instagram_url: directLead.instagram_url as string | null,
-        instagram_context: directLead.instagram_context as string | null,
+        nome: lead.nome,
+        nicho: lead.nicho,
+        cidade: lead.cidade,
+        website: lead.website,
+        foco: lead.foco,
+        whatsapp_on_site: lead.whatsapp_on_site || false,
+        whatsapp_number: lead.whatsapp_number,
+        email: lead.email,
+        has_meta_pixel: lead.has_meta_pixel || false,
+        has_gtag: lead.has_gtag || false,
+        has_gtm: lead.has_gtm || false,
+        instagram_url: lead.instagram_url,
+        instagram_context: lead.instagram_context,
         canaisProspeccao: requestData.canaisProspeccao,
-        // CNPJ fields
-        cnpj: directLead.cnpj as string | null,
-        razao_social: directLead.razao_social as string | null,
-        nome_responsavel: directLead.nome_responsavel as string | null,
-        situacao_cadastral: directLead.situacao_cadastral as string | null,
-        porte_empresa: directLead.porte_empresa as string | null,
-        cnae_principal: directLead.cnae_principal as string | null,
+        cnpj: lead.cnpj,
+        razao_social: lead.razao_social,
+        nome_responsavel: lead.nome_responsavel,
+        situacao_cadastral: lead.situacao_cadastral,
+        porte_empresa: lead.porte_empresa,
+        cnae_principal: lead.cnae_principal,
       };
       
-      console.log("✅ Lead carregado:", leadData.nome);
-      console.log("📧 Email existente:", leadData.email);
-      console.log("📱 WhatsApp existente:", leadData.whatsapp_number);
-      console.log("📸 Instagram existente:", leadData.instagram_url);
-      console.log("👤 Nome responsável existente:", leadData.nome_responsavel);
-      
-      // RE-ESCANEIA O SITE para detectar novos sinais
-      if (websiteUrl) {
-        console.log("🔄 Re-escaneando site para detectar sinais atualizados...");
-        const newSignals = await scrapeSiteForSignals(websiteUrl);
-        
-        // Atualiza os sinais - combina existentes com novos
+      // Re-scrape website for fresh signals
+      if (lead.website) {
+        const newSignals = await scrapeSiteForSignals(lead.website);
         leadData.whatsapp_on_site = newSignals.whatsapp_on_site || leadData.whatsapp_on_site;
         leadData.whatsapp_number = newSignals.whatsapp_number || leadData.whatsapp_number;
         leadData.email = newSignals.email || leadData.email;
+        leadData.instagram_url = newSignals.instagram_url || leadData.instagram_url;
         leadData.has_meta_pixel = newSignals.has_meta_pixel || leadData.has_meta_pixel;
         leadData.has_gtag = newSignals.has_gtag || leadData.has_gtag;
         leadData.has_gtm = newSignals.has_gtm || leadData.has_gtm;
-        leadData.instagram_url = newSignals.instagram_url || leadData.instagram_url;
         
-        console.log("📧 Email após scraping:", leadData.email);
-        console.log("📱 WhatsApp após scraping:", leadData.whatsapp_number);
-        console.log("📸 Instagram após scraping:", leadData.instagram_url);
-        
-        // Se encontrou CNPJ no site e ainda não temos nome_responsavel, busca na BrasilAPI
         if (newSignals.cnpj && !leadData.nome_responsavel) {
-          console.log("🏢 CNPJ detectado no site, buscando dados na BrasilAPI...");
           const cnpjData = await fetchCNPJData(newSignals.cnpj);
-          
           if (cnpjData) {
-            leadData.cnpj = newSignals.cnpj;
-            leadData.razao_social = cnpjData.razao_social;
-            leadData.nome_responsavel = cnpjData.nome_responsavel;
-            leadData.situacao_cadastral = cnpjData.situacao_cadastral;
-            leadData.porte_empresa = cnpjData.porte_empresa;
-            leadData.cnae_principal = cnpjData.cnae_principal;
-            
-            // Usa telefone e email do CNPJ se não temos
-            if (!leadData.email && cnpjData.email) {
-              leadData.email = cnpjData.email;
-            }
-            
-            console.log("👤 Nome responsável encontrado:", leadData.nome_responsavel);
+            Object.assign(leadData, {
+              cnpj: newSignals.cnpj,
+              razao_social: cnpjData.razao_social,
+              nome_responsavel: cnpjData.nome_responsavel,
+              situacao_cadastral: cnpjData.situacao_cadastral,
+              porte_empresa: cnpjData.porte_empresa,
+              cnae_principal: cnpjData.cnae_principal,
+            });
+            if (!leadData.email && cnpjData.email) leadData.email = cnpjData.email;
           }
         }
         
-        // Atualiza os sinais no banco (campos não criptografados)
-        console.log("💾 Atualizando sinais no banco...");
-        const updateData: Record<string, any> = {
+        // Update signals in DB
+        await supabase.from("leads").update({
           whatsapp_on_site: leadData.whatsapp_on_site,
           has_meta_pixel: leadData.has_meta_pixel,
           has_gtag: leadData.has_gtag,
           has_gtm: leadData.has_gtm,
-        };
-        
-        // Se encontrou novo WhatsApp, Instagram ou Email, atualiza
-        if (newSignals.whatsapp_number) {
-          updateData.whatsapp_number = newSignals.whatsapp_number;
-        }
-        if (newSignals.instagram_url) {
-          updateData.instagram_url = newSignals.instagram_url;
-        }
-        if (newSignals.email) {
-          updateData.email = newSignals.email;
-        }
-        
-        // Atualiza dados de CNPJ se encontrados
-        if (leadData.cnpj) {
-          updateData.cnpj = leadData.cnpj;
-          updateData.razao_social = leadData.razao_social;
-          updateData.nome_responsavel = leadData.nome_responsavel;
-          updateData.situacao_cadastral = leadData.situacao_cadastral;
-          updateData.porte_empresa = leadData.porte_empresa;
-          updateData.cnae_principal = leadData.cnae_principal;
-        }
-        
-        const { error: updateSignalsError } = await supabase
-          .from("leads")
-          .update(updateData)
-          .eq("id", leadId);
-          
-        if (updateSignalsError) {
-          console.error("⚠️ Erro ao atualizar sinais:", updateSignalsError);
-        } else {
-          console.log("✅ Sinais atualizados no banco");
-        }
+          ...(leadData.cnpj && { 
+            cnpj: leadData.cnpj,
+            razao_social: leadData.razao_social,
+            nome_responsavel: leadData.nome_responsavel,
+            situacao_cadastral: leadData.situacao_cadastral,
+            porte_empresa: leadData.porte_empresa,
+            cnae_principal: leadData.cnae_principal,
+          }),
+        }).eq("id", leadId);
       }
     } else {
-      // Usa os dados passados diretamente
       leadData = {
         nome: requestData.nome,
         nicho: requestData.nicho,
@@ -676,8 +301,8 @@ serve(async (req) => {
         website: requestData.website,
         foco: requestData.foco,
         whatsapp_on_site: requestData.whatsapp_on_site || false,
-        whatsapp_number: requestData.whatsapp_number || null,
-        email: requestData.email || null,
+        whatsapp_number: requestData.whatsapp_number,
+        email: requestData.email,
         has_meta_pixel: requestData.has_meta_pixel || false,
         has_gtag: requestData.has_gtag || false,
         has_gtm: requestData.has_gtm || false,
@@ -687,905 +312,538 @@ serve(async (req) => {
       };
     }
 
-    console.log("🔍 Analisando lead:", leadData.nome);
+    console.log("🤖 Analisando:", leadData.nome, "| Canais detectados:", 
+      [leadData.whatsapp_number && "WhatsApp", leadData.email && "Email", leadData.instagram_url && "Instagram"].filter(Boolean).join(", ") || "Nenhum");
 
     let analise: AnaliseResult;
 
-    if (!OPENAI_API_KEY) {
-      console.log("⚠️ API key não configurada - retornando análise mockada");
-      analise = generateMockAnalise(leadData);
+    // Prioriza Lovable AI (Gemini), fallback para OpenAI
+    if (LOVABLE_API_KEY) {
+      console.log("🚀 Usando Lovable AI (Gemini 2.5 Pro)...");
+      analise = await analyzeWithLovableAI(leadData, LOVABLE_API_KEY);
+    } else if (OPENAI_API_KEY) {
+      console.log("🤖 Usando OpenAI...");
+      analise = await analyzeWithOpenAI(leadData, OPENAI_API_KEY);
     } else {
-      console.log("🤖 Iniciando análise com OpenAI...");
-      analise = await analyzeWithAI(leadData, OPENAI_API_KEY);
+      console.log("⚠️ Nenhuma API key - usando mock");
+      analise = generateMockAnalise(leadData);
     }
 
-    // Atualiza o lead no banco se temos ID
+    // Save analysis to DB
     if (leadId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-      console.log("💾 Salvando análise no banco...");
-      
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-      const { error: updateError } = await supabase
-        .from("leads")
-        .update({
-          diagnostico_bullets: analise.diagnostico_bullets,
-          probabilidade_conversao: analise.probabilidade_conversao,
-          plano_prospeccao: analise.plano_prospeccao_7dias,
-          ai_analise_gerada_em: new Date().toISOString(),
-        })
-        .eq("id", leadId);
-
-      if (updateError) {
-        console.error("❌ Erro ao atualizar lead:", updateError);
-      } else {
-        console.log("✅ Lead atualizado com sucesso");
-      }
+      await supabase.from("leads").update({
+        diagnostico_bullets: analise.diagnostico_bullets,
+        probabilidade_conversao: analise.probabilidade_conversao,
+        plano_prospeccao: analise.plano_prospeccao_7dias,
+        ai_analise_gerada_em: new Date().toISOString(),
+      }).eq("id", leadId);
+      console.log("✅ Análise salva no banco");
     }
 
     return new Response(JSON.stringify(analise), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("❌ Erro fatal na análise:", error);
-    return new Response(
-      JSON.stringify({ 
-        error: error.message || "Erro ao analisar lead",
-        details: error.stack,
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    console.error("❌ Erro:", error.message);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
 
-function generateMockAnalise(lead: LeadData): AnaliseResult {
-  const temMarketing = lead.has_meta_pixel || lead.has_gtag || lead.has_gtm;
-  const temWhatsApp = lead.whatsapp_on_site || lead.whatsapp_number;
-  const temSocial = !!lead.instagram_url;
-  const temEmail = !!lead.email;
-
-  // Filtra canais baseado no que foi detectado
-  const canaisSelecionados = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
-    ? lead.canaisProspeccao 
-    : ["email", "whatsapp"] as ("email" | "whatsapp" | "instagram")[];
+// =============================================================================
+// LOVABLE AI (GEMINI 2.5 PRO) - MODELO PRINCIPAL
+// =============================================================================
+async function analyzeWithLovableAI(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
+  const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
+  const canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
   
-  const canais = getAvailableChannels(lead, canaisSelecionados);
-  
-  // Cadência inteligente baseada no número de canais
-  const getCanal = (diaNumero: number): "whatsapp" | "email" | "instagram" => {
-    if (canais.length === 0) return "whatsapp"; // fallback
-    if (canais.length === 1) return canais[0];
-    if (canais.length === 2) {
-      // Alterna entre os 2 canais
-      return canais[(diaNumero - 1) % 2];
-    }
-    // 3 canais: WhatsApp, Email, Instagram em cadência específica
-    const cadencia3: ("whatsapp" | "email" | "instagram")[] = ["whatsapp", "email", "instagram", "whatsapp", "email", "instagram", "whatsapp"];
-    return cadencia3[diaNumero - 1];
-  };
+  const systemPrompt = buildEliteCopywriterSystemPrompt();
+  const userPrompt = buildEliteUserPrompt(lead, canaisDisponiveis);
 
-  return {
-    diagnostico_bullets: [
-      `Empresa "${lead.nome}" no nicho de ${lead.nicho} em ${lead.cidade}`,
-      temMarketing
-        ? "Presença digital intermediária com ferramentas de tracking instaladas"
-        : "Presença digital básica sem ferramentas de análise instaladas",
-      temWhatsApp
-        ? "WhatsApp ativo no site indica abertura para contato direto"
-        : "Sem WhatsApp visível - oportunidade para implementar canal direto",
-      temSocial
-        ? "Presença em redes sociais detectada"
-        : "Sem redes sociais identificadas - oportunidade de construção de marca",
-      `Foco em ${lead.foco} tem alta compatibilidade com perfil atual`,
-      "Potencial para crescimento com estratégia multicanal estruturada",
-    ],
-    probabilidade_conversao: temMarketing ? 72 : 45,
-    plano_prospeccao_7dias: [
-      {
-        dia: 1,
-        canal: getCanal(1),
-        mensagem: `Olá! Notei que ${lead.nome} está em ${lead.cidade}. Estamos ajudando empresas de ${lead.nicho} a ${getFocoMessage(lead.foco)}. Podemos conversar 5min?`,
-        objecao_provavel: "Já temos fornecedor",
-        resposta_sugerida: "Entendo! Não vim substituir ninguém. Vim mostrar como empresas do seu nicho estão conseguindo resultados complementares. Vale a pena conhecer?",
-        cta: "Responda 'sim' se topar uma conversa rápida",
-      },
-      {
-        dia: 2,
-        canal: getCanal(2),
-        mensagem: `Assunto: ${lead.nome} - Oportunidade de ${lead.foco}\n\nOi! Rápido aqui: vi que vocês estão em ${lead.cidade} e trabalham com ${lead.nicho}. Temos cases específicos desse nicho que estão dobrando resultados com nossa abordagem de ${lead.foco}. Quer ver?`,
-        objecao_provavel: "Não tenho orçamento agora",
-        resposta_sugerida: "Sem problema! Minha ideia é mostrar o potencial primeiro. Depois você decide se faz sentido. Investimento só quando você estiver 100% confortável.",
-        cta: "Clique aqui para agendar 15min",
-      },
-      {
-        dia: 3,
-        canal: getCanal(3),
-        mensagem: `Case rápido: empresa de ${lead.nicho} em cidade similar aumentou ${getFocoMetric(lead.foco)} em 3 meses. Seu caso é parecido. Posso enviar o resumo?`,
-        objecao_provavel: "Estou muito ocupado",
-        resposta_sugerida: "Imagino! Por isso preparei algo bem objetivo: 1 página, 3 números, 0 enrolação. Lê em 2 minutos. Posso mandar?",
-        cta: "Responda 'manda' para receber",
-      },
-      {
-        dia: 4,
-        canal: getCanal(4),
-        mensagem: `Assunto: Diagnóstico ${lead.nome}\n\nPreparei uma análise rápida da presença digital de vocês. ${temMarketing ? "Vi que já usam algumas ferramentas, mas" : "Identifiquei"} 3 oportunidades imediatas de ${lead.foco}. Quer receber?`,
-        objecao_provavel: "Como sei que funciona?",
-        resposta_sugerida: "Justo! Por isso ofereço: mostro o plano completo antes, você aprova cada etapa, e medimos tudo. Se não bater meta, ajusto sem custo. Risco zero.",
-        cta: "Responda para receber o diagnóstico",
-      },
-      {
-        dia: 5,
-        canal: getCanal(5),
-        mensagem: `Última tentativa: ${lead.nome} tem potencial enorme em ${lead.nicho}. Montei uma proposta personalizada focada em ${lead.foco}. 15min de call pra mostrar?`,
-        objecao_provavel: "Preciso pensar",
-        resposta_sugerida: "Claro! Mas antes de pensar, que tal ter todas as informações? Na call vou mostrar números, prazos e investimento. Aí sim dá pra pensar certinho.",
-        cta: "Escolha dia/hora: [link calendário]",
-      },
-      {
-        dia: 6,
-        canal: getCanal(6),
-        mensagem: `Assunto: Proposta Final - ${lead.nome}\n\nOi! Sei que está avaliando. Deixo aqui uma proposta completa: escopo, cronograma, investimento e garantias. Sem pressão, só informação pra você decidir bem. Abre e dá uma olhada?`,
-        objecao_provavel: "Vou deixar pra depois",
-        resposta_sugerida: "Entendo. Mas deixa eu te falar: cada mês que passa sem otimizar ${lead.foco} é oportunidade perdida. Que tal começarmos pequeno? Teste de 30 dias, baixo investimento?",
-        cta: "Clique para ver proposta completa",
-      },
-      {
-        dia: 7,
-        canal: getCanal(7),
-        mensagem: `Última mensagem: vi que ainda não conseguimos conversar. Tudo bem! Fico à disposição. Se mudar de ideia sobre ${lead.foco}, é só chamar. Sucesso aí com ${lead.nome}! 🚀`,
-        objecao_provavel: "Vou entrar em contato depois",
-        resposta_sugerida: "Combinado! Salva meu contato. E olha: se precisar de algo pontual enquanto isso, mesmo que pequeno, pode chamar. A gente se ajuda!",
-        cta: "Salve meu contato para futuro",
-      },
-    ],
-  };
-}
-
-async function analyzeWithAI(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
-  // Filtra canais baseado no que foi detectado no lead
-  const canaisSelecionados = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
-    ? lead.canaisProspeccao 
-    : ["email", "whatsapp"] as ("email" | "whatsapp" | "instagram")[];
-  
-  const canaisDisponiveis = getAvailableChannels(lead, canaisSelecionados);
-  
-  // Cria uma versão do lead com os canais filtrados
-  const leadComCanaisDisponiveis = {
-    ...lead,
-    canaisProspeccao: canaisDisponiveis,
-  };
-  
-  const prompt = buildAnalysisPrompt(leadComCanaisDisponiveis);
-
-  console.log("Iniciando análise com OpenAI para:", lead.nome);
-  console.log("Canais disponíveis para prospecção:", canaisDisponiveis.join(", "));
-
-  const canaisPermitidos = canaisDisponiveis;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
 
   try {
-    const systemPrompt = `Você atua **APENAS** na criação do **plano de prospecção de 7 dias**, como um **COPYWRITER E ESTRATEGISTA DE VENDAS com mais de 15 anos de experiência**.
-
-🏆 ESPECIALIDADES:
-• Vendas B2B e prospecção de alto ticket
-• Serviços de marketing digital (Tráfego, SEO, Social, Full Service, Automação, CRM, Sites/Landing, Design)
-• Prospecção multicanal (WhatsApp, Email, Instagram)
-
-📜 REGRAS DE OURO DO COPYWRITER (INEGOCIÁVEIS):
-1. Linguagem CLARA, INTELIGENTE e PERSUASIVA
-2. Frases CURTAS e DIRETAS, sem enrolação
-3. Tom: PROFISSIONAL falando com PROFISSIONAL (dono/gestor)
-4. Emojis: MÁXIMO 2 por mensagem, APENAS quando fizer sentido
-5. NUNCA use clichês: "explodir resultados", "escalar", "destravar", "bombar", "rios de dinheiro"
-6. NUNCA promessas milagrosas: "+327% em 7 dias", "garantido", "ficar milionário"
-7. NUNCA invente números específicos sem dados do contexto
-8. Cada mensagem deve passar no teste "E daí?" (So what?)
-9. Abra loops de curiosidade que só fecham na resposta
-10. Termine SEMPRE com pergunta que demanda resposta
-
-🎭 POSTURA B2B PROFISSIONAL:
-• Consultivo e direto - postura de especialista que entrega valor
-• Autoridade sem arrogância
-• Foco em resultados e ROI
-• NUNCA use: "pessoal", "galera", "vocês aí", "olá tudo bem?"
-• TOM: Consultor de negócios, NÃO vendedor pedindo atenção`;
-
-    const requestBody = {
-      model: "gpt-4o-mini",
-      max_completion_tokens: 6000,
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      tools: [
-        {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-pro",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        tools: [{
           type: "function",
           function: {
             name: "gerar_analise_lead",
-            description: "Gera análise completa do lead com diagnóstico, probabilidade e plano de prospecção",
+            description: "Gera análise completa do lead com diagnóstico, probabilidade e plano de prospecção de 7 dias",
             parameters: {
               type: "object",
               properties: {
                 diagnostico_bullets: {
                   type: "array",
-                  description: "Máximo 6 bullets sobre presença digital, gaps e oportunidades",
                   items: { type: "string" },
-                  maxItems: 6,
+                  description: "6-8 bullets de diagnóstico consultivo profundo"
                 },
                 probabilidade_conversao: {
                   type: "number",
-                  description: "Probabilidade de conversão de 0 a 100",
-                  minimum: 0,
-                  maximum: 100,
+                  description: "Probabilidade de conversão de 0-100"
                 },
                 plano_prospeccao_7dias: {
                   type: "array",
-                  description: "Plano de 7 dias de prospecção multicanal",
                   items: {
                     type: "object",
                     properties: {
                       dia: { type: "number" },
-                      canal: { type: "string", enum: canaisPermitidos, description: "USAR APENAS OS CANAIS PERMITIDOS PELO USUÁRIO" },
+                      canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
                       mensagem: { type: "string" },
                       objecao_provavel: { type: "string" },
                       resposta_sugerida: { type: "string" },
-                      cta: { type: "string" },
+                      cta: { type: "string" }
                     },
-                    required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"],
-                  },
-                  minItems: 7,
-                  maxItems: 7,
-                },
+                    required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
+                  }
+                }
               },
-              required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"],
-            },
-          },
-        },
-      ],
-      tool_choice: { type: "function", function: { name: "gerar_analise_lead" } },
-    };
-
-    console.log("Enviando requisição para OpenAI...");
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-    try {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("❌ Erro HTTP da OpenAI:", {
-          status: response.status,
-          statusText: response.statusText,
-          body: errorText,
-        });
-        
-        let errorMessage = `Erro ${response.status} na API OpenAI`;
-        
-        try {
-          const errorData = JSON.parse(errorText);
-          if (errorData.error?.message) {
-            errorMessage = errorData.error.message;
+              required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"]
+            }
           }
-        } catch {
-          errorMessage += `: ${errorText.substring(0, 200)}`;
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
-      console.log("✅ Resposta recebida da OpenAI");
-
-      if (!data.choices || data.choices.length === 0) {
-        console.error("❌ Resposta sem choices:", data);
-        throw new Error("API retornou resposta vazia");
-      }
-
-      const toolCall = data.choices[0].message.tool_calls?.[0];
-
-      if (!toolCall) {
-        console.error("❌ Sem tool_calls na resposta:", data.choices[0].message);
-        throw new Error("IA não retornou análise estruturada. Tente novamente.");
-      }
-
-      console.log("✅ Tool call recebido, parseando argumentos...");
-      
-      let analise: AnaliseResult;
-      try {
-        analise = JSON.parse(toolCall.function.arguments);
-      } catch (parseError: any) {
-        console.error("❌ Erro ao parsear JSON:", {
-          error: parseError.message,
-          arguments: toolCall.function.arguments,
-        });
-        throw new Error("Erro ao processar resposta da IA");
-      }
-
-      // Validação básica
-      if (!analise.diagnostico_bullets || !Array.isArray(analise.diagnostico_bullets)) {
-        throw new Error("Análise incompleta: diagnóstico inválido");
-      }
-      if (!analise.plano_prospeccao_7dias || analise.plano_prospeccao_7dias.length !== 7) {
-        throw new Error("Análise incompleta: plano deve ter 7 dias");
-      }
-
-      console.log("✅ Análise validada com sucesso");
-      return analise;
-
-    } catch (fetchError: any) {
-      clearTimeout(timeoutId);
-      if (fetchError.name === 'AbortError') {
-        throw new Error("Timeout: OpenAI demorou mais de 60 segundos para responder. Tente novamente.");
-      }
-      throw fetchError;
-    }
-  } catch (error: any) {
-    console.error("❌ Erro na função analyzeWithAI:", {
-      message: error.message,
-      stack: error.stack,
-      lead: lead.nome,
+        }],
+        tool_choice: { type: "function", function: { name: "gerar_analise_lead" } }
+      }),
+      signal: controller.signal,
     });
-    
-    if (error.message.includes("API") || error.message.includes("Timeout")) {
-      throw error;
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Lovable AI error:", response.status, errorText);
+      throw new Error(`Lovable AI error: ${response.status}`);
     }
-    throw new Error(`Falha ao analisar lead: ${error.message}`);
+
+    const data = await response.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    
+    if (!toolCall) {
+      throw new Error("IA não retornou análise estruturada");
+    }
+
+    const analise: AnaliseResult = JSON.parse(toolCall.function.arguments);
+    
+    // Validate and ensure 7 days
+    if (!analise.plano_prospeccao_7dias || analise.plano_prospeccao_7dias.length !== 7) {
+      throw new Error("Plano deve ter exatamente 7 dias");
+    }
+
+    console.log("✅ Análise gerada com sucesso via Lovable AI");
+    return analise;
+
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error("Timeout: IA demorou mais de 90 segundos");
+    }
+    throw error;
   }
 }
 
-function buildAnalysisPrompt(lead: LeadData): string {
-  // Estes canais já vêm filtrados baseado no que foi detectado
-  const canais = lead.canaisProspeccao && lead.canaisProspeccao.length > 0 
-    ? lead.canaisProspeccao 
-    : [];
+// =============================================================================
+// OPENAI (FALLBACK)
+// =============================================================================
+async function analyzeWithOpenAI(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
+  const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
+  const canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
   
-  const nenhumCanalDetectado = canais.length === 0;
-  
-  const canalTexto = canais.length > 0 
-    ? canais.map(c => {
-        if (c === "email") return "Email";
-        if (c === "whatsapp") return "WhatsApp";
-        if (c === "instagram") return "Instagram DM";
-        return c;
-      }).join(", ")
-    : "NENHUM CANAL DETECTADO";
-  
-  // Cadência multicanal inteligente
-  let estrategiaCadencia = "";
-  if (nenhumCanalDetectado) {
-    estrategiaCadencia = "⚠️ NENHUM CANAL DETECTADO - Crie plano focado em ENCONTRAR o contato (ligação, visita presencial, LinkedIn, busca de redes)";
-  } else if (canais.length === 1) {
-    estrategiaCadencia = `Use SOMENTE ${canalTexto} para todos os 7 dias com variações criativas de abordagem`;
-  } else if (canais.length === 2) {
-    estrategiaCadencia = `CADÊNCIA 2 CANAIS (${canalTexto}):
-• Dias 1, 3, 5, 7: ${canais[0] === "whatsapp" ? "WhatsApp" : canais[0] === "email" ? "Email" : "Instagram"}
-• Dias 2, 4, 6: ${canais[1] === "whatsapp" ? "WhatsApp" : canais[1] === "email" ? "Email" : "Instagram"}
-REGRA: Nunca usar o mesmo canal 2 dias consecutivos`;
-  } else if (canais.length === 3) {
-    estrategiaCadencia = `CADÊNCIA 3 CANAIS (WhatsApp + Email + Instagram):
-• Dia 1: WhatsApp - Primeiro contato, direto e curto
-• Dia 2: Email - Formalização, proposta de valor estruturada
-• Dia 3: Instagram DM - Engajamento social, referência a conteúdo
-• Dia 4: WhatsApp - Follow-up rápido, resposta a silêncio
-• Dia 5: Email - Conteúdo mais denso, case ou proposta
-• Dia 6: Instagram DM - Segunda tentativa social
-• Dia 7: WhatsApp - Encerramento profissional
-REGRA: Nunca usar o mesmo canal 2 dias consecutivos`;
-  }
-  
-  // Status detalhado dos canais
-  const canaisInfo = [];
-  if (lead.whatsapp_on_site || lead.whatsapp_number) {
-    canaisInfo.push(`✅ WhatsApp: DISPONÍVEL${lead.whatsapp_number ? ` (${lead.whatsapp_number})` : " (detectado no site)"}`);
-  } else {
-    canaisInfo.push("❌ WhatsApp: NÃO DETECTADO - NÃO USAR!");
-  }
-  if (lead.email) {
-    canaisInfo.push(`✅ Email: DISPONÍVEL (${lead.email})`);
-  } else {
-    canaisInfo.push("❌ Email: NÃO DETECTADO - NÃO USAR!");
-  }
-  if (lead.instagram_url) {
-    canaisInfo.push(`✅ Instagram: DISPONÍVEL (${lead.instagram_url})`);
-  } else {
-    canaisInfo.push("❌ Instagram: NÃO DETECTADO - NÃO USAR!");
-  }
+  const systemPrompt = buildEliteCopywriterSystemPrompt();
+  const userPrompt = buildEliteUserPrompt(lead, canaisDisponiveis);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90000);
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        tools: [{
+          type: "function",
+          function: {
+            name: "gerar_analise_lead",
+            description: "Gera análise completa do lead",
+            parameters: {
+              type: "object",
+              properties: {
+                diagnostico_bullets: { type: "array", items: { type: "string" } },
+                probabilidade_conversao: { type: "number" },
+                plano_prospeccao_7dias: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      dia: { type: "number" },
+                      canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
+                      mensagem: { type: "string" },
+                      objecao_provavel: { type: "string" },
+                      resposta_sugerida: { type: "string" },
+                      cta: { type: "string" }
+                    },
+                    required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
+                  }
+                }
+              },
+              required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"]
+            }
+          }
+        }],
+        tool_choice: { type: "function", function: { name: "gerar_analise_lead" } },
+        temperature: 0.7,
+        max_tokens: 4000
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`OpenAI error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     
+    if (!toolCall) throw new Error("IA não retornou análise");
+
+    return JSON.parse(toolCall.function.arguments);
+
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
+// =============================================================================
+// SYSTEM PROMPT - COPYWRITER DE ELITE
+// =============================================================================
+function buildEliteCopywriterSystemPrompt(): string {
+  return `Você é um COPYWRITER E ESTRATEGISTA DE VENDAS B2B de ELITE com 15+ anos de experiência.
+
+🏆 SUA ESPECIALIDADE:
+• Prospecção B2B de alto ticket para agências de marketing digital
+• Vendas consultivas para Tráfego, SEO, Social, Full Service, Automação, CRM, Sites/Landing, Design
+• Domínio absoluto de prospecção multicanal (WhatsApp, Email, Instagram)
+
+📜 REGRAS DE OURO (INEGOCIÁVEIS):
+
+1. COPY AFIADA E PERSUASIVA
+   • Frases CURTAS e DIRETAS - máximo 20 palavras por frase
+   • Entre DIRETO no valor - nada de "Olá tudo bem?" ou "Boa tarde"
+   • Cada palavra deve ter propósito - corte todo o resto
+   • Máximo 2 emojis estratégicos (não decorativos)
+
+2. PROIBIÇÕES ABSOLUTAS
+   ❌ NUNCA invente nomes (João, Maria, etc) - use apenas nome_responsavel se fornecido
+   ❌ NUNCA use clichês: "explodir resultados", "escalar vendas", "bombar", "alavancar"
+   ❌ NUNCA prometa milagres ou números absurdos
+   ❌ NUNCA use saudações vazias: "Olá!", "Boa tarde!", "Pessoal"
+   ❌ NUNCA seja bajulador ou use elogios genéricos
+
+3. TOM CONSULTIVO PROFISSIONAL
+   • Postura de especialista que identificou uma oportunidade
+   • Confiança sem arrogância
+   • Dados e insights específicos, não opiniões vagas
+   • Respeito pelo tempo do prospect
+
+4. ESTRUTURA POR CANAL:
+
+   📱 WHATSAPP (máx 4 linhas):
+   • Linha 1: Insight direto sobre o negócio deles
+   • Linha 2: Oportunidade/gap identificado
+   • Linha 3: Prova rápida (dado ou comparativo)
+   • Linha 4: CTA de baixo compromisso
+
+   ✉️ EMAIL (máx 150 palavras):
+   • Assunto: 6-8 palavras, direto ao benefício
+   • Abertura: Vá direto ao diagnóstico (não sobre você)
+   • Corpo: Problema + insight + evidência
+   • Fechamento: CTA claro e específico
+   • PS opcional: escassez real ou credencial
+
+   📸 INSTAGRAM DM (máx 4 linhas):
+   • Mencione algo específico do perfil/conteúdo deles
+   • Conecte com oportunidade identificada
+   • 1 emoji máximo
+   • Recomende pré-engajamento (curtir posts, comentar)
+
+5. OBJEÇÕES E RESPOSTAS
+   • Objeções devem ser FRASES EXATAS que clientes dizem
+   • Respostas usam técnica: Reconhecer → Reposicionar → Evidência → Próximo passo
+   • Nunca seja defensivo ou agressivo
+
+6. CTAs PROGRESSIVOS (escalada de compromisso):
+   • Dia 1-2: Validação ("Faz sentido uma conversa?")
+   • Dia 3-4: Entrega de valor ("Posso enviar diagnóstico?")
+   • Dia 5-6: Agendamento ("Terça ou quarta funciona?")
+   • Dia 7: Encerramento respeitoso ("Última mensagem, sem insistência")
+
+7. DIAGNÓSTICO CONSULTIVO (6-8 bullets)
+   • Avaliação de maturidade digital real
+   • Gaps críticos com impacto no negócio
+   • Oportunidades específicas para o foco
+   • Comparativo com mercado/concorrentes
+   • Potencial de ROI estimado
+
+LEMBRE-SE: Cada mensagem deve ser tão boa que o prospect QUEIRA responder.`;
+}
+
+// =============================================================================
+// USER PROMPT - DADOS DO LEAD
+// =============================================================================
+function buildEliteUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsapp" | "instagram")[]): string {
+  const canalTexto = canaisDisponiveis.length > 0 
+    ? canaisDisponiveis.map(c => c === "email" ? "Email" : c === "whatsapp" ? "WhatsApp" : "Instagram DM").join(", ")
+    : "NENHUM DETECTADO";
+
   const sinaisMarketing = [];
-  if (lead.has_meta_pixel) sinaisMarketing.push("✓ Meta Pixel instalado");
-  if (lead.has_gtag) sinaisMarketing.push("✓ Google Analytics ativo");
-  if (lead.has_gtm) sinaisMarketing.push("✓ Google Tag Manager configurado");
-  if (lead.whatsapp_on_site || lead.whatsapp_number) sinaisMarketing.push("✓ WhatsApp no site");
-  if (lead.instagram_url) sinaisMarketing.push(`✓ Instagram ativo: ${lead.instagram_url}`);
-  if (lead.email) sinaisMarketing.push(`✓ Email de contato: ${lead.email}`);
+  if (lead.has_meta_pixel) sinaisMarketing.push("Meta Pixel ativo");
+  if (lead.has_gtag) sinaisMarketing.push("Google Analytics ativo");
+  if (lead.has_gtm) sinaisMarketing.push("GTM configurado");
+  if (lead.whatsapp_on_site || lead.whatsapp_number) sinaisMarketing.push("WhatsApp no site");
+  if (lead.instagram_url) sinaisMarketing.push(`Instagram: ${lead.instagram_url}`);
+  if (lead.email) sinaisMarketing.push(`Email: ${lead.email}`);
 
-  // Instruções específicas por canal
-  const instrucoesPorCanal = `
-═══════════════════════════════════════
-📱 REGRAS POR CANAL (OBEDEÇA RIGOROSAMENTE)
-═══════════════════════════════════════
+  // Build channel cadence strategy
+  let cadencia = "";
+  if (canaisDisponiveis.length === 0) {
+    cadencia = "⚠️ Nenhum canal detectado - foque em estratégias para ENCONTRAR contato";
+  } else if (canaisDisponiveis.length === 1) {
+    cadencia = `Use ${canalTexto} para todos os 7 dias com variações de abordagem`;
+  } else if (canaisDisponiveis.length === 2) {
+    cadencia = `Alterne: Dias 1,3,5,7 = ${canaisDisponiveis[0]}, Dias 2,4,6 = ${canaisDisponiveis[1]}`;
+  } else {
+    cadencia = `Cadência 3 canais: D1 WhatsApp, D2 Email, D3 Instagram, D4 WhatsApp, D5 Email, D6 Instagram, D7 WhatsApp`;
+  }
 
-${canais.includes("whatsapp") ? `
-💬 WHATSAPP - ABORDAGEM B2B CONSULTIVA:
-• Máximo 4 linhas por mensagem (quebra em parágrafos curtos)
-• Entre direto no VALOR - sem "olá tudo bem" ou "pessoal"
-• 1-2 emojis estratégicos no máximo (não decorativos)
-• Postura de consultor que identificou oportunidade
-• Tom profissional e direto, não coloquial
-• NUNCA comece com saudações vazias - lidere com insight
+  const focoArgs = getFocoArguments(lead.foco);
 
-❌ EVITAR (WhatsApp):
-"Olá! Tudo bem? Meu nome é X da empresa Y e gostaria de..."
-"Pessoal da empresa, vi que vocês..." (muito informal)
-"João, vi que a empresa..." (NÃO INVENTE NOMES!)
-
-✅ USAR (WhatsApp):
-"${lead.nome}, analisei o setor de ${lead.nicho} em ${lead.cidade}. Identifiquei um gap que está custando clientes: [gap específico]. Empresas similares corrigiram isso e viram aumento de 3x em leads. Faz sentido uma conversa de 5 min?"
-` : ""}
-
-${canais.includes("email") ? `
-✉️ EMAIL - ESTRUTURA B2B CONSULTIVA:
-• Assunto: direto ao ponto + urgência implícita (máx 50 caracteres)
-  Ex: "Oportunidade identificada - ${lead.nome}"
-  Ex: "Diagnóstico rápido: ${lead.nicho} em ${lead.cidade}"
-  Ex: "3 gaps custando clientes - ${lead.nome}"
-• Abertura: vá direto à análise/descoberta (não sobre você)
-• Corpo: diagnóstico + evidência + próximo passo (máx 150 palavras)
-• Fechamento: convite claro e de baixo compromisso
-• PS: reforço de credibilidade ou escassez (opcional)
-
-❌ EVITAR (Email):
-"Prezado(a), venho por meio desta apresentar nossa empresa..."
-"Olá, equipe da..." ou "Pessoal da..." (informal demais)
-"Oi João," (NÃO INVENTE NOMES!)
-
-✅ USAR (Email):
-"Assunto: Diagnóstico rápido - ${lead.nome}
-
-Analisei a presença digital da ${lead.nome} e identifiquei 3 gaps que estão custando clientes:
-
-1. [Gap específico sobre presença digital]
-2. [Oportunidade não explorada em ${lead.foco}]
-3. [Vantagem competitiva não aproveitada]
-
-Empresas do mesmo porte em ${lead.cidade} já corrigiram isso e viram aumento médio de [X%] em [métrica].
-
-Vale 10 minutos para mostrar como aplicar isso no caso de vocês?
-
-[Assinatura]
-
-PS: Sem compromisso. Se não fizer sentido, agradeço pela atenção e sigo em frente."
-` : ""}
-
-${canais.includes("instagram") ? `
-📸 INSTAGRAM DM - ABORDAGEM CONSULTIVA AVANÇADA:
-
-🔑 PRÉ-ABORDAGEM (RECOMENDADO):
-Antes de enviar DM, engaje genuinamente:
-• Curta 2-3 posts recentes
-• Comente com insight relevante (NÃO só "muito bom! 🔥")
-• Visualize stories se disponível
-• Isso aquece o perfil e aumenta chance de resposta
-
-📐 ESTRUTURA DA MENSAGEM (MÁX 4 LINHAS):
-• Linha 1: Referência específica ao conteúdo/perfil deles
-• Linha 2: Conexão com oportunidade identificada
-• Linha 3-4: CTA de baixo compromisso
-• 1 emoji estratégico MÁXIMO (ou nenhum)
-
-✅ EXEMPLOS DE DM PROFISSIONAL:
-
-Dia 3 (primeira DM após engajamento):
-"Vi que ${lead.nome} está crescendo em ${lead.cidade}. Analisei o perfil e identifiquei uma oportunidade em ${lead.foco} que poucas empresas de ${lead.nicho} estão explorando. Posso enviar um diagnóstico rápido por aqui?"
-
-Dia 6 (segunda DM se não respondeu):
-"Última mensagem por aqui. O insight sobre ${lead.foco} para ${lead.nicho} ainda vale - é uma oportunidade real. Se fizer sentido, me responde 'ok' que envio em 30 segundos."
-
-💡 VANTAGENS DO INSTAGRAM para prospecção B2B:
-• Resposta mais rápida que email
-• Tom mais profissional que WhatsApp pessoal
-• Permite ver conteúdo e entender melhor o prospect
-• Menos saturado que outros canais
-
-❌ EVITAR (Instagram):
-• Mensagens longas demais (serão ignoradas)
-• "Olá, somos uma agência de marketing e gostaríamos de apresentar nossos serviços..." (spam puro)
-• Comentários genéricos antes da DM ("Adorei!", "Top!", "🔥🔥")
-• Enviar DM sem nenhum engajamento prévio (parece stalker)
-• Elogios vazios sem conexão com negócio
-
-✅ EXEMPLO DE COMENTÁRIO PRÉ-DM:
-"Interessante a abordagem sobre [tema específico do post]. No setor de ${lead.nicho}, isso é crucial porque [insight rápido]."
-` : ""}`;
-
-  // Instruções de objeções avançadas
-  const instrucoesObjecoes = `
-═══════════════════════════════════════
-🚫 OBJEÇÕES - FORMATO AVANÇADO (OBRIGATÓRIO)
+  return `═══════════════════════════════════════
+📊 DADOS DO LEAD PARA ANÁLISE
 ═══════════════════════════════════════
 
-Cada objeção deve ser:
-• A FRASE EXATA como o cliente diria (entre aspas)
-• Realista para aquele estágio do funil B2B
-• Progressiva (objeções mais duras nos dias finais)
-
-OBJEÇÕES B2B REAIS POR ESTÁGIO:
-
-📅 Dia 1-2 (DESCONFIANÇA INICIAL):
-• "Quem é você e como conseguiu meu contato?"
-• "Não solicitei nenhum contato"
-• "Estou ocupado, não é um bom momento"
-• "Vocês são de onde?"
-
-📅 Dia 3-4 (RESISTÊNCIA ESTRUTURAL):
-• "Já trabalhamos com uma agência/profissional"
-• "Não temos orçamento para isso no momento"
-• "Isso não é prioridade para a empresa agora"
-• "Nossa diretoria não aprovou investimentos em marketing"
-• "O último fornecedor não entregou resultados"
-
-📅 Dia 5-6 (HESITAÇÃO DE DECISÃO):
-• "Preciso conversar com meu sócio/diretor"
-• "Me manda uma proposta por email que eu avalio"
-• "Vou analisar internamente e retorno"
-• "Quanto custa? Me passa os valores"
-• "Não tenho tempo para reuniões agora"
-
-📅 Dia 7 (REJEIÇÃO FINAL OU SILÊNCIO):
-• "Não tenho interesse, obrigado"
-• "Não me procure mais, por favor"
-• [Silêncio total / Visualizou e não respondeu]
-• "Vou te chamar quando precisar"
-
-═══════════════════════════════════════
-💬 RESPOSTAS B2B CONSULTIVAS (OBRIGATÓRIO)
-═══════════════════════════════════════
-
-ESTRUTURA DE RESPOSTA PROFISSIONAL:
-1. RECONHECER (sem bajular): "Compreendo perfeitamente..."
-2. REPOSICIONAR com dado/insight: "O que observamos no mercado é que..."
-3. EVIDÊNCIA rápida: número, case anônimo, comparação de mercado
-4. PRÓXIMO PASSO de baixo atrito
-
-EXEMPLOS DE RESPOSTAS B2B POR OBJEÇÃO:
-
-❓ "Já trabalhamos com uma agência"
-✅ "Faz sentido. Inclusive, não estou sugerindo substituição. A maioria dos clientes que atendemos já tinham parceiros. O que identificamos foi uma oportunidade específica em [área] que complementa o trabalho atual. Se não fizer sentido, pelo menos sai com um diagnóstico gratuito. 10 minutos?"
-
-❓ "Não temos orçamento"
-✅ "Compreendo. E se eu te mostrasse uma análise de quanto vocês estão deixando de faturar por não explorar [oportunidade específica]? Muitas vezes o 'orçamento' aparece quando o ROI fica claro. Posso enviar esse diagnóstico sem compromisso?"
-
-❓ "Preciso falar com meu sócio"
-✅ "Claro. Inclusive, posso preparar um resumo executivo de 1 página com os pontos principais para facilitar essa conversa? Assim vocês avaliam com as informações certas em mãos."
-
-❓ "Me manda proposta por email"
-✅ "Posso enviar. Mas antes de mandar algo genérico, preciso de 5 minutos para entender 2-3 pontos específicos do negócio de vocês. Assim a proposta já vem personalizada e com projeção de retorno. Amanhã às 10h ou prefere às 14h?"
-
-❓ "Não tenho interesse"
-✅ "Entendido. Agradeço a clareza. Se em algum momento fizer sentido revisitar [oportunidade específica], deixo meu contato à disposição. Sucesso com os projetos atuais."
-
-❓ [Silêncio / Não respondeu]
-✅ "Última mensagem, sem insistência. Se o timing não for agora, tudo bem. Deixo registrado a oportunidade que identifiquei em [área]. Quando fizer sentido, estou aqui."
-
-TÉCNICAS CONSULTIVAS OBRIGATÓRIAS:
-• Isolamento: "Tirando a questão de orçamento, faria sentido estrategicamente?"
-• Reframe de valor: Transformar custo em investimento com ROI projetado
-• Prova anônima: "Uma empresa do mesmo porte em ${lead.cidade}..."
-• Pergunta diagnóstica: "Me ajuda a entender: vocês medem [métrica] atualmente?"
-• Escassez real: Limitar disponibilidade de agenda, não inventar urgência falsa`;
-
-  // Progressão de CTAs
-  const instrucoesCTAs = `
-═══════════════════════════════════════
-🎯 PROGRESSÃO DE CTAs B2B (7 DIAS) - OBRIGATÓRIO
-═══════════════════════════════════════
-
-CTAs devem escalar em compromisso de forma profissional:
-
-• Dia 1: VALIDAÇÃO DE INTERESSE
-  "Vale uma conversa de 5 minutos ou não faz sentido agora?"
-  "Isso é relevante para vocês ou posso seguir em frente?"
-
-• Dia 2: ENTREGA DE VALOR
-  "Posso enviar o diagnóstico que preparei?"
-  "Quer que eu compartilhe a análise?"
-
-• Dia 3: PROVA DE RESULTADO
-  "Posso mostrar um case similar do setor de ${lead.nicho}?"
-  "Tenho um comparativo de mercado - envio?"
-
-• Dia 4: CONVERSA ESTRUTURADA
-  "15 minutos para apresentar os pontos principais - funciona?"
-  "Uma call rápida para alinhar expectativas?"
-
-• Dia 5: AGENDAMENTO DIRETO
-  "Tenho disponibilidade amanhã às 10h ou às 15h. Qual funciona melhor?"
-  "Conseguimos encaixar essa semana?"
-
-• Dia 6: URGÊNCIA CONTEXTUAL
-  "Estou fechando a agenda do mês. Conseguimos alinhar até sexta?"
-  "Última semana com essa condição de entrada"
-
-• Dia 7: ENCERRAMENTO PROFISSIONAL
-  "Última mensagem sobre isso. Se o timing mudar, estou à disposição."
-  "Agradeço a atenção. Fico disponível quando fizer sentido."
-
-⚠️ CTAs PROIBIDOS (muito genéricos ou informais):
-❌ "Fale conosco"
-❌ "Entre em contato"
-❌ "Aguardo retorno"
-❌ "Fico no aguardo"
-❌ "Me chama aí"
-❌ "Bora conversar?"
-❌ "Responde SIM ou NÃO"`;
-
-  return `
-════════════════════════════════════════════════════════════════════════════════
-🎯 MISSÃO: Gerar plano de prospecção de ELITE para conversão máxima
-════════════════════════════════════════════════════════════════════════════════
-
-═══════════════════════════════════════
-📊 DADOS DO LEAD
-═══════════════════════════════════════
-• Empresa: ${lead.nome}
+🏢 EMPRESA
+• Nome: ${lead.nome}
 • Nicho: ${lead.nicho}
 • Cidade: ${lead.cidade}
 • Website: ${lead.website || "Não informado"}
-• Foco de Serviço: ${lead.foco}
 ${lead.cnae_principal ? `• CNAE: ${lead.cnae_principal}` : ""}
 ${lead.porte_empresa ? `• Porte: ${lead.porte_empresa}` : ""}
 ${lead.situacao_cadastral ? `• Situação: ${lead.situacao_cadastral}` : ""}
 
-🎯 SINAIS DE MARKETING DETECTADOS:
-${sinaisMarketing.length > 0 ? sinaisMarketing.join("\n") : "❌ Nenhum sinal de marketing digital detectado - empresa com baixa maturidade digital"}
-
-🔌 STATUS DOS CANAIS DE CONTATO:
-${canaisInfo.join("\n")}
-
-${lead.instagram_context ? `📱 CONTEXTO DO INSTAGRAM:\n${lead.instagram_context}` : ""}
-
-════════════════════════════════════════════════════════════════════════════════
-⚠️⚠️⚠️ REGRA CRÍTICA #0 - PERSONALIZAÇÃO DE NOME ⚠️⚠️⚠️
-════════════════════════════════════════════════════════════════════════════════
-
+👤 CONTATO
 ${lead.nome_responsavel 
-  ? `✅ NOME DO RESPONSÁVEL DETECTADO: "${lead.nome_responsavel}"
+  ? `✅ NOME DO RESPONSÁVEL: "${lead.nome_responsavel}" - USE NAS MENSAGENS!`
+  : `❌ Nome do responsável não detectado - NÃO INVENTE NOMES`}
 
-USE ESTE NOME nas mensagens para humanizar a abordagem!
-Exemplo: "Oi ${lead.nome_responsavel}, vi que a ${lead.nome} está em ${lead.cidade}..."
+🎯 FOCO DO SERVIÇO: ${lead.foco}
+${focoArgs}
 
-IMPORTANTE: Use EXATAMENTE este nome, não invente variações!`
-  : `❌ NOME DO RESPONSÁVEL: NÃO DETECTADO
-
-🚫🚫🚫 NUNCA INVENTE NOMES como "João", "Maria", "Carlos", etc! 🚫🚫🚫
-
-Abordagens B2B CORRETAS sem nome pessoal (entre direto no valor):
-• "${lead.nome}, identifiquei uma oportunidade..."
-• "Analisei a presença digital da ${lead.nome}..."
-• "A ${lead.nome} está perdendo clientes em ${lead.cidade} por [motivo]..."
-• "${lead.nome}, 3 gaps que identifiquei no setor de ${lead.nicho}..."
-
-❌ ERRADO: "João, vi que a ${lead.nome}..." (NOME INVENTADO!)
-❌ ERRADO: "Pessoal da ${lead.nome}, vi que vocês..." (muito informal)
-❌ ERRADO: "Olá, equipe da ${lead.nome}," (saudação vazia)
-✅ CORRETO: "${lead.nome}, analisei o setor de ${lead.nicho} em ${lead.cidade}..."
-✅ CORRETO: "Identifiquei 3 oportunidades para a ${lead.nome}..."`}
-
-════════════════════════════════════════════════════════════════════════════════
-⚠️⚠️⚠️ REGRA CRÍTICA #1 - CANAIS DE CONTATO ⚠️⚠️⚠️
-════════════════════════════════════════════════════════════════════════════════
-
-${nenhumCanalDetectado 
-  ? `🚨 NENHUM CANAL DE CONTATO FOI DETECTADO!
-
-Como não temos email, WhatsApp ou Instagram, o plano deve focar em:
-- Use "whatsapp" como canal nos campos (para o sistema aceitar)
-- Mas a MENSAGEM deve ser sobre COMO ENCONTRAR o contato:
-  • Dia 1-2: Buscar telefone em Google, Reclame Aqui, LinkedIn
-  • Dia 3-4: Tentar contato via formulário do site
-  • Dia 5-6: Buscar redes sociais alternativas
-  • Dia 7: Considerar visita presencial ou carta`
-  : `📢 CANAIS PERMITIDOS PARA USAR: ${canalTexto}
-
-🚫 NÃO USE canais marcados como "NÃO DETECTADO"!
-Se usou um canal que NÃO FOI DETECTADO, sua resposta será REJEITADA.
-
-📋 ESTRATÉGIA DE CADÊNCIA: ${estrategiaCadencia}`}
-
-${!nenhumCanalDetectado ? instrucoesPorCanal : ""}
-
-${instrucoesObjecoes}
-
-${instrucoesCTAs}
+📊 SINAIS DE MARKETING DETECTADOS:
+${sinaisMarketing.length > 0 ? sinaisMarketing.map(s => `• ${s}`).join("\n") : "• Nenhum sinal detectado - empresa com baixa maturidade digital"}
 
 ═══════════════════════════════════════
-📆 DIRETRIZES POR DIA (OBRIGATÓRIO SEGUIR)
+⚠️ CANAIS PERMITIDOS: ${canalTexto}
 ═══════════════════════════════════════
-
-DIA 1 - APRESENTAÇÃO + CONTEXTO
-• Objetivo: Se apresentar, contextualizar por que está entrando em contato
-• Mostrar que conhece o nicho e a cidade do lead
-• NADA de vendeção agressiva - foque em curiosidade + empatia
-• Tom: "Identifiquei algo interessante sobre sua empresa"
-
-DIA 2 - DOR ESPECÍFICA DO NICHO
-• Explorar uma dor específica do nicho, ligada ao FOCO
-• Conectar com o que foi visto no site/Instagram (quando houver contexto)
-• Tom: "Empresas do seu setor enfrentam esse desafio específico"
-
-DIA 3 - OPORTUNIDADE CLARA
-• Mostrar uma oportunidade que a empresa pode estar perdendo
-• Sutilmente introduzir sua solução/abordagem
-• Tom: "Você pode estar deixando dinheiro na mesa por isso"
-
-DIA 4 - MINI FRAMEWORK / MÉTODO
-• Trazer um framework simples de resolver parte do problema
-• Mostrar que você tem MÉTODO, não só opinião
-• Tom: "Assim que empresas similares estão resolvendo"
-
-DIA 5 - PROVA SOCIAL / CENÁRIO TÍPICO
-• Trabalhar prova social ou cenário típico (SEM MENTIR)
-• Mostrar como empresas parecidas se beneficiam
-• Tom: "Resultado real de quem implementou"
-
-DIA 6 - VISÃO ESTRATÉGICA + PRÓXIMO PASSO
-• Reforçar o FOCO (${lead.foco}) com visão estratégica
-• Trazer a conversa para um próximo passo concreto (call rápida)
-• Tom: "Proposta objetiva de próximo passo"
-
-DIA 7 - ÚLTIMO TOQUE RESPEITOSO
-• Tom respeitoso, SEM pressão tóxica
-• Deixar claro que não quer incomodar, mas está disponível
-• CTA simples e fácil de responder
-• Tom: "Última mensagem, respeito sua decisão"
+🚫 USE APENAS estes canais no plano!
+📅 Estratégia: ${cadencia}
 
 ═══════════════════════════════════════
-🎯 ADAPTAÇÃO POR FOCO: ${lead.foco}
+📋 GERE AGORA:
 ═══════════════════════════════════════
-${lead.foco === "Tráfego" ? `
-📣 TRÁFEGO - ARGUMENTAÇÃO ESPECÍFICA:
-• Falar de fluxo PREVISÍVEL de leads qualificados
-• Campanhas bem estruturadas vs "impulsionar no escuro"
-• Dinheiro parado por falta de mídia paga otimizada
-• Métricas: CPL (Custo por Lead), ROAS, CAC
-• Dor: "Você depende de indicação e boca-a-boca"
-• Ganho: "Leads novos entrando todo dia de forma previsível"
-` : ""}${lead.foco === "SEO" ? `
-🔍 SEO - ARGUMENTAÇÃO ESPECÍFICA:
-• Buscas no Google que seus clientes fazem TODO DIA
-• Tráfego ORGÂNICO = leads gratuitos no longo prazo
-• Efeito composto: resultados acumulam com o tempo
-• Autoridade e posicionamento vs concorrentes
-• Dor: "Seus concorrentes aparecem primeiro no Google"
-• Ganho: "Clientes te encontrando sem pagar por clique"
-` : ""}${lead.foco === "Social" ? `
-📱 SOCIAL - ARGUMENTAÇÃO ESPECÍFICA:
-• Consistência no Instagram como diferencial
-• Posicionamento e conexão com seguidores
+
+1. DIAGNÓSTICO (6-8 bullets consultivos)
+   • Analise maturidade digital real
+   • Identifique gaps críticos
+   • Aponte oportunidades para ${lead.foco}
+   • Estime potencial de ROI
+
+2. PROBABILIDADE DE CONVERSÃO (0-100)
+   ${canaisDisponiveis.length === 0 ? "• Máximo 30% se nenhum canal detectado" : ""}
+
+3. PLANO DE PROSPECÇÃO 7 DIAS
+   • Cada dia: mensagem pronta para copiar e colar
+   • Objeções: frases EXATAS que clientes dizem
+   • Respostas: técnica consultiva profissional
+   • CTAs: progressivos e específicos
+   
+   Progressão obrigatória:
+   - Dia 1: Apresentação + contexto
+   - Dia 2: Dor específica do nicho
+   - Dia 3: Oportunidade clara
+   - Dia 4: Framework/método
+   - Dia 5: Prova social/cenário
+   - Dia 6: Visão estratégica + próximo passo
+   - Dia 7: Último toque respeitoso
+
+═══════════════════════════════════════
+🎯 LEMBRE-SE: VOCÊ É COPYWRITER DE ELITE
+═══════════════════════════════════════
+Cada mensagem deve ser memorável e fazer o prospect QUERER responder.
+Use os dados REAIS: ${lead.nome}, ${lead.cidade}, ${lead.nicho}, ${lead.foco}.`;
+}
+
+function getFocoArguments(foco: string): string {
+  const args: Record<string, string> = {
+    "Tráfego": `📣 ARGUMENTAÇÃO TRÁFEGO:
+• Foque em fluxo PREVISÍVEL de leads qualificados
+• Métricas: CPL, ROAS, CAC
+• Dor: dependência de indicação/boca-a-boca
+• Ganho: leads novos entrando todo dia`,
+    
+    "SEO": `🔍 ARGUMENTAÇÃO SEO:
+• Foque em tráfego orgânico = leads gratuitos
+• Efeito composto: resultados acumulam
+• Dor: concorrentes aparecem primeiro no Google
+• Ganho: clientes te encontrando sem pagar por clique`,
+    
+    "Social": `📱 ARGUMENTAÇÃO SOCIAL:
+• Foque em consistência e posicionamento
 • Construção de MARCA, não só posts
-• Engajamento qualificado vs métricas de vaidade
-• Dor: "Posts sem engajamento, seguidores que não compram"
-• Ganho: "Comunidade engajada que vira cliente"
-` : ""}${lead.foco === "Full Service" ? `
-🎯 FULL SERVICE - ARGUMENTAÇÃO ESPECÍFICA:
+• Dor: posts sem engajamento, seguidores que não compram
+• Ganho: comunidade engajada que vira cliente`,
+    
+    "Full Service": `🎯 ARGUMENTAÇÃO FULL SERVICE:
 • Visão 360° - estratégia integrada
-• Tráfego + conteúdo + site + social conectados
 • Economia de tempo com parceiro único
-• ROI geral da operação, não métricas isoladas
-• Dor: "Vários fornecedores, nenhum resultado integrado"
-• Ganho: "Um parceiro que cuida de tudo com estratégia"
-` : ""}${lead.foco === "Automação" ? `
-⚙️ AUTOMAÇÃO - ARGUMENTAÇÃO ESPECÍFICA:
-• Funis de vendas que rodam sozinhos
+• Dor: vários fornecedores, resultados desconectados
+• Ganho: um parceiro que cuida de tudo`,
+    
+    "Automação": `⚙️ ARGUMENTAÇÃO AUTOMAÇÃO:
+• Funis que rodam sozinhos
 • Follow-ups automáticos = leads que não esfriam
-• Menos tarefas manuais = mais tempo para o que importa
-• Leads esquecidos = dinheiro perdido
-• Dor: "Leads entram e ninguém acompanha direito"
-• Ganho: "Sistema que nutre leads enquanto você dorme"
-` : ""}${lead.foco === "Sites/Landing" ? `
-🖥️ SITES/LANDING - ARGUMENTAÇÃO ESPECÍFICA:
-• Páginas que CONVERTEM, não só "bonitas"
-• Experiência do usuário que guia para ação
-• Clareza de oferta em 5 segundos
-• Taxa de conversão atual vs potencial
-• Dor: "Site que não gera leads, só custa hospedagem"
-• Ganho: "Página que transforma visitante em contato"
-` : ""}${lead.foco === "CRM" ? `
-📊 CRM - ARGUMENTAÇÃO ESPECÍFICA:
+• Dor: leads entram e ninguém acompanha
+• Ganho: sistema que nutre leads 24/7`,
+    
+    "CRM": `📊 ARGUMENTAÇÃO CRM:
 • Organização de pipeline de vendas
 • Follow-up sistemático, não na memória
-• Leads esquecidos = dinheiro perdido
-• Previsibilidade de faturamento
-• Dor: "Vendas desorganizadas, leads perdidos no WhatsApp"
-• Ganho: "Saber exatamente quantas vendas vai fechar"
-` : ""}${lead.foco === "Design" ? `
-🎨 DESIGN - ARGUMENTAÇÃO ESPECÍFICA:
+• Dor: vendas desorganizadas, leads perdidos no WhatsApp
+• Ganho: previsibilidade de faturamento`,
+    
+    "Sites/Landing": `🖥️ ARGUMENTAÇÃO SITES/LANDING:
+• Páginas que CONVERTEM, não só bonitas
+• Clareza de oferta em 5 segundos
+• Dor: site que não gera leads, só custa hospedagem
+• Ganho: página que transforma visitante em contato`,
+    
+    "Design": `🎨 ARGUMENTAÇÃO DESIGN:
 • Identidade visual como diferencial competitivo
-• Marca que transmite profissionalismo e confiança
 • Design que VENDE, não só bonito
-• Consistência visual em todos os canais
-• Dor: "Visual amador que afasta clientes premium"
-• Ganho: "Marca que atrai os clientes certos"
-` : ""}
-
-═══════════════════════════════════════
-📋 DIAGNÓSTICO (máximo 6 bullets)
-═══════════════════════════════════════
-Gere análise consultiva incluindo:
-• Avaliação da maturidade digital atual
-• Gaps críticos identificados
-• Oportunidades específicas para ${lead.foco}
-• Recomendações prioritárias
-• Potencial de ROI estimado
-${lead.instagram_context ? "• Insights do Instagram" : ""}
-
-═══════════════════════════════════════
-📊 PROBABILIDADE DE CONVERSÃO (0-100)
-═══════════════════════════════════════
-Calcule baseado em:
-• Maturidade digital (ferramentas instaladas)
-• Canais de contato disponíveis
-• Sinais de investimento em marketing
-• Complexidade da solução de ${lead.foco}
-• Tamanho provável da empresa
-
-REGRA: Se nenhum canal detectado, máximo 30% de probabilidade
-
-═══════════════════════════════════════
-🚀 LEMBRE-SE: VOCÊ É UM COPYWRITER DE ELITE
-═══════════════════════════════════════
-• Cada mensagem deve ser memorável
-• Use dados REAIS do lead (nome, cidade, nicho)
-• Crie urgência progressiva ao longo dos 7 dias
-• Objeções devem ser FRASES REAIS que clientes dizem
-• Respostas devem usar técnicas avançadas de vendas
-• CTAs devem escalar em compromisso
-• ${canalTexto} - USE APENAS ESTES CANAIS!`;
+• Dor: visual amador que afasta clientes premium
+• Ganho: marca que atrai os clientes certos`,
+  };
+  
+  return args[foco] || `• Foque nos benefícios específicos de ${foco}`;
 }
 
-function getFocoMessage(foco: string): string {
-  const messages: Record<string, string> = {
-    "Full Service": "escalar resultados com estratégia de marketing integrada",
-    "Tráfego": "multiplicar vendas com tráfego pago de alta conversão",
-    "Automação": "economizar tempo e escalar com automação inteligente",
-    "Design": "transformar a marca em referência visual no mercado",
-    "Social": "construir autoridade e engajamento nas redes sociais",
-    "SEO": "dominar o Google e atrair clientes organicamente",
-    "Sites/Landing": "converter mais visitantes com páginas otimizadas",
-    "CRM": "organizar vendas e aumentar retenção de clientes",
+function generateMockAnalise(lead: LeadData): AnaliseResult {
+  const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
+  const canais = getAvailableChannels(lead, [...canaisSelecionados]);
+  
+  const getCanal = (dia: number): "whatsapp" | "email" | "instagram" => {
+    if (canais.length === 0) return "whatsapp";
+    if (canais.length === 1) return canais[0];
+    return canais[(dia - 1) % canais.length];
   };
-  return messages[foco] || "crescer com marketing digital estratégico";
-}
 
-function getFocoMetric(foco: string): string {
-  const metrics: Record<string, string> = {
-    "Full Service": "ROI em 180%",
-    "Tráfego": "conversões em 250%",
-    "Automação": "produtividade em 300%",
-    "Design": "engajamento em 200%",
-    "Social": "seguidores qualificados em 400%",
-    "SEO": "tráfego orgânico em 350%",
-    "Sites/Landing": "taxa de conversão em 180%",
-    "CRM": "vendas recorrentes em 220%",
+  const temMarketing = lead.has_meta_pixel || lead.has_gtag || lead.has_gtm;
+  const temContato = canais.length > 0;
+
+  return {
+    diagnostico_bullets: [
+      `${lead.nome} atua no segmento de ${lead.nicho} em ${lead.cidade}`,
+      temMarketing 
+        ? "Presença digital intermediária com ferramentas de tracking instaladas" 
+        : "Baixa maturidade digital - sem ferramentas de análise detectadas",
+      temContato
+        ? `Canais de contato ativos: ${canais.join(", ")}`
+        : "Nenhum canal de contato direto identificado - oportunidade de estruturação",
+      `Foco em ${lead.foco} alinhado com tendências do mercado`,
+      "Potencial de crescimento com estratégia bem estruturada",
+      "Recomendação: abordagem consultiva focada em resultados mensuráveis",
+    ],
+    probabilidade_conversao: temMarketing && temContato ? 65 : temContato ? 45 : 25,
+    plano_prospeccao_7dias: [
+      {
+        dia: 1,
+        canal: getCanal(1),
+        mensagem: `${lead.nome_responsavel || lead.nome}, analisei o setor de ${lead.nicho} em ${lead.cidade}. Identifiquei uma oportunidade em ${lead.foco} que poucas empresas estão explorando. Vale uma conversa de 5 min?`,
+        objecao_provavel: "Quem é você e como conseguiu meu contato?",
+        resposta_sugerida: "Justo. Sou especialista em ${lead.foco} e faço análises de mercado regularmente. Encontrei dados públicos da empresa e identifiquei uma oportunidade real. Posso mostrar em 5 minutos.",
+        cta: "Faz sentido uma conversa rápida ou prefere que eu envie por escrito?"
+      },
+      {
+        dia: 2,
+        canal: getCanal(2),
+        mensagem: `Assunto: Oportunidade identificada - ${lead.nome}\n\nAnalisei empresas de ${lead.nicho} em ${lead.cidade} e notei que muitas estão perdendo clientes por não otimizar ${lead.foco}. Preparei um diagnóstico rápido para vocês - posso enviar?`,
+        objecao_provavel: "Já trabalhamos com alguém",
+        resposta_sugerida: "Faz sentido. Não vim substituir ninguém. Vim mostrar uma oportunidade complementar que identificamos especificamente para ${lead.nicho}. Vale conhecer mesmo que seja só para comparar?",
+        cta: "Posso enviar o diagnóstico por aqui ou prefere por email?"
+      },
+      {
+        dia: 3,
+        canal: getCanal(3),
+        mensagem: `Empresas de ${lead.nicho} em cidades similares estão usando uma estratégia específica de ${lead.foco} que está gerando resultados. ${lead.nome} pode aplicar o mesmo. Posso mostrar como funciona?`,
+        objecao_provavel: "Não tenho orçamento agora",
+        resposta_sugerida: "Compreendo. E se eu mostrar quanto vocês podem estar deixando de faturar por não explorar essa oportunidade? Muitas vezes o 'orçamento' aparece quando o ROI fica claro.",
+        cta: "Posso enviar uma análise rápida de potencial?"
+      },
+      {
+        dia: 4,
+        canal: getCanal(4),
+        mensagem: `Preparei um framework simples de 3 passos que empresas de ${lead.nicho} usam para melhorar ${lead.foco}. Funciona bem para negócios do porte de vocês em ${lead.cidade}. Quer que eu compartilhe?`,
+        objecao_provavel: "Preciso falar com meu sócio",
+        resposta_sugerida: "Claro. Posso preparar um resumo executivo de 1 página para facilitar a conversa. Assim vocês avaliam com as informações certas em mãos.",
+        cta: "Envio o resumo por aqui ou prefere por email?"
+      },
+      {
+        dia: 5,
+        canal: getCanal(5),
+        mensagem: `Última semana analisando o setor de ${lead.nicho}. ${lead.nome} tem um perfil que combina bem com nossa metodologia de ${lead.foco}. 15 minutos para mostrar a proposta?`,
+        objecao_provavel: "Me manda proposta por email",
+        resposta_sugerida: "Posso enviar. Mas antes de algo genérico, preciso de 5 min para entender 2-3 pontos do negócio. Assim a proposta já vem personalizada com projeção de retorno.",
+        cta: "Amanhã às 10h ou às 15h funciona melhor?"
+      },
+      {
+        dia: 6,
+        canal: getCanal(6),
+        mensagem: `${lead.nome}, estou fechando a agenda do mês para novos projetos de ${lead.foco}. Guardei um espaço para vocês caso faça sentido. Conseguimos alinhar essa semana?`,
+        objecao_provavel: "Vou analisar e retorno",
+        resposta_sugerida: "Combinado. Deixo um lembrete: cada semana sem otimizar ${lead.foco} é oportunidade que passa. Se preferir, posso mostrar um teste piloto de baixo investimento para validar.",
+        cta: "Qual dia funciona para uma conversa final?"
+      },
+      {
+        dia: 7,
+        canal: getCanal(7),
+        mensagem: `Última mensagem sobre isso. Se ${lead.foco} não é prioridade agora, entendo perfeitamente. Fico à disposição quando fizer sentido. Sucesso com a ${lead.nome}!`,
+        objecao_provavel: "Não tenho interesse",
+        resposta_sugerida: "Entendido, agradeço a clareza. Se em algum momento fizer sentido revisitar, estou à disposição. Sucesso com os projetos atuais.",
+        cta: "Salva meu contato caso mude de ideia no futuro"
+      }
+    ]
   };
-  return metrics[foco] || "resultados em 200%";
 }

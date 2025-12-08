@@ -596,22 +596,30 @@ serve(async (req) => {
     
     // Se temos leadId, busca os dados do banco e re-escaneia o site
     if (leadId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-      console.log("📥 Buscando dados do lead no banco...");
+      console.log("📥 Buscando dados do lead no banco via RPC descriptografada...");
       
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       
-      // Busca o lead direto da tabela
-      const { data: directLead, error: directError } = await supabase
-        .from("leads")
-        .select("*")
-        .eq("id", leadId)
-        .single();
+      // ✅ CORREÇÃO CRÍTICA: Usa RPC que descriptografa os dados
+      // A tabela leads não tem mais campos de texto plano (instagram_url, email, etc.)
+      // Eles foram movidos para versões _encrypted e precisam ser descriptografados
+      const { data: decryptedLeads, error: rpcError } = await supabase
+        .rpc('get_leads_decrypted');
         
-      if (directError || !directLead) {
-        console.error("❌ Lead não encontrado:", directError);
+      if (rpcError) {
+        console.error("❌ Erro ao buscar leads descriptografados:", rpcError);
+        throw new Error("Erro ao buscar dados do lead");
+      }
+      
+      // Filtra o lead específico
+      const directLead = decryptedLeads?.find((l: any) => l.id === leadId);
+        
+      if (!directLead) {
+        console.error("❌ Lead não encontrado no resultado da RPC");
         throw new Error("Lead não encontrado no banco de dados");
       }
       
+      // ✅ Agora os campos vêm descriptografados corretamente!
       websiteUrl = directLead.website as string | null;
       leadData = {
         nome: directLead.nome as string,
@@ -683,8 +691,10 @@ serve(async (req) => {
           }
         }
         
-        // Atualiza os sinais no banco (campos não criptografados)
+        // ✅ CORREÇÃO: Separa campos criptografados dos não-criptografados
         console.log("💾 Atualizando sinais no banco...");
+        
+        // Campos NÃO criptografados - atualiza diretamente na tabela
         const updateData: Record<string, any> = {
           whatsapp_on_site: leadData.whatsapp_on_site,
           has_meta_pixel: leadData.has_meta_pixel,
@@ -692,18 +702,7 @@ serve(async (req) => {
           has_gtm: leadData.has_gtm,
         };
         
-        // Se encontrou novo WhatsApp, Instagram ou Email, atualiza
-        if (newSignals.whatsapp_number) {
-          updateData.whatsapp_number = newSignals.whatsapp_number;
-        }
-        if (newSignals.instagram_url) {
-          updateData.instagram_url = newSignals.instagram_url;
-        }
-        if (newSignals.email) {
-          updateData.email = newSignals.email;
-        }
-        
-        // Atualiza dados de CNPJ se encontrados
+        // Atualiza dados de CNPJ se encontrados (campos não criptografados)
         if (leadData.cnpj) {
           updateData.cnpj = leadData.cnpj;
           updateData.razao_social = leadData.razao_social;
@@ -713,10 +712,37 @@ serve(async (req) => {
           updateData.cnae_principal = leadData.cnae_principal;
         }
         
+        // Atualiza campos não-criptografados
         const { error: updateSignalsError } = await supabase
           .from("leads")
           .update(updateData)
           .eq("id", leadId);
+          
+        if (updateSignalsError) {
+          console.error("⚠️ Erro ao atualizar sinais não-criptografados:", updateSignalsError);
+        }
+        
+        // ✅ CORREÇÃO CRÍTICA: Atualiza campos criptografados via RPC
+        // Os campos instagram_url, email, whatsapp_number foram movidos para versões _encrypted
+        if (newSignals.whatsapp_number || newSignals.instagram_url || newSignals.email) {
+          console.log("🔐 Atualizando campos criptografados via RPC...");
+          console.log("  📱 WhatsApp:", newSignals.whatsapp_number || "(não atualizar)");
+          console.log("  📸 Instagram:", newSignals.instagram_url || "(não atualizar)");
+          console.log("  📧 Email:", newSignals.email || "(não atualizar)");
+          
+          const { error: encryptedUpdateError } = await supabase.rpc('update_lead_encrypted_fields', {
+            p_lead_id: leadId,
+            p_instagram_url: newSignals.instagram_url || null,
+            p_email: newSignals.email || null,
+            p_whatsapp_number: newSignals.whatsapp_number || null,
+          });
+          
+          if (encryptedUpdateError) {
+            console.error("⚠️ Erro ao atualizar campos criptografados:", encryptedUpdateError);
+          } else {
+            console.log("✅ Campos criptografados atualizados com sucesso");
+          }
+        }
           
         if (updateSignalsError) {
           console.error("⚠️ Erro ao atualizar sinais:", updateSignalsError);

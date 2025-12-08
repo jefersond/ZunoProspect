@@ -587,6 +587,15 @@ export type Database = {
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       reset_monthly_leads_count: { Args: never; Returns: undefined }
+      update_lead_encrypted_fields: {
+        Args: {
+          p_email?: string
+          p_instagram_url?: string
+          p_lead_id: string
+          p_whatsapp_number?: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

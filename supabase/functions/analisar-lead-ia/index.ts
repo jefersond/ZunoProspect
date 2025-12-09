@@ -317,23 +317,23 @@ serve(async (req) => {
 
     let analise: AnaliseResult;
 
-    // Prioriza Gemini Direto → OpenAI Fallback → Mock
-    if (GOOGLE_GEMINI_API_KEY) {
-      console.log("🚀 Usando Google Gemini 2.5 Pro (API direta)...");
+    // Prioriza OpenAI → Gemini Fallback → Mock
+    if (OPENAI_API_KEY) {
+      console.log("🤖 Usando OpenAI GPT-4o (principal)...");
       try {
-        analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
-      } catch (geminiError: any) {
-        console.log(`⚠️ Gemini falhou: ${geminiError.message}`);
-        if (OPENAI_API_KEY) {
-          console.log("🔄 Fallback para OpenAI...");
-          analise = await analyzeWithOpenAI(leadData, OPENAI_API_KEY);
+        analise = await analyzeWithOpenAI(leadData, OPENAI_API_KEY);
+      } catch (openaiError: any) {
+        console.log(`⚠️ OpenAI falhou: ${openaiError.message}`);
+        if (GOOGLE_GEMINI_API_KEY) {
+          console.log("🔄 Fallback para Gemini...");
+          analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
         } else {
-          throw geminiError;
+          throw openaiError;
         }
       }
-    } else if (OPENAI_API_KEY) {
-      console.log("🤖 Usando OpenAI...");
-      analise = await analyzeWithOpenAI(leadData, OPENAI_API_KEY);
+    } else if (GOOGLE_GEMINI_API_KEY) {
+      console.log("🚀 Usando Gemini (secundário)...");
+      analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
     } else {
       console.log("⚠️ Nenhuma API key - usando mock");
       analise = generateMockAnalise(leadData);

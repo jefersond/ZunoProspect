@@ -15,19 +15,57 @@ const Prospeccao = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [user, setUser] = useState<any>(null);
 
-  // Handle checkout success/cancel from Stripe redirect
+  // Handle checkout success/cancel from Stripe redirect and Google OAuth checkout
   useEffect(() => {
-    const checkoutStatus = searchParams.get("checkout");
-    if (checkoutStatus === "success") {
-      sessionStorage.removeItem("checkout_in_progress");
-      toast.success("Pagamento realizado com sucesso! Seu plano foi ativado.");
-      // Clean URL params
-      setSearchParams({});
-    } else if (checkoutStatus === "canceled") {
-      sessionStorage.removeItem("checkout_in_progress");
-      toast.info("Checkout cancelado. Você pode tentar novamente quando quiser.");
-      setSearchParams({});
-    }
+    const handleCheckoutRedirect = async () => {
+      const checkoutStatus = searchParams.get("checkout");
+      
+      if (checkoutStatus === "success") {
+        sessionStorage.removeItem("checkout_in_progress");
+        sessionStorage.removeItem("checkout_plano");
+        sessionStorage.removeItem("checkout_isAnual");
+        toast.success("Pagamento realizado com sucesso! Seu plano foi ativado.");
+        setSearchParams({});
+      } else if (checkoutStatus === "canceled") {
+        sessionStorage.removeItem("checkout_in_progress");
+        sessionStorage.removeItem("checkout_plano");
+        sessionStorage.removeItem("checkout_isAnual");
+        toast.info("Checkout cancelado. Você pode tentar novamente quando quiser.");
+        setSearchParams({});
+      } else if (checkoutStatus === "google_success") {
+        // User logged in via Google from checkout - redirect to Stripe
+        const plano = searchParams.get("plano") || sessionStorage.getItem("checkout_plano");
+        const isAnualParam = searchParams.get("isAnual") || sessionStorage.getItem("checkout_isAnual");
+        const isAnual = isAnualParam === "true";
+        
+        if (plano) {
+          toast.info("Conta criada com Google! Redirecionando para pagamento...");
+          
+          try {
+            const { data, error } = await supabase.functions.invoke("create-checkout", {
+              body: { plano, isAnual }
+            });
+            
+            if (error) throw error;
+            
+            if (data?.url) {
+              sessionStorage.setItem("checkout_in_progress", "true");
+              window.location.href = data.url;
+            } else {
+              throw new Error("URL de checkout não retornada");
+            }
+          } catch (error: any) {
+            toast.error("Erro ao processar pagamento", { description: error.message });
+            sessionStorage.removeItem("checkout_in_progress");
+            sessionStorage.removeItem("checkout_plano");
+            sessionStorage.removeItem("checkout_isAnual");
+          }
+        }
+        setSearchParams({});
+      }
+    };
+    
+    handleCheckoutRedirect();
   }, [searchParams, setSearchParams]);
 
   useEffect(() => {

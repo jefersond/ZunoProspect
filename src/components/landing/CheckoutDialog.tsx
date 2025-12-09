@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { CheckCircle2, QrCode, CreditCard, Copy, Loader2, RefreshCw } from "lucide-react";
+import { CheckCircle2, QrCode, CreditCard, Copy, Loader2, RefreshCw, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plano } from "./data";
@@ -24,7 +24,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
-  const [confirmarSenha, setConfirmarSenha] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [cpf, setCpf] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [metodoPagamento, setMetodoPagamento] = useState<"pix" | "cartao">("pix");
@@ -141,10 +141,6 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
     }
     if (passwordStrength < 3) {
       toast.error("A senha deve conter letras maiúsculas, minúsculas e números");
-      return false;
-    }
-    if (senha !== confirmarSenha) {
-      toast.error("As senhas não coincidem");
       return false;
     }
 
@@ -269,7 +265,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
     if (!isProcessing) {
       setStep("form");
       setPixData(null);
-      setNome(""); setEmail(""); setSenha(""); setConfirmarSenha("");
+      setNome(""); setEmail(""); setSenha(""); setShowPassword(false);
       setCpf(""); setWhatsapp("");
       onOpenChange(false);
     }
@@ -348,7 +344,24 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
               </div>
               <div className="space-y-2">
                 <Label htmlFor="senha">Senha *</Label>
-                <Input id="senha" type="password" placeholder="Mínimo 8 caracteres" value={senha} onChange={e => setSenha(e.target.value)} required />
+                <div className="relative">
+                  <Input 
+                    id="senha" 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="Mínimo 8 caracteres" 
+                    value={senha} 
+                    onChange={e => setSenha(e.target.value)} 
+                    className="pr-10"
+                    required 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 {senha && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -365,11 +378,6 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
                     </div>
                   </div>
                 )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmarSenha">Confirmar senha *</Label>
-                <Input id="confirmarSenha" type="password" placeholder="Repita a senha" value={confirmarSenha} onChange={e => setConfirmarSenha(e.target.value)} required />
-                {confirmarSenha && senha !== confirmarSenha && <p className="text-xs text-red-500">As senhas não coincidem</p>}
               </div>
             </div>
 

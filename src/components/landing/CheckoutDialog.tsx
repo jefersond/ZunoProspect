@@ -252,8 +252,9 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
       
       if (data?.url) {
         toast.success("Redirecionando para o pagamento...");
-        window.open(data.url, "_blank");
-        onOpenChange(false);
+        // Redirect to Stripe in same tab
+        sessionStorage.setItem("checkout_in_progress", "true");
+        window.location.href = data.url;
       } else {
         throw new Error("URL de checkout não retornada");
       }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ProspeccaoForm } from "@/components/prospeccao/ProspeccaoForm";
@@ -8,9 +8,28 @@ import { LogOut, Search, User, BarChart3, FileText, History, Bookmark } from "lu
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
+import { toast } from "sonner";
+
 const Prospeccao = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [user, setUser] = useState<any>(null);
+
+  // Handle checkout success/cancel from Stripe redirect
+  useEffect(() => {
+    const checkoutStatus = searchParams.get("checkout");
+    if (checkoutStatus === "success") {
+      sessionStorage.removeItem("checkout_in_progress");
+      toast.success("Pagamento realizado com sucesso! Seu plano foi ativado.");
+      // Clean URL params
+      setSearchParams({});
+    } else if (checkoutStatus === "canceled") {
+      sessionStorage.removeItem("checkout_in_progress");
+      toast.info("Checkout cancelado. Você pode tentar novamente quando quiser.");
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams]);
+
   useEffect(() => {
     supabase.auth.getUser().then(({
       data: {

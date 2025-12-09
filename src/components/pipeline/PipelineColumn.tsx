@@ -4,15 +4,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { PipelineCard } from './PipelineCard';
 import { LeadProspeccao } from '@/types/lead';
-
-export interface PipelineStatus {
-  id: string;
-  label: string;
-  description: string;
-  color: string;
-  bgColor: string;
-  borderColor: string;
-}
+import type { PipelineStatus } from './StatusSelector';
 
 interface PipelineColumnProps {
   status: PipelineStatus;

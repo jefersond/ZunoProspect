@@ -12,61 +12,11 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { LeadProspeccao } from '@/types/lead';
-import { PipelineColumn, PipelineStatus } from './PipelineColumn';
+import { PipelineColumn } from './PipelineColumn';
 import { PipelineCard } from './PipelineCard';
+import { PIPELINE_STATUSES } from './StatusSelector';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-
-const PIPELINE_STATUSES: PipelineStatus[] = [
-  {
-    id: 'novo',
-    label: 'Novo',
-    description: 'Lead recém-capturado',
-    color: 'bg-gray-400',
-    bgColor: 'to-gray-500/10',
-    borderColor: 'border-gray-500/30',
-  },
-  {
-    id: 'em_contato',
-    label: 'Em Contato',
-    description: 'Primeiro contato realizado',
-    color: 'bg-blue-400',
-    bgColor: 'to-blue-500/10',
-    borderColor: 'border-blue-500/30',
-  },
-  {
-    id: 'qualificacao',
-    label: 'Qualificação',
-    description: 'Avaliando interesse/fit',
-    color: 'bg-amber-400',
-    bgColor: 'to-amber-500/10',
-    borderColor: 'border-amber-500/30',
-  },
-  {
-    id: 'negociacao',
-    label: 'Negociação',
-    description: 'Proposta enviada',
-    color: 'bg-orange-400',
-    bgColor: 'to-orange-500/10',
-    borderColor: 'border-orange-500/30',
-  },
-  {
-    id: 'convertido',
-    label: 'Convertido',
-    description: 'Cliente fechado!',
-    color: 'bg-emerald-400',
-    bgColor: 'to-emerald-500/10',
-    borderColor: 'border-emerald-500/30',
-  },
-  {
-    id: 'perdido',
-    label: 'Perdido',
-    description: 'Lead descartado',
-    color: 'bg-red-400',
-    bgColor: 'to-red-500/10',
-    borderColor: 'border-red-500/30',
-  },
-];
 
 interface LeadsPipelineProps {
   onViewDetails: (lead: LeadProspeccao) => void;

@@ -58,7 +58,7 @@ export function DepoimentosSection() {
         </div>
 
         <div className="text-center mt-12">
-          <Button size="lg" onClick={() => scrollToSection("precos")}>
+          <Button size="lg" variant="success" onClick={() => scrollToSection("precos")}>
             Quero começar agora
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>

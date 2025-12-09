@@ -33,7 +33,7 @@ export function HeroSection() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-              <Button size="lg" className="text-base sm:text-lg px-6 sm:px-8 shadow-lg shadow-primary/25" onClick={() => scrollToSection("precos")}>
+              <Button size="lg" variant="success" className="text-base sm:text-lg px-6 sm:px-8" onClick={() => scrollToSection("precos")}>
                 Começar agora
                 <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
               </Button>

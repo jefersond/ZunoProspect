@@ -64,11 +64,24 @@ serve(async (req) => {
     if (payment.status === "CONFIRMED" || payment.status === "RECEIVED") {
       logStep("Payment confirmed, updating subscription");
 
-      // Extrair dados do plano da referência externa
+      // Extrair dados do plano da referência externa (formato: "userId|plan|isAnnual")
       let planData = { plan_name: "pro", is_annual: false };
       try {
         if (payment.externalReference) {
-          planData = JSON.parse(payment.externalReference);
+          const ref = payment.externalReference;
+          // Novo formato compacto: "userId|plan|isAnnual"
+          if (ref.includes('|')) {
+            const parts = ref.split('|');
+            planData = {
+              plan_name: parts[1] || 'pro',
+              is_annual: parts[2] === 'true'
+            };
+            logStep("Parsed compact reference", planData);
+          } else {
+            // Fallback para formato JSON antigo
+            planData = JSON.parse(ref);
+            logStep("Parsed JSON reference", planData);
+          }
         }
       } catch (e) {
         logStep("Could not parse external reference", { ref: payment.externalReference });

@@ -137,12 +137,8 @@ serve(async (req) => {
         value: valor,
         dueDate: dueDateStr,
         description: descricaoPlano,
-        externalReference: JSON.stringify({
-          user_id: userId,
-          customer_email: customerEmail,
-          plan_name: plano.toLowerCase(),
-          is_annual: isAnual,
-        }),
+        // Formato compacto: "userId|plan|isAnnual" (max ~50 chars)
+        externalReference: `${userId || 'guest'}|${plano.toLowerCase()}|${isAnual}`,
       }),
     });
 

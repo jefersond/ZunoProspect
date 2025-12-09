@@ -256,18 +256,21 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
     try {
       const accountCreated = await validateAndCreateAccount();
       if (!accountCreated) { setIsProcessing(false); return; }
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      // Track Purchase event for card payment
-      trackPurchase({
-        value: preco,
-        currency: 'BRL',
-        content_name: plano?.nome || 'Plan',
-        content_type: 'subscription',
-        num_items: 1
+      
+      // Chamar Stripe checkout real
+      const { data, error } = await supabase.functions.invoke("create-checkout", {
+        body: { plano: plano.nome, isAnual }
       });
-      setStep("confirmed");
-      toast.success("Conta criada e pagamento processado!");
-      setTimeout(() => navigate("/prospeccao"), 2000);
+      
+      if (error) throw error;
+      
+      if (data?.url) {
+        toast.success("Redirecionando para o pagamento...");
+        window.open(data.url, "_blank");
+        onOpenChange(false);
+      } else {
+        throw new Error("URL de checkout não retornada");
+      }
     } catch (error: any) {
       toast.error("Erro ao processar pagamento", { description: error.message });
     } finally {

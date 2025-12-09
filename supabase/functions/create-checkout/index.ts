@@ -81,8 +81,8 @@ serve(async (req) => {
       ],
       mode: "subscription",
       payment_method_types: ["card"],
-      success_url: `${origin}/profile?checkout=success`,
-      cancel_url: `${origin}/profile?checkout=canceled`,
+      success_url: `${origin}/prospeccao?checkout=success`,
+      cancel_url: `${origin}/?checkout=canceled`,
       metadata: {
         user_id: user.id,
         plan_name: plano.toLowerCase(),

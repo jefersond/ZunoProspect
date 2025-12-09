@@ -50,6 +50,11 @@ export default function Pipeline() {
     setDialogOpen(true);
   };
 
+  const handleStatusChange = () => {
+    // Refresh pipeline when status changes via dialog
+    setRefreshKey(prev => prev + 1);
+  };
+
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1);
     toast.success('Pipeline atualizado');
@@ -150,6 +155,8 @@ export default function Pipeline() {
         lead={selectedLead}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        onStatusChange={handleStatusChange}
+        onLeadUpdate={handleStatusChange}
       />
 
       <FloatingWhatsAppButton />

@@ -9,9 +9,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadAnalysis } from "./LeadAnalysis";
 import { TemplateSelector } from "@/components/templates/TemplateSelector";
+import { StatusSelector, PIPELINE_STATUSES } from "@/components/pipeline/StatusSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Brain, FileText } from "lucide-react";
+import { Brain, FileText, ArrowRightLeft } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 
 interface LeadPlanDialogProps {
@@ -19,11 +20,19 @@ interface LeadPlanDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onLeadUpdate?: () => void;
+  onStatusChange?: (leadId: string, newStatus: string) => void;
 }
 
-export const LeadPlanDialog = ({ lead, open, onOpenChange, onLeadUpdate }: LeadPlanDialogProps) => {
+export const LeadPlanDialog = ({ 
+  lead, 
+  open, 
+  onOpenChange, 
+  onLeadUpdate,
+  onStatusChange 
+}: LeadPlanDialogProps) => {
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [currentLead, setCurrentLead] = useState(lead);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const { toast } = useToast();
 
   // Sempre que o lead mudar ou o dialog for reaberto, sincroniza o estado interno
@@ -34,6 +43,45 @@ export const LeadPlanDialog = ({ lead, open, onOpenChange, onLeadUpdate }: LeadP
   }, [lead, open]);
 
   if (!lead) return null;
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!currentLead || currentLead.status === newStatus) return;
+
+    setIsUpdatingStatus(true);
+    const oldStatus = currentLead.status;
+
+    // Optimistic update
+    setCurrentLead(prev => prev ? { ...prev, status: newStatus } : prev);
+
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({ status: newStatus })
+        .eq('id', currentLead.id);
+
+      if (error) throw error;
+
+      const statusLabel = PIPELINE_STATUSES.find(s => s.id === newStatus)?.label;
+      toast({
+        title: "Status atualizado",
+        description: `Lead movido para "${statusLabel}"`,
+      });
+
+      onStatusChange?.(currentLead.id, newStatus);
+      onLeadUpdate?.();
+    } catch (error: any) {
+      console.error('Erro ao atualizar status:', error);
+      // Revert optimistic update
+      setCurrentLead(prev => prev ? { ...prev, status: oldStatus } : prev);
+      toast({
+        title: "Erro ao atualizar status",
+        description: error.message || "Não foi possível atualizar o status",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   const handleReanalyze = async () => {
     if (!lead) return;
@@ -111,7 +159,20 @@ export const LeadPlanDialog = ({ lead, open, onOpenChange, onLeadUpdate }: LeadP
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="analise" className="mt-4">
+        {/* Status Selector */}
+        <div className="mt-2 mb-4 p-4 bg-muted/30 rounded-lg border border-border/50">
+          <div className="flex items-center gap-2 mb-3">
+            <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">Alterar Status</span>
+          </div>
+          <StatusSelector
+            currentStatus={displayLead.status || 'novo'}
+            onStatusChange={handleStatusChange}
+            disabled={isUpdatingStatus}
+          />
+        </div>
+
+        <Tabs defaultValue="analise" className="mt-2">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="analise" className="gap-2">
               <Brain className="h-4 w-4" />

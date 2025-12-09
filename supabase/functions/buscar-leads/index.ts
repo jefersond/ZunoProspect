@@ -372,7 +372,7 @@ serve(async (req) => {
             console.error("Erro ao buscar ID do lead:", selectError);
           }
 
-          // Agenda análise de IA em background com retry
+          // Agenda análise de IA em background com retry e rate limiting
           const scheduleAnalysisWithRetry = async (retries = 3) => {
             for (let attempt = 1; attempt <= retries; attempt++) {
               try {
@@ -412,29 +412,40 @@ serve(async (req) => {
                 const errorText = await response.text();
                 console.error(`❌ Erro na análise IA (tentativa ${attempt}):`, response.status, errorText);
                 
-                // Se não for o último retry, aguarda antes de tentar novamente
+                // Rate limit detectado - aguardar tempo maior
+                if (response.status === 429) {
+                  const retryAfter = parseInt(response.headers.get('Retry-After') || '30');
+                  const waitTime = Math.max(retryAfter, 10) * 1000; // Mínimo 10s para rate limit
+                  console.log(`⏳ Rate limit atingido, aguardando ${waitTime/1000}s antes de retry...`);
+                  await new Promise(resolve => setTimeout(resolve, waitTime));
+                  continue;
+                }
+                
+                // Outros erros - backoff exponencial padrão
                 if (attempt < retries) {
-                  await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+                  const backoffMs = Math.min(2000 * Math.pow(2, attempt - 1), 30000); // Max 30s
+                  console.log(`⏳ Aguardando ${backoffMs/1000}s antes de retry...`);
+                  await new Promise(resolve => setTimeout(resolve, backoffMs));
                 }
               } catch (err: any) {
                 console.error(`❌ Erro ao chamar análise IA (tentativa ${attempt}):`, err.message);
                 if (attempt < retries) {
-                  await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+                  const backoffMs = Math.min(2000 * Math.pow(2, attempt - 1), 30000);
+                  await new Promise(resolve => setTimeout(resolve, backoffMs));
                 }
               }
             }
             console.error(`❌ Falha após ${retries} tentativas de análise IA para: ${details.name}`);
           };
 
-          // Executa em background
-          scheduleAnalysisWithRetry().catch(err => 
-            console.error("Erro crítico no agendamento de IA:", err)
-          );
-
-          return {
-            nome: details.name,
-            endereco: details.formatted_address,
-            sinais: siteSignals,
+          // Retorna a função para ser executada com delay
+          return { 
+            leadResult: {
+              nome: details.name,
+              endereco: details.formatted_address,
+              sinais: siteSignals,
+            },
+            scheduleAnalysis: scheduleAnalysisWithRetry
           };
         }
       } catch (error) {
@@ -444,14 +455,40 @@ serve(async (req) => {
     }
 
     // Processa leads em paralelo (máximo 5 por vez para não sobrecarregar)
-    const leadsDetails = [];
+    const leadsWithAnalysis: { leadResult: any; scheduleAnalysis: () => Promise<void> }[] = [];
     const batchSize = 5;
     
     for (let i = 0; i < leads.length; i += batchSize) {
       const batch = leads.slice(i, i + batchSize);
       const results = await Promise.all(batch.map((place: any) => processLead(place)));
-      leadsDetails.push(...results.filter(r => r !== null));
+      leadsWithAnalysis.push(...results.filter(r => r !== null) as any[]);
     }
+
+    // Extrai apenas os resultados dos leads para retorno
+    const leadsDetails = leadsWithAnalysis.map(item => item.leadResult);
+
+    // Agenda análises de IA com delay progressivo (rate limiting)
+    // Executa em background para não bloquear a resposta
+    const DELAY_BETWEEN_ANALYSES_MS = 3000; // 3 segundos entre cada análise
+    
+    console.log(`📊 Agendando ${leadsWithAnalysis.length} análises de IA com delay de ${DELAY_BETWEEN_ANALYSES_MS/1000}s entre cada...`);
+    
+    // Executa análises sequencialmente em background
+    (async () => {
+      for (let i = 0; i < leadsWithAnalysis.length; i++) {
+        const item = leadsWithAnalysis[i];
+        if (item.scheduleAnalysis) {
+          // Aguarda delay progressivo antes de cada análise (exceto a primeira)
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_ANALYSES_MS));
+          }
+          
+          console.log(`🔄 Iniciando análise ${i + 1}/${leadsWithAnalysis.length}...`);
+          await item.scheduleAnalysis();
+        }
+      }
+      console.log(`✅ Todas as ${leadsWithAnalysis.length} análises de IA foram processadas.`);
+    })().catch(err => console.error("Erro no processamento sequencial de análises:", err));
 
     return new Response(
       JSON.stringify({

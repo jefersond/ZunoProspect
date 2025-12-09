@@ -28,9 +28,6 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
   const [cpf, setCpf] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [metodoPagamento, setMetodoPagamento] = useState<"pix" | "cartao">("pix");
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardExpiry, setCardExpiry] = useState("");
-  const [cardCvv, setCardCvv] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [pixData, setPixData] = useState<{
@@ -136,16 +133,6 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
     return numbers.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2").replace(/(-\d{4})\d+?$/, "$1");
   };
 
-  const formatCardNumber = (value: string) => {
-    const cleaned = value.replace(/\D/g, "").slice(0, 16);
-    return cleaned.replace(/(\d{4})/g, "$1 ").trim();
-  };
-
-  const formatExpiry = (value: string) => {
-    const cleaned = value.replace(/\D/g, "").slice(0, 4);
-    if (cleaned.length >= 2) return cleaned.slice(0, 2) + "/" + cleaned.slice(2);
-    return cleaned;
-  };
 
   const validateAndCreateAccount = async (): Promise<boolean> => {
     if (!senha || senha.length < 8) {
@@ -250,7 +237,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
     e.preventDefault();
     if (!nome || !email) { toast.error("Preencha todos os campos obrigatórios"); return; }
     if (metodoPagamento === "pix") { await handleGeneratePix(); return; }
-    if (metodoPagamento === "cartao" && (!cardNumber || !cardExpiry || !cardCvv)) { toast.error("Preencha todos os dados do cartão"); return; }
+    
     
     setIsProcessing(true);
     try {
@@ -283,7 +270,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
       setStep("form");
       setPixData(null);
       setNome(""); setEmail(""); setSenha(""); setConfirmarSenha("");
-      setCpf(""); setWhatsapp(""); setCardNumber(""); setCardExpiry(""); setCardCvv("");
+      setCpf(""); setWhatsapp("");
       onOpenChange(false);
     }
   };
@@ -405,21 +392,8 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
                 </RadioGroup>
 
                 {metodoPagamento === "cartao" && (
-                  <div className="space-y-4 pt-4 border-t">
-                    <div className="space-y-2">
-                      <Label htmlFor="cardNumber">Número do cartão</Label>
-                      <Input id="cardNumber" placeholder="0000 0000 0000 0000" value={cardNumber} onChange={e => setCardNumber(formatCardNumber(e.target.value))} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="cardExpiry">Validade</Label>
-                        <Input id="cardExpiry" placeholder="MM/AA" value={cardExpiry} onChange={e => setCardExpiry(formatExpiry(e.target.value))} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="cardCvv">CVV</Label>
-                        <Input id="cardCvv" placeholder="123" maxLength={4} value={cardCvv} onChange={e => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4))} />
-                      </div>
-                    </div>
+                  <div className="p-4 bg-secondary/50 rounded-lg border border-border/50">
+                    <p className="text-sm text-muted-foreground">Você será redirecionado para o Stripe para inserir os dados do cartão de forma segura.</p>
                   </div>
                 )}
 

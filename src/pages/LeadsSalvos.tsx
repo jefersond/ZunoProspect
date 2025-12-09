@@ -25,6 +25,7 @@ import {
   Loader2,
   RefreshCw,
   Mail,
+  Kanban,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
@@ -328,6 +329,10 @@ const LeadsSalvos = () => {
                 <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
                   <BarChart3 className="h-4 w-4" />
                   <span className="hidden sm:inline">Dashboard</span>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/pipeline")} className="gap-2">
+                  <Kanban className="h-4 w-4" />
+                  <span className="hidden sm:inline">Pipeline</span>
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => navigate("/templates")} className="gap-2">
                   <FileText className="h-4 w-4" />

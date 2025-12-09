@@ -97,7 +97,8 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
         });
         if (error) return;
         if (data?.confirmed) {
-          // Track Purchase event
+          // Clear checkout flag and track Purchase event
+          sessionStorage.removeItem("checkout_in_progress");
           trackPurchase({
             value: currentPreco,
             currency: 'BRL',
@@ -166,6 +167,8 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
   };
 
   const handleGeneratePix = async () => {
+    // Prevent redirect during checkout
+    sessionStorage.setItem("checkout_in_progress", "true");
     if (!nome.trim()) { toast.error("Informe seu nome completo"); return; }
     if (!email.trim()) { toast.error("Informe seu email"); return; }
     if (!cpf || cpf.replace(/\D/g, "").length < 11) { toast.error("Informe um CPF válido"); return; }
@@ -267,6 +270,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
       setPixData(null);
       setNome(""); setEmail(""); setSenha(""); setShowPassword(false);
       setCpf(""); setWhatsapp("");
+      sessionStorage.removeItem("checkout_in_progress");
       onOpenChange(false);
     }
   };

@@ -62,7 +62,9 @@ export default function LandingProspeccaoIA() {
         subscription
       }
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
+      // Don't redirect if checkout is in progress (PIX payment flow)
+      const checkoutInProgress = sessionStorage.getItem("checkout_in_progress");
+      if (session?.user && !checkoutInProgress) {
         navigate("/prospeccao", {
           replace: true
         });

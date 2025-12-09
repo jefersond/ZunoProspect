@@ -20,7 +20,7 @@ export function MetricasSection() {
           ))}
         </div>
         <div className="text-center">
-          <Button size="lg" variant="secondary" onClick={() => scrollToSection("precos")} className="shadow-lg">
+          <Button size="lg" variant="success" onClick={() => scrollToSection("precos")}>
             Assinar agora
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>

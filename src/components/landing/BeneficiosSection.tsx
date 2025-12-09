@@ -46,7 +46,7 @@ export function BeneficiosSection() {
           ))}
         </div>
         <div className="text-center mt-10">
-          <Button size="lg" onClick={() => scrollToSection("precos")} className="shadow-lg">
+          <Button size="lg" variant="success" onClick={() => scrollToSection("precos")}>
             Ver planos disponíveis
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>

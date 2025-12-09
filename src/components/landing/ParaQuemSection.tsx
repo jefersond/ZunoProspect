@@ -42,7 +42,7 @@ export function ParaQuemSection() {
         </div>
 
         <div className="text-center mt-12">
-          <Button size="lg" variant="outline" onClick={() => scrollToSection("precos")}>
+          <Button size="lg" variant="success" onClick={() => scrollToSection("precos")}>
             Ver preços e planos
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>

@@ -138,7 +138,7 @@ export function PrecosSection() {
 
                 <Button
                   className="w-full"
-                  variant={plano.destaque ? "default" : "outline"}
+                  variant="success"
                   onClick={() => handleSelectPlano(plano)}
                 >
                   {plano.cta}

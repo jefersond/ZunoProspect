@@ -18,8 +18,8 @@ export function CTAFinalSection() {
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center max-w-md sm:max-w-none mx-auto">
           <Button
             size="lg"
-            variant="secondary"
-            className="text-base sm:text-lg px-6 sm:px-8 shadow-lg w-full sm:w-auto"
+            variant="success"
+            className="text-base sm:text-lg px-6 sm:px-8 w-full sm:w-auto"
             onClick={() => scrollToSection("precos")}
           >
             Começar agora

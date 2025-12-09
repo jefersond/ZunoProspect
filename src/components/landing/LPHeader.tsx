@@ -42,7 +42,7 @@ export function LPHeader() {
             <Button variant="ghost" size="sm" asChild>
               <a href="/auth?tab=login">Entrar</a>
             </Button>
-            <Button size="sm" onClick={() => scrollToSection("precos")}>
+            <Button size="sm" variant="success" onClick={() => scrollToSection("precos")}>
               Começar
             </Button>
           </div>
@@ -76,7 +76,7 @@ export function LPHeader() {
                     <Button variant="outline" className="w-full" asChild>
                       <a href="/auth?tab=login">Entrar</a>
                     </Button>
-                    <Button className="w-full" onClick={() => scrollToSection("precos")}>
+                    <Button className="w-full" variant="success" onClick={() => scrollToSection("precos")}>
                       Começar agora
                     </Button>
                   </div>

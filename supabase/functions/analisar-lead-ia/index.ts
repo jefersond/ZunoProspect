@@ -378,7 +378,7 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string): Promise<
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-06-05:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -466,7 +466,7 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string): Promise<
       throw new Error("Plano deve ter exatamente 7 dias");
     }
 
-    console.log("✅ Análise gerada com sucesso via Gemini 2.5 Pro (direto)");
+    console.log("✅ Análise gerada com sucesso via Gemini 2.0 Flash");
     return analise;
 
   } catch (error: any) {

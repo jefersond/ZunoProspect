@@ -372,32 +372,6 @@ const Auth = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Google Login Button */}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full flex items-center justify-center gap-2"
-                    onClick={handleGoogleLogin}
-                    disabled={googleLoading || loading}
-                  >
-                    {googleLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <GoogleIcon />
-                    )}
-                    Continuar com Google
-                  </Button>
-
-                  {/* Divider */}
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t border-border" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-card px-2 text-muted-foreground">ou</span>
-                    </div>
-                  </div>
-
                   <form onSubmit={handleSignIn} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="login-email">Email</Label>
@@ -457,32 +431,6 @@ const Auth = () => {
             
             <TabsContent value="signup">
               <div className="space-y-4">
-                {/* Google Signup Button */}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full flex items-center justify-center gap-2"
-                  onClick={handleGoogleLogin}
-                  disabled={googleLoading || loading}
-                >
-                  {googleLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <GoogleIcon />
-                  )}
-                  Continuar com Google
-                </Button>
-
-                {/* Divider */}
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">ou</span>
-                  </div>
-                </div>
-
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signup-fullname">Nome Completo</Label>

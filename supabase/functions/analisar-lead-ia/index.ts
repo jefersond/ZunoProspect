@@ -544,6 +544,8 @@ async function analyzeWithOpenAI(lead: LeadData, apiKey: string): Promise<Analis
     clearTimeout(timeoutId);
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`OpenAI API error: ${response.status}`, errorText);
       throw new Error(`OpenAI error: ${response.status}`);
     }
 

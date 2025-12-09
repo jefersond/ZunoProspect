@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2, XCircle, ArrowLeft } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Progress } from "@/components/ui/progress";
 import { z } from "zod";
@@ -45,8 +45,9 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [signupPassword, setSignupPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [activeTab, setActiveTab] = useState<string>("login");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [resetEmailSent, setResetEmailSent] = useState(false);
@@ -209,16 +210,6 @@ const Auth = () => {
       return;
     }
 
-    // Validação de confirmação de senha
-    if (password !== confirmPassword) {
-      toast({
-        variant: "destructive",
-        title: "Senhas não coincidem",
-        description: "A senha e a confirmação devem ser iguais"
-      });
-      setLoading(false);
-      return;
-    }
     const {
       data,
       error
@@ -250,7 +241,6 @@ const Auth = () => {
       });
       // Limpar campos
       setSignupPassword("");
-      setConfirmPassword("");
       // Redirecionar para aba de login
       setActiveTab("login");
     }
@@ -424,7 +414,23 @@ const Auth = () => {
                         Esqueci minha senha
                       </button>
                     </div>
-                    <Input id="login-password" name="password" type="password" placeholder="••••••••" required />
+                    <div className="relative">
+                      <Input 
+                        id="login-password" 
+                        name="password" 
+                        type={showLoginPassword ? "text" : "password"} 
+                        placeholder="••••••••" 
+                        required 
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     <input
@@ -488,10 +494,28 @@ const Auth = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Senha</Label>
-                  <Input id="signup-password" name="password" type="password" placeholder="••••••••" required value={signupPassword} onChange={e => {
-                  setSignupPassword(e.target.value);
-                  validatePasswordStrength(e.target.value);
-                }} />
+                  <div className="relative">
+                    <Input 
+                      id="signup-password" 
+                      name="password" 
+                      type={showPassword ? "text" : "password"} 
+                      placeholder="••••••••" 
+                      required 
+                      value={signupPassword} 
+                      onChange={e => {
+                        setSignupPassword(e.target.value);
+                        validatePasswordStrength(e.target.value);
+                      }}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                   
                   {signupPassword && <div className="space-y-2 mt-2">
                       <div className="flex items-center justify-between text-sm">
@@ -531,18 +555,6 @@ const Auth = () => {
                         </div>
                       </div>
                     </div>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-confirm-password">Confirmar Senha</Label>
-                  <Input id="signup-confirm-password" name="confirmPassword" type="password" placeholder="••••••••" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
-                  {confirmPassword && signupPassword !== confirmPassword && <p className="text-sm text-destructive flex items-center gap-1">
-                      <XCircle className="h-4 w-4" />
-                      As senhas não coincidem
-                    </p>}
-                  {confirmPassword && signupPassword === confirmPassword && <p className="text-sm text-green-500 flex items-center gap-1">
-                      <CheckCircle2 className="h-4 w-4" />
-                      As senhas coincidem
-                    </p>}
                 </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? <>

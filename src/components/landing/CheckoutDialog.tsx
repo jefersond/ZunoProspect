@@ -248,7 +248,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nome || !email || !cpf) { toast.error("Preencha todos os campos obrigatórios"); return; }
+    if (!nome || !email) { toast.error("Preencha todos os campos obrigatórios"); return; }
     if (metodoPagamento === "pix") { await handleGeneratePix(); return; }
     if (metodoPagamento === "cartao" && (!cardNumber || !cardExpiry || !cardCvv)) { toast.error("Preencha todos os dados do cartão"); return; }
     
@@ -381,14 +381,6 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
                 <Input id="confirmarSenha" type="password" placeholder="Repita a senha" value={confirmarSenha} onChange={e => setConfirmarSenha(e.target.value)} required />
                 {confirmarSenha && senha !== confirmarSenha && <p className="text-xs text-red-500">As senhas não coincidem</p>}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="cpf">CPF *</Label>
-                <Input id="cpf" placeholder="000.000.000-00" value={cpf} onChange={e => setCpf(formatCPF(e.target.value))} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="whatsapp">WhatsApp *</Label>
-                <Input id="whatsapp" placeholder="(11) 99999-9999" value={whatsapp} onChange={e => setWhatsapp(formatWhatsapp(e.target.value))} maxLength={15} required />
-              </div>
             </div>
 
             {!plano.gratuito && (
@@ -429,8 +421,18 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
                 )}
 
                 {metodoPagamento === "pix" && (
-                  <div className="p-4 bg-secondary/50 rounded-lg border border-border/50">
-                    <p className="text-sm text-muted-foreground">O QR Code PIX será exibido na tela para pagamento imediato.</p>
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="space-y-2">
+                      <Label htmlFor="cpf">CPF *</Label>
+                      <Input id="cpf" placeholder="000.000.000-00" value={cpf} onChange={e => setCpf(formatCPF(e.target.value))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="whatsapp">WhatsApp *</Label>
+                      <Input id="whatsapp" placeholder="(11) 99999-9999" value={whatsapp} onChange={e => setWhatsapp(formatWhatsapp(e.target.value))} maxLength={15} />
+                    </div>
+                    <div className="p-4 bg-secondary/50 rounded-lg border border-border/50">
+                      <p className="text-sm text-muted-foreground">O QR Code PIX será exibido na tela para pagamento imediato.</p>
+                    </div>
                   </div>
                 )}
               </div>

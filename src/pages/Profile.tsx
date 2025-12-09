@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
-import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink } from "lucide-react";
+import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink, Kanban } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
@@ -181,6 +181,10 @@ const Profile = () => {
                 <Button variant="ghost" size="sm" onClick={() => navigate("/leads-salvos")} className="gap-2">
                   <Bookmark className="h-4 w-4" />
                   <span className="hidden sm:inline">Salvos</span>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/pipeline")} className="gap-2">
+                  <Kanban className="h-4 w-4" />
+                  <span className="hidden sm:inline">Pipeline</span>
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
                   <BarChart3 className="h-4 w-4" />

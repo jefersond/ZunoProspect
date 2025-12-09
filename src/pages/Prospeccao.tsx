@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ProspeccaoForm } from "@/components/prospeccao/ProspeccaoForm";
 import { LeadsList } from "@/components/prospeccao/LeadsList";
-import { LogOut, Search, User, BarChart3, FileText, History, Bookmark } from "lucide-react";
+import { LogOut, Search, User, BarChart3, FileText, History, Bookmark, Kanban } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
@@ -104,6 +104,10 @@ const Prospeccao = () => {
                 <Button variant="ghost" size="sm" onClick={() => navigate("/leads-salvos")} className="gap-2">
                   <Bookmark className="h-4 w-4" />
                   <span className="hidden sm:inline">Salvos</span>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/pipeline")} className="gap-2">
+                  <Kanban className="h-4 w-4" />
+                  <span className="hidden sm:inline">Pipeline</span>
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => navigate("/templates")} className="gap-2">
                   <FileText className="h-4 w-4" />

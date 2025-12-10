@@ -54,6 +54,7 @@ serve(async (req) => {
     const GOOGLE_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY");
     
     let leads = [];
+    let totalAvailable = 0; // Total de leads disponíveis ANTES de limitar
 
     // Se não houver API key, retorna dados mockados para teste de UI
     if (!GOOGLE_API_KEY) {
@@ -76,6 +77,7 @@ serve(async (req) => {
       }));
 
       leads = mockLeads;
+      totalAvailable = mockLeads.length;
     } else {
       // Busca real com Google Places API
       if (body.proximidadeAtiva && body.raioKm) {
@@ -121,6 +123,9 @@ serve(async (req) => {
         const nearbyData = await nearbyResponse.json();
 
       if (nearbyData.status === "OK") {
+          // Guarda o total de resultados disponíveis ANTES de limitar
+          totalAvailable = nearbyData.results.length;
+          
           // Se for busca incremental, pega TODOS os resultados (até 20) para filtrar depois
           // Se não, pega apenas a quantidade solicitada
           leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
@@ -153,6 +158,9 @@ serve(async (req) => {
         const textData = await textResponse.json();
 
         if (textData.status === "OK") {
+          // Guarda o total de resultados disponíveis ANTES de limitar
+          totalAvailable = textData.results.length;
+          
           // Se for busca incremental, pega TODOS os resultados (até 20) para filtrar depois
           // Se não, pega apenas a quantidade solicitada
           leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
@@ -170,7 +178,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Encontrados ${leads.length} leads antes do filtro`);
+    console.log(`Encontrados ${leads.length} leads antes do filtro (total disponível: ${totalAvailable})`);
     
     // Filtra leads que já existem (busca incremental)
     const excludePlaceIds = body.excludePlaceIds || [];
@@ -185,7 +193,10 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             error: "Nenhum lead novo encontrado. O Google retornou os mesmos resultados da busca anterior. Tente aumentar o raio de busca ou modificar os termos.",
-            leadsCount: 0 
+            leadsCount: 0,
+            totalAvailable: 0,
+            limitedByQuota: false,
+            additionalLeadsAvailable: 0,
           }),
           {
             status: 200,
@@ -195,8 +206,30 @@ serve(async (req) => {
       }
     }
     
-    // Limita ao número solicitado após filtrar duplicados
-    leads = leads.slice(0, body.quantidade);
+    // Verificar quota do usuário ANTES de processar
+    const { data: subscriptionData } = await supabaseClient.rpc('get_subscription_info', {
+      p_user_id: user.id
+    });
+    
+    const userQuota = subscriptionData?.[0]?.leads_remaining ?? body.quantidade;
+    const isUnlimited = subscriptionData?.[0]?.leads_limit === -1;
+    
+    // Calcula quantos leads podem ser processados
+    const leadsAfterFilter = leads.length;
+    const maxLeadsToProcess = isUnlimited ? body.quantidade : Math.min(body.quantidade, userQuota);
+    const limitedByQuota = !isUnlimited && leadsAfterFilter > userQuota && userQuota < body.quantidade;
+    
+    console.log(`Quota do usuário: ${isUnlimited ? 'ilimitado' : userQuota} | Leads após filtro: ${leadsAfterFilter} | Será processado: ${Math.min(leadsAfterFilter, maxLeadsToProcess)}`);
+    
+    // Limita ao número que pode processar (considerando quota)
+    leads = leads.slice(0, maxLeadsToProcess);
+    
+    // Calcula leads adicionais disponíveis (incentivo para upgrade)
+    const additionalLeadsAvailable = limitedByQuota ? Math.max(0, totalAvailable - leads.length) : 0;
+    
+    if (additionalLeadsAvailable > 0) {
+      console.log(`🎯 ${additionalLeadsAvailable} leads adicionais disponíveis além da cota do usuário!`);
+    }
 
     // Função para analisar o HTML do site e extrair sinais digitais
     async function analyzeSiteHTML(websiteUrl: string) {
@@ -467,38 +500,55 @@ serve(async (req) => {
     // Extrai apenas os resultados dos leads para retorno
     const leadsDetails = leadsWithAnalysis.map(item => item.leadResult);
 
-    // Processa análises de IA sequencialmente ANTES de retornar resposta
-    // Isso garante que 100% dos leads recebam análise de IA
-    const DELAY_BETWEEN_ANALYSES_MS = 2000; // 2 segundos entre cada análise
+    // ============================================
+    // PROCESSAMENTO PARALELO DE ANÁLISES IA (3x mais rápido)
+    // ============================================
+    const AI_BATCH_SIZE = 3; // 3 análises simultâneas
+    const DELAY_BETWEEN_BATCHES_MS = 1000; // 1 segundo entre lotes
     
-    console.log(`📊 Processando ${leadsWithAnalysis.length} análises de IA (aguardando conclusão de todas)...`);
+    console.log(`📊 Processando ${leadsWithAnalysis.length} análises de IA em lotes de ${AI_BATCH_SIZE} (paralelo)...`);
     
-    // Executa análises sequencialmente e AGUARDA conclusão
-    for (let i = 0; i < leadsWithAnalysis.length; i++) {
-      const item = leadsWithAnalysis[i];
-      if (item.scheduleAnalysis) {
-        // Aguarda delay entre análises (exceto a primeira) para evitar rate limiting
-        if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_ANALYSES_MS));
+    // Processa análises em lotes paralelos
+    for (let i = 0; i < leadsWithAnalysis.length; i += AI_BATCH_SIZE) {
+      const batch = leadsWithAnalysis.slice(i, i + AI_BATCH_SIZE);
+      const batchNumber = Math.floor(i / AI_BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(leadsWithAnalysis.length / AI_BATCH_SIZE);
+      
+      console.log(`🔄 Processando lote ${batchNumber}/${totalBatches} (${batch.length} análises em paralelo)...`);
+      
+      // Executa lote em PARALELO
+      const batchPromises = batch.map(async (item, idx) => {
+        if (item.scheduleAnalysis) {
+          try {
+            await item.scheduleAnalysis();
+            console.log(`✅ Análise ${i + idx + 1}/${leadsWithAnalysis.length} concluída.`);
+          } catch (err) {
+            console.error(`❌ Erro na análise ${i + idx + 1}/${leadsWithAnalysis.length}:`, err);
+          }
         }
-        
-        console.log(`🔄 Processando análise ${i + 1}/${leadsWithAnalysis.length}...`);
-        try {
-          await item.scheduleAnalysis();
-          console.log(`✅ Análise ${i + 1}/${leadsWithAnalysis.length} concluída.`);
-        } catch (err) {
-          console.error(`❌ Erro na análise ${i + 1}/${leadsWithAnalysis.length}:`, err);
-        }
+      });
+      
+      await Promise.all(batchPromises);
+      
+      // Delay apenas ENTRE lotes (não entre análises do mesmo lote)
+      if (i + AI_BATCH_SIZE < leadsWithAnalysis.length) {
+        console.log(`⏳ Aguardando ${DELAY_BETWEEN_BATCHES_MS/1000}s antes do próximo lote...`);
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
       }
     }
-    console.log(`✅ Todas as ${leadsWithAnalysis.length} análises de IA foram processadas.`);
+    
+    console.log(`✅ Todas as ${leadsWithAnalysis.length} análises de IA foram processadas em paralelo!`);
 
     return new Response(
       JSON.stringify({
         success: true,
         leadsCount: leadsDetails.length,
         leads: leadsDetails,
-        hasMore: leads.length >= body.quantidade, // Indica se provavelmente há mais resultados
+        hasMore: leads.length >= body.quantidade,
+        // Campos para incentivo de upgrade
+        totalAvailable,
+        limitedByQuota,
+        additionalLeadsAvailable,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,0 +1,78 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Crown, Sparkles, TrendingUp, X } from "lucide-react";
+import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
+
+interface UpgradeIncentiveProps {
+  additionalLeads: number;
+  totalAvailable: number;
+  currentPlanName?: string;
+}
+
+export const UpgradeIncentive = ({
+  additionalLeads,
+  totalAvailable,
+  currentPlanName = "starter",
+}: UpgradeIncentiveProps) => {
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  if (dismissed || additionalLeads <= 0) {
+    return null;
+  }
+
+  const suggestedPlan = currentPlanName === "starter" ? "pro" : "agencia";
+  const planLabel = suggestedPlan === "pro" ? "Pro" : "Agência";
+
+  return (
+    <>
+      <div className="relative p-4 bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 border border-primary/20 rounded-lg animate-in fade-in slide-in-from-top-2 duration-500">
+        {/* Dismiss button */}
+        <button
+          onClick={() => setDismissed(true)}
+          className="absolute top-2 right-2 p-1 rounded-full hover:bg-muted/50 transition-colors"
+          aria-label="Dispensar"
+        >
+          <X className="h-4 w-4 text-muted-foreground" />
+        </button>
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          {/* Icon */}
+          <div className="flex-shrink-0 p-3 bg-primary/20 rounded-full">
+            <Sparkles className="h-6 w-6 text-primary" />
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-emerald-500" />
+              <span className="font-semibold text-foreground">
+                +{additionalLeads} leads disponíveis nesta busca!
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Encontramos <span className="font-medium text-foreground">{totalAvailable} leads</span> no total, 
+              mas sua cota atual permitiu buscar apenas uma parte. 
+              Faça upgrade para desbloquear todos os leads.
+            </p>
+          </div>
+
+          {/* CTA Button */}
+          <Button
+            onClick={() => setShowUpgradeDialog(true)}
+            variant="success"
+            className="flex-shrink-0 gap-2 shadow-lg shadow-emerald-500/25"
+          >
+            <Crown className="h-4 w-4" />
+            Upgrade para {planLabel}
+          </Button>
+        </div>
+      </div>
+
+      <UpgradePlanDialog
+        open={showUpgradeDialog}
+        onOpenChange={setShowUpgradeDialog}
+      />
+    </>
+  );
+};

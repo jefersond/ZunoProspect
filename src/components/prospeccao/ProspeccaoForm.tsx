@@ -16,6 +16,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { Loader2, Search, Mail, MessageCircle, Instagram, AlertTriangle } from "lucide-react";
 import { SearchProgress } from "./SearchProgress";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
+import { UpgradeIncentive } from "@/components/subscription/UpgradeIncentive";
 
 const formSchema = z.object({
   cidade: z.string().min(1, "Cidade é obrigatória"),
@@ -41,6 +42,12 @@ export const ProspeccaoForm = () => {
   const [lastSearchParams, setLastSearchParams] = useState<FormData | null>(null);
   const [showRepeatButton, setShowRepeatButton] = useState(false);
   const [isIncremental, setIsIncremental] = useState(false);
+  
+  // Estado para incentivo de upgrade
+  const [upgradeIncentive, setUpgradeIncentive] = useState<{
+    additionalLeads: number;
+    totalAvailable: number;
+  } | null>(null);
 
   const {
     register,
@@ -80,6 +87,7 @@ export const ProspeccaoForm = () => {
     // Salva os parâmetros da pesquisa
     setLastSearchParams(data);
     setShowRepeatButton(false);
+    setUpgradeIncentive(null); // Limpa incentivo anterior
     
     setLoading(true);
     setCurrentStep(1);
@@ -177,6 +185,14 @@ export const ProspeccaoForm = () => {
         variant: leadsCount > 0 ? "default" : "destructive"
       });
 
+      // Verifica se há leads adicionais disponíveis (incentivo de upgrade)
+      if (responseData?.limitedByQuota && responseData?.additionalLeadsAvailable > 0) {
+        setUpgradeIncentive({
+          additionalLeads: responseData.additionalLeadsAvailable,
+          totalAvailable: responseData.totalAvailable,
+        });
+      }
+
       // Salva a busca no histórico (apenas se houver leads com ID válido)
       try {
         const firstLeadId = responseData?.leads?.[0]?.id;
@@ -246,6 +262,7 @@ export const ProspeccaoForm = () => {
       runSearch(lastSearchParams, true);
     }
   };
+
   return (
     <Card className="shadow-lg border-primary/10">
       <CardHeader>
@@ -263,6 +280,17 @@ export const ProspeccaoForm = () => {
         </div>
       </CardHeader>
       <CardContent>
+        {/* Incentivo de upgrade */}
+        {upgradeIncentive && (
+          <div className="mb-6">
+            <UpgradeIncentive
+              additionalLeads={upgradeIncentive.additionalLeads}
+              totalAvailable={upgradeIncentive.totalAvailable}
+              currentPlanName={subscription?.plan_name}
+            />
+          </div>
+        )}
+
         {/* Aviso de limite */}
         {isAtLimit && (
           <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg flex items-start gap-3">
@@ -275,6 +303,7 @@ export const ProspeccaoForm = () => {
             </div>
           </div>
         )}
+
         {loading && currentStep > 0 && (
           <div className="mb-6">
             <SearchProgress

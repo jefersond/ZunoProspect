@@ -13,7 +13,7 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
-import { Loader2, Search, Mail, MessageCircle, Instagram, AlertTriangle } from "lucide-react";
+import { Loader2, Search, Mail, MessageCircle, Instagram } from "lucide-react";
 import { SearchProgress } from "./SearchProgress";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
 import { UpgradeIncentive } from "@/components/subscription/UpgradeIncentive";
@@ -291,16 +291,14 @@ export const ProspeccaoForm = () => {
           </div>
         )}
 
-        {/* Aviso de limite */}
-        {isAtLimit && (
-          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-medium text-destructive">Limite de leads atingido</p>
-              <p className="text-sm text-muted-foreground">
-                Você usou todos os seus {subscription?.leads_limit} leads este mês. Faça upgrade do seu plano para continuar prospectando.
-              </p>
-            </div>
+        {/* Aviso de limite com incentivo de upgrade */}
+        {isAtLimit && !upgradeIncentive && (
+          <div className="mb-6">
+            <UpgradeIncentive
+              additionalLeads={subscription?.leads_limit || 10}
+              totalAvailable={(subscription?.leads_limit || 10) * 10}
+              currentPlanName={subscription?.plan_name}
+            />
           </div>
         )}
 

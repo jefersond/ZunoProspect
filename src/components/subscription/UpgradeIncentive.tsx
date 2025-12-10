@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Crown, Sparkles, TrendingUp, X } from "lucide-react";
+import { Sparkles, TrendingUp, X, ArrowRight } from "lucide-react";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 
 interface UpgradeIncentiveProps {
@@ -26,7 +26,7 @@ export const UpgradeIncentive = ({
 
   return (
     <>
-      <div className="relative p-4 bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 border border-primary/20 rounded-lg animate-in fade-in slide-in-from-top-2 duration-500">
+      <div className="relative p-4 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-emerald-500/10 border border-emerald-500/20 rounded-lg animate-in fade-in slide-in-from-top-2 duration-500">
         {/* Dismiss button */}
         <button
           onClick={() => setDismissed(true)}
@@ -38,8 +38,8 @@ export const UpgradeIncentive = ({
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           {/* Icon */}
-          <div className="flex-shrink-0 p-3 bg-primary/20 rounded-full">
-            <Sparkles className="h-6 w-6 text-primary" />
+          <div className="flex-shrink-0 p-3 bg-emerald-500/20 rounded-full">
+            <Sparkles className="h-6 w-6 text-emerald-500" />
           </div>
 
           {/* Content */}
@@ -57,14 +57,13 @@ export const UpgradeIncentive = ({
             </p>
           </div>
 
-          {/* CTA Button */}
+          {/* CTA Button - Emerald style with arrow */}
           <Button
             onClick={() => setShowUpgradeDialog(true)}
-            variant="success"
-            className="flex-shrink-0 gap-2 shadow-lg shadow-emerald-500/25"
+            className="flex-shrink-0 gap-2 bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/25"
           >
-            <Crown className="h-4 w-4" />
             Upgrade para {planLabel}
+            <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
       </div>

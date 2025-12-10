@@ -58,12 +58,25 @@ export const ProspeccaoForm = () => {
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      quantidade: 20,
+      quantidade: 10, // Começa com 10 (limite do plano starter)
       proximidadeAtiva: false,
       raioKm: 5,
       canaisProspeccao: ["email", "whatsapp", "instagram"],
     },
   });
+
+  // Ajusta quantidade padrão baseado no plano do usuário
+  useEffect(() => {
+    if (subscription && subscription.leads_remaining !== undefined) {
+      const maxAllowed = subscription.leads_limit === -1 ? 100 : subscription.leads_remaining;
+      const currentQuantidade = watch("quantidade");
+      
+      // Se quantidade atual é maior que o permitido, ajusta
+      if (currentQuantidade > maxAllowed && maxAllowed > 0) {
+        setValue("quantidade", Math.min(20, maxAllowed));
+      }
+    }
+  }, [subscription, setValue, watch]);
 
   const foco = watch("foco");
   const canaisProspeccao = watch("canaisProspeccao");
@@ -74,12 +87,12 @@ export const ProspeccaoForm = () => {
   const isAtLimit = subscription && subscription.leads_limit !== -1 && subscription.leads_remaining <= 0;
 
   const runSearch = async (data: FormData, isIncrementalSearch: boolean) => {
-    // Verifica limite antes de buscar
-    if (!canUseLeads(data.quantidade)) {
+    // Verifica se tem pelo menos 1 lead disponível
+    if (!canUseLeads(1)) {
       toast({
         variant: "destructive",
         title: "Limite de leads atingido",
-        description: `Você só pode buscar mais ${subscription?.leads_remaining || 0} leads este mês. Faça upgrade do seu plano para continuar.`,
+        description: "Você atingiu seu limite de leads este mês. Faça upgrade do seu plano para continuar prospectando.",
       });
       return;
     }
@@ -380,12 +393,19 @@ export const ProspeccaoForm = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="quantidade">Quantidade de leads</Label>
+              <Label htmlFor="quantidade">
+                Quantidade de leads
+                {subscription && subscription.leads_limit !== -1 && (
+                  <span className="text-xs text-muted-foreground ml-2">
+                    (máx: {subscription.leads_remaining})
+                  </span>
+                )}
+              </Label>
               <Input
                 id="quantidade"
                 type="number"
                 min="1"
-                max="100"
+                max={subscription?.leads_limit === -1 ? 100 : Math.min(100, subscription?.leads_remaining || 100)}
                 {...register("quantidade", { valueAsNumber: true })}
               />
               {errors.quantidade && (

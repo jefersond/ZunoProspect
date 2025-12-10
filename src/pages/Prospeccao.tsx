@@ -124,13 +124,13 @@ const Prospeccao = () => {
                 </Button>
               </nav>
 
-              {/* Botão de Upgrade - aparece quando limite é atingido */}
-              {isAtLimit && !isAdmin && (
+              {/* Botão de Upgrade - sempre visível para usuários não-Agência */}
+              {subscription?.plan_name !== "agencia" && !isAdmin && (
                 <Button 
                   variant="default" 
-                  size="sm" 
+                  size="default" 
                   onClick={() => setShowUpgradeDialog(true)} 
-                  className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse mr-2"
+                  className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/30 ring-2 ring-emerald-500/20 mr-2"
                 >
                   <Zap className="h-4 w-4" />
                   <span className="hidden sm:inline">Fazer Upgrade</span>

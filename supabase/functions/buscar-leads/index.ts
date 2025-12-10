@@ -363,7 +363,8 @@ serve(async (req) => {
           
           // Insere no banco usando colunas criptografadas
           // IMPORTANTE: Dados sensíveis são criptografados no banco
-          const { error: insertError } = await supabaseClient.rpc('insert_lead_with_encryption', {
+          // A função RPC retorna o UUID do lead diretamente
+          const { data: leadId, error: insertError } = await supabaseClient.rpc('insert_lead_with_encryption', {
             p_nome: details.name,
             p_endereco: details.formatted_address,
             p_telefone: details.formatted_phone_number || null,
@@ -393,17 +394,9 @@ serve(async (req) => {
             return null;
           }
 
-          // Busca o lead recém-criado para obter o ID
-          const { data: leadData, error: selectError } = await supabaseClient
-            .from("leads")
-            .select("id")
-            .eq("google_place_id", place.place_id)
-            .eq("user_id", user.id)
-            .single();
-
-          if (selectError || !leadData) {
-            console.error("Erro ao buscar ID do lead:", selectError);
-          }
+          // leadId já contém o UUID diretamente do RETURNING da RPC
+          const leadData = { id: leadId };
+          console.log(`✅ Lead inserido com ID: ${leadId}`);
 
           // Agenda análise de IA em background com retry e rate limiting
           const scheduleAnalysisWithRetry = async (retries = 3) => {
@@ -501,10 +494,10 @@ serve(async (req) => {
     const leadsDetails = leadsWithAnalysis.map(item => item.leadResult);
 
     // ============================================
-    // PROCESSAMENTO PARALELO DE ANÁLISES IA (3x mais rápido)
+    // PROCESSAMENTO PARALELO DE ANÁLISES IA (5x mais rápido)
     // ============================================
-    const AI_BATCH_SIZE = 3; // 3 análises simultâneas
-    const DELAY_BETWEEN_BATCHES_MS = 1000; // 1 segundo entre lotes
+    const AI_BATCH_SIZE = 5; // 5 análises simultâneas
+    const DELAY_BETWEEN_BATCHES_MS = 500; // 0.5 segundo entre lotes
     
     console.log(`📊 Processando ${leadsWithAnalysis.length} análises de IA em lotes de ${AI_BATCH_SIZE} (paralelo)...`);
     

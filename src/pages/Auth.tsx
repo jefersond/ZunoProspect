@@ -235,14 +235,24 @@ const Auth = () => {
         content_name: 'Free Account',
         status: 'success'
       });
-      toast({
-        title: "Conta criada com sucesso!",
-        description: "Você já pode fazer login."
-      });
-      // Limpar campos
-      setSignupPassword("");
-      // Redirecionar para aba de login
-      setActiveTab("login");
+      
+      // Verificar se já existe sessão (auto-confirm ativado)
+      if (data.session) {
+        toast({
+          title: "Bem-vindo ao Zuno Propect!",
+          description: "Sua conta foi criada com sucesso."
+        });
+        // Login automático - redireciona direto para o app
+        navigate("/prospeccao");
+      } else {
+        // Fallback caso auto-confirm esteja desativado
+        toast({
+          title: "Conta criada com sucesso!",
+          description: "Verifique seu email para confirmar a conta."
+        });
+        setSignupPassword("");
+        setActiveTab("login");
+      }
     }
     setLoading(false);
   };

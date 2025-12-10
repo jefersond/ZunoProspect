@@ -467,28 +467,31 @@ serve(async (req) => {
     // Extrai apenas os resultados dos leads para retorno
     const leadsDetails = leadsWithAnalysis.map(item => item.leadResult);
 
-    // Agenda análises de IA com delay progressivo (rate limiting)
-    // Executa em background para não bloquear a resposta
-    const DELAY_BETWEEN_ANALYSES_MS = 3000; // 3 segundos entre cada análise
+    // Processa análises de IA sequencialmente ANTES de retornar resposta
+    // Isso garante que 100% dos leads recebam análise de IA
+    const DELAY_BETWEEN_ANALYSES_MS = 2000; // 2 segundos entre cada análise
     
-    console.log(`📊 Agendando ${leadsWithAnalysis.length} análises de IA com delay de ${DELAY_BETWEEN_ANALYSES_MS/1000}s entre cada...`);
+    console.log(`📊 Processando ${leadsWithAnalysis.length} análises de IA (aguardando conclusão de todas)...`);
     
-    // Executa análises sequencialmente em background
-    (async () => {
-      for (let i = 0; i < leadsWithAnalysis.length; i++) {
-        const item = leadsWithAnalysis[i];
-        if (item.scheduleAnalysis) {
-          // Aguarda delay progressivo antes de cada análise (exceto a primeira)
-          if (i > 0) {
-            await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_ANALYSES_MS));
-          }
-          
-          console.log(`🔄 Iniciando análise ${i + 1}/${leadsWithAnalysis.length}...`);
+    // Executa análises sequencialmente e AGUARDA conclusão
+    for (let i = 0; i < leadsWithAnalysis.length; i++) {
+      const item = leadsWithAnalysis[i];
+      if (item.scheduleAnalysis) {
+        // Aguarda delay entre análises (exceto a primeira) para evitar rate limiting
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_ANALYSES_MS));
+        }
+        
+        console.log(`🔄 Processando análise ${i + 1}/${leadsWithAnalysis.length}...`);
+        try {
           await item.scheduleAnalysis();
+          console.log(`✅ Análise ${i + 1}/${leadsWithAnalysis.length} concluída.`);
+        } catch (err) {
+          console.error(`❌ Erro na análise ${i + 1}/${leadsWithAnalysis.length}:`, err);
         }
       }
-      console.log(`✅ Todas as ${leadsWithAnalysis.length} análises de IA foram processadas.`);
-    })().catch(err => console.error("Erro no processamento sequencial de análises:", err));
+    }
+    console.log(`✅ Todas as ${leadsWithAnalysis.length} análises de IA foram processadas.`);
 
     return new Response(
       JSON.stringify({

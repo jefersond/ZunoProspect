@@ -19,11 +19,13 @@ import { LeadPlanDialog } from "./LeadPlanDialog";
 import { Progress } from "@/components/ui/progress";
 import { exportLeadsToExcel } from "@/utils/exportToExcel";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
+import { UpsellCard } from "./UpsellCard";
 
 export const LeadsList = () => {
   const { toast } = useToast();
   const [leads, setLeads] = useState<LeadProspeccao[]>([]);
   const [lockedLeads, setLockedLeads] = useState<LeadProspeccao[]>([]);
+  const [totalLocked, setTotalLocked] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -197,7 +199,10 @@ export const LeadsList = () => {
     
     // Listener para receber leads bloqueados
     const handleSetLockedLeads = (event: CustomEvent<{ lockedLeads: any[], totalLocked: number }>) => {
-      const { lockedLeads: locked, totalLocked } = event.detail;
+      const { lockedLeads: locked, totalLocked: total } = event.detail;
+      // Salva o número real de leads ocultos
+      setTotalLocked(total || 0);
+      
       if (locked && locked.length > 0) {
         // Transforma os leads bloqueados no formato correto
         const formattedLocked = locked.map((lead: any) => ({
@@ -240,8 +245,7 @@ export const LeadsList = () => {
           porte_empresa: null,
           cnae_principal: null,
           isLocked: true,
-          _totalLocked: totalLocked, // Guarda o total para exibir no overlay
-        } as LeadProspeccao & { _totalLocked?: number }));
+        } as LeadProspeccao));
         setLockedLeads(formattedLocked);
       } else {
         setLockedLeads([]);
@@ -757,7 +761,7 @@ export const LeadsList = () => {
                                 </div>
                               </div>
                               <h3 className="text-lg font-semibold">
-                                +{(lockedLeads[0] as any)?._totalLocked || lockedLeads.length} leads disponíveis
+                                +{totalLocked || lockedLeads.length} leads disponíveis
                               </h3>
                               <p className="text-sm text-muted-foreground">
                                 Encontramos mais empresas nesta busca! Faça upgrade para desbloquear todos os leads.
@@ -783,6 +787,12 @@ export const LeadsList = () => {
           </ScrollArea>
         </CardContent>
       </Card>
+
+      {/* Card de Upsell por Quantidade Real */}
+      <UpsellCard 
+        leadsOcultos={totalLocked} 
+        onUpgrade={() => setShowUpgradeDialog(true)} 
+      />
 
       <LeadPlanDialog
         lead={selectedLead}

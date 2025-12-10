@@ -216,16 +216,21 @@ serve(async (req) => {
     
     // Calcula quantos leads podem ser processados
     const leadsAfterFilter = leads.length;
-    const maxLeadsToProcess = isUnlimited ? body.quantidade : Math.min(body.quantidade, userQuota);
-    const limitedByQuota = !isUnlimited && leadsAfterFilter > userQuota && userQuota < body.quantidade;
+    const maxLeadsToProcess = isUnlimited ? body.quantidade : Math.min(body.quantidade, Math.max(0, userQuota));
+    const limitedByQuota = !isUnlimited && (leadsAfterFilter > userQuota || userQuota <= 0);
     
     console.log(`Quota do usuário: ${isUnlimited ? 'ilimitado' : userQuota} | Leads após filtro: ${leadsAfterFilter} | Será processado: ${Math.min(leadsAfterFilter, maxLeadsToProcess)}`);
     
-    // Limita ao número que pode processar (considerando quota)
-    leads = leads.slice(0, maxLeadsToProcess);
+    // Separa leads desbloqueados e bloqueados (para mostrar preview com blur)
+    const unlockedLeads = leads.slice(0, maxLeadsToProcess);
+    const lockedLeadsPreview = leads.slice(maxLeadsToProcess, maxLeadsToProcess + 5); // Até 5 leads como preview
+    
+    // Atualiza leads para processar apenas os desbloqueados
+    leads = unlockedLeads;
     
     // Calcula leads adicionais disponíveis (incentivo para upgrade)
-    const additionalLeadsAvailable = limitedByQuota ? Math.max(0, totalAvailable - leads.length) : 0;
+    const additionalLeadsAvailable = limitedByQuota ? Math.max(0, leadsAfterFilter - unlockedLeads.length) : 0;
+    const lockedLeadsCount = lockedLeadsPreview.length;
     
     if (additionalLeadsAvailable > 0) {
       console.log(`🎯 ${additionalLeadsAvailable} leads adicionais disponíveis além da cota do usuário!`);
@@ -532,16 +537,31 @@ serve(async (req) => {
     
     console.log(`✅ Todas as ${leadsWithAnalysis.length} análises de IA foram processadas em paralelo!`);
 
+    // Prepara preview dos leads bloqueados (dados básicos apenas, sem processar)
+    const lockedLeadsData = lockedLeadsPreview.map((place: any) => ({
+      id: `locked_${place.place_id}`,
+      nome: place.name,
+      endereco: place.formatted_address || place.vicinity || '',
+      cidade: body.cidade,
+      nicho: body.nicho,
+      foco: body.foco,
+      rating: place.rating || null,
+      total_reviews: place.user_ratings_total || 0,
+      isLocked: true,
+    }));
+
     return new Response(
       JSON.stringify({
         success: true,
         leadsCount: leadsDetails.length,
         leads: leadsDetails,
+        lockedLeads: lockedLeadsData, // Preview dos leads bloqueados
         hasMore: leads.length >= body.quantidade,
         // Campos para incentivo de upgrade
-        totalAvailable,
+        totalAvailable: leadsAfterFilter,
         limitedByQuota,
         additionalLeadsAvailable,
+        lockedLeadsCount: additionalLeadsAvailable,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

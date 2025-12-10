@@ -204,6 +204,21 @@ export const ProspeccaoForm = () => {
           additionalLeads: responseData.additionalLeadsAvailable,
           totalAvailable: responseData.totalAvailable,
         });
+        
+        // Envia os leads bloqueados para exibição com blur
+        if (responseData?.lockedLeads && responseData.lockedLeads.length > 0) {
+          window.dispatchEvent(new CustomEvent("setLockedLeads", { 
+            detail: { 
+              lockedLeads: responseData.lockedLeads,
+              totalLocked: responseData.additionalLeadsAvailable 
+            } 
+          }));
+        }
+      } else {
+        // Limpa leads bloqueados se não houver
+        window.dispatchEvent(new CustomEvent("setLockedLeads", { 
+          detail: { lockedLeads: [], totalLocked: 0 } 
+        }));
       }
 
       // Salva a busca no histórico (apenas se houver leads com ID válido)

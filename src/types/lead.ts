@@ -64,4 +64,7 @@ export interface LeadProspeccao {
   situacao_cadastral: string | null;
   porte_empresa: string | null;
   cnae_principal: string | null;
+  
+  // Lead bloqueado (além da cota)
+  isLocked?: boolean;
 }

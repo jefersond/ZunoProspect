@@ -4,16 +4,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ProspeccaoForm } from "@/components/prospeccao/ProspeccaoForm";
 import { LeadsList } from "@/components/prospeccao/LeadsList";
-import { LogOut, Search, User, BarChart3, FileText, History, Bookmark, Kanban } from "lucide-react";
+import { LogOut, User, BarChart3, FileText, History, Bookmark, Kanban, Zap } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
+import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
+import { useSubscription } from "@/hooks/useSubscription";
 import { toast } from "sonner";
 
 const Prospeccao = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [user, setUser] = useState<any>(null);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const { subscription, isAdmin } = useSubscription();
+  const isAtLimit = subscription && subscription.leads_limit !== -1 && subscription.leads_remaining <= 0;
 
   // Handle checkout success/cancel from Stripe redirect and Google OAuth checkout
   useEffect(() => {
@@ -119,6 +124,20 @@ const Prospeccao = () => {
                 </Button>
               </nav>
 
+              {/* Botão de Upgrade - aparece quando limite é atingido */}
+              {isAtLimit && !isAdmin && (
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  onClick={() => setShowUpgradeDialog(true)} 
+                  className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse mr-2"
+                >
+                  <Zap className="h-4 w-4" />
+                  <span className="hidden sm:inline">Fazer Upgrade</span>
+                  <span className="sm:hidden">Upgrade</span>
+                </Button>
+              )}
+
               {/* Ações do Usuário */}
               <div className="flex items-center gap-1">
                 <ThemeToggle />
@@ -141,6 +160,10 @@ const Prospeccao = () => {
         <LeadsList />
       </main>
       <FloatingWhatsAppButton />
+      <UpgradePlanDialog 
+        open={showUpgradeDialog} 
+        onOpenChange={setShowUpgradeDialog}
+      />
     </div>;
 };
 export default Prospeccao;

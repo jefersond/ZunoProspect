@@ -21,6 +21,7 @@ export const UpgradeIncentive = ({
     return null;
   }
 
+  const leadsEntregues = totalAvailable - additionalLeads;
   const suggestedPlan = currentPlanName === "starter" ? "pro" : "agencia";
   const planLabel = suggestedPlan === "pro" ? "Pro" : "Agência";
 
@@ -47,13 +48,12 @@ export const UpgradeIncentive = ({
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-emerald-500" />
               <span className="font-semibold text-foreground">
-                +{additionalLeads} leads disponíveis nesta busca!
+                Encontramos {totalAvailable} empresas nesta busca!
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Encontramos <span className="font-medium text-foreground">{totalAvailable} leads</span> no total, 
-              mas sua cota atual permitiu buscar apenas uma parte. 
-              Faça upgrade para desbloquear todos os leads.
+              Seu plano permite apenas <span className="font-medium text-foreground">{leadsEntregues} leads</span>. 
+              Faça upgrade para desbloquear <span className="font-medium text-emerald-500">+{additionalLeads} leads adicionais</span>!
             </p>
           </div>
 

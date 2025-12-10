@@ -304,16 +304,6 @@ export const ProspeccaoForm = () => {
           </div>
         )}
 
-        {/* Aviso de limite com incentivo de upgrade */}
-        {isAtLimit && !upgradeIncentive && (
-          <div className="mb-6">
-            <UpgradeIncentive
-              additionalLeads={subscription?.leads_limit || 10}
-              totalAvailable={(subscription?.leads_limit || 10) * 10}
-              currentPlanName={subscription?.plan_name}
-            />
-          </div>
-        )}
 
         {loading && currentStep > 0 && (
           <div className="mb-6">

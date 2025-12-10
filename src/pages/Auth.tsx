@@ -224,10 +224,20 @@ const Auth = () => {
       }
     });
     if (error) {
+      // Traduzir erros comuns do Supabase
+      let errorMessage = error.message;
+      if (error.message.includes("User already registered") || error.message.includes("already exists")) {
+        errorMessage = "Este email já está cadastrado. Tente fazer login ou use outro email.";
+      } else if (error.message.includes("Invalid email")) {
+        errorMessage = "Email inválido. Verifique o formato do email.";
+      } else if (error.message.includes("Password")) {
+        errorMessage = "Senha inválida. A senha deve ter pelo menos 8 caracteres.";
+      }
+      
       toast({
         variant: "destructive",
         title: "Erro ao criar conta",
-        description: error.message
+        description: errorMessage
       });
     } else {
       // Track CompleteRegistration event

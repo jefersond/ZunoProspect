@@ -13,18 +13,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
 import { Progress } from "@/components/ui/progress";
 import { exportLeadsToExcel } from "@/utils/exportToExcel";
+import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 
 export const LeadsList = () => {
   const { toast } = useToast();
   const [leads, setLeads] = useState<LeadProspeccao[]>([]);
+  const [lockedLeads, setLockedLeads] = useState<LeadProspeccao[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
 
   // Função para validar se um número de telefone brasileiro é válido
   const isValidBrazilianPhone = (phone: string): boolean => {
@@ -187,9 +190,64 @@ export const LeadsList = () => {
     // Listener para limpar leads antes de nova busca
     const handleClear = () => {
       setLeads([]);
+      setLockedLeads([]);
       setLoading(true);
     };
     window.addEventListener("clearLeads", handleClear);
+    
+    // Listener para receber leads bloqueados
+    const handleSetLockedLeads = (event: CustomEvent<{ lockedLeads: any[], totalLocked: number }>) => {
+      const { lockedLeads: locked, totalLocked } = event.detail;
+      if (locked && locked.length > 0) {
+        // Transforma os leads bloqueados no formato correto
+        const formattedLocked = locked.map((lead: any) => ({
+          id: lead.id,
+          placeId: null,
+          nome: lead.nome,
+          telefone: null,
+          whatsapp_link: null,
+          email: null,
+          website: null,
+          instagram_url: null,
+          instagram_context: null,
+          endereco: lead.endereco,
+          cidade: lead.cidade,
+          nicho: lead.nicho,
+          foco: lead.foco as any,
+          proximidadeAtiva: false,
+          raioKm: null,
+          sinais: {
+            has_whatsapp_on_site: false,
+            has_meta_pixel: false,
+            has_gtag: false,
+            has_gtm: false,
+          },
+          diagnostico_bullets: [],
+          probabilidade_conversao: 0,
+          plano_prospecao_7dias: [],
+          rating: lead.rating,
+          total_reviews: lead.total_reviews,
+          status: 'novo',
+          created_at: new Date().toISOString(),
+          ai_analise_gerada_em: null,
+          salvo: false,
+          cnpj: null,
+          razao_social: null,
+          nome_responsavel: null,
+          cnpj_telefone: null,
+          cnpj_email: null,
+          situacao_cadastral: null,
+          porte_empresa: null,
+          cnae_principal: null,
+          isLocked: true,
+          _totalLocked: totalLocked, // Guarda o total para exibir no overlay
+        } as LeadProspeccao & { _totalLocked?: number }));
+        setLockedLeads(formattedLocked);
+      } else {
+        setLockedLeads([]);
+      }
+    };
+    window.addEventListener("setLockedLeads", handleSetLockedLeads as EventListener);
     
     // Configurar realtime para atualizar leads quando análise IA for concluída
     const channel = supabase
@@ -238,6 +296,7 @@ export const LeadsList = () => {
     return () => {
       window.removeEventListener("reloadLeads", handleReload);
       window.removeEventListener("clearLeads", handleClear);
+      window.removeEventListener("setLockedLeads", handleSetLockedLeads as EventListener);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -619,6 +678,104 @@ export const LeadsList = () => {
                     </TableCell>
                   </TableRow>
                 ))}
+                
+                {/* Leads bloqueados com blur */}
+                {lockedLeads.length > 0 && (
+                  <>
+                    {/* Linha separadora */}
+                    <TableRow>
+                      <TableCell colSpan={6} className="p-0 h-0 border-t-2 border-dashed border-primary/30" />
+                    </TableRow>
+                    
+                    {/* Container dos leads bloqueados */}
+                    <TableRow>
+                      <TableCell colSpan={6} className="p-0">
+                        <div className="relative">
+                          {/* Preview dos leads borrados */}
+                          <div className="blur-sm opacity-40 pointer-events-none select-none">
+                            <Table>
+                              <TableBody>
+                                {lockedLeads.slice(0, 3).map((lead) => (
+                                  <TableRow key={lead.id} className="border-0">
+                                    <TableCell>
+                                      <div className="space-y-1 min-w-[200px]">
+                                        <p className="font-medium">{lead.nome}</p>
+                                        {lead.endereco && (
+                                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                            <MapPin className="h-3 w-3" />
+                                            <span className="line-clamp-1">{lead.endereco}</span>
+                                          </div>
+                                        )}
+                                        {lead.rating && (
+                                          <div className="flex items-center gap-1">
+                                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                            <span className="text-xs">{lead.rating}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="space-y-1 min-w-[150px]">
+                                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                          <Phone className="h-3 w-3" />
+                                          <span>••••••••••</span>
+                                        </div>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex gap-1">
+                                        <Badge variant="outline" className="text-xs">•••</Badge>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex flex-col items-center">
+                                        <div className="text-2xl font-bold text-muted-foreground">??%</div>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <p className="text-xs text-muted-foreground">•••••••••••••</p>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex gap-2 justify-center">
+                                        <Button variant="outline" size="sm" disabled>
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                          
+                          {/* Overlay com botão de upgrade */}
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-[2px]">
+                            <div className="text-center space-y-4 p-6 max-w-md">
+                              <div className="flex justify-center">
+                                <div className="p-3 rounded-full bg-emerald-500/10">
+                                  <Lock className="h-8 w-8 text-emerald-500" />
+                                </div>
+                              </div>
+                              <h3 className="text-lg font-semibold">
+                                +{(lockedLeads[0] as any)?._totalLocked || lockedLeads.length} leads disponíveis
+                              </h3>
+                              <p className="text-sm text-muted-foreground">
+                                Encontramos mais empresas nesta busca! Faça upgrade para desbloquear todos os leads.
+                              </p>
+                              <Button 
+                                onClick={() => setShowUpgradeDialog(true)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                              >
+                                <Zap className="h-4 w-4" />
+                                Fazer Upgrade Agora
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  </>
+                )}
                 </TableBody>
               </Table>
             </div>
@@ -627,15 +784,20 @@ export const LeadsList = () => {
         </CardContent>
       </Card>
 
-          <LeadPlanDialog
-            lead={selectedLead}
-            open={dialogOpen}
-            onOpenChange={setDialogOpen}
-            onLeadUpdate={() => {
-              // Recarrega os leads após reanálise
-              window.location.reload();
-            }}
-          />
+      <LeadPlanDialog
+        lead={selectedLead}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onLeadUpdate={() => {
+          // Recarrega os leads após reanálise
+          window.location.reload();
+        }}
+      />
+      
+      <UpgradePlanDialog 
+        open={showUpgradeDialog} 
+        onOpenChange={setShowUpgradeDialog}
+      />
     </>
   );
 };

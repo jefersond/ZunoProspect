@@ -26,7 +26,8 @@ import {
   FileText, 
   User, 
   LogOut,
-  BarChart3
+  BarChart3,
+  Mail
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -131,6 +132,14 @@ const Relatorios = () => {
                   Relatórios
                 </Button>
               </Link>
+              {isAdmin && (
+                <Link to="/admin/email">
+                  <Button variant="ghost" size="sm" className="gap-2 text-amber-500 hover:text-amber-400">
+                    <Mail className="h-4 w-4" />
+                    Email
+                  </Button>
+                </Link>
+              )}
             </nav>
 
             <div className="flex items-center gap-2">

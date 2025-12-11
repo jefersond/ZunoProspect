@@ -198,6 +198,12 @@ const Profile = () => {
                   <History className="h-4 w-4" />
                   <span className="hidden sm:inline">Histórico</span>
                 </Button>
+                {isAdmin && (
+                  <Button variant="ghost" size="sm" onClick={() => navigate("/admin/email")} className="gap-2 text-amber-500 hover:text-amber-400">
+                    <Mail className="h-4 w-4" />
+                    <span className="hidden sm:inline">Email</span>
+                  </Button>
+                )}
               </nav>
 
               {/* Ações do Usuário */}

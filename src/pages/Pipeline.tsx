@@ -12,7 +12,8 @@ import {
   LogOut,
   Kanban,
   TrendingUp,
-  RefreshCw
+  RefreshCw,
+  Mail
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/Logo';
@@ -27,6 +28,7 @@ export default function Pipeline() {
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -36,6 +38,9 @@ export default function Pipeline() {
         return;
       }
       setUser(session.user);
+      // Check if admin
+      const { data: adminData } = await supabase.rpc('is_admin', { _user_id: session.user.id });
+      setIsAdmin(!!adminData);
     };
     checkAuth();
   }, [navigate]);
@@ -69,6 +74,7 @@ export default function Pipeline() {
     { to: '/relatorios', icon: TrendingUp, label: 'Relatórios' },
     { to: '/templates', icon: FileText, label: 'Templates' },
     { to: '/profile', icon: User, label: 'Perfil' },
+    ...(isAdmin ? [{ to: '/admin/email', icon: Mail, label: 'Email', isAdmin: true }] : []),
   ];
 
   if (!user) return null;
@@ -86,6 +92,7 @@ export default function Pipeline() {
             <nav className="hidden lg:flex items-center gap-1">
               {navLinks.map((link) => {
                 const isActive = location.pathname === link.to;
+                const isAdminLink = 'isAdmin' in link && link.isAdmin;
                 return (
                   <Link
                     key={link.to}
@@ -93,7 +100,9 @@ export default function Pipeline() {
                     className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
                       isActive
                         ? 'bg-primary/10 text-primary'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        : isAdminLink
+                          ? 'text-amber-500 hover:text-amber-400 hover:bg-muted'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                     }`}
                   >
                     <link.icon className="h-4 w-4" />

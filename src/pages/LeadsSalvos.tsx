@@ -24,7 +24,7 @@ import {
   Eye,
   Loader2,
   RefreshCw,
-  Mail,
+  Mail as MailIcon,
   Kanban,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -57,6 +57,7 @@ const LeadsSalvos = () => {
   const [reanalyzingLeadId, setReanalyzingLeadId] = useState<string | null>(null);
   const [verifyingNumbers, setVerifyingNumbers] = useState<Set<string>>(new Set());
   const [numberStatus, setNumberStatus] = useState<Record<string, 'valid' | 'invalid' | 'checking'>>({});
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Função para validar telefone brasileiro
   const isValidBrazilianPhone = (phone: string): boolean => {
@@ -153,6 +154,9 @@ const LeadsSalvos = () => {
       } else {
         setUser(user);
         loadSavedLeads(user.id);
+        // Check if admin
+        const { data: adminData } = await supabase.rpc('is_admin', { _user_id: user.id });
+        setIsAdmin(!!adminData);
       }
     };
     checkUser();
@@ -342,6 +346,12 @@ const LeadsSalvos = () => {
                   <History className="h-4 w-4" />
                   <span className="hidden sm:inline">Histórico</span>
                 </Button>
+                {isAdmin && (
+                  <Button variant="ghost" size="sm" onClick={() => navigate("/admin/email")} className="gap-2 text-amber-500 hover:text-amber-400">
+                    <MailIcon className="h-4 w-4" />
+                    <span className="hidden sm:inline">Email</span>
+                  </Button>
+                )}
               </nav>
 
               {/* Ações do Usuário */}
@@ -448,7 +458,7 @@ const LeadsSalvos = () => {
                         href={`mailto:${lead.email}`}
                         className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
                       >
-                        <Mail className="h-3 w-3 flex-shrink-0" />
+                        <MailIcon className="h-3 w-3 flex-shrink-0" />
                         <span>Email</span>
                       </a>
                     )}

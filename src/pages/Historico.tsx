@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LogOut, History, BarChart3, FileText, User, Search, ArrowLeft, Bookmark, Kanban } from "lucide-react";
+import { LogOut, History, BarChart3, FileText, User, Search, ArrowLeft, Bookmark, Kanban, Mail } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
@@ -31,6 +31,7 @@ export default function Historico() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("todos");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -40,6 +41,9 @@ export default function Historico() {
       } else {
         setUser(user);
         loadInteracoes(user.id);
+        // Check if admin
+        const { data: adminData } = await supabase.rpc('is_admin', { _user_id: user.id });
+        setIsAdmin(!!adminData);
       }
     };
     checkUser();
@@ -164,6 +168,12 @@ export default function Historico() {
                   <FileText className="h-4 w-4" />
                   <span className="hidden sm:inline">Templates</span>
                 </Button>
+                {isAdmin && (
+                  <Button variant="ghost" size="sm" onClick={() => navigate("/admin/email")} className="gap-2 text-amber-500 hover:text-amber-400">
+                    <Mail className="h-4 w-4" />
+                    <span className="hidden sm:inline">Email</span>
+                  </Button>
+                )}
               </nav>
 
               {/* Ações do Usuário */}

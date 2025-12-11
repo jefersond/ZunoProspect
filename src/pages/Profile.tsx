@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
-import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink, Kanban } from "lucide-react";
+import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink, Kanban, Mail } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
@@ -353,6 +353,27 @@ const Profile = () => {
         {/* API Integration Section - Agency plan only */}
         {(isAdmin || subscription?.plan_name === 'agencia') && (
           <ApiKeysSection />
+        )}
+
+        {/* Admin Email Marketing - Admin only */}
+        {isAdmin && (
+          <Card className="shadow-lg mt-6 border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-orange-500/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-amber-500" />
+                Email Marketing (Admin)
+              </CardTitle>
+              <CardDescription>
+                Envie campanhas de email para os usuários
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={() => navigate("/admin/email")} className="gap-2">
+                <Mail className="h-4 w-4" />
+                Gerenciar Campanhas
+              </Button>
+            </CardContent>
+          </Card>
         )}
       </main>
 

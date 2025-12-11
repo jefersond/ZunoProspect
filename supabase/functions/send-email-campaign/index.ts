@@ -1,0 +1,204 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface SendCampaignRequest {
+  campaignId: string;
+}
+
+serve(async (req: Request): Promise<Response> => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    // Get auth header
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Não autorizado" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Verify user is admin
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Usuário não autenticado" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    // Check if user is admin
+    const { data: isAdmin } = await supabase.rpc("is_admin", { _user_id: user.id });
+    
+    if (!isAdmin) {
+      return new Response(JSON.stringify({ error: "Acesso negado. Apenas administradores." }), {
+        status: 403,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    const { campaignId }: SendCampaignRequest = await req.json();
+
+    if (!campaignId) {
+      return new Response(JSON.stringify({ error: "ID da campanha é obrigatório" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    // Get campaign details
+    const { data: campaign, error: campaignError } = await supabase
+      .from("email_campaigns")
+      .select("*")
+      .eq("id", campaignId)
+      .single();
+
+    if (campaignError || !campaign) {
+      console.error("Erro ao buscar campanha:", campaignError);
+      return new Response(JSON.stringify({ error: "Campanha não encontrada" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    // Get target users based on segment
+    let usersQuery = supabase
+      .from("user_subscriptions")
+      .select("user_id");
+
+    // Apply segment filter
+    if (campaign.segmento === "starter") {
+      usersQuery = usersQuery.eq("plan_name", "starter");
+    } else if (campaign.segmento === "pro") {
+      usersQuery = usersQuery.eq("plan_name", "pro");
+    } else if (campaign.segmento === "agencia") {
+      usersQuery = usersQuery.eq("plan_name", "agencia");
+    }
+    // "todos" gets all users
+
+    const { data: subscriptions, error: subsError } = await usersQuery;
+
+    if (subsError) {
+      console.error("Erro ao buscar usuários:", subsError);
+      return new Response(JSON.stringify({ error: "Erro ao buscar usuários" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    if (!subscriptions || subscriptions.length === 0) {
+      return new Response(JSON.stringify({ error: "Nenhum usuário encontrado para este segmento" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    // Get user emails from auth
+    let sentCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+
+    for (const sub of subscriptions) {
+      try {
+        // Get user email from auth.users
+        const { data: authUser } = await supabase.auth.admin.getUserById(sub.user_id);
+        
+        if (!authUser?.user?.email) {
+          console.log(`Usuário ${sub.user_id} sem email`);
+          continue;
+        }
+
+        const userEmail = authUser.user.email;
+
+        // Send email via Resend API
+        const emailResponse = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: "Zuno Propect <onboarding@resend.dev>",
+            to: [userEmail],
+            subject: campaign.assunto,
+            html: campaign.conteudo,
+          }),
+        });
+
+        const emailResult = await emailResponse.json();
+
+        // Log email
+        const emailError = !emailResponse.ok;
+        await supabase.from("email_logs").insert({
+          campaign_id: campaignId,
+          user_id: sub.user_id,
+          user_email: userEmail,
+          status: emailError ? "erro" : "enviado",
+          error_message: emailError ? emailResult.message : null,
+        });
+
+        if (emailError) {
+          errorCount++;
+          errors.push(`${userEmail}: ${emailResult.message}`);
+        } else {
+          sentCount++;
+        }
+      } catch (err: any) {
+        errorCount++;
+        errors.push(`Erro: ${err.message}`);
+        console.error("Erro ao enviar para usuário:", err);
+      }
+    }
+
+    // Update campaign stats
+    await supabase
+      .from("email_campaigns")
+      .update({
+        total_enviados: sentCount,
+        status: "enviada",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", campaignId);
+
+    console.log(`Campanha ${campaignId}: ${sentCount} enviados, ${errorCount} erros`);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        sent: sentCount,
+        errors: errorCount,
+        errorDetails: errors.slice(0, 5), // Return first 5 errors
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
+  } catch (error: any) {
+    console.error("Erro na função:", error);
+    return new Response(
+      JSON.stringify({ error: "Erro interno do servidor" }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
+  }
+});

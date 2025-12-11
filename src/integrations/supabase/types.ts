@@ -101,6 +101,89 @@ export type Database = {
         }
         Relationships: []
       }
+      email_campaigns: {
+        Row: {
+          assunto: string
+          conteudo: string
+          created_at: string
+          id: string
+          nome: string
+          segmento: string
+          status: string
+          total_abertos: number
+          total_enviados: number
+          updated_at: string
+        }
+        Insert: {
+          assunto: string
+          conteudo: string
+          created_at?: string
+          id?: string
+          nome: string
+          segmento: string
+          status?: string
+          total_abertos?: number
+          total_enviados?: number
+          updated_at?: string
+        }
+        Update: {
+          assunto?: string
+          conteudo?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          segmento?: string
+          status?: string
+          total_abertos?: number
+          total_enviados?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_logs: {
+        Row: {
+          campaign_id: string | null
+          clicked_at: string | null
+          error_message: string | null
+          id: string
+          opened_at: string | null
+          sent_at: string
+          status: string
+          user_email: string
+          user_id: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          clicked_at?: string | null
+          error_message?: string | null
+          id?: string
+          opened_at?: string | null
+          sent_at?: string
+          status?: string
+          user_email: string
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string | null
+          clicked_at?: string | null
+          error_message?: string | null
+          id?: string
+          opened_at?: string | null
+          sent_at?: string
+          status?: string
+          user_email?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_logs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interacoes: {
         Row: {
           conteudo: string

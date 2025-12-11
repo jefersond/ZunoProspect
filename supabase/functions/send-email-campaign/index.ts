@@ -135,7 +135,8 @@ serve(async (req: Request): Promise<Response> => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            from: "Zuno Propect <jeferson.zanotell@gmail.com>",
+            from: "Zuno Propect <onboarding@resend.dev>",
+            replyTo: "zunopropect@gmail.com",
             to: [userEmail],
             subject: campaign.assunto,
             html: campaign.conteudo,

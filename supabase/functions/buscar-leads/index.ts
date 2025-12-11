@@ -419,6 +419,7 @@ serve(async (req) => {
                     },
                     body: JSON.stringify({
                       lead_id: leadData?.id,
+                      user_id: user.id, // Passa user_id para RPC funcionar com service role
                       nome: details.name,
                       nicho: body.nicho,
                       cidade: body.cidade,

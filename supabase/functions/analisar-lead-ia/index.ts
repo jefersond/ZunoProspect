@@ -207,8 +207,9 @@ serve(async (req) => {
   try {
     const requestData = await req.json();
     const leadId = requestData.leadId || requestData.lead_id;
+    const userId = requestData.user_id; // Recebe user_id do buscar-leads
     
-    console.log("🔍 Iniciando análise:", { leadId, hasNome: !!requestData.nome });
+    console.log("🔍 Iniciando análise:", { leadId, userId, hasNome: !!requestData.nome });
 
     const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
@@ -221,10 +222,12 @@ serve(async (req) => {
       console.log("📥 Buscando lead via RPC...");
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       
+      // Passa user_id para RPC funcionar com service role (auth.uid() não funciona)
       const { data: decryptedLeads, error: rpcError } = await supabase
-        .rpc("get_lead_decrypted_by_id", { p_lead_id: leadId });
+        .rpc("get_lead_decrypted_by_id", { p_lead_id: leadId, p_user_id: userId });
         
       if (rpcError || !decryptedLeads?.length) {
+        console.error("❌ Erro RPC:", rpcError?.message || "Lead não encontrado");
         throw new Error("Lead não encontrado");
       }
       

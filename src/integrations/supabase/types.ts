@@ -444,7 +444,7 @@ export type Database = {
       decrypt_sensitive: { Args: { encrypted_data: string }; Returns: string }
       encrypt_sensitive: { Args: { plain_text: string }; Returns: string }
       get_lead_decrypted_by_id: {
-        Args: { p_lead_id: string }
+        Args: { p_lead_id: string; p_user_id?: string }
         Returns: {
           ai_analise_gerada_em: string
           cidade: string

@@ -138,6 +138,31 @@ serve(async (req: Request): Promise<Response> => {
 
         const userEmail = authUser.user.email;
 
+        // Convert plain text to HTML if needed (detect by checking for HTML tags)
+        let emailHtml = campaign.conteudo;
+        const hasHtmlTags = /<[a-z][\s\S]*>/i.test(campaign.conteudo);
+        
+        if (!hasHtmlTags) {
+          // Convert plain text to styled HTML
+          const textWithLinks = campaign.conteudo
+            .replace(/\n/g, '<br>')
+            .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color: #3b82f6; text-decoration: underline;">$1</a>');
+          
+          emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: #18181b; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 24px;">Zuno Propect</h1>
+              </div>
+              <div style="background: white; padding: 30px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 8px 8px;">
+                <p style="color: #3f3f46; font-size: 16px; line-height: 1.8; white-space: pre-wrap;">${textWithLinks}</p>
+              </div>
+              <div style="text-align: center; padding: 20px; color: #a1a1aa; font-size: 12px;">
+                <p>Zuno Propect - Prospecção Inteligente com IA</p>
+              </div>
+            </div>
+          `;
+        }
+
         // Send email via Resend API
         const emailResponse = await fetch("https://api.resend.com/emails", {
           method: "POST",
@@ -150,7 +175,7 @@ serve(async (req: Request): Promise<Response> => {
             replyTo: "zunopropect@gmail.com",
             to: [userEmail],
             subject: campaign.assunto,
-            html: campaign.conteudo,
+            html: emailHtml,
           }),
         });
 

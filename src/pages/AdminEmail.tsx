@@ -41,6 +41,7 @@ const AdminEmail = () => {
     assunto: "",
     conteudo: "",
     segmento: "todos",
+    formato: "texto", // "texto" ou "html"
   });
   const [creating, setCreating] = useState(false);
 
@@ -127,7 +128,7 @@ const AdminEmail = () => {
         description: "A campanha foi salva como rascunho.",
       });
 
-      setNewCampaign({ nome: "", assunto: "", conteudo: "", segmento: "todos" });
+      setNewCampaign({ nome: "", assunto: "", conteudo: "", segmento: "todos", formato: "texto" });
       setShowNewCampaign(false);
       await loadCampaigns();
     } catch (error: any) {
@@ -427,22 +428,45 @@ const AdminEmail = () => {
               <Label htmlFor="assunto">Assunto do Email</Label>
               <Input
                 id="assunto"
-                placeholder="Ex: 🔥 Oferta especial para você!"
+                placeholder="Ex: Seus primeiros 10 leads estão esperando por você 🎯"
                 value={newCampaign.assunto}
                 onChange={(e) => setNewCampaign({ ...newCampaign, assunto: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="conteudo">Conteúdo do Email (HTML)</Label>
+              <Label>Formato do Email</Label>
+              <Select
+                value={newCampaign.formato}
+                onValueChange={(value) => setNewCampaign({ ...newCampaign, formato: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="texto">📝 Texto simples (recomendado)</SelectItem>
+                  <SelectItem value="html">🖥️ HTML avançado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="conteudo">
+                {newCampaign.formato === "texto" ? "Mensagem do Email" : "Conteúdo HTML"}
+              </Label>
               <Textarea
                 id="conteudo"
-                placeholder="<h1>Olá!</h1><p>Este é o conteúdo do seu email...</p>"
-                rows={10}
+                placeholder={newCampaign.formato === "texto" 
+                  ? "Olá!\n\nVocê criou sua conta mas ainda não prospectou nenhum lead.\n\nSeus 10 leads gratuitos estão esperando por você!\n\nAcesse agora: https://zunopropect.lovable.app/prospeccao\n\nAbraços,\nEquipe Zuno Propect"
+                  : "<h1>Olá!</h1><p>Este é o conteúdo do seu email...</p>"
+                }
+                rows={12}
                 value={newCampaign.conteudo}
                 onChange={(e) => setNewCampaign({ ...newCampaign, conteudo: e.target.value })}
               />
               <p className="text-xs text-muted-foreground">
-                Você pode usar HTML para formatar o email.
+                {newCampaign.formato === "texto" 
+                  ? "Escreva naturalmente. Links serão clicáveis automaticamente."
+                  : "Use tags HTML para formatar (h1, p, a, strong, etc.)."
+                }
               </p>
             </div>
           </div>

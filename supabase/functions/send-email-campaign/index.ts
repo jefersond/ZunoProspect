@@ -81,7 +81,7 @@ serve(async (req: Request): Promise<Response> => {
     // Get target users based on segment
     let usersQuery = supabase
       .from("user_subscriptions")
-      .select("user_id");
+      .select("user_id, plan_name, leads_used_this_month");
 
     // Apply segment filter
     if (campaign.segmento === "starter") {
@@ -90,8 +90,19 @@ serve(async (req: Request): Promise<Response> => {
       usersQuery = usersQuery.eq("plan_name", "pro");
     } else if (campaign.segmento === "agencia") {
       usersQuery = usersQuery.eq("plan_name", "agencia");
+    } else if (campaign.segmento === "inativos") {
+      // Todos os usuários que não usaram leads este mês
+      usersQuery = usersQuery.eq("leads_used_this_month", 0);
+    } else if (campaign.segmento === "starter_inativos") {
+      // Starter que nunca usaram o sistema
+      usersQuery = usersQuery.eq("plan_name", "starter").eq("leads_used_this_month", 0);
+    } else if (campaign.segmento === "nao_pagantes") {
+      // Todos do plano Starter (não pagantes)
+      usersQuery = usersQuery.eq("plan_name", "starter");
     }
     // "todos" gets all users
+
+    console.log(`Buscando usuários para segmento: ${campaign.segmento}`);
 
     const { data: subscriptions, error: subsError } = await usersQuery;
 

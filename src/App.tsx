@@ -18,6 +18,7 @@ const Templates = lazy(() => import("./pages/Templates"));
 const Historico = lazy(() => import("./pages/Historico"));
 const LeadsSalvos = lazy(() => import("./pages/LeadsSalvos"));
 const Pipeline = lazy(() => import("./pages/Pipeline"));
+const Checkout = lazy(() => import("./pages/Checkout"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const ApiDocs = lazy(() => import("./pages/ApiDocs"));
 const Relatorios = lazy(() => import("./pages/Relatorios"));
@@ -75,6 +76,7 @@ const AppContent = () => {
           <Route path="/pipeline" element={<Pipeline />} />
           <Route path="/relatorios" element={<Relatorios />} />
           <Route path="/api-docs" element={<ApiDocs />} />
+          <Route path="/checkout" element={<Checkout />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

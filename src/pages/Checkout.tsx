@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { CheckCircle2, QrCode, CreditCard, Copy, Loader2, RefreshCw, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { CheckCircle2, QrCode, CreditCard, Copy, Loader2, RefreshCw, Eye, EyeOff, ArrowLeft, Check, Sparkles, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
@@ -19,25 +19,49 @@ const PLANOS = {
     precoMensal: 97,
     precoAnual: 970,
     gratuito: false,
+    icon: Sparkles,
+    popular: true,
+    features: [
+      "100 leads/mês",
+      "Análise IA completa",
+      "Plano 7 dias por lead",
+      "Detecção de sinais digitais",
+      "Exportar para Excel",
+    ],
   },
   agencia: {
     nome: "Agência",
     precoMensal: 247,
     precoAnual: 2470,
     gratuito: false,
+    icon: Building2,
+    popular: false,
+    features: [
+      "Leads ilimitados",
+      "Tudo do Pro +",
+      "API de integração",
+      "Relatórios avançados",
+      "Suporte prioritário",
+    ],
   },
 };
+
+type PlanoKey = "pro" | "agencia";
 
 export default function Checkout() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
   // Get params from URL
-  const planoParam = searchParams.get("plano")?.toLowerCase() as "pro" | "agencia" | null;
+  const planoParam = searchParams.get("plano")?.toLowerCase() as PlanoKey | null;
   const anualParam = searchParams.get("anual");
   
-  // Validate plan
-  const plano = planoParam && PLANOS[planoParam] ? PLANOS[planoParam] : null;
+  // State for selected plan - default to URL param or "pro"
+  const [selectedPlano, setSelectedPlano] = useState<PlanoKey>(
+    planoParam && PLANOS[planoParam] ? planoParam : "pro"
+  );
+  
+  const plano = PLANOS[selectedPlano];
   
   const [isAnual, setIsAnual] = useState(anualParam === "true");
   const [step, setStep] = useState<"form" | "qrcode" | "confirmed">("form");
@@ -58,16 +82,9 @@ export default function Checkout() {
   } | null>(null);
   const hasTrackedCheckout = useRef(false);
 
-  // Redirect if invalid plan
-  useEffect(() => {
-    if (!plano) {
-      navigate("/#precos");
-    }
-  }, [plano, navigate]);
-
   // Track InitiateCheckout on mount
   useEffect(() => {
-    if (plano && !hasTrackedCheckout.current) {
+    if (!hasTrackedCheckout.current) {
       hasTrackedCheckout.current = true;
       const preco = isAnual ? plano.precoAnual : plano.precoMensal;
       trackInitiateCheckout({
@@ -78,23 +95,21 @@ export default function Checkout() {
         num_items: 1
       });
     }
-  }, [plano, isAnual]);
+  }, []);
 
   // Track AddPaymentInfo when payment method changes
   const handlePaymentMethodChange = (value: "pix" | "cartao") => {
     setMetodoPagamento(value);
-    if (plano) {
-      trackAddPaymentInfo({
-        content_category: value === 'pix' ? 'PIX' : 'Credit Card',
-        currency: 'BRL',
-        value: isAnual ? plano.precoAnual : plano.precoMensal
-      });
-    }
+    trackAddPaymentInfo({
+      content_category: value === 'pix' ? 'PIX' : 'Credit Card',
+      currency: 'BRL',
+      value: isAnual ? plano.precoAnual : plano.precoMensal
+    });
   };
 
   // Poll for PIX payment confirmation
   useEffect(() => {
-    if (step !== "qrcode" || !pixData?.paymentId || !plano) return;
+    if (step !== "qrcode" || !pixData?.paymentId) return;
     const currentPreco = isAnual ? plano.precoAnual : plano.precoMensal;
     const interval = setInterval(async () => {
       try {
@@ -121,8 +136,6 @@ export default function Checkout() {
     }, 5000);
     return () => clearInterval(interval);
   }, [step, pixData?.paymentId, plano, isAnual, navigate]);
-
-  if (!plano) return null;
 
   const preco = isAnual ? plano.precoAnual : plano.precoMensal;
   const periodo = isAnual ? "/ano" : "/mês";
@@ -282,6 +295,61 @@ export default function Checkout() {
     }
   };
 
+  // Plan selector component
+  const PlanSelector = () => (
+    <div className="grid grid-cols-2 gap-3 mb-6">
+      {(Object.entries(PLANOS) as [PlanoKey, typeof PLANOS.pro][]).map(([key, plan]) => {
+        const isSelected = selectedPlano === key;
+        const Icon = plan.icon;
+        const planPreco = isAnual ? plan.precoAnual : plan.precoMensal;
+        const planPeriodo = isAnual ? "/ano" : "/mês";
+        
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setSelectedPlano(key)}
+            className={`relative flex flex-col items-center p-4 rounded-xl border-2 transition-all ${
+              isSelected 
+                ? "border-emerald-500 bg-emerald-500/10 shadow-lg shadow-emerald-500/20" 
+                : "border-border hover:border-muted-foreground/50 bg-card"
+            }`}
+          >
+            {plan.popular && (
+              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-semibold rounded-full whitespace-nowrap">
+                Mais popular
+              </span>
+            )}
+            
+            {isSelected && (
+              <div className="absolute top-2 right-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              </div>
+            )}
+            
+            <Icon className={`h-8 w-8 mb-2 ${isSelected ? "text-emerald-500" : "text-muted-foreground"}`} />
+            <span className={`font-bold text-lg ${isSelected ? "text-foreground" : "text-foreground"}`}>
+              {plan.nome}
+            </span>
+            <span className={`text-xl font-bold mt-1 ${isSelected ? "text-emerald-500" : "text-foreground"}`}>
+              R$ {planPreco}
+              <span className="text-sm font-normal text-muted-foreground">{planPeriodo}</span>
+            </span>
+            
+            <ul className="mt-3 space-y-1 text-left w-full">
+              {plan.features.slice(0, 3).map((feature, i) => (
+                <li key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Check className={`h-3 w-3 flex-shrink-0 ${isSelected ? "text-emerald-500" : "text-muted-foreground"}`} />
+                  <span className="truncate">{feature}</span>
+                </li>
+              ))}
+            </ul>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
@@ -300,20 +368,20 @@ export default function Checkout() {
       {/* Main Content */}
       <main className="flex-1 flex items-center justify-center p-4 py-8">
         <Card className="w-full max-w-lg">
-          <CardHeader className="text-center">
+          <CardHeader className="text-center pb-4">
             <CardTitle className="flex items-center justify-center gap-2 text-xl">
               {step === "confirmed" ? (
                 <><CheckCircle2 className="h-5 w-5 text-emerald-500" />Pagamento Confirmado</>
               ) : step === "qrcode" ? (
                 <><QrCode className="h-5 w-5 text-primary" />Pagamento via PIX</>
               ) : (
-                <>Checkout - Plano {plano.nome}</>
+                <>Escolha seu plano e finalize</>
               )}
             </CardTitle>
             <CardDescription>
               {step === "confirmed" && "Sua assinatura foi ativada com sucesso!"}
               {step === "qrcode" && "Escaneie o QR Code ou copie o código para pagar."}
-              {step === "form" && `R$ ${preco}${periodo}${isAnual && economia > 0 ? ` (${economia}% de desconto)` : ""}`}
+              {step === "form" && "Compare os planos e selecione o ideal para você"}
             </CardDescription>
           </CardHeader>
 
@@ -358,7 +426,10 @@ export default function Checkout() {
             )}
 
             {step === "form" && (
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Plan Selector */}
+                <PlanSelector />
+                
                 {/* Toggle Mensal/Anual */}
                 <div className="flex items-center justify-center gap-3 p-3 bg-muted/50 rounded-lg">
                   <span className={`text-sm ${!isAnual ? "font-semibold" : "text-muted-foreground"}`}>Mensal</span>
@@ -366,6 +437,19 @@ export default function Checkout() {
                   <span className={`text-sm ${isAnual ? "font-semibold" : "text-muted-foreground"}`}>
                     Anual <span className="text-emerald-500 text-xs">({economia}% OFF)</span>
                   </span>
+                </div>
+
+                {/* Resumo do plano */}
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Plano {plano.nome} {isAnual ? "Anual" : "Mensal"}</span>
+                    <span className="text-lg font-bold text-emerald-500">R$ {preco}{periodo}</span>
+                  </div>
+                  {isAnual && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Equivalente a R$ {(preco / 12).toFixed(2)}/mês
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-4">

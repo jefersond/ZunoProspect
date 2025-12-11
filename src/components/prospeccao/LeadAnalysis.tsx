@@ -10,6 +10,7 @@ import { copyToClipboard } from "@/utils/templateUtils";
 interface PlanoProspeccaoDia {
   dia: number;
   canal: "whatsapp" | "email" | "instagram";
+  acao_sugerida: string;
   mensagem: string;
   objecao_provavel: string;
   resposta_sugerida: string;
@@ -175,6 +176,18 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
                 </div>
 
                 <div className="pl-4 space-y-2 text-sm">
+                  {/* Ação Sugerida */}
+                  {dia.acao_sugerida && (
+                    <div className="bg-purple-50 dark:bg-purple-950/30 p-3 rounded-md border border-purple-200 dark:border-purple-800">
+                      <p className="font-semibold text-purple-700 dark:text-purple-400 text-xs mb-1 flex items-center gap-1.5">
+                        🎯 Ação Sugerida:
+                      </p>
+                      <p className="text-sm text-purple-900 dark:text-purple-300 font-medium">
+                        {dia.acao_sugerida}
+                      </p>
+                    </div>
+                  )}
+
                   <div className="bg-primary/5 p-3 rounded-md border border-primary/10 relative">
                     <div className="flex items-start justify-between">
                       <p className="font-medium text-primary mb-1">Mensagem:</p>

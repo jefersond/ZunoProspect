@@ -113,6 +113,7 @@ interface AnaliseResult {
   plano_prospeccao_7dias: Array<{
     dia: number;
     canal: "whatsapp" | "email" | "instagram";
+    acao_sugerida: string;
     mensagem: string;
     objecao_provavel: string;
     resposta_sugerida: string;
@@ -413,12 +414,13 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string): Promise<
                       properties: {
                         dia: { type: "number" },
                         canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
+                        acao_sugerida: { type: "string", description: "Ação tática específica: enviar áudio, texto, curtir posts, reagir story, etc." },
                         mensagem: { type: "string" },
                         objecao_provavel: { type: "string" },
                         resposta_sugerida: { type: "string" },
                         cta: { type: "string" }
                       },
-                      required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
+                      required: ["dia", "canal", "acao_sugerida", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
                     }
                   }
                 },
@@ -521,12 +523,13 @@ async function analyzeWithOpenAI(lead: LeadData, apiKey: string): Promise<Analis
                     properties: {
                       dia: { type: "number" },
                       canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
+                      acao_sugerida: { type: "string", description: "Ação tática específica: enviar áudio, texto, curtir posts, reagir story, etc." },
                       mensagem: { type: "string" },
                       objecao_provavel: { type: "string" },
                       resposta_sugerida: { type: "string" },
                       cta: { type: "string" }
                     },
-                    required: ["dia", "canal", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
+                    required: ["dia", "canal", "acao_sugerida", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
                   }
                 }
               },
@@ -626,7 +629,33 @@ Sua missão: criar mensagens que fazem o prospect PARAR, LER e RESPONDER.
    ❌ NUNCA comece com "Somos uma agência..." ou fale de si primeiro
 
 ═══════════════════════════════════════════════════════════════
-5. 📱 ESTRUTURA POR CANAL
+5. 🎯 AÇÃO SUGERIDA (CAMPO OBRIGATÓRIO)
+═══════════════════════════════════════════════════════════════
+
+   Para CADA DIA, você DEVE incluir uma "acao_sugerida" que orienta
+   o usuário sobre COMO executar o contato (formato, preparação, etc.)
+
+   📱 WHATSAPP - Ações possíveis:
+   ─────────────────────────────
+   • Dia 1: "Enviar ÁUDIO de 30-45 segundos se apresentando"
+   • Dias 2-4: Alternar entre "Enviar mensagem de TEXTO" e "Enviar ÁUDIO curto (20-30s)"
+   • Dia 5-6: "Enviar mensagem de TEXTO com case/resultado"
+   • Dia 7: "Enviar ÁUDIO de despedida respeitoso (30s)"
+   
+   📸 INSTAGRAM - Ações possíveis (PRÉ-ENGAJAMENTO OBRIGATÓRIO):
+   ─────────────────────────────
+   • "1) Curtir 2-3 posts recentes 2) Reagir a 1 story com emoji relevante 3) Enviar DM com a mensagem"
+   • "1) Comentar no último post com insight relevante 2) Esperar 1h 3) Enviar DM"
+   • "Reagir aos últimos 2 stories + enviar DM com áudio curto (20s)"
+   
+   ✉️ EMAIL - Ações possíveis:
+   ─────────────────────────────
+   • "Enviar email com ASSUNTO: [sugestão de assunto impactante]"
+   • "Enviar email com PDF de case anexo"
+   • "Enviar email com link de vídeo curto (Loom 2min)"
+
+═══════════════════════════════════════════════════════════════
+6. 📱 ESTRUTURA POR CANAL
 ═══════════════════════════════════════════════════════════════
 
    📱 WHATSAPP (máx 5 linhas):
@@ -1663,6 +1692,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       {
         dia: 1,
         canal: getCanal(1),
+        acao_sugerida: getCanal(1) === "whatsapp" ? "Enviar ÁUDIO de 30-45 segundos se apresentando" : getCanal(1) === "instagram" ? "1) Curtir 2-3 posts recentes 2) Reagir a 1 story 3) Enviar DM" : "Enviar email com assunto personalizado",
         mensagem: `${lead.nome_responsavel || lead.nome}, analisei o setor de ${lead.nicho} em ${lead.cidade}. Identifiquei uma oportunidade em ${lead.foco} que poucas empresas estão explorando. Vale uma conversa de 5 min?`,
         objecao_provavel: "Quem é você e como conseguiu meu contato?",
         resposta_sugerida: "Justo. Sou especialista em ${lead.foco} e faço análises de mercado regularmente. Encontrei dados públicos da empresa e identifiquei uma oportunidade real. Posso mostrar em 5 minutos.",
@@ -1671,6 +1701,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       {
         dia: 2,
         canal: getCanal(2),
+        acao_sugerida: getCanal(2) === "whatsapp" ? "Enviar mensagem de TEXTO" : getCanal(2) === "instagram" ? "Comentar no último post com insight + esperar 1h + enviar DM" : "Enviar email com case de sucesso anexo",
         mensagem: `Assunto: Oportunidade identificada - ${lead.nome}\n\nAnalisei empresas de ${lead.nicho} em ${lead.cidade} e notei que muitas estão perdendo clientes por não otimizar ${lead.foco}. Preparei um diagnóstico rápido para vocês - posso enviar?`,
         objecao_provavel: "Já trabalhamos com alguém",
         resposta_sugerida: "Faz sentido. Não vim substituir ninguém. Vim mostrar uma oportunidade complementar que identificamos especificamente para ${lead.nicho}. Vale conhecer mesmo que seja só para comparar?",
@@ -1679,6 +1710,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       {
         dia: 3,
         canal: getCanal(3),
+        acao_sugerida: getCanal(3) === "whatsapp" ? "Enviar ÁUDIO curto (20-30 segundos)" : getCanal(3) === "instagram" ? "Reagir aos últimos 2 stories + enviar DM" : "Enviar email com dados do mercado",
         mensagem: `Empresas de ${lead.nicho} em cidades similares estão usando uma estratégia específica de ${lead.foco} que está gerando resultados. ${lead.nome} pode aplicar o mesmo. Posso mostrar como funciona?`,
         objecao_provavel: "Não tenho orçamento agora",
         resposta_sugerida: "Compreendo. E se eu mostrar quanto vocês podem estar deixando de faturar por não explorar essa oportunidade? Muitas vezes o 'orçamento' aparece quando o ROI fica claro.",
@@ -1687,6 +1719,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       {
         dia: 4,
         canal: getCanal(4),
+        acao_sugerida: getCanal(4) === "whatsapp" ? "Enviar mensagem de TEXTO com framework" : getCanal(4) === "instagram" ? "Curtir 2 posts + enviar DM com proposta de valor" : "Enviar email com framework em PDF",
         mensagem: `Preparei um framework simples de 3 passos que empresas de ${lead.nicho} usam para melhorar ${lead.foco}. Funciona bem para negócios do porte de vocês em ${lead.cidade}. Quer que eu compartilhe?`,
         objecao_provavel: "Preciso falar com meu sócio",
         resposta_sugerida: "Claro. Posso preparar um resumo executivo de 1 página para facilitar a conversa. Assim vocês avaliam com as informações certas em mãos.",
@@ -1695,6 +1728,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       {
         dia: 5,
         canal: getCanal(5),
+        acao_sugerida: getCanal(5) === "whatsapp" ? "Enviar ÁUDIO de 30 segundos com case de sucesso" : getCanal(5) === "instagram" ? "Comentar em post recente + enviar DM com resultado" : "Enviar email com vídeo curto (Loom 2min)",
         mensagem: `Última semana analisando o setor de ${lead.nicho}. ${lead.nome} tem um perfil que combina bem com nossa metodologia de ${lead.foco}. 15 minutos para mostrar a proposta?`,
         objecao_provavel: "Me manda proposta por email",
         resposta_sugerida: "Posso enviar. Mas antes de algo genérico, preciso de 5 min para entender 2-3 pontos do negócio. Assim a proposta já vem personalizada com projeção de retorno.",
@@ -1703,6 +1737,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       {
         dia: 6,
         canal: getCanal(6),
+        acao_sugerida: getCanal(6) === "whatsapp" ? "Enviar mensagem de TEXTO com urgência sutil" : getCanal(6) === "instagram" ? "Reagir a story + enviar DM com escassez" : "Enviar email com proposta personalizada",
         mensagem: `${lead.nome}, estou fechando a agenda do mês para novos projetos de ${lead.foco}. Guardei um espaço para vocês caso faça sentido. Conseguimos alinhar essa semana?`,
         objecao_provavel: "Vou analisar e retorno",
         resposta_sugerida: "Combinado. Deixo um lembrete: cada semana sem otimizar ${lead.foco} é oportunidade que passa. Se preferir, posso mostrar um teste piloto de baixo investimento para validar.",
@@ -1711,6 +1746,7 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
       {
         dia: 7,
         canal: getCanal(7),
+        acao_sugerida: getCanal(7) === "whatsapp" ? "Enviar ÁUDIO de despedida respeitoso (30 segundos)" : getCanal(7) === "instagram" ? "Enviar DM final com porta aberta" : "Enviar email final de despedida",
         mensagem: `Última mensagem sobre isso. Se ${lead.foco} não é prioridade agora, entendo perfeitamente. Fico à disposição quando fizer sentido. Sucesso com a ${lead.nome}!`,
         objecao_provavel: "Não tenho interesse",
         resposta_sugerida: "Entendido, agradeço a clareza. Se em algum momento fizer sentido revisitar, estou à disposição. Sucesso com os projetos atuais.",

@@ -18,6 +18,7 @@ export interface SinaisDigitais {
 export interface PlanoProspeccaoDia {
   dia: number;
   canal: "whatsapp" | "email" | "instagram";
+  acao_sugerida: string;
   mensagem: string;
   objecao_provavel: string;
   resposta_sugerida: string;

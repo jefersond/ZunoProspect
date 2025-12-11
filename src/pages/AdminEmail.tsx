@@ -202,6 +202,9 @@ const AdminEmail = () => {
       starter: "Plano Starter",
       pro: "Plano Pro",
       agencia: "Plano Agência",
+      inativos: "Usuários Inativos (0 leads)",
+      starter_inativos: "Starter Inativos (nunca usaram)",
+      nao_pagantes: "Não Pagantes (todos Starter)",
     };
     return labels[seg] || seg;
   };
@@ -414,6 +417,9 @@ const AdminEmail = () => {
                   <SelectItem value="starter">Plano Starter</SelectItem>
                   <SelectItem value="pro">Plano Pro</SelectItem>
                   <SelectItem value="agencia">Plano Agência</SelectItem>
+                  <SelectItem value="inativos">🔴 Inativos (0 leads este mês)</SelectItem>
+                  <SelectItem value="starter_inativos">🎯 Starter Inativos (nunca usaram)</SelectItem>
+                  <SelectItem value="nao_pagantes">💰 Não Pagantes (todos Starter)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

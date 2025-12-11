@@ -1,10 +1,11 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Lock, Unlock } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface UpsellCardProps {
   leadsOcultos: number;
-  onUpgrade: () => void;
+  onUpgrade?: () => void;
 }
 
 export const UpsellCard = ({ leadsOcultos, onUpgrade }: UpsellCardProps) => {
@@ -30,14 +31,16 @@ export const UpsellCard = ({ leadsOcultos, onUpgrade }: UpsellCardProps) => {
           Seu plano atual limita a visualização. Faça upgrade para acessar a lista completa agora.
         </p>
 
-        {/* Botão CTA - Largo e Chamativo */}
+        {/* Botão CTA - Link direto para checkout */}
         <Button
-          onClick={onUpgrade}
+          asChild
           size="lg"
           className="w-full max-w-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base py-6 shadow-lg shadow-emerald-500/25"
         >
-          <Unlock className="h-5 w-5 mr-2" />
-          Desbloquear Todos os Leads
+          <Link to="/checkout?plano=pro">
+            <Unlock className="h-5 w-5 mr-2" />
+            Desbloquear Todos os Leads
+          </Link>
         </Button>
       </CardContent>
     </Card>

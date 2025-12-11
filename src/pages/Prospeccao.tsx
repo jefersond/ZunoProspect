@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ProspeccaoForm } from "@/components/prospeccao/ProspeccaoForm";
 import { LeadsList } from "@/components/prospeccao/LeadsList";
-import { LogOut, User, BarChart3, FileText, History, Bookmark, Kanban, Zap } from "lucide-react";
+import { LogOut, User, BarChart3, FileText, History, Bookmark, Kanban, Zap, Mail } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
@@ -122,6 +122,12 @@ const Prospeccao = () => {
                   <History className="h-4 w-4" />
                   <span className="hidden sm:inline">Histórico</span>
                 </Button>
+                {isAdmin && (
+                  <Button variant="ghost" size="sm" onClick={() => navigate("/admin/email")} className="gap-2 text-amber-500 hover:text-amber-400">
+                    <Mail className="h-4 w-4" />
+                    <span className="hidden sm:inline">Email</span>
+                  </Button>
+                )}
               </nav>
 
               {/* Botão de Upgrade - sempre visível para usuários não-Agência */}

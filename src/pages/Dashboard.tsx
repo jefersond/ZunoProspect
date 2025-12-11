@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, TrendingUp, Users, Target, Activity, Loader2, History, BarChart3, Search, FileText, User, LogOut, Bookmark, Kanban } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, Target, Activity, Loader2, History, BarChart3, Search, FileText, User, LogOut, Bookmark, Kanban, Mail } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
@@ -26,6 +26,7 @@ const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accen
 const Dashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     totalLeads: 0,
     leadsNovos: 0,
@@ -47,7 +48,11 @@ const Dashboard = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       navigate("/auth");
+      return;
     }
+    // Check if admin
+    const { data: adminData } = await supabase.rpc('is_admin', { _user_id: user.id });
+    setIsAdmin(!!adminData);
   };
 
   const loadMetrics = async () => {
@@ -162,6 +167,12 @@ const Dashboard = () => {
                   <History className="h-4 w-4" />
                   <span className="hidden sm:inline">Histórico</span>
                 </Button>
+                {isAdmin && (
+                  <Button variant="ghost" size="sm" onClick={() => navigate("/admin/email")} className="gap-2 text-amber-500 hover:text-amber-400">
+                    <Mail className="h-4 w-4" />
+                    <span className="hidden sm:inline">Email</span>
+                  </Button>
+                )}
               </nav>
 
               {/* Ações do Usuário */}

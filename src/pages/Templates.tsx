@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LogOut, ArrowLeft, Plus, History, BarChart3, User, FileText, Search, Bookmark, Kanban } from "lucide-react";
+import { LogOut, ArrowLeft, Plus, History, BarChart3, User, FileText, Search, Bookmark, Kanban, Mail } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
@@ -15,15 +15,21 @@ const Templates = () => {
   const [user, setUser] = useState<any>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         navigate("/auth");
       } else {
         setUser(user);
+        // Check if admin
+        const { data: adminData } = await supabase.rpc('is_admin', { _user_id: user.id });
+        setIsAdmin(!!adminData);
       }
-    });
+    };
+    checkUser();
   }, [navigate]);
 
   const handleLogout = async () => {
@@ -75,6 +81,12 @@ const Templates = () => {
                   <History className="h-4 w-4" />
                   <span className="hidden sm:inline">Histórico</span>
                 </Button>
+                {isAdmin && (
+                  <Button variant="ghost" size="sm" onClick={() => navigate("/admin/email")} className="gap-2 text-amber-500 hover:text-amber-400">
+                    <Mail className="h-4 w-4" />
+                    <span className="hidden sm:inline">Email</span>
+                  </Button>
+                )}
               </nav>
 
               {/* Ações do Usuário */}

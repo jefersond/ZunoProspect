@@ -88,11 +88,15 @@ export const LeadPlanDialog = ({
 
     setIsReanalyzing(true);
     try {
+      // Obter user_id do usuário atual
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const { data: functionData, error: functionError } = await supabase.functions.invoke(
         'analisar-lead-ia',
         {
           body: {
             lead_id: lead.id,
+            user_id: user?.id,
             nome: lead.nome,
             nicho: lead.nicho,
             cidade: lead.cidade,

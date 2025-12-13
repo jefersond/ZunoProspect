@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
@@ -40,7 +41,7 @@ export function LPHeader() {
           <div className="hidden lg:flex items-center gap-3">
             <ThemeToggle />
             <Button variant="ghost" size="sm" asChild>
-              <a href="/auth?tab=login">Entrar</a>
+              <Link to="/auth?tab=login">Entrar</Link>
             </Button>
             <Button size="sm" variant="success" onClick={() => scrollToSection("precos")}>
               Começar
@@ -74,7 +75,7 @@ export function LPHeader() {
                   ))}
                   <div className="border-t pt-4 mt-2 space-y-3">
                     <Button variant="outline" className="w-full" asChild>
-                      <a href="/auth?tab=login">Entrar</a>
+                      <Link to="/auth?tab=login">Entrar</Link>
                     </Button>
                     <Button className="w-full" variant="success" onClick={() => scrollToSection("precos")}>
                       Começar agora

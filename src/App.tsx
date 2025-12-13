@@ -35,29 +35,9 @@ const PageLoader = () => (
 );
 
 const AppContent = () => {
-  useEffect(() => {
-    // Verificar se deve fazer logout ao reabrir o navegador
-    const checkLogoutOnClose = async () => {
-      const shouldLogout = sessionStorage.getItem('logoutOnClose');
-      if (shouldLogout === 'true') {
-        await supabase.auth.signOut();
-        sessionStorage.removeItem('logoutOnClose');
-      }
-    };
-    
-    checkLogoutOnClose();
-
-    // Configurar listener para limpar sessão se "lembrar-me" não estiver marcado
-    const handleBeforeUnload = () => {
-      const rememberMe = localStorage.getItem('rememberMe');
-      if (rememberMe === 'false') {
-        sessionStorage.setItem('logoutOnClose', 'true');
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
+  // Removed the beforeunload logout mechanism that was causing unexpected
+  // page reloads and session loss. The "remember me" preference is now handled
+  // by Supabase's native session persistence (localStorage vs sessionStorage).
 
   return (
     <>

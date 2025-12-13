@@ -19,16 +19,16 @@ import screenshot09 from "@/assets/screenshots/screenshot-09.png";
 import screenshot10 from "@/assets/screenshots/screenshot-10.png";
 
 const screenshots = [
-  { src: screenshot01, alt: "Busca de leads por nicho e cidade" },
-  { src: screenshot02, alt: "Seleção de foco de serviço" },
-  { src: screenshot03, alt: "Configuração de canais de prospecção" },
-  { src: screenshot04, alt: "Leads encontrados com análise" },
-  { src: screenshot05, alt: "Detalhes do lead com probabilidade" },
-  { src: screenshot06, alt: "Plano de prospecção de 7 dias" },
-  { src: screenshot07, alt: "Leads salvos para follow-up" },
-  { src: screenshot08, alt: "Pipeline de vendas Kanban" },
-  { src: screenshot09, alt: "Relatórios e métricas avançadas" },
-  { src: screenshot10, alt: "Dashboard de performance" },
+  { src: screenshot01, alt: "Busca de leads por nicho e cidade", caption: "Busque leads por nicho e localização" },
+  { src: screenshot02, alt: "Seleção de foco de serviço", caption: "Escolha o foco do seu serviço" },
+  { src: screenshot03, alt: "Configuração de canais de prospecção", caption: "Defina os canais de prospecção" },
+  { src: screenshot04, alt: "Leads encontrados com análise", caption: "Leads qualificados com análise IA" },
+  { src: screenshot05, alt: "Detalhes do lead com probabilidade", caption: "Probabilidade de conversão por lead" },
+  { src: screenshot06, alt: "Plano de prospecção de 7 dias", caption: "Plano de abordagem de 7 dias" },
+  { src: screenshot07, alt: "Leads salvos para follow-up", caption: "Organize seus leads salvos" },
+  { src: screenshot08, alt: "Pipeline de vendas Kanban", caption: "Pipeline visual estilo Kanban" },
+  { src: screenshot09, alt: "Relatórios e métricas avançadas", caption: "Relatórios e métricas detalhadas" },
+  { src: screenshot10, alt: "Dashboard de performance", caption: "Dashboard de performance completo" },
 ];
 
 export function HeroCarousel() {
@@ -73,13 +73,18 @@ export function HeroCarousel() {
         <CarouselContent>
           {screenshots.map((screenshot, index) => (
             <CarouselItem key={index}>
-              <div className="relative overflow-hidden rounded-xl border-2 border-border/50 shadow-2xl dark:shadow-primary/10 bg-card">
-                <img
-                  src={screenshot.src}
-                  alt={screenshot.alt}
-                  className="w-full h-auto object-cover"
-                  loading={index === 0 ? "eager" : "lazy"}
-                />
+              <div className="space-y-3">
+                <div className="relative overflow-hidden rounded-xl border-2 border-border/50 shadow-2xl dark:shadow-primary/10 bg-card">
+                  <img
+                    src={screenshot.src}
+                    alt={screenshot.alt}
+                    className="w-full h-auto object-cover"
+                    loading={index === 0 ? "eager" : "lazy"}
+                  />
+                </div>
+                <p className="text-center text-sm font-medium text-muted-foreground">
+                  {screenshot.caption}
+                </p>
               </div>
             </CarouselItem>
           ))}

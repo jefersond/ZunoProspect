@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight } from "lucide-react";
-import { HeroCarousel } from "./HeroCarousel";
+import screenshot01 from "@/assets/screenshots/screenshot-01.png";
+
 export function HeroSection() {
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({
@@ -45,7 +46,13 @@ export function HeroSection() {
           </div>
 
           <div className="relative hidden lg:block">
-            <HeroCarousel />
+            <div className="relative overflow-hidden rounded-xl border-2 border-border/50 shadow-2xl dark:shadow-primary/10 bg-card">
+              <img
+                src={screenshot01}
+                alt="Busca de leads por nicho e cidade"
+                className="w-full h-auto object-cover"
+              />
+            </div>
           </div>
         </div>
       </div>

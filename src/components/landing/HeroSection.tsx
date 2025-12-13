@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight } from "lucide-react";
-import screenshot04 from "@/assets/screenshots/screenshot-04.png";
+import heroProspeccao from "@/assets/screenshots/hero-prospeccao.png";
 
 export function HeroSection() {
   const scrollToSection = (id: string) => {
@@ -48,8 +48,8 @@ export function HeroSection() {
           <div className="relative hidden lg:block lg:scale-110 xl:scale-115">
             <div className="relative overflow-hidden rounded-xl border-2 border-border/50 shadow-2xl dark:shadow-primary/10 bg-card animate-fade-in">
               <img
-                src={screenshot04}
-                alt="Leads qualificados com análise IA"
+                src={heroProspeccao}
+                alt="Prospecção com IA - Leads encontrados com análise"
                 className="w-full h-auto object-cover"
               />
             </div>

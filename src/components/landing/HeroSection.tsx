@@ -45,8 +45,8 @@ export function HeroSection() {
             
           </div>
 
-          <div className="relative hidden lg:block">
-            <div className="relative overflow-hidden rounded-xl border-2 border-border/50 shadow-2xl dark:shadow-primary/10 bg-card">
+          <div className="relative hidden lg:block lg:scale-110 xl:scale-115">
+            <div className="relative overflow-hidden rounded-xl border-2 border-border/50 shadow-2xl dark:shadow-primary/10 bg-card animate-fade-in">
               <img
                 src={screenshot04}
                 alt="Leads qualificados com análise IA"

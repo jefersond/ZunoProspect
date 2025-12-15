@@ -56,6 +56,71 @@ serve(async (req) => {
     let leads = [];
     let totalAvailable = 0; // Total de leads disponíveis ANTES de limitar
 
+    // ============================================
+    // FUNÇÃO DE PAGINAÇÃO AUTOMÁTICA
+    // Busca até 3 páginas (60 resultados) automaticamente
+    // ============================================
+    async function fetchAllPagesFromGoogle(
+      initialUrl: string,
+      targetQuantity: number,
+      maxPages: number = 3
+    ): Promise<{ results: any[]; totalFound: number }> {
+      const allResults: any[] = [];
+      const seenPlaceIds = new Set<string>();
+      let pageToken: string | null = null;
+      let currentPage = 0;
+
+      while (allResults.length < targetQuantity && currentPage < maxPages) {
+        let url = initialUrl;
+        
+        // Se temos pageToken, usa ele (substitui a URL inteira)
+        if (pageToken) {
+          // Extrai a base URL para adicionar apenas o pageToken
+          const baseUrl = initialUrl.includes('nearbysearch') 
+            ? 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
+            : 'https://maps.googleapis.com/maps/api/place/textsearch/json';
+          url = `${baseUrl}?pagetoken=${pageToken}&key=${GOOGLE_API_KEY}`;
+        }
+
+        console.log(`📄 Buscando página ${currentPage + 1}/${maxPages}...`);
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.status === "OK" && data.results?.length > 0) {
+          // Deduplica por place_id
+          for (const result of data.results) {
+            if (!seenPlaceIds.has(result.place_id)) {
+              seenPlaceIds.add(result.place_id);
+              allResults.push(result);
+            }
+          }
+          
+          console.log(`✅ Página ${currentPage + 1}: ${data.results.length} resultados (total acumulado: ${allResults.length})`);
+          
+          pageToken = data.next_page_token || null;
+          
+          // Se ainda não atingimos a quantidade e tem mais páginas
+          if (pageToken && allResults.length < targetQuantity) {
+            // Google EXIGE delay de 2 segundos antes de usar pageToken
+            console.log(`⏳ Aguardando 2s para próxima página (requisito Google)...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        } else if (data.status === "ZERO_RESULTS") {
+          console.log(`📭 Página ${currentPage + 1}: Nenhum resultado`);
+          break;
+        } else {
+          console.error(`❌ Erro na página ${currentPage + 1}:`, data.status, data.error_message);
+          break;
+        }
+
+        currentPage++;
+        if (!pageToken) break; // Sem mais páginas
+      }
+
+      console.log(`📊 Paginação completa: ${allResults.length} leads únicos em ${currentPage} página(s)`);
+      return { results: allResults, totalFound: allResults.length };
+    }
+
     // Se não houver API key, retorna dados mockados para teste de UI
     if (!GOOGLE_API_KEY) {
       console.log("API key não configurada - retornando dados mockados");
@@ -79,10 +144,10 @@ serve(async (req) => {
       leads = mockLeads;
       totalAvailable = mockLeads.length;
     } else {
-      // Busca real com Google Places API
+      // Busca real com Google Places API usando PAGINAÇÃO AUTOMÁTICA
       if (body.proximidadeAtiva && body.raioKm) {
         // Busca por proximidade (Nearby Search)
-        console.log("Buscando por proximidade (Nearby Search)...");
+        console.log("🔍 Buscando por proximidade (Nearby Search) com paginação automática...");
 
         // Se for busca incremental, aumenta o raio em 50% para encontrar novos leads
         const isIncremental = body.excludePlaceIds && body.excludePlaceIds.length > 0;
@@ -106,74 +171,54 @@ serve(async (req) => {
         }
 
         const location = geocodeData.results[0].geometry.location;
-        console.log("Coordenadas do centro da cidade:", location);
+        console.log("📍 Coordenadas do centro da cidade:", location);
 
-        // Nearby Search com keyword (nicho) e raio
-        let nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
+        // Nearby Search com keyword (nicho) e raio - COM PAGINAÇÃO
+        const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
           searchRadius * 1000
         }&keyword=${encodeURIComponent(body.nicho)}&key=${GOOGLE_API_KEY}`;
 
-        // Se houver pageToken, usa para paginação (busca incremental)
-        if (body.pageToken) {
-          nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${body.pageToken}&key=${GOOGLE_API_KEY}`;
-          console.log("Usando pageToken para busca incremental");
-        }
+        // Busca com paginação automática (até 60 resultados)
+        const { results: nearbyResults, totalFound } = await fetchAllPagesFromGoogle(
+          nearbyUrl,
+          body.quantidade,
+          3 // Máximo 3 páginas
+        );
 
-        const nearbyResponse = await fetch(nearbyUrl);
-        const nearbyData = await nearbyResponse.json();
-
-      if (nearbyData.status === "OK") {
-          // Guarda o total de resultados disponíveis ANTES de limitar
-          totalAvailable = nearbyData.results.length;
-          
-          // Se for busca incremental, pega TODOS os resultados (até 20) para filtrar depois
-          // Se não, pega apenas a quantidade solicitada
+        if (nearbyResults.length > 0) {
+          totalAvailable = totalFound;
           leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
-            ? nearbyData.results // Busca incremental: pega tudo para filtrar
-            : nearbyData.results.slice(0, body.quantidade);
+            ? nearbyResults // Busca incremental: pega tudo para filtrar
+            : nearbyResults.slice(0, body.quantidade);
           
-          console.log(`Google retornou ${nearbyData.results.length} resultados`);
-        } else if (nearbyData.status === "INVALID_REQUEST" && body.pageToken) {
-          // PageToken pode ter expirado (válido por ~2 minutos)
-          throw new Error("Token de paginação expirou. Tente fazer uma nova busca.");
+          console.log(`🎯 Total disponível: ${totalAvailable}, entregando: ${leads.length}`);
         } else {
-          console.error("Nearby Search falhou:", nearbyData.status, nearbyData.error_message);
-          throw new Error(`Erro na busca: ${nearbyData.error_message || nearbyData.status}`);
+          throw new Error(`Nenhum resultado encontrado para "${body.nicho}" em ${body.cidade}`);
         }
       } else {
-        // Busca por texto (Text Search)
-        console.log("Buscando por texto (Text Search)...");
+        // Busca por texto (Text Search) - COM PAGINAÇÃO
+        console.log("🔍 Buscando por texto (Text Search) com paginação automática...");
 
-        let textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
+        const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
           `${body.nicho} ${body.cidade} ${body.estado}`
         )}&key=${GOOGLE_API_KEY}`;
 
-        // Se houver pageToken, usa para paginação (busca incremental)
-        if (body.pageToken) {
-          textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?pagetoken=${body.pageToken}&key=${GOOGLE_API_KEY}`;
-          console.log("Usando pageToken para busca incremental");
-        }
+        // Busca com paginação automática (até 60 resultados)
+        const { results: textResults, totalFound } = await fetchAllPagesFromGoogle(
+          textSearchUrl,
+          body.quantidade,
+          3 // Máximo 3 páginas
+        );
 
-        const textResponse = await fetch(textSearchUrl);
-        const textData = await textResponse.json();
-
-        if (textData.status === "OK") {
-          // Guarda o total de resultados disponíveis ANTES de limitar
-          totalAvailable = textData.results.length;
-          
-          // Se for busca incremental, pega TODOS os resultados (até 20) para filtrar depois
-          // Se não, pega apenas a quantidade solicitada
+        if (textResults.length > 0) {
+          totalAvailable = totalFound;
           leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
-            ? textData.results // Busca incremental: pega tudo para filtrar
-            : textData.results.slice(0, body.quantidade);
+            ? textResults // Busca incremental: pega tudo para filtrar
+            : textResults.slice(0, body.quantidade);
           
-          console.log(`Google retornou ${textData.results.length} resultados`);
-        } else if (textData.status === "INVALID_REQUEST" && body.pageToken) {
-          // PageToken pode ter expirado (válido por ~2 minutos)
-          throw new Error("Token de paginação expirou. Tente fazer uma nova busca.");
+          console.log(`🎯 Total disponível: ${totalAvailable}, entregando: ${leads.length}`);
         } else {
-          console.error("Text Search falhou:", textData.status, textData.error_message);
-          throw new Error(`Erro na busca: ${textData.error_message || textData.status}`);
+          throw new Error(`Nenhum resultado encontrado para "${body.nicho}" em ${body.cidade}`);
         }
       }
     }

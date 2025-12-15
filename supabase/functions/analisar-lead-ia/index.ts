@@ -321,7 +321,7 @@ serve(async (req) => {
 
     let analise: AnaliseResult;
 
-    // Prioriza OpenAI → Gemini Fallback → Mock
+    // Prioriza OpenAI → Gemini → Lovable AI → Mock
     if (OPENAI_API_KEY) {
       console.log("🤖 Usando OpenAI GPT-4o (principal)...");
       try {
@@ -330,17 +330,30 @@ serve(async (req) => {
         console.log(`⚠️ OpenAI falhou: ${openaiError.message}`);
         if (GOOGLE_GEMINI_API_KEY) {
           console.log("🔄 Fallback para Gemini...");
-          analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
+          try {
+            analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
+          } catch (geminiError: any) {
+            console.log(`⚠️ Gemini falhou: ${geminiError.message}`);
+            console.log("🔄 Fallback para Lovable AI...");
+            analise = await analyzeWithLovableAI(leadData);
+          }
         } else {
-          throw openaiError;
+          console.log("🔄 Fallback para Lovable AI...");
+          analise = await analyzeWithLovableAI(leadData);
         }
       }
     } else if (GOOGLE_GEMINI_API_KEY) {
       console.log("🚀 Usando Gemini (secundário)...");
-      analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
+      try {
+        analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
+      } catch (geminiError: any) {
+        console.log(`⚠️ Gemini falhou: ${geminiError.message}`);
+        console.log("🔄 Fallback para Lovable AI...");
+        analise = await analyzeWithLovableAI(leadData);
+      }
     } else {
-      console.log("⚠️ Nenhuma API key - usando mock");
-      analise = generateMockAnalise(leadData);
+      console.log("🔄 Usando Lovable AI (sem API keys externas)...");
+      analise = await analyzeWithLovableAI(leadData);
     }
 
     // Save analysis to DB
@@ -466,9 +479,23 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string): Promise<
 
     const analise: AnaliseResult = functionCallPart.functionCall.args;
     
-    // Validate and ensure 7 days
-    if (!analise.plano_prospeccao_7dias || analise.plano_prospeccao_7dias.length !== 7) {
-      throw new Error("Plano deve ter exatamente 7 dias");
+    // Validate: accept 5-7 days (more tolerant)
+    if (!analise.plano_prospeccao_7dias || analise.plano_prospeccao_7dias.length < 5) {
+      throw new Error("Plano deve ter pelo menos 5 dias");
+    }
+    
+    // Complete to 7 days if needed
+    while (analise.plano_prospeccao_7dias.length < 7) {
+      const lastDay = analise.plano_prospeccao_7dias[analise.plano_prospeccao_7dias.length - 1];
+      analise.plano_prospeccao_7dias.push({
+        dia: analise.plano_prospeccao_7dias.length + 1,
+        canal: lastDay.canal,
+        acao_sugerida: "Follow-up final",
+        mensagem: `Continuando nosso último contato, gostaria de entender melhor sua situação atual com ${lead.foco || "marketing digital"}.`,
+        objecao_provavel: "Não tenho interesse",
+        resposta_sugerida: "Sem problemas! Fico à disposição quando precisar.",
+        cta: "Posso ajudar de alguma forma?",
+      });
     }
 
     console.log("✅ Análise gerada com sucesso via Gemini 2.0 Flash");
@@ -565,6 +592,116 @@ async function analyzeWithOpenAI(lead: LeadData, apiKey: string): Promise<Analis
   } catch (error: any) {
     clearTimeout(timeoutId);
     throw error;
+  }
+}
+
+// =============================================================================
+// LOVABLE AI GATEWAY (FALLBACK)
+// =============================================================================
+async function analyzeWithLovableAI(lead: LeadData): Promise<AnaliseResult> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    console.log("⚠️ Lovable API key não configurada - usando mock");
+    return generateMockAnalise(lead);
+  }
+
+  const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
+  const canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
+  
+  const systemPrompt = buildEliteCopywriterSystemPrompt();
+  const userPrompt = buildEliteUserPrompt(lead, canaisDisponiveis);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
+
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        tools: [{
+          type: "function",
+          function: {
+            name: "gerar_analise_lead",
+            description: "Gera análise completa do lead",
+            parameters: {
+              type: "object",
+              properties: {
+                diagnostico_bullets: { type: "array", items: { type: "string" } },
+                probabilidade_conversao: { type: "number" },
+                plano_prospeccao_7dias: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      dia: { type: "number" },
+                      canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
+                      acao_sugerida: { type: "string" },
+                      mensagem: { type: "string" },
+                      objecao_provavel: { type: "string" },
+                      resposta_sugerida: { type: "string" },
+                      cta: { type: "string" }
+                    },
+                    required: ["dia", "canal", "acao_sugerida", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
+                  }
+                }
+              },
+              required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"]
+            }
+          }
+        }],
+        tool_choice: { type: "function", function: { name: "gerar_analise_lead" } },
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Lovable AI error: ${response.status}`, errorText);
+      throw new Error(`Lovable AI error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    
+    if (!toolCall) {
+      console.log("⚠️ Lovable AI não retornou análise estruturada - usando mock");
+      return generateMockAnalise(lead);
+    }
+
+    const analise: AnaliseResult = JSON.parse(toolCall.function.arguments);
+    
+    // Ensure 7 days
+    while (analise.plano_prospeccao_7dias.length < 7) {
+      const lastDay = analise.plano_prospeccao_7dias[analise.plano_prospeccao_7dias.length - 1];
+      analise.plano_prospeccao_7dias.push({
+        dia: analise.plano_prospeccao_7dias.length + 1,
+        canal: lastDay?.canal || "whatsapp",
+        acao_sugerida: "Follow-up final",
+        mensagem: `Continuando nosso último contato sobre ${lead.foco || "marketing digital"}.`,
+        objecao_provavel: "Não tenho interesse",
+        resposta_sugerida: "Sem problemas! Fico à disposição.",
+        cta: "Posso ajudar de alguma forma?",
+      });
+    }
+
+    console.log("✅ Análise gerada com sucesso via Lovable AI");
+    return analise;
+
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    console.error("❌ Lovable AI falhou:", error.message);
+    return generateMockAnalise(lead);
   }
 }
 

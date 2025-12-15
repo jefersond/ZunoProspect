@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, AlertCircle } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
 import { Progress } from "@/components/ui/progress";
@@ -30,6 +30,7 @@ export const LeadsList = () => {
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [reanalyzingLeads, setReanalyzingLeads] = useState<Set<string>>(new Set());
 
   // Função para validar se um número de telefone brasileiro é válido
   const isValidBrazilianPhone = (phone: string): boolean => {
@@ -415,6 +416,55 @@ export const LeadsList = () => {
     }
   };
 
+  // Detectar se lead está com erro de análise (criado há mais de 3 minutos sem análise)
+  const isAnalysisFailed = (lead: LeadProspeccao): boolean => {
+    if (lead.ai_analise_gerada_em) return false;
+    const createdAt = new Date(lead.created_at).getTime();
+    const now = Date.now();
+    const threeMinutesMs = 3 * 60 * 1000;
+    return (now - createdAt) > threeMinutesMs;
+  };
+
+  // Reanalisar lead com erro
+  const reanalyzeLead = async (lead: LeadProspeccao) => {
+    setReanalyzingLeads(prev => new Set(prev).add(lead.id));
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { error } = await supabase.functions.invoke("analisar-lead-ia", {
+        body: {
+          leadId: lead.id,
+          user_id: user.id,
+          canaisProspeccao: ["email", "whatsapp", "instagram"],
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Reanálise concluída",
+        description: `Lead "${lead.nome}" foi reanalisado com sucesso`,
+      });
+
+      loadLeads();
+    } catch (error: any) {
+      console.error("Erro ao reanalisar:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro na reanálise",
+        description: error.message || "Não foi possível reanalisar o lead",
+      });
+    } finally {
+      setReanalyzingLeads(prev => {
+        const next = new Set(prev);
+        next.delete(lead.id);
+        return next;
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -612,8 +662,32 @@ export const LeadsList = () => {
                               className="h-2 w-full"
                             />
                           </>
+                        ) : isAnalysisFailed(lead) ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <div className="flex items-center gap-1 text-destructive">
+                              <AlertCircle className="h-4 w-4" />
+                              <span className="text-sm font-medium">Erro</span>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => reanalyzeLead(lead)}
+                              disabled={reanalyzingLeads.has(lead.id)}
+                              className="h-7 text-xs"
+                            >
+                              {reanalyzingLeads.has(lead.id) ? (
+                                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3 w-3 mr-1" />
+                              )}
+                              Reanalisar
+                            </Button>
+                          </div>
                         ) : (
-                          <span className="text-sm text-muted-foreground">Aguardando IA</span>
+                          <div className="flex items-center gap-2">
+                            <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">Analisando...</span>
+                          </div>
                         )}
                       </div>
                     </TableCell>
@@ -642,8 +716,13 @@ export const LeadsList = () => {
                               {lead.plano_prospecao_7dias[0].mensagem}
                             </p>
                           </div>
+                        ) : isAnalysisFailed(lead) ? (
+                          <span className="text-xs text-destructive">Falha na geração do plano</span>
                         ) : (
-                          <span className="text-xs text-muted-foreground">Plano em geração...</span>
+                          <div className="flex items-center gap-1">
+                            <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">Gerando plano...</span>
+                          </div>
                         )}
                       </div>
                     </TableCell>

@@ -6,6 +6,53 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// =============================================================================
+// RETRY COM EXPONENTIAL BACKOFF PARA RATE LIMITS (429)
+// =============================================================================
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3,
+  baseDelay = 2000
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+
+      // Se sucesso, retorna imediatamente
+      if (response.ok) return response;
+
+      // Se 429 (rate limit), aguarda e tenta novamente
+      if (response.status === 429) {
+        const retryAfter = response.headers.get("Retry-After");
+        const delay = retryAfter
+          ? parseInt(retryAfter) * 1000
+          : baseDelay * Math.pow(2, attempt); // 2s, 4s, 8s
+
+        console.log(`⏳ Rate limited (429). Aguardando ${delay / 1000}s... (tentativa ${attempt + 1}/${maxRetries})`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+
+      // Outros erros (400, 500, etc.) - não faz retry, propaga o erro
+      return response;
+    } catch (error: any) {
+      lastError = error;
+      // Erros de rede também podem ter retry
+      if (attempt < maxRetries - 1) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.log(`⏳ Erro de rede. Aguardando ${delay / 1000}s... (tentativa ${attempt + 1}/${maxRetries})`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+    }
+  }
+
+  throw lastError || new Error(`Rate limit excedido após ${maxRetries} tentativas`);
+}
+
 interface LeadData {
   nome: string;
   nicho: string;
@@ -394,7 +441,8 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string): Promise<
   const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
 
   try {
-    const response = await fetch(
+    // Usa fetchWithRetry para lidar com rate limits (429)
+    const response = await fetchWithRetry(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
@@ -452,7 +500,9 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string): Promise<
           }
         }),
         signal: controller.signal,
-      }
+      },
+      3, // maxRetries
+      2000 // baseDelay 2s
     );
 
     clearTimeout(timeoutId);
@@ -524,55 +574,61 @@ async function analyzeWithOpenAI(lead: LeadData, apiKey: string): Promise<Analis
   const timeoutId = setTimeout(() => controller.abort(), 90000);
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        tools: [{
-          type: "function",
-          function: {
-            name: "gerar_analise_lead",
-            description: "Gera análise completa do lead",
-            parameters: {
-              type: "object",
-              properties: {
-                diagnostico_bullets: { type: "array", items: { type: "string" } },
-                probabilidade_conversao: { type: "number" },
-                plano_prospeccao_7dias: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      dia: { type: "number" },
-                      canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
-                      acao_sugerida: { type: "string", description: "Ação tática específica: enviar áudio, texto, curtir posts, reagir story, etc." },
-                      mensagem: { type: "string" },
-                      objecao_provavel: { type: "string" },
-                      resposta_sugerida: { type: "string" },
-                      cta: { type: "string" }
-                    },
-                    required: ["dia", "canal", "acao_sugerida", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
+    // Usa fetchWithRetry para lidar com rate limits (429)
+    const response = await fetchWithRetry(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          tools: [{
+            type: "function",
+            function: {
+              name: "gerar_analise_lead",
+              description: "Gera análise completa do lead",
+              parameters: {
+                type: "object",
+                properties: {
+                  diagnostico_bullets: { type: "array", items: { type: "string" } },
+                  probabilidade_conversao: { type: "number" },
+                  plano_prospeccao_7dias: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        dia: { type: "number" },
+                        canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
+                        acao_sugerida: { type: "string", description: "Ação tática específica: enviar áudio, texto, curtir posts, reagir story, etc." },
+                        mensagem: { type: "string" },
+                        objecao_provavel: { type: "string" },
+                        resposta_sugerida: { type: "string" },
+                        cta: { type: "string" }
+                      },
+                      required: ["dia", "canal", "acao_sugerida", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
+                    }
                   }
-                }
-              },
-              required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"]
+                },
+                required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"]
+              }
             }
-          }
-        }],
-        tool_choice: { type: "function", function: { name: "gerar_analise_lead" } },
-        temperature: 0.7,
-        max_tokens: 4000
-      }),
-      signal: controller.signal,
-    });
+          }],
+          tool_choice: { type: "function", function: { name: "gerar_analise_lead" } },
+          temperature: 0.7,
+          max_tokens: 4000
+        }),
+        signal: controller.signal,
+      },
+      3, // maxRetries
+      2000 // baseDelay 2s
+    );
 
     clearTimeout(timeoutId);
 
@@ -615,53 +671,59 @@ async function analyzeWithLovableAI(lead: LeadData): Promise<AnaliseResult> {
   const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
 
   try {
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        tools: [{
-          type: "function",
-          function: {
-            name: "gerar_analise_lead",
-            description: "Gera análise completa do lead",
-            parameters: {
-              type: "object",
-              properties: {
-                diagnostico_bullets: { type: "array", items: { type: "string" } },
-                probabilidade_conversao: { type: "number" },
-                plano_prospeccao_7dias: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      dia: { type: "number" },
-                      canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
-                      acao_sugerida: { type: "string" },
-                      mensagem: { type: "string" },
-                      objecao_provavel: { type: "string" },
-                      resposta_sugerida: { type: "string" },
-                      cta: { type: "string" }
-                    },
-                    required: ["dia", "canal", "acao_sugerida", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
+    // Usa fetchWithRetry para lidar com rate limits (429)
+    const response = await fetchWithRetry(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          tools: [{
+            type: "function",
+            function: {
+              name: "gerar_analise_lead",
+              description: "Gera análise completa do lead",
+              parameters: {
+                type: "object",
+                properties: {
+                  diagnostico_bullets: { type: "array", items: { type: "string" } },
+                  probabilidade_conversao: { type: "number" },
+                  plano_prospeccao_7dias: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        dia: { type: "number" },
+                        canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
+                        acao_sugerida: { type: "string" },
+                        mensagem: { type: "string" },
+                        objecao_provavel: { type: "string" },
+                        resposta_sugerida: { type: "string" },
+                        cta: { type: "string" }
+                      },
+                      required: ["dia", "canal", "acao_sugerida", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
+                    }
                   }
-                }
-              },
-              required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"]
+                },
+                required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"]
+              }
             }
-          }
-        }],
-        tool_choice: { type: "function", function: { name: "gerar_analise_lead" } },
-      }),
-      signal: controller.signal,
-    });
+          }],
+          tool_choice: { type: "function", function: { name: "gerar_analise_lead" } },
+        }),
+        signal: controller.signal,
+      },
+      3, // maxRetries
+      2000 // baseDelay 2s
+    );
 
     clearTimeout(timeoutId);
 

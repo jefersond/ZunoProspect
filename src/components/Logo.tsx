@@ -11,19 +11,44 @@ export const Logo = ({ className = "" }: LogoProps) => {
         viewBox="0 0 32 32" 
         fill="none" 
         xmlns="http://www.w3.org/2000/svg" 
-        className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12 scale-x-[-1]"
+        className="transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6"
       >
         <defs>
-          <linearGradient id="zGradientGraphite" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="oklch(0.70 0 0)" />
-            <stop offset="50%" stopColor="oklch(0.50 0 0)" />
-            <stop offset="100%" stopColor="oklch(0.35 0 0)" />
-          </linearGradient>
+          <filter id="greenGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
         </defs>
+        
+        {/* Quadrado arredondado */}
+        <rect 
+          x="2" y="2" width="28" height="28" 
+          rx="6" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2"
+          className="text-foreground"
+        />
+        
+        {/* Z vazado */}
         <path 
-          d="M 8 6 L 24 6 L 24 10 L 16 10 L 24 22 L 24 26 L 8 26 L 8 22 L 16 22 L 8 10 L 8 6 Z" 
-          fill="url(#zGradientGraphite)" 
-          className="transition-all duration-500" 
+          d="M 8 8 L 24 8 M 24 8 L 8 24 M 8 24 L 24 24" 
+          fill="none"
+          stroke="currentColor" 
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-foreground"
+        />
+        
+        {/* Ponto verde com glow */}
+        <circle 
+          cx="24" cy="8" r="2.5" 
+          fill="#22c55e" 
+          filter="url(#greenGlow)"
         />
       </svg>
       <span className="text-xl font-bold text-foreground transition-colors duration-300">

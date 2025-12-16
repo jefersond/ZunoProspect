@@ -46,7 +46,7 @@ export const Logo = ({ className = "" }: LogoProps) => {
         
         {/* Ponto verde com glow */}
         <circle 
-          cx="24" cy="8" r="2.5" 
+          cx="23" cy="9" r="3" 
           fill="#22c55e" 
           filter="url(#greenGlow)"
         />

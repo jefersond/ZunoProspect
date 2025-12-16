@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, MapPin, Phone, MessageSquare, Instagram, Mail } from "lucide-react";
+import { ExternalLink, MapPin, Phone, MessageSquare, Instagram, Mail, UserCheck } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeadProspeccao } from "@/types/lead";
 
 interface LeadCardProps {
@@ -8,12 +9,35 @@ interface LeadCardProps {
 }
 
 export const LeadCard = ({ lead }: LeadCardProps) => {
+  // Extrai primeiro nome do responsável
+  const primeiroNomeResponsavel = lead.nome_responsavel?.split(' ')[0] || null;
+
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <CardTitle className="text-xl">{lead.nome}</CardTitle>
+            {/* Indicador do nome do responsável via CNPJ */}
+            {primeiroNomeResponsavel && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge 
+                      variant="outline" 
+                      className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/20 cursor-help"
+                    >
+                      <UserCheck className="h-3 w-3 mr-1" />
+                      Sócio: {primeiroNomeResponsavel}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">Nome do sócio/responsável obtido via consulta CNPJ na Receita Federal</p>
+                    <p className="text-xs text-muted-foreground mt-1">Nome completo: {lead.nome_responsavel}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             {lead.endereco && (
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <MapPin className="h-3 w-3" />

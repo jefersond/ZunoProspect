@@ -13,7 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, AlertCircle } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, AlertCircle, UserCheck } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
 import { Progress } from "@/components/ui/progress";
@@ -546,6 +547,26 @@ export const LeadsList = () => {
                             >
                               {lead.situacao_cadastral === "ATIVA" ? "✓ CNPJ" : "⚠ CNPJ"}
                             </Badge>
+                          )}
+                          {/* Indicador do nome do responsável via CNPJ */}
+                          {lead.nome_responsavel && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge 
+                                    variant="outline" 
+                                    className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/20 cursor-help"
+                                  >
+                                    <UserCheck className="h-3 w-3 mr-1" />
+                                    {lead.nome_responsavel.split(' ')[0]}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">Sócio/responsável via Receita Federal</p>
+                                  <p className="text-xs text-muted-foreground">{lead.nome_responsavel}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
                         </div>
                         {lead.endereco && (

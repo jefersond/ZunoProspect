@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.send-email-campaign]
 verify_jwt = true
+
+[functions.kiwify-webhook]
+verify_jwt = false

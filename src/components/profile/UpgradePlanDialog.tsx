@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,9 +10,9 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { CheckCircle2, Crown, Loader2, CreditCard, QrCode } from "lucide-react";
+import { CheckCircle2, Crown, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { PixPaymentDialog } from "./PixPaymentDialog";
+import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
 
 // Planos disponíveis para upgrade
 const PLANOS = [
@@ -56,57 +55,20 @@ interface UpgradePlanDialogProps {
 
 export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps) => {
   const [isAnual, setIsAnual] = useState(false);
-  const [isProcessing, setIsProcessing] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "pix" | null>(null);
-  const [selectedPlano, setSelectedPlano] = useState<typeof PLANOS[0] | null>(null);
-  const [showPixDialog, setShowPixDialog] = useState(false);
 
-  const handleSelectPlano = async (plano: typeof PLANOS[0], method: "card" | "pix") => {
-    if (method === "pix") {
-      setSelectedPlano(plano);
-      setShowPixDialog(true);
-      return;
-    }
-    setIsProcessing(plano.nome);
+  const handleSelectPlano = (plano: typeof PLANOS[0]) => {
+    // Gerar URL do checkout Kiwify
+    const checkoutUrl = getKiwifyCheckoutUrl(plano.nome, isAnual);
     
-    try {
-      const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: {
-          plano: plano.nome,
-          isAnual,
-        },
-      });
-
-      if (error) throw error;
-      
-      if (data?.url) {
-        // Abrir checkout do Stripe em nova aba
-        window.open(data.url, '_blank');
-        onOpenChange(false);
-        toast.success("Checkout aberto em nova aba", {
-          description: "Complete o pagamento na página do Stripe.",
-        });
-      } else {
-        throw new Error("URL de checkout não retornada");
-      }
-    } catch (error: any) {
-      console.error("Erro ao criar checkout:", error);
-      toast.error("Erro ao iniciar checkout", {
-        description: error.message || "Tente novamente mais tarde.",
-      });
-    } finally {
-      setIsProcessing(null);
-    }
-  };
-
-  const handleClose = () => {
-    if (!isProcessing) {
-      onOpenChange(false);
-    }
+    toast.success("Redirecionando para o pagamento...");
+    
+    // Abrir checkout da Kiwify em nova aba
+    window.open(checkoutUrl, '_blank');
+    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
@@ -127,7 +89,6 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
             checked={isAnual}
             onCheckedChange={setIsAnual}
             className="data-[state=checked]:bg-primary"
-            disabled={!!isProcessing}
           />
           <span className={`text-sm font-medium ${isAnual ? "text-foreground" : "text-muted-foreground"}`}>
             Anual
@@ -143,7 +104,6 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
           {PLANOS.map((plano, index) => {
             const preco = isAnual ? plano.precoAnual : plano.precoMensal;
             const precoMensal = isAnual ? Math.round(plano.precoAnual / 12) : plano.precoMensal;
-            const isLoading = isProcessing === plano.nome;
 
             return (
               <Card
@@ -152,7 +112,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
                   plano.destaque
                     ? "border-2 border-primary shadow-md"
                     : "border border-border/50"
-                } ${isProcessing && !isLoading ? "opacity-50" : ""}`}
+                }`}
               >
                 {plano.destaque && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -183,65 +143,25 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
                   ))}
                 </ul>
 
-                <div className="space-y-2">
-                  <Button
-                    className="w-full"
-                    variant={plano.destaque ? "default" : "outline"}
-                    disabled={!!isProcessing}
-                    onClick={() => handleSelectPlano(plano, "card")}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Processando...
-                      </>
-                    ) : (
-                      <>
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Cartão de Crédito
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    className="w-full"
-                    variant="outline"
-                    disabled={!!isProcessing}
-                    onClick={() => handleSelectPlano(plano, "pix")}
-                  >
-                    <QrCode className="h-4 w-4 mr-2" />
-                    Pagar com PIX
-                  </Button>
-                </div>
+                <Button
+                  className="w-full"
+                  variant={plano.destaque ? "default" : "outline"}
+                  onClick={() => handleSelectPlano(plano)}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Assinar {plano.nome}
+                </Button>
               </Card>
             );
           })}
         </div>
 
-        <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-2 border-t">
-          <div className="flex items-center gap-1">
-            <CreditCard className="h-3 w-3" />
-            <span>Stripe</span>
-          </div>
-          <span>•</span>
-          <div className="flex items-center gap-1">
-            <QrCode className="h-3 w-3" />
-            <span>Asaas PIX</span>
-          </div>
-        </div>
+        <p className="text-xs text-center text-muted-foreground pt-2 border-t">
+          Você será redirecionado para a página de pagamento segura.
+          <br />
+          Aceita PIX, cartão de crédito e boleto.
+        </p>
       </DialogContent>
-
-      {selectedPlano && (
-        <PixPaymentDialog
-          open={showPixDialog}
-          onOpenChange={setShowPixDialog}
-          plano={selectedPlano.nome}
-          isAnual={isAnual}
-          valor={isAnual ? selectedPlano.precoAnual : selectedPlano.precoMensal}
-          onPaymentConfirmed={() => {
-            onOpenChange(false);
-          }}
-        />
-      )}
     </Dialog>
   );
 };

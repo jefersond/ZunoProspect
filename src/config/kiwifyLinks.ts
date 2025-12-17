@@ -21,7 +21,13 @@ export function getKiwifyCheckoutUrl(
   email?: string, 
   name?: string
 ): string {
-  const planKey = `${plano.toLowerCase()}_${isAnual ? "anual" : "mensal"}` as KiwifyPlanKey;
+  // Normalizar o nome do plano (remover acentos e converter para minúsculas)
+  const planoNormalizado = plano
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  
+  const planKey = `${planoNormalizado}_${isAnual ? "anual" : "mensal"}` as KiwifyPlanKey;
   let url = KIWIFY_CHECKOUT_LINKS[planKey];
   
   if (!url) {

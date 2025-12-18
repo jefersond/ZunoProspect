@@ -53,7 +53,7 @@ serve(async (req) => {
 
     const GOOGLE_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY");
     
-    let leads = [];
+    let leads: any[] = [];
     let totalAvailable = 0; // Total de leads disponíveis ANTES de limitar
 
     // ============================================
@@ -121,6 +121,32 @@ serve(async (req) => {
       return { results: allResults, totalFound: allResults.length };
     }
 
+    // ============================================
+    // FUNÇÃO PARA BUSCAR UM NICHO ESPECÍFICO
+    // ============================================
+    async function searchSingleNiche(
+      nicho: string,
+      targetQuantity: number,
+      location?: { lat: number; lng: number },
+      searchRadius?: number
+    ): Promise<{ results: any[]; totalFound: number }> {
+      if (body.proximidadeAtiva && location && searchRadius) {
+        // Nearby Search com keyword (nicho) e raio
+        const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
+          searchRadius * 1000
+        }&keyword=${encodeURIComponent(nicho)}&key=${GOOGLE_API_KEY}`;
+
+        return await fetchAllPagesFromGoogle(nearbyUrl, targetQuantity, 3);
+      } else {
+        // Text Search
+        const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
+          `${nicho} ${body.cidade} ${body.estado}`
+        )}&key=${GOOGLE_API_KEY}`;
+
+        return await fetchAllPagesFromGoogle(textSearchUrl, targetQuantity, 3);
+      }
+    }
+
     // Se não houver API key, retorna dados mockados para teste de UI
     if (!GOOGLE_API_KEY) {
       console.log("API key não configurada - retornando dados mockados");
@@ -138,25 +164,28 @@ serve(async (req) => {
             lat: -23.5505 + (i * 0.01),
             lng: -46.6333 + (i * 0.01)
           }
-        }
+        },
+        _nicho: body.nicho // Marca o nicho
       }));
 
       leads = mockLeads;
       totalAvailable = mockLeads.length;
     } else {
-      // Busca real com Google Places API usando PAGINAÇÃO AUTOMÁTICA
-      if (body.proximidadeAtiva && body.raioKm) {
-        // Busca por proximidade (Nearby Search)
-        console.log("🔍 Buscando por proximidade (Nearby Search) com paginação automática...");
+      // ============================================
+      // DETECTA MÚLTIPLOS NICHOS (separados por vírgula)
+      // ============================================
+      const nichos = body.nicho.split(',').map((n: string) => n.trim()).filter((n: string) => n.length > 0);
+      const isMultipleNiches = nichos.length > 1;
 
-        // Se for busca incremental, aumenta o raio em 50% para encontrar novos leads
-        const isIncremental = body.excludePlaceIds && body.excludePlaceIds.length > 0;
-        const searchRadius = isIncremental ? body.raioKm * 1.5 : body.raioKm;
-        
-        if (isIncremental) {
-          console.log(`Busca incremental: raio expandido de ${body.raioKm}km para ${searchRadius}km`);
-        }
+      if (isMultipleNiches) {
+        console.log(`🔍 Detectados ${nichos.length} nichos: ${nichos.join(', ')}`);
+      }
 
+      // Prepara coordenadas se busca por proximidade
+      let location: { lat: number; lng: number } | undefined;
+      let searchRadius = body.raioKm || 5;
+
+      if (body.proximidadeAtiva) {
         // Geocodifica a cidade + estado para obter lat/lng do centro
         const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
           `${body.cidade}, ${body.estado}, Brasil`
@@ -170,55 +199,115 @@ serve(async (req) => {
           throw new Error(`Cidade "${body.cidade}" não encontrada. Verifique se digitou corretamente o nome da cidade.`);
         }
 
-        const location = geocodeData.results[0].geometry.location;
+        location = geocodeData.results[0].geometry.location;
         console.log("📍 Coordenadas do centro da cidade:", location);
 
-        // Nearby Search com keyword (nicho) e raio - COM PAGINAÇÃO
-        const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
-          searchRadius * 1000
-        }&keyword=${encodeURIComponent(body.nicho)}&key=${GOOGLE_API_KEY}`;
+        // Se for busca incremental, aumenta o raio em 50% para encontrar novos leads
+        const isIncremental = body.excludePlaceIds && body.excludePlaceIds.length > 0;
+        if (isIncremental && body.raioKm) {
+          searchRadius = body.raioKm * 1.5;
+          console.log(`Busca incremental: raio expandido de ${body.raioKm}km para ${searchRadius}km`);
+        }
+      }
 
-        // Busca com paginação automática (até 60 resultados)
-        const { results: nearbyResults, totalFound } = await fetchAllPagesFromGoogle(
-          nearbyUrl,
-          body.quantidade,
-          3 // Máximo 3 páginas
+      // ============================================
+      // BUSCA POR NICHO(S)
+      // ============================================
+      if (isMultipleNiches) {
+        // MÚLTIPLOS NICHOS: Busca paralela para cada nicho
+        console.log(`🚀 Iniciando busca paralela para ${nichos.length} nichos...`);
+        
+        const seenPlaceIds = new Set<string>();
+        const allResults: any[] = [];
+        
+        // Calcula quantidade por nicho (divide igualmente + 20% extra para compensar duplicatas)
+        const quantidadePorNicho = Math.ceil((body.quantidade * 1.2) / nichos.length);
+
+        // Busca paralela para todos os nichos
+        const searchPromises = nichos.map((nicho: string) => 
+          searchSingleNiche(nicho, quantidadePorNicho, location, searchRadius)
+            .then(result => ({ nicho, ...result }))
+            .catch(error => {
+              console.error(`❌ Erro ao buscar nicho "${nicho}":`, error.message);
+              return { nicho, results: [], totalFound: 0 };
+            })
         );
 
-        if (nearbyResults.length > 0) {
-          totalAvailable = totalFound;
-          leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
-            ? nearbyResults // Busca incremental: pega tudo para filtrar
-            : nearbyResults.slice(0, body.quantidade);
+        const nichosResults = await Promise.all(searchPromises);
+
+        // Combina resultados, removendo duplicatas e marcando o nicho de origem
+        for (const { nicho, results } of nichosResults) {
+          console.log(`📊 Nicho "${nicho}": ${results.length} resultados`);
           
-          console.log(`🎯 Total disponível: ${totalAvailable}, entregando: ${leads.length}`);
-        } else {
-          throw new Error(`Nenhum resultado encontrado para "${body.nicho}" em ${body.cidade}`);
+          for (const result of results) {
+            if (!seenPlaceIds.has(result.place_id)) {
+              seenPlaceIds.add(result.place_id);
+              allResults.push({
+                ...result,
+                _nicho: nicho // Marca qual nicho encontrou este lead
+              });
+            }
+          }
+        }
+
+        console.log(`✅ Total combinado: ${allResults.length} leads únicos de ${nichos.length} nichos`);
+        
+        totalAvailable = allResults.length;
+        leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
+          ? allResults // Busca incremental: pega tudo para filtrar
+          : allResults.slice(0, body.quantidade);
+          
+        console.log(`🎯 Total disponível: ${totalAvailable}, entregando: ${leads.length}`);
+
+        if (allResults.length === 0) {
+          throw new Error(`Nenhum resultado encontrado para "${nichos.join(', ')}" em ${body.cidade}`);
         }
       } else {
-        // Busca por texto (Text Search) - COM PAGINAÇÃO
-        console.log("🔍 Buscando por texto (Text Search) com paginação automática...");
+        // NICHO ÚNICO: Busca normal (código original)
+        const singleNicho = nichos[0] || body.nicho;
+        
+        if (body.proximidadeAtiva && location) {
+          console.log("🔍 Buscando por proximidade (Nearby Search) com paginação automática...");
 
-        const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
-          `${body.nicho} ${body.cidade} ${body.estado}`
-        )}&key=${GOOGLE_API_KEY}`;
+          const { results: nearbyResults, totalFound } = await searchSingleNiche(
+            singleNicho,
+            body.quantidade,
+            location,
+            searchRadius
+          );
 
-        // Busca com paginação automática (até 60 resultados)
-        const { results: textResults, totalFound } = await fetchAllPagesFromGoogle(
-          textSearchUrl,
-          body.quantidade,
-          3 // Máximo 3 páginas
-        );
-
-        if (textResults.length > 0) {
-          totalAvailable = totalFound;
-          leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
-            ? textResults // Busca incremental: pega tudo para filtrar
-            : textResults.slice(0, body.quantidade);
-          
-          console.log(`🎯 Total disponível: ${totalAvailable}, entregando: ${leads.length}`);
+          if (nearbyResults.length > 0) {
+            totalAvailable = totalFound;
+            // Marca o nicho em cada resultado
+            leads = (body.excludePlaceIds && body.excludePlaceIds.length > 0
+              ? nearbyResults
+              : nearbyResults.slice(0, body.quantidade))
+              .map((r: any) => ({ ...r, _nicho: singleNicho }));
+            
+            console.log(`🎯 Total disponível: ${totalAvailable}, entregando: ${leads.length}`);
+          } else {
+            throw new Error(`Nenhum resultado encontrado para "${singleNicho}" em ${body.cidade}`);
+          }
         } else {
-          throw new Error(`Nenhum resultado encontrado para "${body.nicho}" em ${body.cidade}`);
+          console.log("🔍 Buscando por texto (Text Search) com paginação automática...");
+
+          const { results: textResults, totalFound } = await searchSingleNiche(
+            singleNicho,
+            body.quantidade
+          );
+
+          if (textResults.length > 0) {
+            totalAvailable = totalFound;
+            // Marca o nicho em cada resultado
+            leads = (body.excludePlaceIds && body.excludePlaceIds.length > 0
+              ? textResults
+              : textResults.slice(0, body.quantidade))
+              .map((r: any) => ({ ...r, _nicho: singleNicho }));
+            
+            console.log(`🎯 Total disponível: ${totalAvailable}, entregando: ${leads.length}`);
+          } else {
+            throw new Error(`Nenhum resultado encontrado para "${singleNicho}" em ${body.cidade}`);
+          }
         }
       }
     }
@@ -425,7 +514,7 @@ serve(async (req) => {
             p_cidade: body.cidade,
             p_latitude: details.geometry?.location?.lat || null,
             p_longitude: details.geometry?.location?.lng || null,
-            p_nicho: body.nicho,
+            p_nicho: place._nicho || body.nicho, // Usa o nicho específico se disponível
             p_foco: body.foco,
             p_user_id: user.id,
             p_proximidade_ativa: body.proximidadeAtiva,

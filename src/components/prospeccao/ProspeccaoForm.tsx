@@ -392,6 +392,9 @@ export const ProspeccaoForm = () => {
                 placeholder="Ex: restaurante, clínica, academia"
                 {...register("nicho")}
               />
+              <p className="text-xs text-muted-foreground">
+                Dica: separe por vírgula para buscar múltiplos nichos
+              </p>
               {errors.nicho && (
                 <p className="text-sm text-destructive">{errors.nicho.message}</p>
               )}

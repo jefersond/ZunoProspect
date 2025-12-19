@@ -18,6 +18,10 @@ import screenshot01 from "@/assets/screenshots/screenshot-01.png";
 import screenshot02 from "@/assets/screenshots/screenshot-02.png";
 import screenshot03 from "@/assets/screenshots/screenshot-03.png";
 import screenshot04 from "@/assets/screenshots/screenshot-04.png";
+import screenshot05 from "@/assets/screenshots/screenshot-05.png";
+import screenshot06 from "@/assets/screenshots/screenshot-06.png";
+import screenshot07 from "@/assets/screenshots/screenshot-07.png";
+import screenshot08 from "@/assets/screenshots/screenshot-08.png";
 
 // Lazy loaded components - below the fold
 const DepoimentosSection = lazy(() => import("@/components/landing/DepoimentosSection").then(m => ({
@@ -53,7 +57,7 @@ const features = [
     title: "Encontre leads qualificados em minutos",
     description: "Digite o nicho e a cidade. Nossa IA encontra empresas com presença digital ativa e prontas para investir em marketing.",
     image: screenshot01,
-    imageAlt: "Busca inteligente de leads",
+    imageAlt: "Formulário de busca de leads por nicho e cidade",
     bullets: [
       "Busca por nicho e localização",
       "Filtros avançados de qualificação",
@@ -63,8 +67,8 @@ const features = [
   {
     title: "Diagnóstico completo de cada lead",
     description: "A IA analisa site, redes sociais, avaliações e gera uma pontuação de probabilidade de conversão para cada empresa.",
-    image: screenshot02,
-    imageAlt: "Análise com IA",
+    image: screenshot05,
+    imageAlt: "Card de lead com análise de IA e probabilidade de conversão",
     reversed: true,
     bullets: [
       "Análise de presença digital",
@@ -75,8 +79,8 @@ const features = [
   {
     title: "Cadências prontas para WhatsApp, email e Instagram",
     description: "Receba um plano de 7 dias com mensagens personalizadas para cada lead, prontas para copiar e enviar.",
-    image: screenshot03,
-    imageAlt: "Planos de abordagem",
+    image: screenshot06,
+    imageAlt: "Plano de prospecção de 7 dias com mensagens",
     bullets: [
       "Mensagens personalizadas por canal",
       "Sequência de 7 dias estruturada",
@@ -86,13 +90,36 @@ const features = [
   {
     title: "Organize seus leads em um funil visual",
     description: "Arraste e solte leads entre etapas do pipeline. Nunca perca uma oportunidade de fechar negócio.",
-    image: screenshot04,
-    imageAlt: "Pipeline de vendas",
+    image: screenshot07,
+    imageAlt: "Pipeline de vendas estilo Kanban",
     reversed: true,
     bullets: [
       "Kanban visual e intuitivo",
       "Acompanhamento de status",
       "Histórico de interações"
+    ]
+  },
+  {
+    title: "Relatórios e métricas de performance",
+    description: "Acompanhe seus resultados com dashboards completos. Saiba quantos leads prospectou, taxa de conversão e muito mais.",
+    image: screenshot08,
+    imageAlt: "Dashboard de relatórios e métricas",
+    bullets: [
+      "KPIs em tempo real",
+      "Gráficos de performance",
+      "Exportação de dados"
+    ]
+  },
+  {
+    title: "Salve e organize seus melhores leads",
+    description: "Marque leads como favoritos e acesse rapidamente. Adicione notas e acompanhe todo o histórico de interações.",
+    image: screenshot03,
+    imageAlt: "Lista de leads salvos com filtros",
+    reversed: true,
+    bullets: [
+      "Lista de leads favoritos",
+      "Notas e anotações personalizadas",
+      "Filtros e busca avançada"
     ]
   }
 ];

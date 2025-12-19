@@ -3,20 +3,52 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// ============= CORS HELPER =============
+// Configure a env var ALLOWED_ORIGINS com os domínios permitidos separados por vírgula
+// Exemplo: "https://meuapp.lovable.app,https://meudominio.com.br,http://localhost:5173"
+function getCorsHeaders(requestOrigin: string | null): Record<string, string> {
+  const allowedOriginsEnv = Deno.env.get("ALLOWED_ORIGINS") || "";
+  const allowedOrigins = allowedOriginsEnv.split(",").map((o) => o.trim()).filter(Boolean);
+  
+  const origin = (allowedOrigins.length === 0 || (requestOrigin && allowedOrigins.includes(requestOrigin)))
+    ? (requestOrigin || "*")
+    : "";
+    
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  };
+}
+
+function handleCorsRequest(req: Request): Response | null {
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
+  
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+  
+  if (origin && corsHeaders["Access-Control-Allow-Origin"] === "") {
+    return new Response(JSON.stringify({ error: "Origem não autorizada" }), { 
+      status: 403, 
+      headers: { "Content-Type": "application/json" } 
+    });
+  }
+  
+  return null;
+}
 
 interface SendCampaignRequest {
   campaignId: string;
 }
 
 serve(async (req: Request): Promise<Response> => {
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  const corsCheck = handleCorsRequest(req);
+  if (corsCheck) return corsCheck;
+
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
 
   try {
     // Get auth header
@@ -234,7 +266,7 @@ serve(async (req: Request): Promise<Response> => {
       JSON.stringify({ error: "Erro interno do servidor" }),
       {
         status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+        headers: { "Content-Type": "application/json", ...getCorsHeaders(req.headers.get("Origin")) },
       }
     );
   }

@@ -1,10 +1,41 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// ============= CORS HELPER =============
+// Configure a env var ALLOWED_ORIGINS com os domínios permitidos separados por vírgula
+// Exemplo: "https://meuapp.lovable.app,https://meudominio.com.br,http://localhost:5173"
+function getCorsHeaders(requestOrigin: string | null): Record<string, string> {
+  const allowedOriginsEnv = Deno.env.get("ALLOWED_ORIGINS") || "";
+  const allowedOrigins = allowedOriginsEnv.split(",").map((o) => o.trim()).filter(Boolean);
+  
+  const origin = (allowedOrigins.length === 0 || (requestOrigin && allowedOrigins.includes(requestOrigin)))
+    ? (requestOrigin || "*")
+    : "";
+    
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  };
+}
+
+function handleCorsRequest(req: Request): Response | null {
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
+  
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+  
+  if (origin && corsHeaders["Access-Control-Allow-Origin"] === "") {
+    return new Response(JSON.stringify({ error: "Origem não autorizada" }), { 
+      status: 403, 
+      headers: { "Content-Type": "application/json" } 
+    });
+  }
+  
+  return null;
+}
 
 // Preços em centavos para cada plano
 const PLANO_PRECOS = {
@@ -20,9 +51,11 @@ const logStep = (step: string, details?: any) => {
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  const corsCheck = handleCorsRequest(req);
+  if (corsCheck) return corsCheck;
+
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
 
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",

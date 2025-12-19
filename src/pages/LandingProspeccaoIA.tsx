@@ -9,11 +9,17 @@ import { LandingPageSkeleton } from "@/components/landing/LandingPageSkeleton";
 import { LPHeader } from "@/components/landing/LPHeader";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { BeneficiosSection } from "@/components/landing/BeneficiosSection";
+import { PainPointsSection } from "@/components/landing/PainPointsSection";
+import { MetricsCarousel } from "@/components/landing/MetricsCarousel";
+import { FeatureSection } from "@/components/landing/FeatureSection";
+
+// Screenshots for features
+import screenshot01 from "@/assets/screenshots/screenshot-01.png";
+import screenshot02 from "@/assets/screenshots/screenshot-02.png";
+import screenshot03 from "@/assets/screenshots/screenshot-03.png";
+import screenshot04 from "@/assets/screenshots/screenshot-04.png";
 
 // Lazy loaded components - below the fold
-const ComoFuncionaSection = lazy(() => import("@/components/landing/ComoFuncionaSection").then(m => ({
-  default: m.ComoFuncionaSection
-})));
 const DepoimentosSection = lazy(() => import("@/components/landing/DepoimentosSection").then(m => ({
   default: m.DepoimentosSection
 })));
@@ -35,58 +41,123 @@ const CTAFinalSection = lazy(() => import("@/components/landing/CTAFinalSection"
 const Footer = lazy(() => import("@/components/landing/Footer").then(m => ({
   default: m.Footer
 })));
-const SectionSkeleton = () => <div className="py-16 flex items-center justify-center">
+
+const SectionSkeleton = () => (
+  <div className="py-16 flex items-center justify-center">
     <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
-  </div>;
+  </div>
+);
+
+const features = [
+  {
+    title: "Encontre leads qualificados em minutos",
+    description: "Digite o nicho e a cidade. Nossa IA encontra empresas com presença digital ativa e prontas para investir em marketing.",
+    image: screenshot01,
+    imageAlt: "Busca inteligente de leads",
+    bullets: [
+      "Busca por nicho e localização",
+      "Filtros avançados de qualificação",
+      "Dados de contato verificados"
+    ]
+  },
+  {
+    title: "Diagnóstico completo de cada lead",
+    description: "A IA analisa site, redes sociais, avaliações e gera uma pontuação de probabilidade de conversão para cada empresa.",
+    image: screenshot02,
+    imageAlt: "Análise com IA",
+    reversed: true,
+    bullets: [
+      "Análise de presença digital",
+      "Score de probabilidade de conversão",
+      "Pontos fortes e fracos identificados"
+    ]
+  },
+  {
+    title: "Cadências prontas para WhatsApp, email e Instagram",
+    description: "Receba um plano de 7 dias com mensagens personalizadas para cada lead, prontas para copiar e enviar.",
+    image: screenshot03,
+    imageAlt: "Planos de abordagem",
+    bullets: [
+      "Mensagens personalizadas por canal",
+      "Sequência de 7 dias estruturada",
+      "Scripts de follow-up inclusos"
+    ]
+  },
+  {
+    title: "Organize seus leads em um funil visual",
+    description: "Arraste e solte leads entre etapas do pipeline. Nunca perca uma oportunidade de fechar negócio.",
+    image: screenshot04,
+    imageAlt: "Pipeline de vendas",
+    reversed: true,
+    bullets: [
+      "Kanban visual e intuitivo",
+      "Acompanhamento de status",
+      "Histórico de interações"
+    ]
+  }
+];
+
 export default function LandingProspeccaoIA() {
   const navigate = useNavigate();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
       const {
-        data: {
-          session
-        }
+        data: { session }
       } = await supabase.auth.getSession();
       if (session?.user) {
-        navigate("/prospeccao", {
-          replace: true
-        });
+        navigate("/prospeccao", { replace: true });
       } else {
         setIsCheckingAuth(false);
       }
     };
     checkAuth();
+
     const {
-      data: {
-        subscription
-      }
+      data: { subscription }
     } = supabase.auth.onAuthStateChange((event, session) => {
-      // Don't redirect if checkout is in progress (PIX payment flow)
       const checkoutInProgress = sessionStorage.getItem("checkout_in_progress");
       if (session?.user && !checkoutInProgress) {
-        navigate("/prospeccao", {
-          replace: true
-        });
+        navigate("/prospeccao", { replace: true });
       }
     });
+
     return () => subscription.unsubscribe();
   }, [navigate]);
+
   if (isCheckingAuth) {
     return <LandingPageSkeleton />;
   }
-  return <div className="min-h-screen bg-background overflow-x-hidden">
+
+  return (
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <LPHeader />
       <HeroSection />
       <BeneficiosSection />
+      <PainPointsSection />
+      <MetricsCarousel />
       
-      <Suspense fallback={<SectionSkeleton />}>
-        <ComoFuncionaSection />
-      </Suspense>
-      
-      <Suspense fallback={<SectionSkeleton />}>
-        
-      </Suspense>
+      {/* Feature Sections */}
+      <div id="como-funciona">
+        {features.map((feature, index) => (
+          <FeatureSection
+            key={index}
+            title={feature.title}
+            description={feature.description}
+            image={feature.image}
+            imageAlt={feature.imageAlt}
+            reversed={feature.reversed}
+            bullets={feature.bullets}
+            ctaText={index === features.length - 1 ? "Começar agora" : undefined}
+            ctaAction={index === features.length - 1 ? () => scrollToSection("precos") : undefined}
+          />
+        ))}
+      </div>
       
       <Suspense fallback={<SectionSkeleton />}>
         <MetricasSection />
@@ -94,6 +165,10 @@ export default function LandingProspeccaoIA() {
       
       <Suspense fallback={<SectionSkeleton />}>
         <ParaQuemSection />
+      </Suspense>
+
+      <Suspense fallback={<SectionSkeleton />}>
+        <DepoimentosSection />
       </Suspense>
       
       <Suspense fallback={<SectionSkeleton />}>
@@ -113,5 +188,6 @@ export default function LandingProspeccaoIA() {
       </Suspense>
       
       <FloatingWhatsAppButton />
-    </div>;
+    </div>
+  );
 }

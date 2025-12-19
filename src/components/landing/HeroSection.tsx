@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ArrowRight } from "lucide-react";
 import heroProspeccao from "@/assets/screenshots/hero-prospeccao.png";
+import { SocialProofBar } from "./SocialProofBar";
 
 export function HeroSection() {
   const scrollToSection = (id: string) => {
@@ -9,21 +9,24 @@ export function HeroSection() {
       behavior: "smooth"
     });
   };
-  return <section className="relative overflow-hidden bg-gradient-to-br from-background via-primary/5 to-accent/10 dark:from-background dark:via-primary/10 dark:to-accent/5 pt-24 pb-16 md:py-24">
+
+  return (
+    <section className="relative overflow-hidden bg-gradient-to-br from-background via-primary/5 to-accent/10 dark:from-background dark:via-primary/10 dark:to-accent/5 pt-24 pb-16 md:py-24">
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl dark:bg-primary/20" />
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl dark:bg-accent/15" />
 
       <div className="container mx-auto px-4 relative">
         <div className="grid lg:grid-cols-2 gap-8 md:gap-12 items-center">
           <div className="space-y-6 md:space-y-8">
-            <Badge variant="secondary" className="text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2">
-              🚀 Feito para agências, gestores de tráfego e freelas de marketing
-            </Badge>
+            <SocialProofBar />
 
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
               Encontre clientes{" "}
-              <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                prontos para comprar
+              <span className="relative inline-block">
+                <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  prontos para comprar
+                </span>
+                <span className="absolute -bottom-1 left-0 w-full h-1 bg-gradient-to-r from-primary to-accent rounded-full" />
               </span>{" "}
               seus serviços de marketing
             </h1>
@@ -41,8 +44,6 @@ export function HeroSection() {
                 Ver como funciona
               </Button>
             </div>
-
-            
           </div>
 
           <div className="relative hidden lg:block lg:scale-110 xl:scale-115">
@@ -56,5 +57,6 @@ export function HeroSection() {
           </div>
         </div>
       </div>
-    </section>;
+    </section>
+  );
 }

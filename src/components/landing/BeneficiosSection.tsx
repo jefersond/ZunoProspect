@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Clock, MessageSquare, Target, TrendingUp, ArrowRight, Zap, Shield } from "lucide-react";
+import { Clock, MessageSquare, Target, TrendingUp, ArrowRight, Shield } from "lucide-react";
 
 const beneficios = [
   {
@@ -21,11 +21,6 @@ const beneficios = [
     icone: TrendingUp,
     titulo: "Mais reuniões",
     descricao: "Abordagens personalizadas que geram até 5x mais respostas positivas."
-  },
-  {
-    icone: Zap,
-    titulo: "Automação inteligente",
-    descricao: "A IA faz o trabalho pesado enquanto você foca em fechar negócios."
   },
   {
     icone: Shield,

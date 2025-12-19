@@ -1,12 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle } from "lucide-react";
 import { LazyImage } from "./LazyImage";
+import { ReactNode } from "react";
 
 interface FeatureSectionProps {
   title: string;
   description: string;
-  image: string;
-  imageAlt: string;
+  image?: string;
+  imageAlt?: string;
+  mockup?: ReactNode;
   reversed?: boolean;
   bullets?: string[];
   ctaText?: string;
@@ -18,6 +20,7 @@ export function FeatureSection({
   description,
   image,
   imageAlt,
+  mockup,
   reversed = false,
   bullets = [],
   ctaText,
@@ -27,15 +30,21 @@ export function FeatureSection({
     <section className="py-16 md:py-20">
       <div className="container mx-auto px-4">
         <div className={`grid lg:grid-cols-2 gap-12 items-center ${reversed ? "lg:flex-row-reverse" : ""}`}>
-          {/* Image */}
+          {/* Image or Mockup */}
           <div className={`${reversed ? "lg:order-2" : "lg:order-1"}`}>
-            <div className="relative overflow-hidden rounded-xl border border-border/50 shadow-xl bg-card">
-              <LazyImage
-                src={image}
-                alt={imageAlt}
-                className="w-full h-auto"
-              />
-            </div>
+            {mockup ? (
+              <div className="relative">
+                {mockup}
+              </div>
+            ) : image ? (
+              <div className="relative overflow-hidden rounded-xl border border-border/50 shadow-xl bg-card">
+                <LazyImage
+                  src={image}
+                  alt={imageAlt || "Feature screenshot"}
+                  className="w-full h-auto"
+                />
+              </div>
+            ) : null}
           </div>
 
           {/* Content */}

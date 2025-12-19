@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import DOMPurify from "dompurify";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,39 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Send, Trash2, Eye, Plus, ArrowLeft, Users, MailOpen, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+// Sanitize HTML for safe rendering - allows common email tags
+const sanitizeHtml = (dirty: string): string => {
+  return DOMPurify.sanitize(dirty, {
+    ALLOWED_TAGS: [
+      // Basic structure
+      'p', 'br', 'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      // Text formatting
+      'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'small', 'sub', 'sup',
+      // Links and media
+      'a', 'img',
+      // Lists
+      'ul', 'ol', 'li',
+      // Tables (commonly used in emails)
+      'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
+      // Others
+      'hr', 'blockquote', 'pre', 'code',
+    ],
+    ALLOWED_ATTR: [
+      // Links
+      'href', 'target', 'rel',
+      // Images
+      'src', 'alt', 'width', 'height',
+      // Inline styling (common in emails)
+      'style', 'class',
+      // Tables
+      'border', 'cellpadding', 'cellspacing', 'align', 'valign', 'bgcolor',
+      // Accessibility
+      'title', 'aria-label',
+    ],
+    ALLOW_DATA_ATTR: false,
+  });
+};
 
 interface Campaign {
   id: string;
@@ -499,7 +533,9 @@ const AdminEmail = () => {
           </DialogHeader>
           <div className="border rounded-lg p-4 bg-white">
             <div
-              dangerouslySetInnerHTML={{ __html: previewCampaign?.conteudo || "" }}
+              dangerouslySetInnerHTML={{ 
+                __html: sanitizeHtml(previewCampaign?.conteudo || "") 
+              }}
             />
           </div>
         </DialogContent>

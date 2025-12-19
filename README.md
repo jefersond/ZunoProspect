@@ -29,6 +29,38 @@ git clone <YOUR_GIT_URL>
 # Step 2: Navigate to the project directory.
 cd <YOUR_PROJECT_NAME>
 
+# Step 3: Copy environment variables
+cp .env.example .env
+# Fill in your Supabase credentials in .env
+
+# Step 4: Install the necessary dependencies.
+npm i
+
+# Step 5: Start the development server with auto-reloading and an instant preview.
+npm run dev
+```
+
+## Environment Variables
+
+This project uses environment variables for configuration. When running locally:
+
+1. Copy the example file:
+   ```sh
+   cp .env.example .env
+   ```
+
+2. Fill in the required values in `.env`:
+   - `VITE_SUPABASE_PROJECT_ID` - Your Supabase project ID
+   - `VITE_SUPABASE_PUBLISHABLE_KEY` - Your Supabase anon/public key
+   - `VITE_SUPABASE_URL` - Your Supabase project URL
+
+> **Note:** The `.env` file should never be committed. When using Lovable directly, these variables are configured automatically.
+
+**Edit a file directly in GitHub**
+
+# Step 2: Navigate to the project directory.
+cd <YOUR_PROJECT_NAME>
+
 # Step 3: Install the necessary dependencies.
 npm i
 

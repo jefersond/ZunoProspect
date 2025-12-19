@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
-import { ArrowLeft, Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink, Kanban, Mail } from "lucide-react";
+import { Loader2, User, Search, BarChart3, History, FileText, LogOut, Bookmark, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink, Kanban, Mail } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
@@ -15,6 +15,13 @@ import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
 import { Badge } from "@/components/ui/badge";
 import { ApiKeysSection } from "@/components/profile/ApiKeysSection";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -24,7 +31,7 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
-  const [managingSubscription, setManagingSubscription] = useState(false);
+  const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [profile, setProfile] = useState({
     nome_completo: "",
     empresa: "",
@@ -127,30 +134,6 @@ const Profile = () => {
       });
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleManageSubscription = async () => {
-    setManagingSubscription(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('customer-portal');
-      
-      if (error) throw error;
-      
-      if (data?.url) {
-        window.open(data.url, '_blank');
-      } else {
-        throw new Error("URL do portal não retornada");
-      }
-    } catch (error: any) {
-      console.error("Erro ao abrir portal:", error);
-      toast({
-        variant: "destructive",
-        title: "Erro ao abrir gerenciamento",
-        description: error.message || "Tente novamente mais tarde.",
-      });
-    } finally {
-      setManagingSubscription(false);
     }
   };
 
@@ -312,15 +295,10 @@ const Profile = () => {
                 {!isAdmin && subscription?.plan_name !== 'agencia' && subscription?.plan_name !== 'starter' && (
                   <Button 
                     variant="outline" 
-                    onClick={handleManageSubscription} 
+                    onClick={() => setManageDialogOpen(true)} 
                     className="gap-2"
-                    disabled={managingSubscription}
                   >
-                    {managingSubscription ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CreditCard className="h-4 w-4" />
-                    )}
+                    <CreditCard className="h-4 w-4" />
                     <span className="hidden sm:inline">Gerenciar</span>
                   </Button>
                 )}
@@ -382,6 +360,51 @@ const Profile = () => {
           </Card>
         )}
       </main>
+
+      {/* Dialog de Gerenciamento de Assinatura (Kiwify) */}
+      <Dialog open={manageDialogOpen} onOpenChange={setManageDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-primary" />
+              Gerenciar Assinatura
+            </DialogTitle>
+            <DialogDescription>
+              Sua assinatura é gerenciada pela Kiwify
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Para gerenciar sua assinatura (alterar forma de pagamento, cancelar, etc.), 
+              utilize o e-mail de compra/aprovação para acessar o portal da Kiwify.
+            </p>
+            
+            <div className="space-y-3">
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => window.open("https://ajuda.kiwify.com.br/pt-br/article/como-cancelar-a-assinatura-do-produto-que-comprei-19d0my1/", "_blank")}
+              >
+                <ExternalLink className="h-4 w-4" />
+                Como cancelar minha assinatura
+              </Button>
+              
+              <Button
+                variant="default"
+                className="w-full gap-2"
+                onClick={() => window.open("https://dashboard.kiwify.com.br/login/", "_blank")}
+              >
+                <ExternalLink className="h-4 w-4" />
+                Acessar portal Kiwify
+              </Button>
+            </div>
+            
+            <p className="text-xs text-muted-foreground text-center pt-2">
+              Use o mesmo e-mail que você utilizou na compra para acessar.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <UpgradePlanDialog 
         open={upgradeDialogOpen} 

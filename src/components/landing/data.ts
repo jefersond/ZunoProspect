@@ -6,13 +6,6 @@ import avatar4 from "@/assets/avatars/avatar-4.jpg";
 import avatar5 from "@/assets/avatars/avatar-5.jpg";
 import avatar6 from "@/assets/avatars/avatar-6.jpg";
 
-// Depoimentos avatars
-import depoRicardo from "@/assets/avatars/depo-ricardo.jpg";
-import depoCamila from "@/assets/avatars/depo-camila.jpg";
-import depoFelipe from "@/assets/avatars/depo-felipe.jpg";
-import depoJuliana from "@/assets/avatars/depo-juliana.jpg";
-import depoBruno from "@/assets/avatars/depo-bruno.jpg";
-
 import { Building2, TrendingUp, LineChart, Megaphone, Palette, Code, LucideIcon } from "lucide-react";
 
 export const HERO_AVATARS = [avatar1, avatar2, avatar3, avatar4, avatar5, avatar6];
@@ -22,9 +15,7 @@ export interface Depoimento {
   nome: string;
   cargo: string;
   empresa: string;
-  foto: string;
   texto: string;
-  estrelas: number;
 }
 
 export const DEPOIMENTOS: Depoimento[] = [
@@ -32,46 +23,36 @@ export const DEPOIMENTOS: Depoimento[] = [
     id: 1,
     nome: "Ricardo Mendes",
     cargo: "Gestor de Tráfego",
-    empresa: "RM Digital",
-    foto: depoRicardo,
-    texto: "Em 2 semanas consegui 15 reuniões com leads qualificados. O plano de prospecção de 7 dias é genial, economizo umas 10h por semana.",
-    estrelas: 5
+    empresa: "Freelancer",
+    texto: "Em 2 semanas consegui 15 reuniões com leads qualificados. O plano de prospecção de 7 dias é genial, economizo umas 10h por semana."
   },
   {
     id: 2,
     nome: "Camila Santos",
     cargo: "Owner de Agência",
-    empresa: "Agência Impulso",
-    foto: depoCamila,
-    texto: "Antes eu passava horas no Google procurando empresas. Agora em minutos tenho uma lista pronta com diagnóstico e até as mensagens de abordagem.",
-    estrelas: 5
+    empresa: "Agência Sete Marketing",
+    texto: "Antes eu passava horas no Google procurando empresas. Agora em minutos tenho uma lista pronta com diagnóstico e até as mensagens de abordagem."
   },
   {
     id: 3,
     nome: "Felipe Oliveira",
     cargo: "Freela de Social Media",
     empresa: "Autônomo",
-    foto: depoFelipe,
-    texto: "O diferencial é a análise de sinais digitais. Consigo identificar quem realmente precisa dos meus serviços antes de abordar.",
-    estrelas: 5
+    texto: "O diferencial é a análise de sinais digitais. Consigo identificar quem realmente precisa dos meus serviços antes de abordar."
   },
   {
     id: 4,
     nome: "Juliana Costa",
     cargo: "Especialista em SEO",
-    empresa: "SEO Masters",
-    foto: depoJuliana,
-    texto: "Finalmente uma ferramenta que entende o mercado de marketing. Os leads vêm com contexto e eu sei exatamente como abordar cada um.",
-    estrelas: 5
+    empresa: "Consultoria Digital JC",
+    texto: "Finalmente uma ferramenta que entende o mercado de marketing. Os leads vêm com contexto e eu sei exatamente como abordar cada um."
   },
   {
     id: 5,
     nome: "Bruno Almeida",
     cargo: "Webdesigner",
-    empresa: "Studio Criativo",
-    foto: depoBruno,
-    texto: "Minha taxa de resposta subiu muito depois que comecei a usar os planos de prospecção. As mensagens são personalizadas e não parecem spam.",
-    estrelas: 5
+    empresa: "BA Design",
+    texto: "Minha taxa de resposta subiu muito depois que comecei a usar os planos de prospecção. As mensagens são personalizadas e não parecem spam."
   }
 ];
 

@@ -1,5 +1,7 @@
 // Links de checkout da Kiwify para cada plano
 export const KIWIFY_CHECKOUT_LINKS = {
+  iniciante_mensal: "https://pay.kiwify.com.br/tI84kVd",
+  iniciante_anual: "https://pay.kiwify.com.br/PhCzSuq",
   pro_mensal: "https://pay.kiwify.com.br/7effc7Q",
   pro_anual: "https://pay.kiwify.com.br/81bPEL2",
   agencia_mensal: "https://pay.kiwify.com.br/8r3UXxM",

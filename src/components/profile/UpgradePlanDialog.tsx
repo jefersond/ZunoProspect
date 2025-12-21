@@ -17,17 +17,32 @@ import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
 // Planos disponíveis para upgrade
 const PLANOS = [
   {
+    nome: "Iniciante",
+    precoMensal: 47,
+    precoAnual: 470,
+    descricao: "Para quem está começando",
+    destaque: false,
+    features: [
+      "100 leads por mês",
+      "1 nicho/região por vez",
+      "Diagnóstico básico a intermediário",
+      "Plano de prospecção de 3 dias",
+      "CRM básico: salvar + status",
+    ],
+  },
+  {
     nome: "Pro",
     precoMensal: 97,
     precoAnual: 970,
     descricao: "Para freelancers e profissionais",
     destaque: true,
     features: [
-      "Até 100 leads por mês",
-      "Análise completa com IA",
-      "Plano de 7 dias personalizado",
-      "Diagnóstico de sinais digitais",
-      "Exportação ilimitada",
+      "200 leads por mês",
+      "Plano completo de 7 dias",
+      "Score de oportunidade + insights",
+      "Filtros avançados",
+      "Exportação CSV + ações em massa",
+      "Biblioteca de templates",
       "Suporte prioritário",
     ],
   },
@@ -39,11 +54,10 @@ const PLANOS = [
     destaque: false,
     features: [
       "Leads ilimitados",
-      "Tudo do plano Pro",
-      "Múltiplos usuários",
-      "API de integração",
-      "Relatórios avançados",
-      "Gerente de sucesso dedicado",
+      "Workspaces por cliente",
+      "3 a 5 usuários com permissões",
+      "Relatórios por cliente",
+      "Setup guiado + canal direto",
     ],
   },
 ];
@@ -100,7 +114,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
           )}
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 py-4">
+        <div className="grid md:grid-cols-3 gap-4 py-4">
           {PLANOS.map((plano, index) => {
             const preco = isAnual ? plano.precoAnual : plano.precoMensal;
             const precoMensal = isAnual ? Math.round(plano.precoAnual / 12) : plano.precoMensal;

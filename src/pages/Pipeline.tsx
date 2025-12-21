@@ -13,7 +13,10 @@ import {
   Kanban,
   TrendingUp,
   RefreshCw,
-  Mail
+  Mail,
+  GripVertical,
+  Target,
+  BarChart3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/Logo';
@@ -21,6 +24,8 @@ import { FloatingWhatsAppButton } from '@/components/FloatingWhatsAppButton';
 import { LeadsPipeline } from '@/components/pipeline';
 import { LeadPlanDialog } from '@/components/prospeccao/LeadPlanDialog';
 import { LeadProspeccao } from '@/types/lead';
+import { useSubscription } from '@/hooks/useSubscription';
+import { FeatureUpgradePrompt } from '@/components/shared/FeatureUpgradePrompt';
 
 export default function Pipeline() {
   const navigate = useNavigate();
@@ -29,6 +34,7 @@ export default function Pipeline() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
+  const { subscription, loading: subscriptionLoading, isAdmin: isSubscriptionAdmin } = useSubscription();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -78,6 +84,24 @@ export default function Pipeline() {
   ];
 
   if (!user) return null;
+
+  // Check if user has access to Pipeline (only agencia plan or admin)
+  const hasAccess = subscription?.plan_name === 'agencia' || isAdmin || isSubscriptionAdmin;
+
+  if (!subscriptionLoading && !hasAccess) {
+    return (
+      <FeatureUpgradePrompt
+        title="Pipeline Kanban"
+        description="Gerencie seus leads de forma visual com drag-and-drop. Recurso exclusivo do plano Agência."
+        features={[
+          { icon: Kanban, label: 'Visualização Kanban com drag-and-drop' },
+          { icon: GripVertical, label: 'Arraste leads entre colunas de status' },
+          { icon: Target, label: 'Acompanhe o funil de prospecção visualmente' },
+          { icon: BarChart3, label: 'Visão geral de todos os seus leads' },
+        ]}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { CheckCircle2, Building2, Kanban, BarChart3, Code2, Headphones } from "lucide-react";
+import { CheckCircle2, Building2, Kanban, BarChart3, Code2, Headphones, Infinity } from "lucide-react";
 import { PLANOS, PLANO_AGENCIA, Plano } from "./data";
 import { CheckoutDialog } from "./CheckoutDialog";
 import { trackViewContent, trackLead } from "@/lib/metaPixel";
@@ -201,7 +201,7 @@ export function PrecosSection() {
                       <p className="font-semibold text-emerald-600 dark:text-emerald-400">Tudo do plano Pro incluído</p>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      200 leads/mês, análise completa, plano de prospecção, CRM, templates e exportação Excel
+                      Análise completa, plano de prospecção, CRM, templates e exportação Excel
                     </p>
                   </div>
 
@@ -211,6 +211,15 @@ export function PrecosSection() {
                       + Recursos exclusivos
                     </p>
                     <div className="grid gap-3">
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                        <div className="p-2 rounded-md bg-emerald-500/20">
+                          <Infinity className="h-5 w-5 text-emerald-500" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm text-emerald-600 dark:text-emerald-400">Leads Ilimitados</p>
+                          <p className="text-xs text-muted-foreground">Sem limite de buscas por mês</p>
+                        </div>
+                      </div>
                       <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
                         <div className="p-2 rounded-md bg-primary/10">
                           <Kanban className="h-5 w-5 text-primary" />

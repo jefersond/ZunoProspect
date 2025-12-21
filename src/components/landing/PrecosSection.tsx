@@ -192,46 +192,60 @@ export function PrecosSection() {
                   </Button>
                 </div>
 
-                {/* Right side - Features destacadas */}
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-muted-foreground mb-4 uppercase tracking-wider">
-                    Recursos exclusivos
-                  </p>
-                  <div className="grid gap-4">
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
-                      <div className="p-2 rounded-md bg-primary/10">
-                        <Kanban className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">Pipeline Kanban</p>
-                        <p className="text-xs text-muted-foreground">Gerencie leads com drag-and-drop</p>
-                      </div>
+                {/* Right side - Inclui Pro + Diferenciais */}
+                <div className="flex-1 space-y-6">
+                  {/* Base do Pro */}
+                  <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                      <p className="font-semibold text-emerald-600 dark:text-emerald-400">Tudo do plano Pro incluído</p>
                     </div>
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
-                      <div className="p-2 rounded-md bg-primary/10">
-                        <BarChart3 className="h-5 w-5 text-primary" />
+                    <p className="text-xs text-muted-foreground">
+                      200 leads/mês, análise completa, plano de prospecção, CRM, templates e exportação Excel
+                    </p>
+                  </div>
+
+                  {/* Diferenciais */}
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wider">
+                      + Recursos exclusivos
+                    </p>
+                    <div className="grid gap-3">
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
+                        <div className="p-2 rounded-md bg-primary/10">
+                          <Kanban className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">Pipeline Kanban</p>
+                          <p className="text-xs text-muted-foreground">Gerencie leads com drag-and-drop</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-sm">Relatórios Completos</p>
-                        <p className="text-xs text-muted-foreground">Dashboards e métricas avançadas</p>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
+                        <div className="p-2 rounded-md bg-primary/10">
+                          <BarChart3 className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">Relatórios Completos</p>
+                          <p className="text-xs text-muted-foreground">Dashboards e métricas avançadas</p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
-                      <div className="p-2 rounded-md bg-primary/10">
-                        <Code2 className="h-5 w-5 text-primary" />
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
+                        <div className="p-2 rounded-md bg-primary/10">
+                          <Code2 className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">Acesso à API</p>
+                          <p className="text-xs text-muted-foreground">Integre com seus sistemas</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-sm">Acesso à API</p>
-                        <p className="text-xs text-muted-foreground">Integre com seus sistemas</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
-                      <div className="p-2 rounded-md bg-primary/10">
-                        <Headphones className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">Suporte Prioritário</p>
-                        <p className="text-xs text-muted-foreground">Canal direto de atendimento</p>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
+                        <div className="p-2 rounded-md bg-primary/10">
+                          <Headphones className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">Suporte Prioritário</p>
+                          <p className="text-xs text-muted-foreground">Canal direto de atendimento</p>
+                        </div>
                       </div>
                     </div>
                   </div>

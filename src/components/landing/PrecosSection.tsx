@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { CheckCircle2 } from "lucide-react";
-import { PLANOS, Plano } from "./data";
+import { CheckCircle2, Building2, Kanban, BarChart3, Code2, Headphones } from "lucide-react";
+import { PLANOS, PLANO_AGENCIA, Plano } from "./data";
 import { CheckoutDialog } from "./CheckoutDialog";
 import { trackViewContent, trackLead } from "@/lib/metaPixel";
 
@@ -17,7 +17,6 @@ export function PrecosSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const hasTrackedView = useRef(false);
 
-  // Track ViewContent when pricing section enters viewport
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -43,7 +42,6 @@ export function PrecosSection() {
   }, []);
 
   const handleSelectPlano = (plano: Plano) => {
-    // Track Lead event when user clicks on any plan
     trackLead({
       content_name: plano.nome,
       content_category: plano.gratuito ? 'Free Plan' : 'Paid Plan',
@@ -58,6 +56,8 @@ export function PrecosSection() {
     setSelectedPlano(plano);
     setCheckoutOpen(true);
   };
+
+  const agenciaPrecoMensal = isAnual ? Math.round(PLANO_AGENCIA.precoAnual / 12) : PLANO_AGENCIA.precoMensal;
 
   return (
     <section id="precos" ref={sectionRef} className="py-20 bg-background">
@@ -87,6 +87,7 @@ export function PrecosSection() {
           </div>
         </div>
 
+        {/* Grid for Starter, Iniciante, Pro */}
         <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
           {PLANOS.map((plano, index) => {
             const preco = isAnual ? plano.precoAnual : plano.precoMensal;
@@ -146,6 +147,98 @@ export function PrecosSection() {
               </Card>
             );
           })}
+        </div>
+
+        {/* Agência - Card especial embaixo */}
+        <div className="max-w-5xl mx-auto mt-12">
+          <Card className="relative overflow-hidden border-2 border-primary/30 bg-gradient-to-br from-primary/5 via-background to-primary/5">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-primary/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+            
+            <div className="relative p-8 md:p-10">
+              <div className="flex flex-col md:flex-row gap-8 md:gap-12">
+                {/* Left side - Info */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Building2 className="h-6 w-6 text-primary" />
+                    </div>
+                    <Badge variant="outline" className="border-primary/30 text-primary">
+                      Para Agências
+                    </Badge>
+                  </div>
+                  
+                  <h3 className="text-2xl md:text-3xl font-bold mb-2">{PLANO_AGENCIA.nome}</h3>
+                  <p className="text-muted-foreground mb-6">{PLANO_AGENCIA.descricao}</p>
+                  
+                  <div className="flex items-baseline gap-2 mb-6">
+                    <span className="text-4xl md:text-5xl font-bold">R$ {agenciaPrecoMensal}</span>
+                    <span className="text-muted-foreground">/mês</span>
+                  </div>
+                  
+                  {isAnual && (
+                    <p className="text-sm text-muted-foreground mb-6">
+                      cobrado R$ {PLANO_AGENCIA.precoAnual} por ano
+                    </p>
+                  )}
+                  
+                  <Button
+                    size="lg"
+                    variant="success"
+                    className="w-full md:w-auto px-8"
+                    onClick={() => handleSelectPlano(PLANO_AGENCIA)}
+                  >
+                    {PLANO_AGENCIA.cta}
+                  </Button>
+                </div>
+
+                {/* Right side - Features destacadas */}
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-4 uppercase tracking-wider">
+                    Recursos exclusivos
+                  </p>
+                  <div className="grid gap-4">
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
+                      <div className="p-2 rounded-md bg-primary/10">
+                        <Kanban className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">Pipeline Kanban</p>
+                        <p className="text-xs text-muted-foreground">Gerencie leads com drag-and-drop</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
+                      <div className="p-2 rounded-md bg-primary/10">
+                        <BarChart3 className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">Relatórios Completos</p>
+                        <p className="text-xs text-muted-foreground">Dashboards e métricas avançadas</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
+                      <div className="p-2 rounded-md bg-primary/10">
+                        <Code2 className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">Acesso à API</p>
+                        <p className="text-xs text-muted-foreground">Integre com seus sistemas</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
+                      <div className="p-2 rounded-md bg-primary/10">
+                        <Headphones className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">Suporte Prioritário</p>
+                        <p className="text-xs text-muted-foreground">Canal direto de atendimento</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
         </div>
 
         <p className="text-center text-sm text-muted-foreground mt-8">

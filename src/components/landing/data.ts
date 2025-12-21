@@ -129,7 +129,12 @@ export const PLANOS: Plano[] = [
     precoAnual: 0,
     descricao: "Para testar a plataforma",
     destaque: false,
-    features: ["Até 10 leads por mês", "Análise básica de leads", "1 plano de prospecção por lead"],
+    features: [
+      "Até 10 leads por mês",
+      "Análise básica de leads",
+      "Plano de prospecção de 7 dias",
+      "Salvar leads favoritos"
+    ],
     cta: "Começar grátis",
     gratuito: true
   },
@@ -141,10 +146,10 @@ export const PLANOS: Plano[] = [
     destaque: false,
     features: [
       "100 leads por mês",
-      "1 nicho/região por vez",
-      "Diagnóstico básico a intermediário",
-      "Plano de prospecção de 3 dias",
-      "CRM básico: salvar + status"
+      "Análise de leads com diagnóstico",
+      "Plano de prospecção de 7 dias",
+      "CRM: salvar + status + anotações",
+      "Templates de mensagem"
     ],
     cta: "Assinar Iniciante",
     gratuito: false
@@ -153,43 +158,39 @@ export const PLANOS: Plano[] = [
     nome: "Pro",
     precoMensal: 97,
     precoAnual: 970,
-    descricao: "Para freelancers e profissionais",
+    descricao: "Para profissionais",
     destaque: true,
     features: [
       "200 leads por mês",
-      "Plano completo de 7 dias (WhatsApp/Insta/E-mail)",
-      "Score de oportunidade + insights completos",
-      "Filtros avançados por nicho/região/sinais",
-      "Ações em massa (salvar, mover, tags)",
-      "Exportação CSV / copiar com 1 clique",
-      "Biblioteca de scripts e templates",
-      "Salvar e repetir buscas semanais",
+      "Análise completa + score de conversão",
+      "Plano de 7 dias (WhatsApp/Insta/E-mail)",
+      "CRM completo com anotações",
+      "Templates de mensagem",
+      "Exportação para Excel",
       "Suporte prioritário"
     ],
     cta: "Assinar Pro",
     gratuito: false
-  },
-  {
-    nome: "Agência",
-    precoMensal: 247,
-    precoAnual: 2470,
-    descricao: "Para agências e times",
-    destaque: false,
-    features: [
-      "Leads ilimitados",
-      "Workspaces por cliente",
-      "Pipeline/CRM separado por cliente",
-      "3 a 5 usuários com permissões",
-      "Histórico de atividades",
-      "Relatórios por cliente",
-      "Resumo semanal exportável",
-      "Setup guiado (15 min)",
-      "Suporte prioritário + canal direto"
-    ],
-    cta: "Assinar Agência",
-    gratuito: false
   }
 ];
+
+export const PLANO_AGENCIA: Plano = {
+  nome: "Agência",
+  precoMensal: 247,
+  precoAnual: 2470,
+  descricao: "Para agências e times",
+  destaque: false,
+  features: [
+    "Leads ilimitados",
+    "Tudo do plano Pro",
+    "Pipeline Kanban visual (drag-and-drop)",
+    "Relatórios e dashboards completos",
+    "Acesso à API (integração)",
+    "Suporte prioritário + canal direto"
+  ],
+  cta: "Assinar Agência",
+  gratuito: false
+};
 
 export const FAQ_ITEMS = [
   {

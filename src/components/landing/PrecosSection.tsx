@@ -264,9 +264,6 @@ export function PrecosSection() {
           </Card>
         </div>
 
-        <p className="text-center text-sm text-muted-foreground mt-8">
-          Todos os planos incluem atualizações gratuitas.
-        </p>
       </div>
 
       <CheckoutDialog open={checkoutOpen} onOpenChange={setCheckoutOpen} plano={selectedPlano} isAnual={isAnual} />

@@ -70,13 +70,20 @@ serve(async (req) => {
     // Determinar plano e período baseado no nome do produto
     let planName = "pro";
     let isAnnual = false;
-    let leadsLimit = 100;
+    let leadsLimit = 200; // Pro padrão agora tem 200 leads
 
     const productNameLower = productName.toLowerCase();
     
-    if (productNameLower.includes("agencia") || productNameLower.includes("agência")) {
+    // Ordem importa: verificar iniciante antes de pro
+    if (productNameLower.includes("iniciante")) {
+      planName = "iniciante";
+      leadsLimit = 100;
+    } else if (productNameLower.includes("agencia") || productNameLower.includes("agência")) {
       planName = "agencia";
       leadsLimit = -1; // Ilimitado
+    } else if (productNameLower.includes("pro")) {
+      planName = "pro";
+      leadsLimit = 200;
     }
     
     if (productNameLower.includes("anual") || productNameLower.includes("annual")) {

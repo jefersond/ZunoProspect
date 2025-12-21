@@ -141,6 +141,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
     if (isAdmin) return "Admin (Ilimitado)";
     const names: Record<string, string> = {
       starter: "Starter (Gratuito)",
+      iniciante: "Iniciante",
       pro: "Pro",
       agencia: "Agência",
     };

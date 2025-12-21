@@ -129,9 +129,25 @@ export const PLANOS: Plano[] = [
     precoAnual: 0,
     descricao: "Para testar a plataforma",
     destaque: false,
-    features: ["Até 10 leads por mês", "Análise básica de leads", "1 plano de prospecção por lead", "Exportação para Excel"],
+    features: ["Até 10 leads por mês", "Análise básica de leads", "1 plano de prospecção por lead"],
     cta: "Começar grátis",
     gratuito: true
+  },
+  {
+    nome: "Iniciante",
+    precoMensal: 47,
+    precoAnual: 470,
+    descricao: "Para quem está começando",
+    destaque: false,
+    features: [
+      "100 leads por mês",
+      "1 nicho/região por vez",
+      "Diagnóstico básico a intermediário",
+      "Plano de prospecção de 3 dias",
+      "CRM básico: salvar + status"
+    ],
+    cta: "Assinar Iniciante",
+    gratuito: false
   },
   {
     nome: "Pro",
@@ -139,7 +155,17 @@ export const PLANOS: Plano[] = [
     precoAnual: 970,
     descricao: "Para freelancers e profissionais",
     destaque: true,
-    features: ["Até 100 leads por mês", "Análise completa com IA", "Plano de 7 dias personalizado", "Diagnóstico de sinais digitais", "Exportação ilimitada", "Suporte prioritário"],
+    features: [
+      "200 leads por mês",
+      "Plano completo de 7 dias (WhatsApp/Insta/E-mail)",
+      "Score de oportunidade + insights completos",
+      "Filtros avançados por nicho/região/sinais",
+      "Ações em massa (salvar, mover, tags)",
+      "Exportação CSV / copiar com 1 clique",
+      "Biblioteca de scripts e templates",
+      "Salvar e repetir buscas semanais",
+      "Suporte prioritário"
+    ],
     cta: "Assinar Pro",
     gratuito: false
   },
@@ -149,7 +175,17 @@ export const PLANOS: Plano[] = [
     precoAnual: 2470,
     descricao: "Para agências e times",
     destaque: false,
-    features: ["Leads ilimitados", "Tudo do plano Pro", "Múltiplos usuários", "API de integração", "Relatórios avançados", "Gerente de sucesso dedicado"],
+    features: [
+      "Leads ilimitados",
+      "Workspaces por cliente",
+      "Pipeline/CRM separado por cliente",
+      "3 a 5 usuários com permissões",
+      "Histórico de atividades",
+      "Relatórios por cliente",
+      "Resumo semanal exportável",
+      "Setup guiado (15 min)",
+      "Suporte prioritário + canal direto"
+    ],
     cta: "Assinar Agência",
     gratuito: false
   }

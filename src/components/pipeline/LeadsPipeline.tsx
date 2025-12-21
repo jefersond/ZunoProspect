@@ -168,19 +168,21 @@ export function LeadsPipeline({ onViewDetails }: LeadsPipelineProps) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <ScrollArea className="w-full">
-        <div className="flex gap-4 p-4 min-h-[calc(100vh-200px)]">
-          {PIPELINE_STATUSES.map((status) => (
-            <PipelineColumn
-              key={status.id}
-              status={status}
-              leads={getLeadsByStatus(status.id)}
-              onViewDetails={onViewDetails}
-            />
-          ))}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      <div className="h-[calc(100vh-220px)] overflow-hidden">
+        <ScrollArea className="w-full h-full">
+          <div className="flex gap-4 p-4 h-full">
+            {PIPELINE_STATUSES.map((status) => (
+              <PipelineColumn
+                key={status.id}
+                status={status}
+                leads={getLeadsByStatus(status.id)}
+                onViewDetails={onViewDetails}
+              />
+            ))}
+          </div>
+          <ScrollBar orientation="horizontal" className="h-3 bg-muted/50" />
+        </ScrollArea>
+      </div>
 
       <DragOverlay>
         {activeLead ? (

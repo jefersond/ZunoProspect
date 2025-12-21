@@ -220,39 +220,39 @@ export function PrecosSection() {
                           <p className="text-xs text-muted-foreground">Sem limite de buscas por mês</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
-                        <div className="p-2 rounded-md bg-primary/10">
-                          <Kanban className="h-5 w-5 text-primary" />
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                        <div className="p-2 rounded-md bg-emerald-500/20">
+                          <Kanban className="h-5 w-5 text-emerald-500" />
                         </div>
                         <div>
-                          <p className="font-medium text-sm">Pipeline Kanban</p>
+                          <p className="font-medium text-sm text-emerald-600 dark:text-emerald-400">Pipeline Kanban</p>
                           <p className="text-xs text-muted-foreground">Gerencie leads com drag-and-drop</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
-                        <div className="p-2 rounded-md bg-primary/10">
-                          <BarChart3 className="h-5 w-5 text-primary" />
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                        <div className="p-2 rounded-md bg-emerald-500/20">
+                          <BarChart3 className="h-5 w-5 text-emerald-500" />
                         </div>
                         <div>
-                          <p className="font-medium text-sm">Relatórios Completos</p>
+                          <p className="font-medium text-sm text-emerald-600 dark:text-emerald-400">Relatórios Completos</p>
                           <p className="text-xs text-muted-foreground">Dashboards e métricas avançadas</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
-                        <div className="p-2 rounded-md bg-primary/10">
-                          <Code2 className="h-5 w-5 text-primary" />
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                        <div className="p-2 rounded-md bg-emerald-500/20">
+                          <Code2 className="h-5 w-5 text-emerald-500" />
                         </div>
                         <div>
-                          <p className="font-medium text-sm">Acesso à API</p>
+                          <p className="font-medium text-sm text-emerald-600 dark:text-emerald-400">Acesso à API</p>
                           <p className="text-xs text-muted-foreground">Integre com seus sistemas</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
-                        <div className="p-2 rounded-md bg-primary/10">
-                          <Headphones className="h-5 w-5 text-primary" />
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                        <div className="p-2 rounded-md bg-emerald-500/20">
+                          <Headphones className="h-5 w-5 text-emerald-500" />
                         </div>
                         <div>
-                          <p className="font-medium text-sm">Suporte Prioritário</p>
+                          <p className="font-medium text-sm text-emerald-600 dark:text-emerald-400">Suporte Prioritário</p>
                           <p className="text-xs text-muted-foreground">Canal direto de atendimento</p>
                         </div>
                       </div>

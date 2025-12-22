@@ -12,6 +12,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Progress } from "@/components/ui/progress";
 import { z } from "zod";
 import { trackLead, trackCompleteRegistration } from "@/lib/metaPixel";
+import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -66,11 +67,13 @@ const Auth = () => {
     setGoogleLoading(true);
     
     try {
+      // Always redirect to the canonical domain to avoid domain mismatches
+      const redirectBase = getAuthRedirectBaseUrl();
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          // Let the backend handle the redirect to avoid domain mismatches
-          redirectTo: `${window.location.origin}/auth`
+          redirectTo: `${redirectBase}/auth`
         }
       });
       
@@ -152,8 +155,9 @@ const Auth = () => {
     }
 
     setLoading(true);
+    const redirectBase = getAuthRedirectBaseUrl();
     const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${redirectBase}/reset-password`,
     });
 
     if (error) {
@@ -248,6 +252,7 @@ const Auth = () => {
       return;
     }
 
+    const redirectBase = getAuthRedirectBaseUrl();
     const {
       data,
       error
@@ -255,7 +260,7 @@ const Auth = () => {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
+        emailRedirectTo: `${redirectBase}/`,
         data: {
           full_name: fullName
         }

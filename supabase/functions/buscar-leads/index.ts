@@ -430,29 +430,109 @@ serve(async (req) => {
 
         const html = await siteResponse.text();
         
-        // Detectar WhatsApp
-        const whatsappPatterns = [
-          /wa\.me\/([0-9]+)/i,
-          /api\.whatsapp\.com\/send\?phone=([0-9]+)/i,
-          /web\.whatsapp\.com\/send\?phone=([0-9]+)/i,
+        // =============================================
+        // DETECÇÃO APRIMORADA DE WHATSAPP/TELEFONE
+        // =============================================
+        
+        // 1. Padrões de links WhatsApp (mais completos)
+        const whatsappLinkPatterns = [
+          /wa\.me\/(\+?[0-9]+)/gi,
+          /api\.whatsapp\.com\/send\?phone=(\+?[0-9]+)/gi,
+          /web\.whatsapp\.com\/send\?phone=(\+?[0-9]+)/gi,
+          /whatsapp:\/\/send\?phone=(\+?[0-9]+)/gi,
         ];
         
-        for (const pattern of whatsappPatterns) {
-          const match = html.match(pattern);
-          if (match) {
-            signals.whatsapp_on_site = true;
-            signals.whatsapp_number = match[1];
-            break;
+        for (const pattern of whatsappLinkPatterns) {
+          const matches = [...html.matchAll(pattern)];
+          for (const match of matches) {
+            if (match[1]) {
+              const cleanNumber = match[1].replace(/\D/g, '');
+              if (cleanNumber.length >= 10) {
+                signals.whatsapp_on_site = true;
+                signals.whatsapp_number = cleanNumber;
+                console.log(`📱 WhatsApp encontrado via link: ${cleanNumber}`);
+                break;
+              }
+            }
+          }
+          if (signals.whatsapp_on_site) break;
+        }
+
+        // 2. Links tel: (telefone que pode ser WhatsApp)
+        if (!signals.whatsapp_number) {
+          const telPattern = /href\s*=\s*["']tel:(\+?55)?(\d{10,11})["']/gi;
+          const telMatches = [...html.matchAll(telPattern)];
+          for (const match of telMatches) {
+            const number = (match[1] || '') + match[2];
+            const cleanNumber = number.replace(/\D/g, '');
+            // Prioriza números com 9 (celular = provável WhatsApp)
+            if (cleanNumber.length >= 10 && /9\d{8}$/.test(cleanNumber)) {
+              signals.whatsapp_number = cleanNumber;
+              signals.whatsapp_on_site = true;
+              console.log(`📱 Celular encontrado via tel: ${cleanNumber}`);
+              break;
+            }
           }
         }
 
-        // Se não encontrou nos links, procura por "WhatsApp" próximo a números
+        // 3. Números brasileiros em texto (próximos a "whatsapp", "zap", "wpp", "fale conosco")
+        if (!signals.whatsapp_number) {
+          const contextPatterns = [
+            // Palavra-chave seguida de número
+            /(?:whatsapp|wpp|whats|zap|fale\s*conosco|atendimento)[^0-9]{0,80}(?:\+?55\s*)?(?:\(?0?([1-9][0-9])\)?\s*)?([9]?\d{4}[-.\s]?\d{4})/gi,
+            // Número seguido de palavra-chave
+            /(?:\+?55\s*)?(?:\(?0?([1-9][0-9])\)?\s*)?([9]\d{4}[-.\s]?\d{4})[^0-9]{0,30}(?:whatsapp|wpp|whats|zap)/gi,
+          ];
+          
+          for (const pattern of contextPatterns) {
+            const matches = [...html.matchAll(pattern)];
+            for (const match of matches) {
+              const ddd = match[1] || '';
+              const number = match[2] || '';
+              const fullNumber = (ddd + number).replace(/\D/g, '');
+              if (fullNumber.length >= 8 && /9\d{7,8}$/.test(fullNumber)) {
+                // Adiciona DDD 11 se não tiver
+                signals.whatsapp_number = fullNumber.length <= 9 ? '11' + fullNumber : fullNumber;
+                signals.whatsapp_on_site = true;
+                console.log(`📱 WhatsApp encontrado via contexto: ${signals.whatsapp_number}`);
+                break;
+              }
+            }
+            if (signals.whatsapp_number) break;
+          }
+        }
+
+        // 4. Números brasileiros gerais no HTML (fallback para celulares)
+        if (!signals.whatsapp_number) {
+          // Formato: (11) 99999-9999 ou 11999999999 ou +55 11 99999-9999
+          const phonePatterns = [
+            /\+?55\s*\(?([1-9][0-9])\)?\s*(9\d{4})[-.\s]?(\d{4})/g,
+            /\(?([1-9][0-9])\)?\s*(9\d{4})[-.\s]?(\d{4})/g,
+          ];
+          
+          for (const pattern of phonePatterns) {
+            const matches = [...html.matchAll(pattern)];
+            for (const match of matches) {
+              const ddd = match[1];
+              const part1 = match[2];
+              const part2 = match[3];
+              const fullNumber = `${ddd}${part1}${part2}`.replace(/\D/g, '');
+              if (fullNumber.length >= 10 && fullNumber.length <= 11) {
+                signals.whatsapp_number = fullNumber;
+                signals.whatsapp_on_site = true;
+                console.log(`📱 Celular encontrado via regex geral: ${fullNumber}`);
+                break;
+              }
+            }
+            if (signals.whatsapp_number) break;
+          }
+        }
+
+        // 5. Detecta se tem WhatsApp no site mesmo sem número extraível
         if (!signals.whatsapp_on_site) {
-          const whatsappContext = /whatsapp[^0-9]{0,50}(\+?[0-9\s\-\(\)]{10,20})/i;
-          const contextMatch = html.match(whatsappContext);
-          if (contextMatch) {
+          if (/whatsapp|wa\.me|api\.whatsapp/i.test(html)) {
             signals.whatsapp_on_site = true;
-            signals.whatsapp_number = contextMatch[1].replace(/\D/g, '');
+            console.log(`📱 WhatsApp detectado no site (sem número extraível)`);
           }
         }
 

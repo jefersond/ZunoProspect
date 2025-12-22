@@ -1,28 +1,34 @@
 /**
+ * Canonical domain for production OAuth redirects.
+ * This ensures OAuth always redirects to the correct production domain.
+ */
+const CANONICAL_DOMAIN = 'https://zunopropect.com.br';
+
+/**
  * Get the canonical base URL for auth redirects.
- * This ensures OAuth always redirects to the production domain when available.
+ * Priority:
+ * 1. VITE_PUBLIC_SITE_URL environment variable (if set)
+ * 2. Hardcoded canonical domain for production
+ * 3. Current origin for localhost development
  */
 export const getAuthRedirectBaseUrl = (): string => {
   // Check for explicit canonical URL configuration
-  const canonicalUrl = import.meta.env.VITE_PUBLIC_SITE_URL || import.meta.env.VITE_CANONICAL_URL;
+  const envCanonicalUrl = import.meta.env.VITE_PUBLIC_SITE_URL;
   
-  if (canonicalUrl) {
+  if (envCanonicalUrl) {
     // Remove trailing slash if present
-    return canonicalUrl.replace(/\/$/, '');
+    return envCanonicalUrl.replace(/\/$/, '');
   }
   
-  // For production domains, always use the canonical domain
-  // This handles cases where user accesses via preview URL but should redirect to production
-  const productionDomain = 'zunopropect.com.br';
   const currentOrigin = window.location.origin;
   
-  // If we're on a lovableproject.com or supabase.co domain, redirect to production
-  if (currentOrigin.includes('lovableproject.com') || currentOrigin.includes('supabase.co')) {
-    return `https://${productionDomain}`;
+  // For localhost, use current origin (dev environment)
+  if (currentOrigin.includes('localhost') || currentOrigin.includes('127.0.0.1')) {
+    return currentOrigin;
   }
   
-  // Otherwise, use current origin (for localhost dev, custom domains, etc.)
-  return currentOrigin;
+  // For all other cases (preview, production), always use canonical domain
+  return CANONICAL_DOMAIN;
 };
 
 /**
@@ -30,7 +36,14 @@ export const getAuthRedirectBaseUrl = (): string => {
  * Useful for deciding whether to redirect after OAuth callback.
  */
 export const isOnCanonicalDomain = (): boolean => {
+  const currentOrigin = window.location.origin;
+  
+  // Localhost is always considered "canonical" for dev
+  if (currentOrigin.includes('localhost') || currentOrigin.includes('127.0.0.1')) {
+    return true;
+  }
+  
   const canonicalBase = getAuthRedirectBaseUrl();
-  return window.location.origin === canonicalBase;
+  return currentOrigin === canonicalBase;
 };
 

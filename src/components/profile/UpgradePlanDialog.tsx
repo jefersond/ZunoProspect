@@ -173,7 +173,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
         <p className="text-xs text-center text-muted-foreground pt-2 border-t">
           Você será redirecionado para a página de pagamento segura.
           <br />
-          Aceita PIX, cartão de crédito e boleto.
+          Aceita PIX e cartão de crédito.
         </p>
       </DialogContent>
     </Dialog>

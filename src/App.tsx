@@ -4,9 +4,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { useEffect, Suspense, lazy } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { Suspense, lazy } from "react";
 import { ExitIntentTracker } from "@/components/ExitIntentTracker";
+import { useOAuthCallback } from "@/hooks/useOAuthCallback";
 import LandingProspeccaoIA from "./pages/LandingProspeccaoIA";
 
 // Lazy load all pages except landing page for code splitting
@@ -35,9 +35,13 @@ const PageLoader = () => (
 );
 
 const AppContent = () => {
-  // Removed the beforeunload logout mechanism that was causing unexpected
-  // page reloads and session loss. The "remember me" preference is now handled
-  // by Supabase's native session persistence (localStorage vs sessionStorage).
+  // Handle OAuth callback tokens in URL hash (clean URL + redirect)
+  const { isProcessing } = useOAuthCallback();
+
+  // Show loader while processing OAuth callback
+  if (isProcessing) {
+    return <PageLoader />;
+  }
 
   return (
     <>

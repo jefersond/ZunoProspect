@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
-import heroProspeccao from "@/assets/screenshots/hero-prospeccao.png";
 import { SocialProofBar } from "./SocialProofBar";
+import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 
 export function HeroSection() {
   const scrollToSection = (id: string) => {
@@ -47,12 +47,8 @@ export function HeroSection() {
           </div>
 
           <div className="relative hidden lg:block lg:scale-110 xl:scale-115">
-            <div className="relative overflow-hidden rounded-xl border-2 border-border/50 shadow-2xl dark:shadow-primary/10 bg-card animate-fade-in">
-              <img
-                src={heroProspeccao}
-                alt="Prospecção com IA - Leads encontrados com análise"
-                className="w-full h-auto object-cover"
-              />
+            <div className="animate-fade-in">
+              <MockupHeroProspeccao />
             </div>
           </div>
         </div>

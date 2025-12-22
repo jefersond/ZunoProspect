@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { getAuthRedirectBaseUrl, isOnCanonicalDomain } from '@/lib/authRedirect';
 
 /**
  * Hook to handle OAuth callback tokens in URL hash.
  * Cleans the URL and redirects authenticated users to /prospeccao.
+ * Also handles redirect to canonical domain if needed.
  */
 export const useOAuthCallback = () => {
   const navigate = useNavigate();
@@ -15,6 +17,14 @@ export const useOAuthCallback = () => {
   useEffect(() => {
     const handleOAuthCallback = async () => {
       const hash = window.location.hash;
+      
+      // If we have tokens and we're NOT on the canonical domain, redirect there with tokens
+      if (hash && hash.includes('access_token') && !isOnCanonicalDomain()) {
+        const canonicalBase = getAuthRedirectBaseUrl();
+        // Redirect to canonical domain, preserving the hash with tokens
+        window.location.href = `${canonicalBase}${window.location.pathname}${window.location.search}${hash}`;
+        return;
+      }
       
       // Check if URL has OAuth tokens in hash
       if (hash && (hash.includes('access_token') || hash.includes('error'))) {

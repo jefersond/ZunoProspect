@@ -229,25 +229,97 @@ async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
 
     const html = await siteResponse.text();
     
-    // WhatsApp detection
-    const whatsappPatterns = [
+    // =============================================
+    // DETECÇÃO APRIMORADA DE WHATSAPP/TELEFONE
+    // =============================================
+    
+    // 1. Padrões de links WhatsApp
+    const whatsappLinkPatterns = [
       /wa\.me\/(\+?[0-9]+)/gi,
       /api\.whatsapp\.com\/send\?phone=(\+?[0-9]+)/gi,
+      /web\.whatsapp\.com\/send\?phone=(\+?[0-9]+)/gi,
+      /whatsapp:\/\/send\?phone=(\+?[0-9]+)/gi,
     ];
     
-    for (const pattern of whatsappPatterns) {
-      const matches = html.matchAll(pattern);
+    for (const pattern of whatsappLinkPatterns) {
+      const matches = [...html.matchAll(pattern)];
       for (const match of matches) {
         if (match[1]) {
-          signals.whatsapp_on_site = true;
-          signals.whatsapp_number = match[1].replace(/\D/g, '');
-          break;
+          const cleanNumber = match[1].replace(/\D/g, '');
+          if (cleanNumber.length >= 10) {
+            signals.whatsapp_on_site = true;
+            signals.whatsapp_number = cleanNumber;
+            break;
+          }
         }
       }
       if (signals.whatsapp_on_site) break;
     }
 
-    if (!signals.whatsapp_on_site && /whatsapp/i.test(html)) {
+    // 2. Links tel: com números de celular
+    if (!signals.whatsapp_number) {
+      const telPattern = /href\s*=\s*["']tel:(\+?55)?(\d{10,11})["']/gi;
+      const telMatches = [...html.matchAll(telPattern)];
+      for (const match of telMatches) {
+        const number = (match[1] || '') + match[2];
+        const cleanNumber = number.replace(/\D/g, '');
+        if (cleanNumber.length >= 10 && /9\d{8}$/.test(cleanNumber)) {
+          signals.whatsapp_number = cleanNumber;
+          signals.whatsapp_on_site = true;
+          break;
+        }
+      }
+    }
+
+    // 3. Números próximos a palavras-chave de WhatsApp
+    if (!signals.whatsapp_number) {
+      const contextPatterns = [
+        /(?:whatsapp|wpp|whats|zap|fale\s*conosco|atendimento)[^0-9]{0,80}(?:\+?55\s*)?(?:\(?0?([1-9][0-9])\)?\s*)?([9]?\d{4}[-.\s]?\d{4})/gi,
+        /(?:\+?55\s*)?(?:\(?0?([1-9][0-9])\)?\s*)?([9]\d{4}[-.\s]?\d{4})[^0-9]{0,30}(?:whatsapp|wpp|whats|zap)/gi,
+      ];
+      
+      for (const pattern of contextPatterns) {
+        const matches = [...html.matchAll(pattern)];
+        for (const match of matches) {
+          const ddd = match[1] || '';
+          const number = match[2] || '';
+          const fullNumber = (ddd + number).replace(/\D/g, '');
+          if (fullNumber.length >= 8 && /9\d{7,8}$/.test(fullNumber)) {
+            signals.whatsapp_number = fullNumber.length <= 9 ? '11' + fullNumber : fullNumber;
+            signals.whatsapp_on_site = true;
+            break;
+          }
+        }
+        if (signals.whatsapp_number) break;
+      }
+    }
+
+    // 4. Números de celular brasileiros no HTML
+    if (!signals.whatsapp_number) {
+      const phonePatterns = [
+        /\+?55\s*\(?([1-9][0-9])\)?\s*(9\d{4})[-.\s]?(\d{4})/g,
+        /\(?([1-9][0-9])\)?\s*(9\d{4})[-.\s]?(\d{4})/g,
+      ];
+      
+      for (const pattern of phonePatterns) {
+        const matches = [...html.matchAll(pattern)];
+        for (const match of matches) {
+          const ddd = match[1];
+          const part1 = match[2];
+          const part2 = match[3];
+          const fullNumber = `${ddd}${part1}${part2}`.replace(/\D/g, '');
+          if (fullNumber.length >= 10 && fullNumber.length <= 11) {
+            signals.whatsapp_number = fullNumber;
+            signals.whatsapp_on_site = true;
+            break;
+          }
+        }
+        if (signals.whatsapp_number) break;
+      }
+    }
+
+    // 5. Detecta WhatsApp mesmo sem número
+    if (!signals.whatsapp_on_site && /whatsapp|wa\.me|api\.whatsapp/i.test(html)) {
       signals.whatsapp_on_site = true;
     }
 

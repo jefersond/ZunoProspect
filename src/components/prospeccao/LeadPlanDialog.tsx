@@ -8,12 +8,31 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadAnalysis } from "./LeadAnalysis";
+import { CopyableField } from "./CopyableField";
 import { TemplateSelector } from "@/components/templates/TemplateSelector";
 import { StatusSelector, PIPELINE_STATUSES } from "@/components/pipeline/StatusSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Brain, FileText, ArrowRightLeft } from "lucide-react";
+import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
+
+// Função para formatar número de telefone brasileiro
+const formatPhoneNumber = (phone: string): string => {
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length === 11) {
+    return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
+  } else if (cleaned.length === 10) {
+    return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6)}`;
+  }
+  return phone;
+};
+
+// Função para extrair número do link WhatsApp
+const extractWhatsAppNumber = (link: string | null): string | null => {
+  if (!link) return null;
+  const match = link.match(/(\d{10,13})/);
+  return match ? match[1] : null;
+};
 
 interface LeadPlanDialogProps {
   lead: LeadProspeccao | null;
@@ -153,6 +172,8 @@ export const LeadPlanDialog = ({
 
   const displayLead = currentLead || lead;
 
+  const whatsappNumber = extractWhatsAppNumber(displayLead.whatsapp_link);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -162,6 +183,43 @@ export const LeadPlanDialog = ({
             {displayLead.nicho} • {displayLead.cidade} • Foco: {displayLead.foco}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Contatos com opção de copiar */}
+        <div className="flex flex-wrap gap-3 text-sm py-2 px-3 bg-muted/20 rounded-lg border border-border/30">
+          {displayLead.telefone && (
+            <CopyableField value={displayLead.telefone} displayValue={formatPhoneNumber(displayLead.telefone)}>
+              <a href={`tel:${displayLead.telefone}`} className="flex items-center gap-1 text-primary hover:underline">
+                <Phone className="h-3 w-3" />
+                {formatPhoneNumber(displayLead.telefone)}
+              </a>
+            </CopyableField>
+          )}
+          
+          {displayLead.whatsapp_link && whatsappNumber && (
+            <CopyableField value={whatsappNumber} displayValue={formatPhoneNumber(whatsappNumber)}>
+              <a href={displayLead.whatsapp_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-green-600 hover:underline">
+                <MessageSquare className="h-3 w-3" />
+                {formatPhoneNumber(whatsappNumber)}
+              </a>
+            </CopyableField>
+          )}
+
+          {displayLead.email && (
+            <CopyableField value={displayLead.email}>
+              <a href={`mailto:${displayLead.email}`} className="flex items-center gap-1 text-blue-600 hover:underline">
+                <Mail className="h-3 w-3" />
+                {displayLead.email}
+              </a>
+            </CopyableField>
+          )}
+
+          {displayLead.website && (
+            <a href={displayLead.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+              <Globe className="h-3 w-3" />
+              Website
+            </a>
+          )}
+        </div>
 
         {/* Status Selector */}
         <div className="mt-2 mb-4 p-4 bg-muted/30 rounded-lg border border-border/50">

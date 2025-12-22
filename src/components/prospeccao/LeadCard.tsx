@@ -2,15 +2,35 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, MapPin, Phone, MessageSquare, Instagram, Mail, UserCheck } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { CopyableField } from "./CopyableField";
 import type { LeadProspeccao } from "@/types/lead";
 
 interface LeadCardProps {
   lead: LeadProspeccao;
 }
 
+// Função para formatar número de telefone brasileiro
+const formatPhoneNumber = (phone: string): string => {
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length === 11) {
+    return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
+  } else if (cleaned.length === 10) {
+    return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6)}`;
+  }
+  return phone;
+};
+
+// Função para extrair número do link WhatsApp
+const extractWhatsAppNumber = (link: string | null): string | null => {
+  if (!link) return null;
+  const match = link.match(/(\d{10,13})/);
+  return match ? match[1] : null;
+};
+
 export const LeadCard = ({ lead }: LeadCardProps) => {
   // Extrai primeiro nome do responsável
   const primeiroNomeResponsavel = lead.nome_responsavel?.split(' ')[0] || null;
+  const whatsappNumber = extractWhatsAppNumber(lead.whatsapp_link);
 
   return (
     <Card className="hover:shadow-lg transition-shadow">
@@ -53,38 +73,47 @@ export const LeadCard = ({ lead }: LeadCardProps) => {
       </CardHeader>
       
       <CardContent className="space-y-4">
-        {/* Contatos */}
-        <div className="flex flex-wrap gap-2">
+        {/* Contatos com botão copiar */}
+        <div className="flex flex-wrap gap-3">
           {lead.telefone && (
-            <a
-              href={`tel:${lead.telefone}`}
-              className="flex items-center gap-1 text-sm text-primary hover:underline"
-            >
-              <Phone className="h-3 w-3" />
-              {lead.telefone}
-            </a>
+            <CopyableField value={lead.telefone} displayValue={formatPhoneNumber(lead.telefone)}>
+              <a
+                href={`tel:${lead.telefone}`}
+                className="flex items-center gap-1 text-sm text-primary hover:underline"
+              >
+                <Phone className="h-3 w-3" />
+                {formatPhoneNumber(lead.telefone)}
+              </a>
+            </CopyableField>
           )}
           
           {lead.whatsapp_link && (
-            <a
-              href={lead.whatsapp_link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-sm text-green-600 hover:underline"
+            <CopyableField 
+              value={whatsappNumber || lead.whatsapp_link} 
+              displayValue={whatsappNumber ? formatPhoneNumber(whatsappNumber) : 'WhatsApp'}
             >
-              <MessageSquare className="h-3 w-3" />
-              WhatsApp
-            </a>
+              <a
+                href={lead.whatsapp_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-sm text-green-600 hover:underline"
+              >
+                <MessageSquare className="h-3 w-3" />
+                {whatsappNumber ? formatPhoneNumber(whatsappNumber) : 'WhatsApp'}
+              </a>
+            </CopyableField>
           )}
 
           {lead.email && (
-            <a
-              href={`mailto:${lead.email}`}
-              className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
-            >
-              <Mail className="h-3 w-3" />
-              Email
-            </a>
+            <CopyableField value={lead.email}>
+              <a
+                href={`mailto:${lead.email}`}
+                className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
+              >
+                <Mail className="h-3 w-3" />
+                {lead.email}
+              </a>
+            </CopyableField>
           )}
           
           {lead.instagram_url && (
@@ -159,20 +188,28 @@ export const LeadCard = ({ lead }: LeadCardProps) => {
               </p>
             )}
             
-            <p className="text-xs text-muted-foreground font-mono">
-              CNPJ: {lead.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}
-            </p>
+            <CopyableField 
+              value={lead.cnpj} 
+              displayValue={lead.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}
+              className="text-xs text-muted-foreground font-mono"
+            >
+              <span>CNPJ: {lead.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}</span>
+            </CopyableField>
             
-            <div className="flex flex-wrap gap-2 text-sm">
+            <div className="flex flex-wrap gap-3 text-sm">
               {lead.cnpj_telefone && (
-                <a href={`tel:${lead.cnpj_telefone}`} className="text-primary hover:underline">
-                  📞 {lead.cnpj_telefone}
-                </a>
+                <CopyableField value={lead.cnpj_telefone} displayValue={formatPhoneNumber(lead.cnpj_telefone)}>
+                  <a href={`tel:${lead.cnpj_telefone}`} className="text-primary hover:underline">
+                    📞 {formatPhoneNumber(lead.cnpj_telefone)}
+                  </a>
+                </CopyableField>
               )}
               {lead.cnpj_email && (
-                <a href={`mailto:${lead.cnpj_email}`} className="text-primary hover:underline">
-                  ✉️ {lead.cnpj_email}
-                </a>
+                <CopyableField value={lead.cnpj_email}>
+                  <a href={`mailto:${lead.cnpj_email}`} className="text-primary hover:underline">
+                    ✉️ {lead.cnpj_email}
+                  </a>
+                </CopyableField>
               )}
             </div>
             

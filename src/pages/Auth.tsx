@@ -445,6 +445,34 @@ const Auth = () => {
                         </> : "Entrar"}
                     </Button>
                   </form>
+                  
+                  {/* Separador */}
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">
+                        ou continue com
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Botão Google */}
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={handleGoogleLogin}
+                    disabled={googleLoading}
+                  >
+                    {googleLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <GoogleIcon />
+                    )}
+                    <span className="ml-2">Continuar com Google</span>
+                  </Button>
                 </div>
               )}
             </TabsContent>
@@ -531,6 +559,34 @@ const Auth = () => {
                       </> : "Criar conta"}
                   </Button>
                 </form>
+                
+                {/* Separador */}
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">
+                      ou continue com
+                    </span>
+                  </div>
+                </div>
+
+                {/* Botão Google */}
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={handleGoogleLogin}
+                  disabled={googleLoading}
+                >
+                  {googleLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <GoogleIcon />
+                  )}
+                  <span className="ml-2">Continuar com Google</span>
+                </Button>
               </div>
             </TabsContent>
           </Tabs>

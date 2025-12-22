@@ -64,30 +64,68 @@ const Auth = () => {
   // Handle Google OAuth login
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/prospeccao`
-      }
-    });
     
-    if (error) {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          // Let the backend handle the redirect to avoid domain mismatches
+          redirectTo: `${window.location.origin}/auth`
+        }
+      });
+      
+      if (error) {
+        toast({
+          variant: "destructive",
+          title: "Erro ao entrar com Google",
+          description: error.message
+        });
+        setGoogleLoading(false);
+      }
+    } catch (err) {
       toast({
         variant: "destructive",
-        title: "Erro ao entrar com Google",
-        description: error.message
+        title: "Erro inesperado",
+        description: "Não foi possível iniciar o login com Google. Tente novamente."
       });
       setGoogleLoading(false);
     }
   };
 
-  // Read tab from URL params
+  // Read tab from URL params and handle OAuth errors
   useEffect(() => {
     const tab = searchParams.get("tab");
     if (tab === "signup" || tab === "login") {
       setActiveTab(tab);
     }
-  }, [searchParams]);
+
+    // Handle OAuth error responses
+    const error = searchParams.get("error");
+    const errorDescription = searchParams.get("error_description");
+    
+    if (error) {
+      let errorMessage = "Ocorreu um erro durante a autenticação.";
+      
+      if (error === "access_denied") {
+        errorMessage = "Acesso negado. Você cancelou o login ou não autorizou o acesso.";
+      } else if (error === "invalid_request" || error === "server_error") {
+        errorMessage = "Erro de configuração do servidor. Tente novamente mais tarde.";
+      } else if (errorDescription) {
+        // Use the description from the provider if available
+        errorMessage = decodeURIComponent(errorDescription.replace(/\+/g, ' '));
+      }
+      
+      toast({
+        variant: "destructive",
+        title: "Erro no login com Google",
+        description: errorMessage
+      });
+      
+      // Clean up the URL by removing error params
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [searchParams, toast]);
 
   // Redirect authenticated users to /prospeccao
   useEffect(() => {

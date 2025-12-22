@@ -47,27 +47,51 @@ export const useOAuthCallback = () => {
           return;
         }
         
-        // If we have tokens, let Supabase SDK handle them
-        // The SDK automatically detects and processes tokens from the URL hash
+        // If we have tokens, explicitly create the session from the hash.
+        // Relying only on getSession() may not consume implicit-flow tokens reliably.
         try {
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-          
-          // Clean the URL hash immediately after processing
-          window.history.replaceState({}, '', window.location.pathname);
-          
-          if (sessionError) {
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
+
+          if (!accessToken || !refreshToken) {
+            window.history.replaceState({}, '', window.location.pathname + window.location.search);
             toast({
               variant: "destructive",
               title: "Erro na autenticação",
-              description: sessionError.message
+              description: "Não foi possível finalizar o login (tokens ausentes)."
             });
             navigate('/auth', { replace: true });
-          } else if (session) {
-            // Successfully authenticated - redirect to prospeccao
+            setIsProcessing(false);
+            return;
+          }
+
+          const { data, error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+
+          // Clean the URL hash immediately after processing (keep pathname + querystring)
+          window.history.replaceState({}, '', window.location.pathname + window.location.search);
+
+          if (setSessionError) {
+            toast({
+              variant: "destructive",
+              title: "Erro na autenticação",
+              description: setSessionError.message
+            });
+            navigate('/auth', { replace: true });
+          } else if (data.session) {
             navigate('/prospeccao', { replace: true });
+          } else {
+            toast({
+              variant: "destructive",
+              title: "Erro na autenticação",
+              description: "Não foi possível criar a sessão. Tente novamente."
+            });
+            navigate('/auth', { replace: true });
           }
         } catch (err) {
-          window.history.replaceState({}, '', window.location.pathname);
+          window.history.replaceState({}, '', window.location.pathname + window.location.search);
           toast({
             variant: "destructive",
             title: "Erro inesperado",

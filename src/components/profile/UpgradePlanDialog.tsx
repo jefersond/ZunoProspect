@@ -10,57 +10,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { CheckCircle2, Crown, ExternalLink } from "lucide-react";
+import { CheckCircle2, Crown, ExternalLink, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
+import { PLANOS, PLANO_AGENCIA, type Plano } from "@/components/landing/data";
 
-// Planos disponíveis para upgrade
-const PLANOS = [
-  {
-    nome: "Iniciante",
-    precoMensal: 47,
-    precoAnual: 470,
-    descricao: "Para quem está começando",
-    destaque: false,
-    features: [
-      "100 leads por mês",
-      "1 nicho/região por vez",
-      "Diagnóstico básico a intermediário",
-      "Plano de prospecção de 3 dias",
-      "CRM básico: salvar + status",
-    ],
-  },
-  {
-    nome: "Pro",
-    precoMensal: 97,
-    precoAnual: 970,
-    descricao: "Para freelancers e profissionais",
-    destaque: true,
-    features: [
-      "200 leads por mês",
-      "Plano completo de 7 dias",
-      "Score de oportunidade + insights",
-      "Filtros avançados",
-      "Exportação CSV + ações em massa",
-      "Biblioteca de templates",
-      "Suporte prioritário",
-    ],
-  },
-  {
-    nome: "Agência",
-    precoMensal: 247,
-    precoAnual: 2470,
-    descricao: "Para agências e times",
-    destaque: false,
-    features: [
-      "Leads ilimitados",
-      "Workspaces por cliente",
-      "3 a 5 usuários com permissões",
-      "Relatórios por cliente",
-      "Setup guiado + canal direto",
-    ],
-  },
-];
+// Filtra para mostrar apenas planos pagos no upgrade
+const PLANOS_UPGRADE = PLANOS.filter((p) => !p.gratuito);
 
 interface UpgradePlanDialogProps {
   open: boolean;
@@ -70,20 +26,16 @@ interface UpgradePlanDialogProps {
 export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps) => {
   const [isAnual, setIsAnual] = useState(false);
 
-  const handleSelectPlano = (plano: typeof PLANOS[0]) => {
-    // Gerar URL do checkout Kiwify
+  const handleSelectPlano = (plano: Plano) => {
     const checkoutUrl = getKiwifyCheckoutUrl(plano.nome, isAnual);
-    
     toast.success("Redirecionando para o pagamento...");
-    
-    // Abrir checkout da Kiwify em nova aba
-    window.open(checkoutUrl, '_blank');
+    window.open(checkoutUrl, "_blank");
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Crown className="h-5 w-5 text-primary" />
@@ -114,9 +66,9 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
           )}
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4 py-4">
-          {PLANOS.map((plano, index) => {
-            const preco = isAnual ? plano.precoAnual : plano.precoMensal;
+        {/* Grid de Planos (Iniciante + Pro) */}
+        <div className="grid md:grid-cols-2 gap-4 py-4">
+          {PLANOS_UPGRADE.map((plano, index) => {
             const precoMensal = isAnual ? Math.round(plano.precoAnual / 12) : plano.precoMensal;
 
             return (
@@ -130,7 +82,9 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
               >
                 {plano.destaque && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <Badge className="px-3 py-0.5 text-xs shadow">Recomendado</Badge>
+                    <Badge className="px-3 py-0.5 text-xs shadow bg-primary text-primary-foreground">
+                      Mais popular
+                    </Badge>
                   </div>
                 )}
 
@@ -143,7 +97,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
                   </div>
                   {isAnual && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      cobrado R$ {preco} por ano
+                      cobrado R$ {plano.precoAnual} por ano
                     </p>
                   )}
                 </div>
@@ -158,17 +112,63 @@ export const UpgradePlanDialog = ({ open, onOpenChange }: UpgradePlanDialogProps
                 </ul>
 
                 <Button
-                  className="w-full"
+                  className={`w-full ${plano.destaque ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
                   variant={plano.destaque ? "default" : "outline"}
                   onClick={() => handleSelectPlano(plano)}
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />
-                  Assinar {plano.nome}
+                  {plano.cta}
                 </Button>
               </Card>
             );
           })}
         </div>
+
+        {/* Card Especial Agência */}
+        <Card className="relative p-6 border-2 border-primary/30 bg-gradient-to-br from-primary/5 via-background to-primary/10">
+          <div className="absolute -top-3 left-4">
+            <Badge className="px-3 py-0.5 text-xs shadow bg-primary/90 text-primary-foreground">
+              <Sparkles className="h-3 w-3 mr-1" />
+              Para Agências
+            </Badge>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6 mt-2">
+            <div>
+              <h3 className="text-xl font-bold mb-1">{PLANO_AGENCIA.nome}</h3>
+              <p className="text-sm text-muted-foreground mb-4">{PLANO_AGENCIA.descricao}</p>
+
+              <div className="flex items-baseline gap-1 mb-2">
+                <span className="text-3xl font-bold">
+                  R$ {isAnual ? Math.round(PLANO_AGENCIA.precoAnual / 12) : PLANO_AGENCIA.precoMensal}
+                </span>
+                <span className="text-muted-foreground">/mês</span>
+              </div>
+              {isAnual && (
+                <p className="text-xs text-muted-foreground">
+                  cobrado R$ {PLANO_AGENCIA.precoAnual} por ano
+                </p>
+              )}
+
+              <Button
+                className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => handleSelectPlano(PLANO_AGENCIA)}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                {PLANO_AGENCIA.cta}
+              </Button>
+            </div>
+
+            <ul className="grid grid-cols-1 gap-2">
+              {PLANO_AGENCIA.features.map((feature, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-muted-foreground text-sm">{feature}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Card>
 
         <p className="text-xs text-center text-muted-foreground pt-2 border-t">
           Você será redirecionado para a página de pagamento segura.

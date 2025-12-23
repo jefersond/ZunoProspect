@@ -23,6 +23,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const ApiDocs = lazy(() => import("./pages/ApiDocs"));
 const Relatorios = lazy(() => import("./pages/Relatorios"));
 const AdminEmail = lazy(() => import("./pages/AdminEmail"));
+const Precos = lazy(() => import("./pages/Precos"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -63,6 +64,7 @@ const AppContent = () => {
           <Route path="/admin/email" element={<AdminEmail />} />
           <Route path="/api-docs" element={<ApiDocs />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/precos" element={<Precos />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -139,10 +139,19 @@ export const useSubscription = (): UseSubscriptionReturn => {
   const getPlanDisplayName = useCallback((): string => {
     if (!subscription) return "Carregando...";
     if (isAdmin) return "Admin (Ilimitado)";
+    
+    // Mapeamento: plan_name no banco -> nome exibido
+    // O plano "Iniciante" é armazenado como "pro" com 100 leads
+    // O plano "Pro" é armazenado como "pro" com 200 leads
+    if (subscription.plan_name === "pro") {
+      if (subscription.leads_limit === 100) {
+        return "Iniciante";
+      }
+      return "Pro";
+    }
+    
     const names: Record<string, string> = {
       starter: "Starter (Gratuito)",
-      iniciante: "Iniciante",
-      pro: "Pro",
       agencia: "Agência",
     };
     return names[subscription.plan_name] || subscription.plan_name;

@@ -68,16 +68,20 @@ serve(async (req) => {
     }
 
     // Determinar plano e período baseado no nome do produto
+    // IMPORTANTE: O banco aceita apenas: starter, pro, agencia
+    // "Iniciante" no produto = "pro" no banco com 100 leads
     let planName = "pro";
     let isAnnual = false;
     let leadsLimit = 200; // Pro padrão agora tem 200 leads
 
     const productNameLower = productName.toLowerCase();
     
-    // Ordem importa: verificar iniciante antes de pro
+    // Verificar tipo de plano baseado no nome do produto
     if (productNameLower.includes("iniciante")) {
-      planName = "iniciante";
+      // Plano "Iniciante" é mapeado para "pro" no banco, mas com 100 leads
+      planName = "pro";
       leadsLimit = 100;
+      logStep("Produto Iniciante detectado - mapeando para plan_name=pro com 100 leads");
     } else if (productNameLower.includes("agencia") || productNameLower.includes("agência")) {
       planName = "agencia";
       leadsLimit = -1; // Ilimitado

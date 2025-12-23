@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,9 @@ import { TemplateSelector } from "@/components/templates/TemplateSelector";
 import { StatusSelector, PIPELINE_STATUSES } from "@/components/pipeline/StatusSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe } from "lucide-react";
+import { useSubscription } from "@/hooks/useSubscription";
+import { Textarea } from "@/components/ui/textarea";
+import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe, StickyNote, Loader2, Lock } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 
 // Função para formatar número de telefone brasileiro
@@ -52,14 +54,62 @@ export const LeadPlanDialog = ({
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [currentLead, setCurrentLead] = useState(lead);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [notes, setNotes] = useState(lead?.notas || "");
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
   const { toast } = useToast();
+  const { subscription, loading: subscriptionLoading } = useSubscription();
+  
+  // Planos que têm acesso às anotações
+  const hasNotesAccess = subscription && 
+    ['iniciante', 'pro', 'agencia'].includes(subscription.plan_name);
 
   // Sempre que o lead mudar ou o dialog for reaberto, sincroniza o estado interno
   useEffect(() => {
     if (open) {
       setCurrentLead(lead);
+      setNotes(lead?.notas || "");
     }
   }, [lead, open]);
+
+  // Debounced save para anotações
+  const saveNotes = useCallback(async (notesValue: string) => {
+    if (!currentLead) return;
+    
+    setIsSavingNotes(true);
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({ notas: notesValue })
+        .eq('id', currentLead.id);
+
+      if (error) throw error;
+      
+      // Atualiza o lead local
+      setCurrentLead(prev => prev ? { ...prev, notas: notesValue } : prev);
+      onLeadUpdate?.();
+    } catch (error: any) {
+      console.error('Erro ao salvar anotações:', error);
+      toast({
+        title: "Erro ao salvar anotações",
+        description: error.message || "Não foi possível salvar as anotações",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingNotes(false);
+    }
+  }, [currentLead, onLeadUpdate, toast]);
+
+  // Debounce para salvar automaticamente após 1.5s de inatividade
+  useEffect(() => {
+    if (!hasNotesAccess || !currentLead) return;
+    if (notes === (currentLead.notas || "")) return;
+    
+    const timer = setTimeout(() => {
+      saveNotes(notes);
+    }, 1500);
+    
+    return () => clearTimeout(timer);
+  }, [notes, currentLead, hasNotesAccess, saveNotes]);
 
   if (!lead) return null;
 
@@ -232,6 +282,46 @@ export const LeadPlanDialog = ({
             onStatusChange={handleStatusChange}
             disabled={isUpdatingStatus}
           />
+        </div>
+
+        {/* Seção de Anotações - apenas para planos Iniciante+ */}
+        <div className="mt-2 p-4 bg-muted/30 rounded-lg border border-border/50">
+          <div className="flex items-center gap-2 mb-3">
+            <StickyNote className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">Anotações</span>
+            {isSavingNotes && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Salvando...
+              </div>
+            )}
+          </div>
+          
+          {subscriptionLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : hasNotesAccess ? (
+            <Textarea
+              placeholder="Adicione notas sobre este lead... (salva automaticamente)"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="min-h-[100px] resize-none bg-background/50"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center py-4 text-center bg-muted/50 rounded-lg border border-dashed border-border">
+              <Lock className="h-5 w-5 text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">
+                Anotações disponíveis nos planos Iniciante, Pro e Agência
+              </p>
+              <a 
+                href="/precos" 
+                className="text-xs text-primary hover:underline mt-1"
+              >
+                Fazer upgrade
+              </a>
+            </div>
+          )}
         </div>
 
         <Tabs defaultValue="analise" className="mt-2">

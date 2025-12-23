@@ -55,6 +55,7 @@ export interface LeadProspeccao {
   created_at: string;
   ai_analise_gerada_em: string | null;
   salvo: boolean;
+  notas: string | null;
   
   // Campos CNPJ
   cnpj: string | null;

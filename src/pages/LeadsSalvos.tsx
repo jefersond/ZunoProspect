@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Mail as MailIcon,
   Kanban,
+  StickyNote,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
@@ -204,6 +205,7 @@ const LeadsSalvos = () => {
           created_at: lead.created_at,
           ai_analise_gerada_em: lead.ai_analise_gerada_em,
           salvo: lead.salvo || false,
+          notas: lead.notas || null,
           // Campos CNPJ
           cnpj: lead.cnpj || null,
           razao_social: lead.razao_social || null,
@@ -559,6 +561,16 @@ const LeadsSalvos = () => {
                       >
                         {lead.probabilidade_conversao}%
                       </Badge>
+                    </div>
+                  )}
+
+                  {/* Preview de Notas */}
+                  {lead.notas && (
+                    <div className="flex items-start gap-2 pt-2 border-t">
+                      <StickyNote className="h-3 w-3 flex-shrink-0 mt-0.5 text-amber-600" />
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {lead.notas}
+                      </p>
                     </div>
                   )}
 

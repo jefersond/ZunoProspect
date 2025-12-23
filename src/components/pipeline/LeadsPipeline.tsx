@@ -80,6 +80,7 @@ export function LeadsPipeline({ onViewDetails }: LeadsPipelineProps) {
         created_at: lead.created_at,
         ai_analise_gerada_em: lead.ai_analise_gerada_em,
         salvo: lead.salvo,
+        notas: lead.notas || null,
         cnpj: lead.cnpj,
         razao_social: lead.razao_social,
         nome_responsavel: lead.nome_responsavel,

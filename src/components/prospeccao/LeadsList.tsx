@@ -147,6 +147,7 @@ export const LeadsList = () => {
       created_at: lead.created_at,
       ai_analise_gerada_em: lead.ai_analise_gerada_em,
       salvo: lead.salvo || false,
+      notas: lead.notas || null,
       // Campos CNPJ
       cnpj: lead.cnpj || null,
       razao_social: lead.razao_social || null,

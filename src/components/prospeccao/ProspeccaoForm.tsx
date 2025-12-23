@@ -43,6 +43,14 @@ export const ProspeccaoForm = () => {
   const [showRepeatButton, setShowRepeatButton] = useState(false);
   const [isIncremental, setIsIncremental] = useState(false);
   
+  // Novos estados para progresso real
+  const [leadsFound, setLeadsFound] = useState(0);
+  const [leadsAnalyzed, setLeadsAnalyzed] = useState(0);
+  const [targetQuantity, setTargetQuantity] = useState(0);
+  const [estimatedTimeSeconds, setEstimatedTimeSeconds] = useState(0);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchStartTime, setSearchStartTime] = useState<Date | null>(null);
+  
   // Estado para incentivo de upgrade
   const [upgradeIncentive, setUpgradeIncentive] = useState<{
     additionalLeads: number;
@@ -86,6 +94,68 @@ export const ProspeccaoForm = () => {
   const canSearch = canUseLeads(quantidade || 0);
   const isAtLimit = subscription && subscription.leads_limit !== -1 && subscription.leads_remaining <= 0;
 
+  // Calcula tempo estimado baseado na quantidade de leads
+  const calculateEstimatedTime = (qty: number): number => {
+    // Base: ~3 segundos por lead (busca + análise)
+    return Math.ceil(qty * 3);
+  };
+
+  // Função de polling para verificar progresso real
+  const startProgressPolling = async (userId: string, startTime: Date, targetQty: number) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        // Conta leads criados após o início da busca
+        const { count: foundCount } = await supabase
+          .from('leads')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .gte('created_at', startTime.toISOString());
+
+        // Conta leads com análise IA concluída
+        const { count: analyzedCount } = await supabase
+          .from('leads')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .gte('created_at', startTime.toISOString())
+          .not('ai_analise_gerada_em', 'is', null);
+
+        const found = foundCount || 0;
+        const analyzed = analyzedCount || 0;
+
+        setLeadsFound(found);
+        setLeadsAnalyzed(analyzed);
+
+        // Atualiza tempo estimado restante
+        const elapsed = (Date.now() - startTime.getTime()) / 1000;
+        const avgTimePerLead = found > 0 ? elapsed / found : 3;
+        const remaining = Math.max(0, Math.ceil((targetQty - found) * avgTimePerLead));
+        setEstimatedTimeSeconds(remaining);
+
+        // Atualiza step baseado no progresso real
+        if (found === 0) {
+          setCurrentStep(2);
+          setProgressMessage("Buscando empresas no Google Maps...");
+        } else if (found > 0 && analyzed === 0) {
+          setCurrentStep(4);
+          setProgressMessage(`Analisando presença digital... (${found} encontradas)`);
+        } else if (analyzed > 0 && analyzed < found) {
+          setCurrentStep(5);
+          setProgressMessage(`Processando com IA... (${analyzed}/${found})`);
+        } else if (analyzed >= found && found >= targetQty) {
+          setCurrentStep(6);
+          setProgressMessage("Gerando planos de prospecção...");
+        }
+
+        console.log(`[Progresso] Encontrados: ${found}/${targetQty}, Analisados: ${analyzed}, Tempo restante: ~${remaining}s`);
+
+      } catch (error) {
+        console.error("[Polling] Erro ao verificar progresso:", error);
+      }
+    }, 2000); // Poll a cada 2 segundos
+
+    return pollInterval;
+  };
+
   const runSearch = async (data: FormData, isIncrementalSearch: boolean) => {
     // Verifica se tem pelo menos 1 lead disponível
     if (!canUseLeads(1)) {
@@ -102,64 +172,61 @@ export const ProspeccaoForm = () => {
     setShowRepeatButton(false);
     setUpgradeIncentive(null); // Limpa incentivo anterior
     
+    // Reseta estados de progresso
     setLoading(true);
     setCurrentStep(1);
     setProgressMessage("Iniciando busca...");
+    setLeadsFound(0);
+    setLeadsAnalyzed(0);
+    setTargetQuantity(data.quantidade);
+    setEstimatedTimeSeconds(calculateEstimatedTime(data.quantidade));
+    setSearchError(null);
+    
+    const startTime = new Date();
+    setSearchStartTime(startTime);
+    
+    console.log(`[Busca] Iniciando busca de ${data.quantidade} leads em ${data.cidade}/${data.estado} - ${data.nicho}`);
+
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
+      if (!user) {
+        throw new Error("Usuário não autenticado");
+      }
+
+      // Inicia polling de progresso
+      pollInterval = await startProgressPolling(user.id, startTime, data.quantidade);
+      
       // Buscar google_place_ids já existentes para evitar duplicatas
       let existingPlaceIds: string[] = [];
-      if (user) {
-        // Em busca incremental, evita todos os leads existentes
-        // Em busca normal, evita apenas os leads SALVOS (permite re-análise com novo foco)
-        const query = supabase
-          .from("leads")
-          .select("google_place_id")
-          .eq("user_id", user.id)
-          .not("google_place_id", "is", null);
-        
-        if (isIncrementalSearch) {
-          // Incremental: exclui todos os place_ids
-          const { data: existingLeads } = await query;
-          existingPlaceIds = existingLeads?.map(lead => lead.google_place_id).filter(Boolean) || [];
-        } else {
-          // Normal: exclui apenas leads salvos (permite re-buscar leads não salvos com novo foco)
-          const { data: existingLeads } = await query.eq("salvo", true);
-          existingPlaceIds = existingLeads?.map(lead => lead.google_place_id).filter(Boolean) || [];
-        }
+      // Em busca incremental, evita todos os leads existentes
+      // Em busca normal, evita apenas os leads SALVOS (permite re-análise com novo foco)
+      const query = supabase
+        .from("leads")
+        .select("google_place_id")
+        .eq("user_id", user.id)
+        .not("google_place_id", "is", null);
+      
+      if (isIncrementalSearch) {
+        // Incremental: exclui todos os place_ids
+        const { data: existingLeads } = await query;
+        existingPlaceIds = existingLeads?.map(lead => lead.google_place_id).filter(Boolean) || [];
+      } else {
+        // Normal: exclui apenas leads salvos (permite re-buscar leads não salvos com novo foco)
+        const { data: existingLeads } = await query.eq("salvo", true);
+        existingPlaceIds = existingLeads?.map(lead => lead.google_place_id).filter(Boolean) || [];
       }
       
       // Se não for incremental, limpa leads NÃO salvos
       if (!isIncrementalSearch) {
         window.dispatchEvent(new CustomEvent("clearLeads"));
-        
-        if (user) {
-          // Deleta apenas leads não salvos (salvo=false)
-          await supabase.from("leads").delete().eq("user_id", user.id).eq("salvo", false);
-        }
+        // Deleta apenas leads não salvos (salvo=false)
+        await supabase.from("leads").delete().eq("user_id", user.id).eq("salvo", false);
       }
-      
-      // Simula progresso durante a busca
-      const progressInterval = setInterval(() => {
-        setCurrentStep((prev) => {
-          if (prev < 7) {
-            const messages = [
-              "Iniciando busca...",
-              "Buscando empresas no Google Maps...",
-              "Coletando informações de contato...",
-              "Analisando presença digital...",
-              "Processando com IA...",
-              "Gerando planos de prospecção...",
-              "Finalizando...",
-            ];
-            setProgressMessage(messages[prev]);
-            return prev + 1;
-          }
-          return prev;
-        });
-      }, 2000);
+
+      console.log(`[Busca] Chamando edge function buscar-leads...`);
 
       const { data: responseData, error } = await supabase.functions.invoke("buscar-leads", {
         body: {
@@ -175,7 +242,11 @@ export const ProspeccaoForm = () => {
         },
       });
 
-      clearInterval(progressInterval);
+      // Para o polling
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
 
       if (error) throw error;
 
@@ -183,6 +254,11 @@ export const ProspeccaoForm = () => {
       setProgressMessage("Busca concluída!");
 
       const leadsCount = responseData?.leadsCount || 0;
+      setLeadsFound(leadsCount);
+      setLeadsAnalyzed(leadsCount);
+      setEstimatedTimeSeconds(0);
+
+      console.log(`[Busca] Concluída! ${leadsCount} leads encontrados`);
 
       // Incrementa o contador de leads usados
       if (leadsCount > 0) {
@@ -247,7 +323,12 @@ export const ProspeccaoForm = () => {
         setShowRepeatButton(true);
       }, 1500);
     } catch (error: any) {
-      console.error("Erro ao buscar leads:", error);
+      console.error("[Busca] Erro:", error);
+      
+      // Para o polling
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
       
       // Extrai a mensagem de erro mais específica
       let errorMessage = "Não foi possível buscar os leads";
@@ -265,6 +346,8 @@ export const ProspeccaoForm = () => {
         }
       }
       
+      setSearchError(errorMessage);
+      
       toast({
         variant: "destructive",
         title: "Erro na busca",
@@ -272,6 +355,13 @@ export const ProspeccaoForm = () => {
       });
       setLoading(false);
       setCurrentStep(0);
+    }
+  };
+
+  const handleRetrySearch = () => {
+    setSearchError(null);
+    if (lastSearchParams) {
+      runSearch(lastSearchParams, false);
     }
   };
 
@@ -320,12 +410,29 @@ export const ProspeccaoForm = () => {
         )}
 
 
+        {/* Estado de erro */}
+        {searchError && !loading && (
+          <div className="mb-6">
+            <SearchProgress
+              currentStep={0}
+              totalSteps={7}
+              message=""
+              error={searchError}
+              onRetry={handleRetrySearch}
+            />
+          </div>
+        )}
+
         {loading && currentStep > 0 && (
           <div className="mb-6">
             <SearchProgress
               currentStep={currentStep}
               totalSteps={7}
               message={progressMessage}
+              leadsFound={leadsFound}
+              leadsAnalyzed={leadsAnalyzed}
+              targetQuantity={targetQuantity}
+              estimatedTimeSeconds={estimatedTimeSeconds}
             />
           </div>
         )}

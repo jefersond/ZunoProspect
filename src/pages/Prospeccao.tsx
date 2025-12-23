@@ -1,17 +1,14 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { ProspeccaoForm } from "@/components/prospeccao/ProspeccaoForm";
 import { LeadsList } from "@/components/prospeccao/LeadsList";
-import { LogOut, User, BarChart3, FileText, History, Bookmark, Kanban, Zap, Mail } from "lucide-react";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { useSubscription } from "@/hooks/useSubscription";
 import { toast } from "sonner";
 import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
+import { AppHeader } from "@/components/AppHeader";
 
 const Prospeccao = () => {
   const navigate = useNavigate();
@@ -19,7 +16,6 @@ const Prospeccao = () => {
   const [user, setUser] = useState<any>(null);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const { subscription, isAdmin } = useSubscription();
-  const isAtLimit = subscription && subscription.leads_limit !== -1 && subscription.leads_remaining <= 0;
 
   // Handle checkout success/cancel and Google OAuth checkout
   useEffect(() => {
@@ -76,11 +72,7 @@ const Prospeccao = () => {
   }, [searchParams, setSearchParams, navigate]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({
-      data: {
-        user
-      }
-    }) => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) {
         navigate("/auth");
       } else {
@@ -89,82 +81,16 @@ const Prospeccao = () => {
     });
   }, [navigate]);
   
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/auth");
-  };
-  
   if (!user) return null;
   
-  return <div className="min-h-screen bg-gradient-to-br from-background via-secondary/10 to-primary/5">
-      <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between gap-4">
-            {/* Logo e Título */}
-            <Logo />
-
-            {/* Navegação e Ações */}
-            <div className="flex items-center gap-1">
-              {/* Navegação Principal */}
-              <nav className="flex items-center gap-1 mr-2 pr-2 border-r border-border">
-                <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Dashboard</span>
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/leads-salvos")} className="gap-2">
-                  <Bookmark className="h-4 w-4" />
-                  <span className="hidden sm:inline">Salvos</span>
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/pipeline")} className="gap-2">
-                  <Kanban className="h-4 w-4" />
-                  <span className="hidden sm:inline">Pipeline</span>
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/templates")} className="gap-2">
-                  <FileText className="h-4 w-4" />
-                  <span className="hidden sm:inline">Templates</span>
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/historico")} className="gap-2">
-                  <History className="h-4 w-4" />
-                  <span className="hidden sm:inline">Histórico</span>
-                </Button>
-                {isAdmin && (
-                  <Button variant="ghost" size="sm" onClick={() => navigate("/admin/email")} className="gap-2 text-amber-500 hover:text-amber-400">
-                    <Mail className="h-4 w-4" />
-                    <span className="hidden sm:inline">Email</span>
-                  </Button>
-                )}
-              </nav>
-
-              {/* Botão de Upgrade - sempre visível para usuários não-Agência */}
-              {subscription?.plan_name !== "agencia" && !isAdmin && (
-                <Button 
-                  variant="default" 
-                  size="default" 
-                  onClick={() => setShowUpgradeDialog(true)} 
-                  className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/30 ring-2 ring-emerald-500/20 mr-2"
-                >
-                  <Zap className="h-4 w-4" />
-                  <span className="hidden sm:inline">Fazer Upgrade</span>
-                  <span className="sm:hidden">Upgrade</span>
-                </Button>
-              )}
-
-              {/* Ações do Usuário */}
-              <div className="flex items-center gap-1">
-                <ThemeToggle />
-                <Button variant="ghost" size="sm" onClick={() => navigate("/profile")} className="gap-2">
-                  <User className="h-4 w-4" />
-                  <span className="hidden sm:inline">Perfil</span>
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2 ml-1">
-                  <LogOut className="h-4 w-4" />
-                  <span className="hidden sm:inline">Sair</span>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/10 to-primary/5">
+      <AppHeader
+        isAdmin={isAdmin}
+        showUpgradeButton={true}
+        onUpgradeClick={() => setShowUpgradeDialog(true)}
+        subscription={subscription}
+      />
 
       <main className="container mx-auto px-4 py-8 space-y-8">
         <ProspeccaoForm />
@@ -175,6 +101,8 @@ const Prospeccao = () => {
         open={showUpgradeDialog} 
         onOpenChange={setShowUpgradeDialog}
       />
-    </div>;
+    </div>
+  );
 };
+
 export default Prospeccao;

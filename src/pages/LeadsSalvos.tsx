@@ -7,14 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
-  LogOut,
   Bookmark,
   Search,
-  BarChart3,
-  History,
-  FileText,
-  User,
-  ArrowLeft,
   MapPin,
   Phone,
   ExternalLink,
@@ -25,11 +19,8 @@ import {
   Loader2,
   RefreshCw,
   Mail as MailIcon,
-  Kanban,
   StickyNote,
 } from "lucide-react";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { Logo } from "@/components/Logo";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { LeadPlanDialog } from "@/components/prospeccao/LeadPlanDialog";
 import type { LeadProspeccao } from "@/types/lead";
@@ -44,6 +35,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { AppHeader } from "@/components/AppHeader";
 
 const LeadsSalvos = () => {
   const navigate = useNavigate();
@@ -78,8 +70,6 @@ const LeadsSalvos = () => {
   };
 
   // Função para gerar link do WhatsApp
-  // whatsappNumber = número confirmado do WhatsApp (do site) - não precisa validar
-  // telefone = número de telefone geral - só gera link se for celular
   const generateWhatsAppLink = (whatsappNumber: string | null, telefone: string | null): string | null => {
     // Prioriza whatsapp_number (já é confirmado, não precisa validar se é celular)
     if (whatsappNumber) {
@@ -167,7 +157,6 @@ const LeadsSalvos = () => {
     try {
       setLoading(true);
       // Usa função RPC para obter dados descriptografados
-      // p_salvo = true para buscar apenas leads salvos
       const { data, error } = await supabase
         .rpc("get_leads_decrypted_filtered", { p_salvo: true });
 
@@ -245,11 +234,6 @@ const LeadsSalvos = () => {
     }
   }, [searchTerm, leads]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/auth");
-  };
-
   const handleRemoveSaved = async (leadId: string) => {
     try {
       const { error } = await supabase
@@ -318,60 +302,7 @@ const LeadsSalvos = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/10 to-primary/5">
-      <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between gap-4">
-            {/* Logo e Título */}
-            <Logo />
-
-            {/* Navegação e Ações */}
-            <div className="flex items-center gap-1">
-              {/* Navegação Principal */}
-              <nav className="flex items-center gap-1 mr-2 pr-2 border-r border-border">
-                <Button variant="ghost" size="sm" onClick={() => navigate("/prospeccao")} className="gap-2">
-                  <Search className="h-4 w-4" />
-                  <span className="hidden sm:inline">Prospecção</span>
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Dashboard</span>
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/pipeline")} className="gap-2">
-                  <Kanban className="h-4 w-4" />
-                  <span className="hidden sm:inline">Pipeline</span>
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/templates")} className="gap-2">
-                  <FileText className="h-4 w-4" />
-                  <span className="hidden sm:inline">Templates</span>
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/historico")} className="gap-2">
-                  <History className="h-4 w-4" />
-                  <span className="hidden sm:inline">Histórico</span>
-                </Button>
-                {isAdmin && (
-                  <Button variant="ghost" size="sm" onClick={() => navigate("/admin/email")} className="gap-2 text-amber-500 hover:text-amber-400">
-                    <MailIcon className="h-4 w-4" />
-                    <span className="hidden sm:inline">Email</span>
-                  </Button>
-                )}
-              </nav>
-
-              {/* Ações do Usuário */}
-              <div className="flex items-center gap-1">
-                <ThemeToggle />
-                <Button variant="ghost" size="sm" onClick={() => navigate("/profile")} className="gap-2">
-                  <User className="h-4 w-4" />
-                  <span className="hidden sm:inline">Perfil</span>
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2 ml-1">
-                  <LogOut className="h-4 w-4" />
-                  <span className="hidden sm:inline">Sair</span>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader isAdmin={isAdmin} />
 
       <main className="container mx-auto px-4 py-8">
         {/* Barra de busca */}
@@ -469,10 +400,10 @@ const LeadsSalvos = () => {
                         href={lead.website}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-sm text-primary hover:underline"
+                        className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
                       >
                         <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                        <span>Site</span>
+                        <span className="truncate">{lead.website}</span>
                       </a>
                     )}
                     {lead.instagram_url && (
@@ -488,101 +419,41 @@ const LeadsSalvos = () => {
                     )}
                   </div>
 
-                  {/* Dados CNPJ */}
-                  {lead.cnpj && (
-                    <div className="pt-2 border-t space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Receita Federal</span>
-                        <Badge
-                          variant="outline"
-                          className={
-                            lead.situacao_cadastral === "ATIVA"
-                              ? "text-xs bg-green-500/10 text-green-700 border-green-500/20"
-                              : "text-xs bg-red-500/10 text-red-700 border-red-500/20"
-                          }
-                        >
-                          {lead.situacao_cadastral || "N/A"}
-                        </Badge>
-                      </div>
-                      
-                      {lead.razao_social && lead.razao_social !== lead.nome && (
-                        <p className="text-xs text-muted-foreground truncate" title={lead.razao_social}>
-                          <span className="font-medium">Razão Social:</span> {lead.razao_social}
-                        </p>
-                      )}
-                      
-                      <p className="text-xs text-muted-foreground font-mono">
-                        <span className="font-medium font-sans">CNPJ:</span> {lead.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}
-                      </p>
-                      
-                      {(lead.cnpj_telefone || lead.cnpj_email) && (
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          {lead.cnpj_telefone && (
-                            <a href={`tel:${lead.cnpj_telefone}`} className="text-primary hover:underline">
-                              📞 {lead.cnpj_telefone}
-                            </a>
-                          )}
-                          {lead.cnpj_email && (
-                            <a href={`mailto:${lead.cnpj_email}`} className="text-primary hover:underline truncate max-w-[150px]" title={lead.cnpj_email}>
-                              ✉️ {lead.cnpj_email}
-                            </a>
-                          )}
-                        </div>
-                      )}
-                      
-                      {(lead.porte_empresa || lead.cnae_principal) && (
-                        <div className="flex flex-wrap gap-1">
-                          {lead.porte_empresa && (
-                            <Badge variant="secondary" className="text-xs">{lead.porte_empresa}</Badge>
-                          )}
-                          {lead.cnae_principal && (
-                            <Badge variant="outline" className="text-xs" title={`CNAE: ${lead.cnae_principal}`}>
-                              {lead.cnae_principal.length > 30 ? lead.cnae_principal.substring(0, 30) + "..." : lead.cnae_principal}
-                            </Badge>
-                          )}
-                        </div>
-                      )}
+                  {/* Notas */}
+                  {lead.notas && (
+                    <div className="flex items-start gap-1 text-sm text-muted-foreground bg-muted/50 p-2 rounded">
+                      <StickyNote className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">{lead.notas}</span>
                     </div>
                   )}
 
                   {/* Probabilidade */}
                   {lead.probabilidade_conversao > 0 && (
-                    <div className="flex items-center justify-between pt-2 border-t">
-                      <span className="text-xs text-muted-foreground">Probabilidade:</span>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Probabilidade:</span>
                       <Badge
-                        className={
+                        variant={
                           lead.probabilidade_conversao >= 70
-                            ? "bg-green-100 text-green-700 border-green-200"
+                            ? "default"
                             : lead.probabilidade_conversao >= 40
-                            ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                            : "bg-red-100 text-red-700 border-red-200"
+                            ? "secondary"
+                            : "outline"
                         }
-                        variant="outline"
                       >
                         {lead.probabilidade_conversao}%
                       </Badge>
                     </div>
                   )}
 
-                  {/* Preview de Notas */}
-                  {lead.notas && (
-                    <div className="flex items-start gap-2 pt-2 border-t">
-                      <StickyNote className="h-3 w-3 flex-shrink-0 mt-0.5 text-amber-600" />
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {lead.notas}
-                      </p>
-                    </div>
-                  )}
-
                   {/* Ações */}
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex gap-2 pt-2 border-t">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1"
                       onClick={() => handleViewPlan(lead)}
+                      className="flex-1 gap-1"
                     >
-                      <Eye className="h-4 w-4 mr-1" />
+                      <Eye className="h-3 w-3" />
                       Ver Plano
                     </Button>
                     <Button
@@ -590,24 +461,25 @@ const LeadsSalvos = () => {
                       size="sm"
                       onClick={() => handleReanalyze(lead.id)}
                       disabled={reanalyzingLeadId === lead.id}
+                      className="gap-1"
                     >
                       {reanalyzingLeadId === lead.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-3 w-3 animate-spin" />
                       ) : (
-                        <RefreshCw className="h-4 w-4" />
+                        <RefreshCw className="h-3 w-3" />
                       )}
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm">
-                          <Trash2 className="h-4 w-4" />
+                        <Button variant="outline" size="sm" className="gap-1 text-destructive hover:text-destructive">
+                          <Trash2 className="h-3 w-3" />
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Remover dos salvos?</AlertDialogTitle>
+                          <AlertDialogTitle>Remover lead salvo?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            O lead "{lead.nome}" será removido dos seus salvos. Você pode salvá-lo novamente depois.
+                            O lead será removido dos seus salvos, mas não será excluído permanentemente.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -630,7 +502,6 @@ const LeadsSalvos = () => {
         lead={selectedLead}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onLeadUpdate={() => user && loadSavedLeads(user.id)}
       />
       <FloatingWhatsAppButton />
     </div>

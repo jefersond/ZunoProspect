@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useRelatoriosData, RelatoriosFilters as FiltersType } from '@/hooks/useRelatoriosData';
@@ -15,21 +15,9 @@ import {
   AnaliseNichoTable,
   UpgradePrompt 
 } from '@/components/relatorios';
-import { Logo } from '@/components/Logo';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { Button } from '@/components/ui/button';
 import { FloatingWhatsAppButton } from '@/components/FloatingWhatsAppButton';
-import { 
-  Search, 
-  History, 
-  BookmarkCheck, 
-  FileText, 
-  User, 
-  LogOut,
-  BarChart3,
-  Mail
-} from 'lucide-react';
 import { toast } from 'sonner';
+import { AppHeader } from '@/components/AppHeader';
 
 const Relatorios = () => {
   const navigate = useNavigate();
@@ -75,12 +63,6 @@ const Relatorios = () => {
     }
   }, [subscription, isAdmin, navigate]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    toast.success('Logout realizado com sucesso');
-    navigate('/auth');
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -95,67 +77,7 @@ const Relatorios = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <Logo />
-            
-            <nav className="hidden md:flex items-center gap-1">
-              <Link to="/prospeccao">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <Search className="h-4 w-4" />
-                  Prospecção
-                </Button>
-              </Link>
-              <Link to="/historico">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <History className="h-4 w-4" />
-                  Histórico
-                </Button>
-              </Link>
-              <Link to="/leads-salvos">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <BookmarkCheck className="h-4 w-4" />
-                  Salvos
-                </Button>
-              </Link>
-              <Link to="/templates">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <FileText className="h-4 w-4" />
-                  Templates
-                </Button>
-              </Link>
-              <Link to="/relatorios">
-                <Button variant="ghost" size="sm" className="gap-2 bg-accent">
-                  <BarChart3 className="h-4 w-4" />
-                  Relatórios
-                </Button>
-              </Link>
-              {isAdmin && (
-                <Link to="/admin/email">
-                  <Button variant="ghost" size="sm" className="gap-2 text-amber-500 hover:text-amber-400">
-                    <Mail className="h-4 w-4" />
-                    Email
-                  </Button>
-                </Link>
-              )}
-            </nav>
-
-            <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <Link to="/profile">
-                <Button variant="ghost" size="icon">
-                  <User className="h-4 w-4" />
-                </Button>
-              </Link>
-              <Button variant="ghost" size="icon" onClick={handleLogout}>
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader isAdmin={isAdmin} />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">

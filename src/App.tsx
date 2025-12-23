@@ -65,6 +65,7 @@ const AppContent = () => {
           <Route path="/api-docs" element={<ApiDocs />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/precos" element={<Precos />} />
+          <Route path="/preco" element={<Navigate to="/precos" replace />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

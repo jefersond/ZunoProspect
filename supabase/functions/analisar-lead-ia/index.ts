@@ -334,9 +334,47 @@ async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
     if (/gtag\s*\(|googletagmanager\.com\/gtag/i.test(html)) signals.has_gtag = true;
     if (/GTM-[A-Z0-9]+/i.test(html)) signals.has_gtm = true;
 
-    // Email detection
-    const emailMatch = html.match(/mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
-    if (emailMatch) signals.email = emailMatch[1].toLowerCase();
+    // =============================================
+    // DETECÇÃO APRIMORADA DE EMAIL
+    // =============================================
+    
+    // Lista de emails genéricos para ignorar
+    const excludeEmailPatterns = /\b(wix|google|facebook|instagram|example|test|noreply|suporte@wix|no-reply|support@|admin@|info@wix|webmaster@|hostmaster@)\b/i;
+    
+    // 1. Links mailto (mais confiável)
+    const mailtoMatch = html.match(/mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+    if (mailtoMatch && !excludeEmailPatterns.test(mailtoMatch[1])) {
+      signals.email = mailtoMatch[1].toLowerCase();
+      console.log(`📧 Email encontrado via mailto: ${signals.email}`);
+    }
+
+    // 2. Emails em texto (regex geral)
+    if (!signals.email) {
+      const emailPattern = /\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(com\.br|com|net|org|br|io|me|info|co|gov\.br))\b/gi;
+      const emailMatches = html.match(emailPattern);
+      
+      if (emailMatches) {
+        // Pega o primeiro email que não seja genérico
+        const validEmail = emailMatches.find(e => !excludeEmailPatterns.test(e));
+        if (validEmail) {
+          signals.email = validEmail.toLowerCase();
+          console.log(`📧 Email encontrado via regex: ${signals.email}`);
+        }
+      }
+    }
+
+    // 3. Emails próximos a palavras-chave de contato
+    if (!signals.email) {
+      const contextPattern = /(?:email|e-mail|contato|contact|fale\s*conosco)[^a-z@]{0,50}([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
+      const contextMatches = [...html.matchAll(contextPattern)];
+      for (const match of contextMatches) {
+        if (match[1] && !excludeEmailPatterns.test(match[1])) {
+          signals.email = match[1].toLowerCase();
+          console.log(`📧 Email encontrado via contexto: ${signals.email}`);
+          break;
+        }
+      }
+    }
 
     // CNPJ detection
     const cnpjMatch = html.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);

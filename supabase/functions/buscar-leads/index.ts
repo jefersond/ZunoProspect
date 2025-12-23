@@ -412,6 +412,7 @@ serve(async (req) => {
         has_gtag: false,
         has_gtm: false,
         instagram_url: null as string | null,
+        email: null as string | null,
       };
 
       try {
@@ -553,8 +554,50 @@ serve(async (req) => {
 
         // Detectar Instagram URL
         const instagramMatch = html.match(/instagram\.com\/([a-zA-Z0-9._]+)/i);
-        if (instagramMatch) {
+        if (instagramMatch && !['p', 'reel', 'stories', 'explore'].includes(instagramMatch[1].toLowerCase())) {
           signals.instagram_url = `https://instagram.com/${instagramMatch[1]}`;
+        }
+
+        // =============================================
+        // DETECÇÃO APRIMORADA DE EMAIL
+        // =============================================
+        
+        // Lista de emails genéricos para ignorar
+        const excludeEmailPatterns = /\b(wix|google|facebook|instagram|example|test|noreply|suporte@wix|no-reply|support@|admin@|info@wix|webmaster@|hostmaster@)\b/i;
+        
+        // 1. Links mailto (mais confiável)
+        const mailtoMatch = html.match(/mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+        if (mailtoMatch && !excludeEmailPatterns.test(mailtoMatch[1])) {
+          signals.email = mailtoMatch[1].toLowerCase();
+          console.log(`📧 Email encontrado via mailto: ${signals.email}`);
+        }
+
+        // 2. Emails em texto (regex geral)
+        if (!signals.email) {
+          const emailPattern = /\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(com\.br|com|net|org|br|io|me|info|co|gov\.br))\b/gi;
+          const emailMatches = html.match(emailPattern);
+          
+          if (emailMatches) {
+            // Pega o primeiro email que não seja genérico
+            const validEmail = emailMatches.find(e => !excludeEmailPatterns.test(e));
+            if (validEmail) {
+              signals.email = validEmail.toLowerCase();
+              console.log(`📧 Email encontrado via regex: ${signals.email}`);
+            }
+          }
+        }
+
+        // 3. Emails próximos a palavras-chave de contato
+        if (!signals.email) {
+          const contextPattern = /(?:email|e-mail|contato|contact|fale\s*conosco)[^a-z@]{0,50}([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
+          const contextMatches = [...html.matchAll(contextPattern)];
+          for (const match of contextMatches) {
+            if (match[1] && !excludeEmailPatterns.test(match[1])) {
+              signals.email = match[1].toLowerCase();
+              console.log(`📧 Email encontrado via contexto: ${signals.email}`);
+              break;
+            }
+          }
         }
 
         console.log(`Sinais detectados:`, signals);
@@ -588,11 +631,12 @@ serve(async (req) => {
           // Analisa o site se houver website (com timeout)
           let siteSignals = {
             whatsapp_on_site: false,
-            whatsapp_number: null,
+            whatsapp_number: null as string | null,
             has_meta_pixel: false,
             has_gtag: false,
             has_gtm: false,
-            instagram_url: null,
+            instagram_url: null as string | null,
+            email: null as string | null,
           };
 
           if (details.website) {
@@ -639,6 +683,7 @@ serve(async (req) => {
             p_has_gtm: siteSignals.has_gtm,
             p_instagram_url: siteSignals.instagram_url,
             p_digital_signals: siteSignals,
+            p_email: siteSignals.email,
           });
 
           if (insertError) {

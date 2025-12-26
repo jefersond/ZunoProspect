@@ -55,7 +55,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
         if (fetchError.code === 'PGRST116') {
           const { data: newSub, error: insertError } = await supabase
             .from('user_subscriptions')
-            .insert({ user_id: user.id, plan_name: 'starter', leads_limit: 10 })
+            .insert({ user_id: user.id, plan_name: 'starter', leads_limit: 30 })
             .select()
             .single();
 
@@ -63,9 +63,9 @@ export const useSubscription = (): UseSubscriptionReturn => {
           
           setSubscription({
             plan_name: 'starter',
-            leads_limit: 10,
+            leads_limit: 30,
             leads_used: 0,
-            leads_remaining: 10,
+            leads_remaining: 30,
             billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             is_admin: adminCheck === true,
           });
@@ -80,7 +80,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
         // Cria assinatura padrão se não existir
         const { error: insertError } = await supabase
           .from('user_subscriptions')
-          .insert({ user_id: user.id, plan_name: 'starter', leads_limit: 10 });
+          .insert({ user_id: user.id, plan_name: 'starter', leads_limit: 30 });
 
         if (insertError && insertError.code !== '23505') { // Ignora erro de duplicidade
           throw insertError;
@@ -88,9 +88,9 @@ export const useSubscription = (): UseSubscriptionReturn => {
         
         setSubscription({
           plan_name: 'starter',
-          leads_limit: 10,
+          leads_limit: 30,
           leads_used: 0,
-          leads_remaining: 10,
+          leads_remaining: 30,
           billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           is_admin: adminCheck === true,
         });

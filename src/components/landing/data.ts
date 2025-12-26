@@ -130,7 +130,7 @@ export const PLANOS: Plano[] = [
     descricao: "Para testar a plataforma",
     destaque: false,
     features: [
-      "Até 10 leads por mês",
+      "Até 30 leads por mês",
       "Análise básica de leads",
       "Plano de prospecção de 7 dias",
       "Salvar leads favoritos"

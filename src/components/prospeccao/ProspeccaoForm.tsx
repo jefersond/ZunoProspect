@@ -254,24 +254,33 @@ export const ProspeccaoForm = () => {
       setProgressMessage("Busca concluída!");
 
       const leadsCount = responseData?.leadsCount || 0;
+      const newLeadsCount = responseData?.newLeadsCount ?? leadsCount; // Fallback para compatibilidade
+      const updatedLeadsCount = responseData?.updatedLeadsCount || 0;
+      
       setLeadsFound(leadsCount);
       setLeadsAnalyzed(leadsCount);
       setEstimatedTimeSeconds(0);
 
-      console.log(`[Busca] Concluída! ${leadsCount} leads encontrados`);
+      console.log(`[Busca] Concluída! ${leadsCount} leads processados (${newLeadsCount} novos, ${updatedLeadsCount} atualizados)`);
 
-      // Incrementa o contador de leads usados
-      if (leadsCount > 0) {
-        await incrementLeadsUsed(leadsCount);
+      // Incrementa o contador de leads usados apenas para leads NOVOS
+      // Isso corrige o bug de dupla contagem quando usuário faz múltiplas buscas
+      if (newLeadsCount > 0) {
+        await incrementLeadsUsed(newLeadsCount);
         refetch(); // Atualiza os dados da assinatura
       }
 
+      // Toast com informação clara sobre leads novos vs atualizados
+      const toastDescription = newLeadsCount > 0 
+        ? `${newLeadsCount} leads novos${updatedLeadsCount > 0 ? ` + ${updatedLeadsCount} atualizados` : ''}${isIncrementalSearch && responseData?.radiusExpanded ? " (raio expandido)" : ""}`
+        : updatedLeadsCount > 0
+          ? `${updatedLeadsCount} leads atualizados (nenhum novo encontrado)`
+          : responseData?.error || "Nenhum lead novo encontrado nesta região. Tente aumentar o raio de busca ou modificar os termos.";
+      
       toast({
-        title: leadsCount > 0 ? "Busca concluída!" : "Nenhum lead novo",
-        description: leadsCount > 0 
-          ? `${leadsCount} leads ${isIncrementalSearch ? "adicionados" : "encontrados"}${isIncrementalSearch && responseData?.radiusExpanded ? " (raio expandido)" : ""}` 
-          : responseData?.error || "Nenhum lead novo encontrado nesta região. Tente aumentar o raio de busca ou modificar os termos.",
-        variant: leadsCount > 0 ? "default" : "destructive"
+        title: newLeadsCount > 0 ? "Busca concluída!" : (updatedLeadsCount > 0 ? "Leads atualizados" : "Nenhum lead novo"),
+        description: toastDescription,
+        variant: newLeadsCount > 0 ? "default" : (updatedLeadsCount > 0 ? "default" : "destructive")
       });
 
       // Verifica se há leads adicionais disponíveis (incentivo de upgrade)

@@ -609,7 +609,8 @@ serve(async (req) => {
     }
 
     // Função para processar um lead
-    async function processLead(place: any) {
+    // Retorna { leadResult, scheduleAnalysis, isNew } onde isNew indica se foi INSERT ou UPDATE
+    async function processLead(place: any): Promise<{ leadResult: any; scheduleAnalysis: () => Promise<void>; isNew: boolean } | null> {
       try {
         let detailsData: any;
 
@@ -657,10 +658,9 @@ serve(async (req) => {
             return null;
           }
           
-          // Insere no banco usando colunas criptografadas
+          // Insere no banco usando a nova RPC v2 que retorna { id, is_new }
           // IMPORTANTE: Dados sensíveis são criptografados no banco
-          // A função RPC retorna o UUID do lead diretamente
-          const { data: leadId, error: insertError } = await supabaseClient.rpc('insert_lead_with_encryption', {
+          const { data: rpcResult, error: insertError } = await supabaseClient.rpc('insert_lead_with_encryption_v2', {
             p_nome: details.name,
             p_endereco: details.formatted_address,
             p_telefone: details.formatted_phone_number || null,
@@ -691,9 +691,11 @@ serve(async (req) => {
             return null;
           }
 
-          // leadId já contém o UUID diretamente do RETURNING da RPC
+          // rpcResult agora contém { id: uuid, is_new: boolean }
+          const leadId = rpcResult?.id;
+          const isNewLead = rpcResult?.is_new ?? false;
           const leadData = { id: leadId };
-          console.log(`✅ Lead inserido com ID: ${leadId}`);
+          console.log(`✅ Lead ${isNewLead ? 'INSERIDO (novo)' : 'ATUALIZADO (existente)'} com ID: ${leadId}`);
 
           // Agenda análise de IA em background com retry e rate limiting
           const scheduleAnalysisWithRetry = async (retries = 3) => {
@@ -769,7 +771,8 @@ serve(async (req) => {
               endereco: details.formatted_address,
               sinais: siteSignals,
             },
-            scheduleAnalysis: scheduleAnalysisWithRetry
+            scheduleAnalysis: scheduleAnalysisWithRetry,
+            isNew: isNewLead
           };
         }
       } catch (error) {
@@ -779,7 +782,7 @@ serve(async (req) => {
     }
 
     // Processa leads em paralelo (máximo 5 por vez para não sobrecarregar)
-    const leadsWithAnalysis: { leadResult: any; scheduleAnalysis: () => Promise<void> }[] = [];
+    const leadsWithAnalysis: { leadResult: any; scheduleAnalysis: () => Promise<void>; isNew: boolean }[] = [];
     const batchSize = 5;
     
     for (let i = 0; i < leads.length; i += batchSize) {
@@ -787,6 +790,11 @@ serve(async (req) => {
       const results = await Promise.all(batch.map((place: any) => processLead(place)));
       leadsWithAnalysis.push(...results.filter(r => r !== null) as any[]);
     }
+    
+    // Contagem de leads NOVOS vs ATUALIZADOS
+    const newLeadsCount = leadsWithAnalysis.filter(item => item.isNew).length;
+    const updatedLeadsCount = leadsWithAnalysis.filter(item => !item.isNew).length;
+    console.log(`📊 Leads processados: ${newLeadsCount} NOVOS + ${updatedLeadsCount} ATUALIZADOS = ${leadsWithAnalysis.length} total`);
 
     // Extrai apenas os resultados dos leads para retorno
     const leadsDetails = leadsWithAnalysis.map(item => item.leadResult);
@@ -847,6 +855,8 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         leadsCount: leadsDetails.length,
+        newLeadsCount: newLeadsCount, // NOVO: só leads realmente inseridos
+        updatedLeadsCount: updatedLeadsCount, // Leads que foram atualizados
         leads: leadsDetails,
         lockedLeads: lockedLeadsData, // Preview dos leads bloqueados
         hasMore: leads.length >= body.quantidade,

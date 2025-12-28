@@ -357,6 +357,45 @@ export type Database = {
         }
         Relationships: []
       }
+      leads_audit_log: {
+        Row: {
+          billing_period_end: string | null
+          billing_period_start: string | null
+          corrected_at: string | null
+          correction_reason: string | null
+          id: string
+          leads_count_in_period: number
+          new_leads_used: number
+          old_leads_used: number
+          user_email: string | null
+          user_id: string
+        }
+        Insert: {
+          billing_period_end?: string | null
+          billing_period_start?: string | null
+          corrected_at?: string | null
+          correction_reason?: string | null
+          id?: string
+          leads_count_in_period: number
+          new_leads_used: number
+          old_leads_used: number
+          user_email?: string | null
+          user_id: string
+        }
+        Update: {
+          billing_period_end?: string | null
+          billing_period_start?: string | null
+          corrected_at?: string | null
+          correction_reason?: string | null
+          id?: string
+          leads_count_in_period?: number
+          new_leads_used?: number
+          old_leads_used?: number
+          user_email?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       leads_campanhas: {
         Row: {
           campanha_id: string
@@ -524,8 +563,30 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_leads_count_inconsistencies: {
+        Args: never
+        Returns: {
+          actual_leads_count: number
+          billing_period_end: string
+          billing_period_start: string
+          difference: number
+          leads_used_this_month: number
+          user_email: string
+          user_id: string
+        }[]
+      }
       decrypt_sensitive: { Args: { encrypted_data: string }; Returns: string }
       encrypt_sensitive: { Args: { plain_text: string }; Returns: string }
+      fix_leads_count_inconsistencies: {
+        Args: never
+        Returns: {
+          actual_leads_count: number
+          old_leads_used: number
+          user_email: string
+          user_id: string
+          was_corrected: boolean
+        }[]
+      }
       get_lead_decrypted_by_id: {
         Args: { p_lead_id: string; p_user_id?: string }
         Returns: {

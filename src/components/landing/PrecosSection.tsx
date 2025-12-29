@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { CheckCircle2, Building2, Kanban, BarChart3, Code2, Headphones, Infinity } from "lucide-react";
+import { CheckCircle2, Building2, Kanban, BarChart3, Code2, Headphones, Infinity, Globe, MapPin, Sparkles, MessageCircle, Target } from "lucide-react";
 import { PLANOS, PLANO_AGENCIA, Plano } from "./data";
 import { CheckoutDialog } from "./CheckoutDialog";
 import { trackViewContent, trackLead } from "@/lib/metaPixel";
@@ -255,6 +255,101 @@ export function PrecosSection() {
                           <p className="font-medium text-sm text-emerald-600 dark:text-emerald-400">Suporte Prioritário</p>
                           <p className="text-xs text-muted-foreground">Canal direto de atendimento</p>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* USA Addon - Card especial */}
+        <div className="max-w-5xl mx-auto mt-12">
+          <Card className="relative overflow-hidden border-2 border-blue-500/30 bg-gradient-to-br from-blue-500/5 via-background to-red-500/5">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-red-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+            
+            <div className="relative p-8 md:p-10">
+              <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-center">
+                {/* Left side - Info */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-blue-500/10">
+                      <Globe className="h-6 w-6 text-blue-500" />
+                    </div>
+                    <Badge variant="outline" className="border-blue-500/30 text-blue-500">
+                      Add-on
+                    </Badge>
+                    <span className="text-2xl">🇺🇸</span>
+                  </div>
+                  
+                  <h3 className="text-2xl md:text-3xl font-bold mb-2">Prospecção nos Estados Unidos</h3>
+                  <p className="text-muted-foreground mb-6">
+                    Expanda seu alcance para o mercado americano. Prospecte leads em todas as 50 estados dos EUA + DC.
+                  </p>
+                  
+                  <div className="flex items-baseline gap-2 mb-4">
+                    <span className="text-3xl md:text-4xl font-bold text-blue-600 dark:text-blue-400">+ R$ 57</span>
+                    <span className="text-muted-foreground">/mês</span>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Adicione ao seu plano atual (Iniciante, Pro ou Agência)
+                  </p>
+                  
+                  <Button
+                    size="lg"
+                    className="w-full md:w-auto px-8 bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={() => {
+                      window.open("https://pay.kiwify.com.br/FNkABm6", "_blank");
+                    }}
+                  >
+                    <Globe className="mr-2 h-4 w-4" />
+                    Ativar Prospecção USA
+                  </Button>
+                </div>
+
+                {/* Right side - Benefits */}
+                <div className="flex-1 space-y-4">
+                  <p className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wider">
+                    O que está incluído
+                  </p>
+                  <div className="grid gap-3">
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                      <div className="p-2 rounded-md bg-blue-500/20">
+                        <MapPin className="h-5 w-5 text-blue-500" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm text-blue-600 dark:text-blue-400">Todos os 50 estados + DC</p>
+                        <p className="text-xs text-muted-foreground">Miami, New York, Los Angeles, Houston...</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                      <div className="p-2 rounded-md bg-blue-500/20">
+                        <Sparkles className="h-5 w-5 text-blue-500" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm text-blue-600 dark:text-blue-400">Análise detalhada em Português</p>
+                        <p className="text-xs text-muted-foreground">Diagnóstico e score de conversão</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                      <div className="p-2 rounded-md bg-blue-500/20">
+                        <MessageCircle className="h-5 w-5 text-blue-500" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm text-blue-600 dark:text-blue-400">Mensagens prontas em Inglês</p>
+                        <p className="text-xs text-muted-foreground">Plano de prospecção e CTA em inglês</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                      <div className="p-2 rounded-md bg-blue-500/20">
+                        <Target className="h-5 w-5 text-blue-500" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm text-blue-600 dark:text-blue-400">Mesma IA poderosa</p>
+                        <p className="text-xs text-muted-foreground">Sinais digitais, website, Instagram e mais</p>
                       </div>
                     </div>
                   </div>

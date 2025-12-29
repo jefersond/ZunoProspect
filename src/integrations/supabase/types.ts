@@ -794,6 +794,17 @@ export type Database = {
         Args: { p_count: number; p_user_id: string }
         Returns: boolean
       }
+      insert_email_log_encrypted: {
+        Args: {
+          p_campaign_id: string
+          p_error_message?: string
+          p_status: string
+          p_user_email: string
+          p_user_email_masked: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       insert_lead_with_encryption:
         | {
             Args: {

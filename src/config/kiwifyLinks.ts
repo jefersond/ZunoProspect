@@ -6,8 +6,9 @@ export const KIWIFY_CHECKOUT_LINKS = {
   pro_anual: "https://pay.kiwify.com.br/81bPEL2",
   agencia_mensal: "https://pay.kiwify.com.br/8r3UXxM",
   agencia_anual: "https://pay.kiwify.com.br/Rk36gTd",
-  // Add-on Prospecção EUA (R$ 57/mês)
-  usa_addon_mensal: "https://pay.kiwify.com.br/PLACEHOLDER_USA_ADDON",
+  // Add-on Prospecção EUA
+  usa_addon_mensal: "https://pay.kiwify.com.br/DgS5eFm",
+  usa_addon_anual: "https://pay.kiwify.com.br/hTNIRaH",
 } as const;
 
 export type KiwifyPlanKey = keyof typeof KIWIFY_CHECKOUT_LINKS;

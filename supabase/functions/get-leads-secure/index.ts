@@ -165,9 +165,12 @@ serve(async (req) => {
       
     } else if (action === 'list' || action === 'export') {
       // Get leads list with optional filtering
+      // IMPORTANT: Pass p_user_id explicitly because auth.uid() returns NULL 
+      // when called via supabaseAdmin (service role)
       const { data: leads, error } = await supabaseAdmin
         .rpc('get_leads_decrypted_filtered', { 
-          p_salvo: salvo ?? null 
+          p_salvo: salvo ?? null,
+          p_user_id: user.id
         });
 
       if (error) {
@@ -175,8 +178,8 @@ serve(async (req) => {
         throw error;
       }
 
-      // Filter to only return user's leads (extra safety check)
-      const userLeads = (leads || []).filter((lead: any) => lead.user_id === user.id);
+      // Leads already filtered by user_id in the RPC function
+      const userLeads = leads || [];
       
       // Apply pagination for list (not export)
       const safeLimit = Math.min(Math.max(1, limit), action === 'export' ? 500 : 100);

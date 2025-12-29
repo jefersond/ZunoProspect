@@ -100,6 +100,7 @@ const Prospeccao = () => {
       <UpgradePlanDialog 
         open={showUpgradeDialog} 
         onOpenChange={setShowUpgradeDialog}
+        currentPlanName={subscription?.plan_name}
       />
     </div>
   );

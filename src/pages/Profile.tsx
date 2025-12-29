@@ -350,7 +350,8 @@ const Profile = () => {
 
       <UpgradePlanDialog 
         open={upgradeDialogOpen} 
-        onOpenChange={setUpgradeDialogOpen} 
+        onOpenChange={setUpgradeDialogOpen}
+        currentPlanName={subscription?.plan_name}
       />
       <FloatingWhatsAppButton />
     </div>

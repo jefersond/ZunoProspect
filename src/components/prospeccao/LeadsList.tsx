@@ -21,9 +21,11 @@ import { Progress } from "@/components/ui/progress";
 import { exportLeadsToExcel } from "@/utils/exportToExcel";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { UpsellCard } from "./UpsellCard";
+import { useSubscription } from "@/hooks/useSubscription";
 
 export const LeadsList = () => {
   const { toast } = useToast();
+  const { subscription } = useSubscription();
   const [leads, setLeads] = useState<LeadProspeccao[]>([]);
   const [lockedLeads, setLockedLeads] = useState<LeadProspeccao[]>([]);
   const [totalLocked, setTotalLocked] = useState(0);
@@ -924,6 +926,7 @@ export const LeadsList = () => {
       <UpgradePlanDialog 
         open={showUpgradeDialog} 
         onOpenChange={setShowUpgradeDialog}
+        currentPlanName={subscription?.plan_name}
       />
     </>
   );

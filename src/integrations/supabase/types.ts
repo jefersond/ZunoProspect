@@ -779,53 +779,101 @@ export type Database = {
           whatsapp_on_site: boolean
         }[]
       }
-      get_leads_decrypted_filtered: {
-        Args: { p_salvo?: boolean }
-        Returns: {
-          ai_analise_gerada_em: string
-          cidade: string
-          cnae_principal: string
-          cnpj: string
-          cnpj_email: string
-          cnpj_telefone: string
-          created_at: string
-          diagnostico_bullets: Json
-          digital_signals: Json
-          email: string
-          endereco: string
-          foco: string
-          google_place_id: string
-          has_gtag: boolean
-          has_gtm: boolean
-          has_meta_pixel: boolean
-          id: string
-          instagram_context: string
-          instagram_url: string
-          latitude: number
-          longitude: number
-          nicho: string
-          nome: string
-          nome_responsavel: string
-          notas: string
-          plano_prospeccao: Json
-          porte_empresa: string
-          probabilidade_conversao: number
-          proximidade_ativa: boolean
-          raio_km: number
-          rating: number
-          razao_social: string
-          salvo: boolean
-          situacao_cadastral: string
-          status: string
-          telefone: string
-          total_reviews: number
-          updated_at: string
-          user_id: string
-          website: string
-          whatsapp_number: string
-          whatsapp_on_site: boolean
-        }[]
-      }
+      get_leads_decrypted_filtered:
+        | {
+            Args: { p_salvo?: boolean }
+            Returns: {
+              ai_analise_gerada_em: string
+              cidade: string
+              cnae_principal: string
+              cnpj: string
+              cnpj_email: string
+              cnpj_telefone: string
+              created_at: string
+              diagnostico_bullets: Json
+              digital_signals: Json
+              email: string
+              endereco: string
+              foco: string
+              google_place_id: string
+              has_gtag: boolean
+              has_gtm: boolean
+              has_meta_pixel: boolean
+              id: string
+              instagram_context: string
+              instagram_url: string
+              latitude: number
+              longitude: number
+              nicho: string
+              nome: string
+              nome_responsavel: string
+              notas: string
+              plano_prospeccao: Json
+              porte_empresa: string
+              probabilidade_conversao: number
+              proximidade_ativa: boolean
+              raio_km: number
+              rating: number
+              razao_social: string
+              salvo: boolean
+              situacao_cadastral: string
+              status: string
+              telefone: string
+              total_reviews: number
+              updated_at: string
+              user_id: string
+              website: string
+              whatsapp_number: string
+              whatsapp_on_site: boolean
+            }[]
+          }
+        | {
+            Args: { p_salvo?: boolean; p_user_id?: string }
+            Returns: {
+              ai_analise_gerada_em: string
+              cidade: string
+              cnae_principal: string
+              cnpj: string
+              cnpj_email: string
+              cnpj_telefone: string
+              created_at: string
+              diagnostico_bullets: Json
+              digital_signals: Json
+              email: string
+              endereco: string
+              foco: string
+              google_place_id: string
+              has_gtag: boolean
+              has_gtm: boolean
+              has_meta_pixel: boolean
+              id: string
+              instagram_context: string
+              instagram_url: string
+              latitude: number
+              longitude: number
+              nicho: string
+              nome: string
+              nome_responsavel: string
+              notas: string
+              plano_prospeccao: Json
+              porte_empresa: string
+              probabilidade_conversao: number
+              proximidade_ativa: boolean
+              raio_km: number
+              rating: number
+              razao_social: string
+              salvo: boolean
+              situacao_cadastral: string
+              status: string
+              telefone: string
+              total_reviews: number
+              updated_at: string
+              user_id: string
+              website: string
+              whatsapp_number: string
+              whatsapp_on_site: boolean
+            }[]
+          }
       get_subscription_info: {
         Args: { p_user_id: string }
         Returns: {

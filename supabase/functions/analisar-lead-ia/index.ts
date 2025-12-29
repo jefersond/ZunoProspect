@@ -108,6 +108,11 @@ interface LeadData {
   pais?: "BR" | "US";
 }
 
+// Helper to check if lead is from USA
+function isUSLead(lead: LeadData): boolean {
+  return lead.pais === "US";
+}
+
 function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "whatsapp" | "instagram")[]): ("email" | "whatsapp" | "instagram")[] {
   const available: ("email" | "whatsapp" | "instagram")[] = [];
   
@@ -578,8 +583,9 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string): Promise<
   const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
   const canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
   
-  const systemPrompt = buildEliteCopywriterSystemPrompt();
-  const userPrompt = buildEliteUserPrompt(lead, canaisDisponiveis);
+  const isUS = isUSLead(lead);
+  const systemPrompt = buildEliteCopywriterSystemPrompt(isUS);
+  const userPrompt = buildEliteUserPrompt(lead, canaisDisponiveis, isUS);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
@@ -711,8 +717,9 @@ async function analyzeWithOpenAI(lead: LeadData, apiKey: string): Promise<Analis
   const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
   const canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
   
-  const systemPrompt = buildEliteCopywriterSystemPrompt();
-  const userPrompt = buildEliteUserPrompt(lead, canaisDisponiveis);
+  const isUS = isUSLead(lead);
+  const systemPrompt = buildEliteCopywriterSystemPrompt(isUS);
+  const userPrompt = buildEliteUserPrompt(lead, canaisDisponiveis, isUS);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 90000);
@@ -808,8 +815,9 @@ async function analyzeWithLovableAI(lead: LeadData): Promise<AnaliseResult> {
   const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
   const canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
   
-  const systemPrompt = buildEliteCopywriterSystemPrompt();
-  const userPrompt = buildEliteUserPrompt(lead, canaisDisponiveis);
+  const isUS = isUSLead(lead);
+  const systemPrompt = buildEliteCopywriterSystemPrompt(isUS);
+  const userPrompt = buildEliteUserPrompt(lead, canaisDisponiveis, isUS);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
@@ -914,7 +922,14 @@ async function analyzeWithLovableAI(lead: LeadData): Promise<AnaliseResult> {
 // =============================================================================
 // SYSTEM PROMPT - COPYWRITER DE ELITE
 // =============================================================================
-function buildEliteCopywriterSystemPrompt(): string {
+function buildEliteCopywriterSystemPrompt(isUS: boolean = false): string {
+  if (isUS) {
+    return buildUSSystemPrompt();
+  }
+  return buildBRSystemPrompt();
+}
+
+function buildBRSystemPrompt(): string {
   return `Você é um COPYWRITER E ESTRATEGISTA DE VENDAS B2B de ELITE com 15+ anos de experiência.
 Sua missão: criar mensagens que fazem o prospect PARAR, LER e RESPONDER.
 
@@ -1116,6 +1131,208 @@ Cada mensagem deve parecer escrita por uma PESSOA real que:
 
 Mensagens frias e robóticas = ignoradas.
 Mensagens humanas e personalizadas = respondidas.`;
+}
+
+// =============================================================================
+// US SYSTEM PROMPT - ENGLISH PROSPECTING FOR USA LEADS
+// =============================================================================
+function buildUSSystemPrompt(): string {
+  return `You are an ELITE B2B SALES STRATEGIST AND COPYWRITER with 15+ years of experience.
+Your mission: craft messages that make prospects STOP, READ, and RESPOND.
+
+🏆 YOUR SPECIALTY:
+• B2B outreach for digital marketing agencies
+• Consultative sales for Paid Ads, SEO, Social Media, Full Service, Automation, CRM, Websites/Landing, Design
+• Multichannel prospecting mastery (Email, LinkedIn, Instagram)
+• HUMANIZED copywriting that builds genuine connection
+
+⚠️ CRITICAL LANGUAGE INSTRUCTIONS:
+• ALL prospecting messages, CTAs, and responses → IN ENGLISH
+• The diagnostic/analysis section → IN PORTUGUESE (the user reading it is Brazilian)
+• Use American English conventions and casual business tone
+
+═══════════════════════════════════════════════════════════════
+📜 GOLDEN RULES (NON-NEGOTIABLE)
+═══════════════════════════════════════════════════════════════
+
+1. 🎯 ELEGANT & PERSONALIZED GREETINGS
+   
+   ✅ REQUIRED: Always start with SHORT, CONTEXTUALIZED greeting:
+   
+   IF contact_name available:
+   • "Hey [name]! 👋" or "Hi [name],"
+   • "[Name], noticed something about [niche]..."
+   • "Hi [name]! Checked out [company] and..."
+   
+   IF contact_name NOT available:
+   • "Hey there! Noticed [company]..."
+   • "Hi [company] team! 👋"
+   • "Hey team,"
+   
+   ❌ FORBIDDEN empty greetings:
+   • "Hello!" (alone)
+   • "To whom it may concern"
+   • "Dear Sir/Madam"
+
+2. 💬 HUMANIZED & EMPATHETIC TONE
+   
+   • Write like a REAL person, not a sales robot
+   • Use "you" and "your business" - create personal connection
+   • Show you've STUDIED their business
+   • Be CURIOUS: ask questions that provoke thought
+   • Acknowledge their reality before offering solutions
+   
+   EXAMPLE OF RIGHT TONE:
+   "Hey Mike! 👋 Looked into the [niche] market in [city] and 
+   noticed most face the same challenge: [pain point]. 
+   Saw that [company] isn't leveraging [opportunity] yet. 
+   Mind if I show you how to fix this in 5 min?"
+
+3. 📝 SHARP COPY (but human)
+   • SHORT, DIRECT sentences - max 20 words each
+   • First CONNECT, then SELL
+   • Every word must have purpose - cut the rest
+   • Max 2 strategic emojis (👋 for greeting, ✅ for results)
+
+4. 🚫 ABSOLUTE PROHIBITIONS
+   ❌ NEVER invent names - only use contact_name if provided
+   ❌ NEVER use clichés: "skyrocket", "game-changer", "crush it", "supercharge"
+   ❌ NEVER promise miracles or absurd numbers
+   ❌ NEVER be overly flattering or use generic praise
+   ❌ NEVER start with "We're an agency..." or talk about yourself first
+
+═══════════════════════════════════════════════════════════════
+5. 🎯 SUGGESTED ACTION (REQUIRED FIELD)
+═══════════════════════════════════════════════════════════════
+
+   For EACH DAY, you MUST include an "acao_sugerida" (in Portuguese) that guides
+   the user on HOW to execute the contact (format, preparation, etc.)
+
+   ✉️ EMAIL - Possible actions:
+   ─────────────────────────────
+   • "Enviar email com ASSUNTO: [impactful subject line suggestion]"
+   • "Enviar email com PDF de case em anexo"
+   • "Enviar email com link de vídeo curto (Loom 2min)"
+   
+   📸 INSTAGRAM - Possible actions (PRE-ENGAGEMENT REQUIRED):
+   ─────────────────────────────
+   • "1) Curtir 2-3 posts recentes 2) Reagir a 1 story 3) Enviar DM com a mensagem"
+   • "1) Comentar no último post com insight 2) Esperar 1h 3) Enviar DM"
+   • "Reagir aos últimos 2 stories + enviar DM"
+
+   🔗 LINKEDIN - Possible actions:
+   ─────────────────────────────
+   • "Enviar convite de conexão com nota personalizada"
+   • "Enviar mensagem InMail com proposta de valor"
+   • "Comentar em post recente + enviar mensagem"
+
+═══════════════════════════════════════════════════════════════
+6. 📱 STRUCTURE BY CHANNEL (ALL IN ENGLISH)
+═══════════════════════════════════════════════════════════════
+
+   ✉️ EMAIL (max 150 words):
+   ─────────────────────────────
+   • Subject: [Name], + 6-8 words direct to benefit
+   • Greeting: "Hi [name]," or "Hey [name]!"
+   • Opening: Empathy + market context
+   • Body: Problem + insight + opportunity
+   • Closing: Clear, specific CTA
+   • Signature: Simple, professional
+   
+   EXAMPLE EMAIL:
+   Subject: [Name], found something about [niche] in [city]
+   
+   Hi [name],
+   
+   Was researching [niche] companies in the area and noticed 
+   most face the same challenge: [specific pain].
+   
+   What caught my attention about [company] is that [insight].
+   Similar businesses that solved this saw [result].
+   
+   Mind if I send over a quick analysis showing how?
+   
+   Best,
+   [signature]
+
+   📸 INSTAGRAM DM (max 4 lines):
+   ─────────────────────────────
+   • Line 1: Greeting + reference to their content
+   • Lines 2-3: Connection to opportunity
+   • Line 4: Light CTA
+   
+   EXAMPLE:
+   "Hey [name]! 😊 Loved your post about [topic]!
+   I work with [focus] and spotted something that could help [niche] businesses like yours.
+   Mind if I share a quick idea?"
+
+═══════════════════════════════════════════════════════════════
+7. 🎭 OBJECTIONS & RESPONSES (IN ENGLISH)
+═══════════════════════════════════════════════════════════════
+   • Objections: EXACT phrases clients say day-to-day
+   • Responses with technique: Validate → Reframe → Evidence → Next step
+   • Tone: empathetic, never defensive
+   
+   EXAMPLE:
+   Objection: "We already work with another agency"
+   Response: "Totally get it, [name]! Many of our clients did too. 
+   What changed was when they saw [specific benefit]. 
+   Mind if I show you how it works in 10 min, no strings attached?"
+
+═══════════════════════════════════════════════════════════════
+8. 📅 7-DAY PROGRESSION (Humanized Tone - ALL IN ENGLISH)
+═══════════════════════════════════════════════════════════════
+   
+   • Day 1: CONNECTION + INSIGHT
+     Warm greeting + specific data that sparks curiosity
+     "Hey [name]! Looked into [company] and found something interesting..."
+   
+   • Day 2: EMPATHY + PAIN
+     "I know [niche] businesses often deal with [challenge]..." - acknowledge reality
+   
+   • Day 3: CLEAR OPPORTUNITY
+     "Noticed similar companies are..." - benchmarking
+   
+   • Day 4: TANGIBLE VALUE
+     Offer framework/free diagnosis
+   
+   • Day 5: SOCIAL PROOF
+     Cite results or industry trends
+   
+   • Day 6: PARTNERSHIP
+     "Let's figure this out together" tone, not salesy
+   
+   • Day 7: ELEGANT FAREWELL
+     "[Name], this is my last message on this.
+     I'm here whenever it makes sense for you. Take care! 👋"
+
+═══════════════════════════════════════════════════════════════
+9. 📊 DIAGNOSTIC (6-8 bullets - IN PORTUGUESE!)
+═══════════════════════════════════════════════════════════════
+   ⚠️ THIS SECTION ONLY → Write in Portuguese
+   The Brazilian user needs to understand the analysis
+   
+   • Avaliação de maturidade digital
+   • Gaps críticos identificados
+   • Oportunidades específicas para o foco
+   • Comparativo com mercado americano
+   • Potencial de ROI estimado
+
+═══════════════════════════════════════════════════════════════
+🎯 REMEMBER: YOU'RE HUMAN, NOT A ROBOT
+═══════════════════════════════════════════════════════════════
+Every message should feel written by a REAL person who:
+• Studied the prospect's business
+• Genuinely cares about helping
+• Respects their time and intelligence
+• Offers value before asking for anything
+
+Cold, robotic messages = ignored.
+Human, personalized messages = answered.
+
+⚠️ FINAL REMINDER:
+• Prospecting plan (messages, CTAs, objections, responses) → ALL IN ENGLISH
+• Diagnostic bullets → IN PORTUGUESE`;
 }
 
 // =============================================================================
@@ -1810,7 +2027,14 @@ function getNichoExamples(nicho: string): NichoContext | null {
 // =============================================================================
 // USER PROMPT - DADOS DO LEAD
 // =============================================================================
-function buildEliteUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsapp" | "instagram")[]): string {
+function buildEliteUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsapp" | "instagram")[], isUS: boolean = false): string {
+  if (isUS) {
+    return buildUSUserPrompt(lead, canaisDisponiveis);
+  }
+  return buildBRUserPrompt(lead, canaisDisponiveis);
+}
+
+function buildBRUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsapp" | "instagram")[]): string {
   const canalTexto = canaisDisponiveis.length > 0 
     ? canaisDisponiveis.map(c => c === "email" ? "Email" : c === "whatsapp" ? "WhatsApp" : "Instagram DM").join(", ")
     : "NENHUM DETECTADO";
@@ -1951,6 +2175,175 @@ Os exemplos acima são REFERÊNCIA - adapte para os dados REAIS:
 • Nicho: ${lead.nicho}
 • Foco: ${lead.foco}
 ${lead.nome_responsavel ? `• Responsável: ${lead.nome_responsavel}` : ""}`;
+}
+
+// =============================================================================
+// US USER PROMPT - FOR AMERICAN LEADS (ENGLISH OUTPUT)
+// =============================================================================
+function buildUSUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsapp" | "instagram")[]): string {
+  const channelText = canaisDisponiveis.length > 0 
+    ? canaisDisponiveis.map(c => c === "email" ? "Email" : c === "whatsapp" ? "WhatsApp" : "Instagram DM").join(", ")
+    : "NONE DETECTED";
+
+  const marketingSignals = [];
+  if (lead.has_meta_pixel) marketingSignals.push("Meta Pixel active");
+  if (lead.has_gtag) marketingSignals.push("Google Analytics active");
+  if (lead.has_gtm) marketingSignals.push("GTM configured");
+  if (lead.instagram_url) marketingSignals.push(`Instagram: ${lead.instagram_url}`);
+  if (lead.email) marketingSignals.push(`Email: ${lead.email}`);
+
+  // Build channel cadence strategy
+  let cadence = "";
+  if (canaisDisponiveis.length === 0) {
+    cadence = "⚠️ No channel detected - focus on strategies to FIND contact";
+  } else if (canaisDisponiveis.length === 1) {
+    cadence = `Use ${channelText} for all 7 days with varied approaches`;
+  } else if (canaisDisponiveis.length === 2) {
+    cadence = `Alternate: Days 1,3,5,7 = ${canaisDisponiveis[0]}, Days 2,4,6 = ${canaisDisponiveis[1]}`;
+  } else {
+    cadence = `3-channel cadence: D1 Email, D2 Instagram, D3 Email, D4 Instagram, D5 Email, D6 Instagram, D7 Email`;
+  }
+
+  const focoArgs = getFocoArgumentsUS(lead.foco);
+
+  return `═══════════════════════════════════════
+📊 LEAD DATA FOR ANALYSIS
+═══════════════════════════════════════
+
+🏢 BUSINESS
+• Name: ${lead.nome}
+• Niche: ${lead.nicho}
+• City: ${lead.cidade}
+• Country: United States
+• Website: ${lead.website || "Not provided"}
+
+👤 CONTACT
+${lead.nome_responsavel 
+  ? `✅ CONTACT NAME: "${lead.nome_responsavel}" - USE THIS IN MESSAGES!`
+  : `❌ Contact name not detected - DO NOT INVENT NAMES`}
+
+🎯 SERVICE FOCUS: ${lead.foco}
+${focoArgs}
+
+📊 MARKETING SIGNALS DETECTED:
+${marketingSignals.length > 0 ? marketingSignals.map(s => `• ${s}`).join("\n") : "• No signals detected - business with low digital maturity"}
+
+═══════════════════════════════════════
+⚠️ ALLOWED CHANNELS: ${channelText}
+═══════════════════════════════════════
+🚫 USE ONLY these channels in the plan!
+📅 Strategy: ${cadence}
+
+═══════════════════════════════════════
+⚠️ CRITICAL LANGUAGE INSTRUCTIONS
+═══════════════════════════════════════
+• Prospecting messages, CTAs, objections, responses → ALL IN ENGLISH
+• Diagnostic bullets → IN PORTUGUESE (the user reading is Brazilian)
+• acao_sugerida field → IN PORTUGUESE (instructions for the user)
+
+═══════════════════════════════════════
+📋 GENERATE NOW:
+═══════════════════════════════════════
+
+1. DIAGNÓSTICO (6-8 bullets consultivos - EM PORTUGUÊS!)
+   ⚠️ ESTA SEÇÃO DEVE SER EM PORTUGUÊS
+   • Avalie maturidade digital real
+   • Identifique gaps críticos
+   • Aponte oportunidades para ${lead.foco}
+   • Compare com mercado americano
+   • Estime potencial de ROI
+
+2. PROBABILIDADE DE CONVERSÃO (0-100)
+   ${canaisDisponiveis.length === 0 ? "• Maximum 30% if no channel detected" : ""}
+
+3. 7-DAY PROSPECTING PLAN (ALL MESSAGES IN ENGLISH!)
+   ⚠️ MESSAGES, OBJECTIONS, RESPONSES, CTAs → IN ENGLISH
+   ⚠️ acao_sugerida field → IN PORTUGUESE
+   
+   • Each day: ready-to-copy message IN ENGLISH
+   • Objections: common American business objections IN ENGLISH
+   • Responses: consultative technique IN ENGLISH
+   • CTAs: progressive and specific IN ENGLISH
+   
+   Required progression:
+   - Day 1: Introduction + context (main pain point)
+   - Day 2: Specific industry pain
+   - Day 3: Clear opportunity (main benefit)
+   - Day 4: Framework/method
+   - Day 5: Social proof/scenario
+   - Day 6: Strategic vision + next step
+   - Day 7: Respectful last touch
+
+═══════════════════════════════════════
+🎯 REMEMBER: ADAPT TO US MARKET!
+═══════════════════════════════════════
+American business culture differences:
+• More direct communication style
+• Value time efficiency ("quick 15-min call")
+• Focus on ROI and metrics
+• Professional but friendly tone
+• LinkedIn is primary B2B channel (use Email/Instagram as alternatives)
+
+Lead data:
+• Business: ${lead.nome}
+• City: ${lead.cidade}
+• Niche: ${lead.nicho}
+• Focus: ${lead.foco}
+${lead.nome_responsavel ? `• Contact: ${lead.nome_responsavel}` : ""}`;
+}
+
+function getFocoArgumentsUS(foco: string): string {
+  const args: Record<string, string> = {
+    "Tráfego": `📣 PAID ADS ARGUMENTS:
+• Focus on PREDICTABLE flow of qualified leads
+• Metrics: CPL, ROAS, CAC
+• Pain: relying on word-of-mouth, unpredictable leads
+• Gain: new leads coming in every day`,
+    
+    "SEO": `🔍 SEO ARGUMENTS:
+• Focus on organic traffic = free leads
+• Compound effect: results accumulate over time
+• Pain: competitors ranking higher on Google
+• Gain: customers finding you without paying per click`,
+    
+    "Social": `📱 SOCIAL MEDIA ARGUMENTS:
+• Focus on consistency and brand positioning
+• Building a BRAND, not just posting content
+• Pain: posts with no engagement, followers who do not convert
+• Gain: engaged community that becomes customers`,
+    
+    "Full Service": `🎯 FULL SERVICE ARGUMENTS:
+• 360° vision - integrated strategy
+• Time savings with single partner
+• Pain: multiple vendors, disconnected results
+• Gain: one partner handling everything`,
+    
+    "Automação": `⚙️ AUTOMATION ARGUMENTS:
+• Funnels that run themselves
+• Automatic follow-ups = leads that do not go cold
+• Pain: leads come in but no one follows up
+• Gain: system that nurtures leads 24/7`,
+    
+    "CRM": `📊 CRM ARGUMENTS:
+• Sales pipeline organization
+• Systematic follow-up, not relying on memory
+• Pain: disorganized sales, leads lost in emails
+• Gain: predictable revenue`,
+    
+    "Sites/Landing": `🖥️ WEBSITES/LANDING PAGES ARGUMENTS:
+• Pages that CONVERT, not just look pretty
+• Clear offer in 5 seconds
+• Pain: website that does not generate leads, just costs hosting
+• Gain: page that turns visitors into contacts`,
+    
+    "Design": `🎨 DESIGN ARGUMENTS:
+• Visual identity as competitive advantage
+• Design that SELLS, not just looks good
+• Pain: amateur visuals that push away premium clients
+• Gain: brand that attracts the right customers`,
+  };
+  
+  return args[foco] || `• Focus on specific benefits of ${foco}`;
 }
 
 function getFocoArguments(foco: string): string {

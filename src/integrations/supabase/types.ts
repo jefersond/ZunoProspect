@@ -462,6 +462,48 @@ export type Database = {
         }
         Relationships: []
       }
+      templates_globais: {
+        Row: {
+          assunto: string | null
+          ativo: boolean | null
+          categoria: string
+          conteudo: string
+          created_at: string
+          id: string
+          nome: string
+          ordem: number | null
+          tags: string[] | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          assunto?: string | null
+          ativo?: boolean | null
+          categoria: string
+          conteudo: string
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number | null
+          tags?: string[] | null
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          assunto?: string | null
+          ativo?: boolean | null
+          categoria?: string
+          conteudo?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number | null
+          tags?: string[] | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       templates_mensagens: {
         Row: {
           assunto: string | null

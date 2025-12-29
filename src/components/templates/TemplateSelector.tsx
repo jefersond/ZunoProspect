@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Check, MessageCircle, Mail, Instagram, FileText } from "lucide-react";
+import { Copy, Check, MessageCircle, Mail, Instagram, FileText, Sparkles } from "lucide-react";
 import { fillTemplate, extractVariables, copyToClipboard } from "@/utils/templateUtils";
 import type { LeadProspeccao } from "@/types/lead";
 
@@ -33,7 +33,8 @@ export const TemplateSelector = ({ lead, filterByChannel }: TemplateSelectorProp
 
   const variables = extractVariables(lead);
 
-  const { data: templates, isLoading } = useQuery({
+  // Buscar templates do usuário
+  const { data: userTemplates, isLoading: isLoadingUser } = useQuery({
     queryKey: ["templates-for-lead"],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -50,7 +51,30 @@ export const TemplateSelector = ({ lead, filterByChannel }: TemplateSelectorProp
     },
   });
 
-  const filteredTemplates = templates?.filter((t) => {
+  // Buscar templates globais
+  const { data: globalTemplates, isLoading: isLoadingGlobal } = useQuery({
+    queryKey: ["templates-globais-selector"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("templates_globais")
+        .select("*")
+        .eq("ativo", true)
+        .order("ordem", { ascending: true });
+
+      if (error) throw error;
+      return data as (Template & { categoria?: string })[];
+    },
+  });
+
+  const isLoading = isLoadingUser || isLoadingGlobal;
+
+  // Combinar templates: primeiro os do usuário, depois os globais
+  const allTemplates = [
+    ...(userTemplates?.map(t => ({ ...t, isGlobal: false })) || []),
+    ...(globalTemplates?.map(t => ({ ...t, isGlobal: true })) || []),
+  ];
+
+  const filteredTemplates = allTemplates.filter((t) => {
     if (activeTab === "todos") return true;
     return t.tipo === activeTab;
   });
@@ -92,12 +116,12 @@ export const TemplateSelector = ({ lead, filterByChannel }: TemplateSelectorProp
     return <div className="text-center py-4 text-muted-foreground">Carregando templates...</div>;
   }
 
-  if (!templates || templates.length === 0) {
+  if (allTemplates.length === 0) {
     return (
       <div className="text-center py-6 text-muted-foreground">
         <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-        <p>Nenhum template criado ainda</p>
-        <p className="text-xs mt-1">Crie templates em "Templates de Mensagens"</p>
+        <p>Nenhum template disponível</p>
+        <p className="text-xs mt-1">Crie templates em "Templates de Mensagens" ou use os modelos base</p>
       </div>
     );
   }
@@ -145,6 +169,12 @@ export const TemplateSelector = ({ lead, filterByChannel }: TemplateSelectorProp
                           <CardTitle className="text-sm font-medium">
                             {template.nome}
                           </CardTitle>
+                          {(template as any).isGlobal && (
+                            <Badge variant="secondary" className="text-xs gap-1">
+                              <Sparkles className="h-3 w-3" />
+                              Modelo
+                            </Badge>
+                          )}
                         </div>
                         <Button
                           variant="ghost"

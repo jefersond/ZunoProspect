@@ -13,12 +13,15 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
-import { Loader2, Search, Mail, MessageCircle, Instagram } from "lucide-react";
+import { Loader2, Search, Mail, MessageCircle, Instagram, Globe } from "lucide-react";
 import { SearchProgress } from "./SearchProgress";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
 import { UpgradeIncentive } from "@/components/subscription/UpgradeIncentive";
+import { UsaAddonUpsell } from "./UsaAddonUpsell";
+import { COUNTRIES, getStatesByCountry, getCityPlaceholder, type Country } from "@/data/locations";
 
 const formSchema = z.object({
+  pais: z.enum(["BR", "US"]).default("BR"),
   cidade: z.string().min(1, "Cidade é obrigatória"),
   estado: z.string().min(2, "Estado é obrigatório"),
   nicho: z.string().min(1, "Nicho é obrigatório"),
@@ -33,7 +36,7 @@ type FormData = z.infer<typeof formSchema>;
 
 export const ProspeccaoForm = () => {
   const { toast } = useToast();
-  const { subscription, canUseLeads, incrementLeadsUsed, refetch } = useSubscription();
+  const { subscription, canUseLeads, incrementLeadsUsed, refetch, canUseUsaProspecting } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [proximidadeAtiva, setProximidadeAtiva] = useState(false);
   const [raioKm, setRaioKm] = useState([5]);
@@ -57,6 +60,14 @@ export const ProspeccaoForm = () => {
     totalAvailable: number;
   } | null>(null);
 
+  // Estado para upsell do add-on EUA
+  const [showUsaUpsell, setShowUsaUpsell] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | undefined>();
+  const [userName, setUserName] = useState<string | undefined>();
+
+  // Selected country
+  const [selectedCountry, setSelectedCountry] = useState<Country>("BR");
+
   const {
     register,
     handleSubmit,
@@ -66,12 +77,25 @@ export const ProspeccaoForm = () => {
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      pais: "BR",
       quantidade: 10, // Começa com 10 (limite do plano starter)
       proximidadeAtiva: false,
       raioKm: 5,
       canaisProspeccao: ["email", "whatsapp", "instagram"],
     },
   });
+
+  // Get user info for upsell
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserEmail(user.email || undefined);
+        setUserName(user.user_metadata?.full_name || undefined);
+      }
+    };
+    fetchUser();
+  }, []);
 
   // Ajusta quantidade padrão baseado no plano do usuário
   useEffect(() => {
@@ -239,6 +263,7 @@ export const ProspeccaoForm = () => {
           raioKm: data.raioKm,
           canaisProspeccao: data.canaisProspeccao,
           excludePlaceIds: existingPlaceIds,
+          pais: data.pais || "BR",
         },
       });
 
@@ -447,12 +472,50 @@ export const ProspeccaoForm = () => {
         )}
         
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Country selector */}
+            <div className="space-y-2">
+              <Label htmlFor="pais" className="flex items-center gap-1">
+                <Globe className="h-4 w-4" />
+                País
+              </Label>
+              <Select 
+                value={selectedCountry}
+                onValueChange={(value: Country) => {
+                  // Check if user can use USA prospecting
+                  if (value === "US" && !canUseUsaProspecting()) {
+                    // Show upsell modal
+                    setShowUsaUpsell(true);
+                    return;
+                  }
+                  setSelectedCountry(value);
+                  setValue("pais", value);
+                  setValue("estado", ""); // Reset state when country changes
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o país" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTRIES.map((country) => (
+                    <SelectItem 
+                      key={country.value} 
+                      value={country.value}
+                      disabled={country.value === "US" && !canUseUsaProspecting()}
+                    >
+                      {country.label}
+                      {country.value === "US" && !canUseUsaProspecting() && " 🔒"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="cidade">Cidade</Label>
               <Input
                 id="cidade"
-                placeholder="Ex: São Paulo"
+                placeholder={getCityPlaceholder(selectedCountry)}
                 {...register("cidade")}
               />
               {errors.cidade && (
@@ -467,33 +530,11 @@ export const ProspeccaoForm = () => {
                   <SelectValue placeholder="Selecione o estado" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="AC">Acre (AC)</SelectItem>
-                  <SelectItem value="AL">Alagoas (AL)</SelectItem>
-                  <SelectItem value="AP">Amapá (AP)</SelectItem>
-                  <SelectItem value="AM">Amazonas (AM)</SelectItem>
-                  <SelectItem value="BA">Bahia (BA)</SelectItem>
-                  <SelectItem value="CE">Ceará (CE)</SelectItem>
-                  <SelectItem value="DF">Distrito Federal (DF)</SelectItem>
-                  <SelectItem value="ES">Espírito Santo (ES)</SelectItem>
-                  <SelectItem value="GO">Goiás (GO)</SelectItem>
-                  <SelectItem value="MA">Maranhão (MA)</SelectItem>
-                  <SelectItem value="MT">Mato Grosso (MT)</SelectItem>
-                  <SelectItem value="MS">Mato Grosso do Sul (MS)</SelectItem>
-                  <SelectItem value="MG">Minas Gerais (MG)</SelectItem>
-                  <SelectItem value="PA">Pará (PA)</SelectItem>
-                  <SelectItem value="PB">Paraíba (PB)</SelectItem>
-                  <SelectItem value="PR">Paraná (PR)</SelectItem>
-                  <SelectItem value="PE">Pernambuco (PE)</SelectItem>
-                  <SelectItem value="PI">Piauí (PI)</SelectItem>
-                  <SelectItem value="RJ">Rio de Janeiro (RJ)</SelectItem>
-                  <SelectItem value="RN">Rio Grande do Norte (RN)</SelectItem>
-                  <SelectItem value="RS">Rio Grande do Sul (RS)</SelectItem>
-                  <SelectItem value="RO">Rondônia (RO)</SelectItem>
-                  <SelectItem value="RR">Roraima (RR)</SelectItem>
-                  <SelectItem value="SC">Santa Catarina (SC)</SelectItem>
-                  <SelectItem value="SP">São Paulo (SP)</SelectItem>
-                  <SelectItem value="SE">Sergipe (SE)</SelectItem>
-                  <SelectItem value="TO">Tocantins (TO)</SelectItem>
+                  {getStatesByCountry(selectedCountry).map((state) => (
+                    <SelectItem key={state.value} value={state.value}>
+                      {state.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {errors.estado && (
@@ -505,16 +546,19 @@ export const ProspeccaoForm = () => {
               <Label htmlFor="nicho">Nicho</Label>
               <Input
                 id="nicho"
-                placeholder="Ex: restaurante, clínica, academia"
+                placeholder={selectedCountry === "US" ? "Ex: restaurant, clinic, gym" : "Ex: restaurante, clínica, academia"}
                 {...register("nicho")}
               />
               <p className="text-xs text-muted-foreground">
-                Dica: separe por vírgula para buscar múltiplos nichos
+                {selectedCountry === "US" ? "Tip: separate by comma for multiple niches" : "Dica: separe por vírgula para buscar múltiplos nichos"}
               </p>
               {errors.nicho && (
                 <p className="text-sm text-destructive">{errors.nicho.message}</p>
               )}
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
             <div className="space-y-2">
               <Label htmlFor="quantidade">
@@ -707,6 +751,14 @@ export const ProspeccaoForm = () => {
             )}
           </div>
         </form>
+
+        {/* USA Add-on Upsell Modal */}
+        <UsaAddonUpsell
+          open={showUsaUpsell}
+          onOpenChange={setShowUsaUpsell}
+          userEmail={userEmail}
+          userName={userName}
+        />
       </CardContent>
     </Card>
   );

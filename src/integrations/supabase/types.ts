@@ -252,6 +252,7 @@ export type Database = {
           nome: string
           nome_responsavel: string | null
           notas: string | null
+          pais: string | null
           plano_prospeccao: Json | null
           porte_empresa: string | null
           probabilidade_conversao: number | null
@@ -296,6 +297,7 @@ export type Database = {
           nome: string
           nome_responsavel?: string | null
           notas?: string | null
+          pais?: string | null
           plano_prospeccao?: Json | null
           porte_empresa?: string | null
           probabilidade_conversao?: number | null
@@ -340,6 +342,7 @@ export type Database = {
           nome?: string
           nome_responsavel?: string | null
           notas?: string | null
+          pais?: string | null
           plano_prospeccao?: Json | null
           porte_empresa?: string | null
           probabilidade_conversao?: number | null
@@ -611,6 +614,8 @@ export type Database = {
           leads_used_this_month: number
           plan_name: string
           updated_at: string
+          usa_addon: boolean | null
+          usa_addon_active_until: string | null
           user_id: string
         }
         Insert: {
@@ -623,6 +628,8 @@ export type Database = {
           leads_used_this_month?: number
           plan_name?: string
           updated_at?: string
+          usa_addon?: boolean | null
+          usa_addon_active_until?: string | null
           user_id: string
         }
         Update: {
@@ -635,6 +642,8 @@ export type Database = {
           leads_used_this_month?: number
           plan_name?: string
           updated_at?: string
+          usa_addon?: boolean | null
+          usa_addon_active_until?: string | null
           user_id?: string
         }
         Relationships: []
@@ -905,34 +914,64 @@ export type Database = {
             }
             Returns: string
           }
-      insert_lead_with_encryption_v2: {
-        Args: {
-          p_cidade: string
-          p_digital_signals: Json
-          p_email?: string
-          p_endereco: string
-          p_foco: string
-          p_google_place_id: string
-          p_has_gtag: boolean
-          p_has_gtm: boolean
-          p_has_meta_pixel: boolean
-          p_instagram_url: string
-          p_latitude: number
-          p_longitude: number
-          p_nicho: string
-          p_nome: string
-          p_proximidade_ativa: boolean
-          p_raio_km: number
-          p_rating: number
-          p_telefone: string
-          p_total_reviews: number
-          p_user_id: string
-          p_website: string
-          p_whatsapp_number: string
-          p_whatsapp_on_site: boolean
-        }
-        Returns: Json
-      }
+      insert_lead_with_encryption_v2:
+        | {
+            Args: {
+              p_cidade: string
+              p_digital_signals: Json
+              p_email?: string
+              p_endereco: string
+              p_foco: string
+              p_google_place_id: string
+              p_has_gtag: boolean
+              p_has_gtm: boolean
+              p_has_meta_pixel: boolean
+              p_instagram_url: string
+              p_latitude: number
+              p_longitude: number
+              p_nicho: string
+              p_nome: string
+              p_proximidade_ativa: boolean
+              p_raio_km: number
+              p_rating: number
+              p_telefone: string
+              p_total_reviews: number
+              p_user_id: string
+              p_website: string
+              p_whatsapp_number: string
+              p_whatsapp_on_site: boolean
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_cidade: string
+              p_digital_signals: Json
+              p_email?: string
+              p_endereco: string
+              p_foco: string
+              p_google_place_id: string
+              p_has_gtag: boolean
+              p_has_gtm: boolean
+              p_has_meta_pixel: boolean
+              p_instagram_url: string
+              p_latitude: number
+              p_longitude: number
+              p_nicho: string
+              p_nome: string
+              p_pais?: string
+              p_proximidade_ativa: boolean
+              p_raio_km: number
+              p_rating: number
+              p_telefone: string
+              p_total_reviews: number
+              p_user_id: string
+              p_website: string
+              p_whatsapp_number: string
+              p_whatsapp_on_site: boolean
+            }
+            Returns: Json
+          }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       log_leads_access: {
         Args: {

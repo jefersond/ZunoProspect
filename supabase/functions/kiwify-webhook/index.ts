@@ -76,6 +76,9 @@ serve(async (req) => {
 
     const productNameLower = productName.toLowerCase();
     
+    // Check if it's USA add-on purchase
+    const isUsaAddon = productNameLower.includes("usa") || productNameLower.includes("eua") || productNameLower.includes("estados unidos");
+    
     // Verificar tipo de plano baseado no nome do produto
     if (productNameLower.includes("iniciante")) {
       // Plano "Iniciante" é mapeado para "pro" no banco, mas com 100 leads
@@ -85,7 +88,7 @@ serve(async (req) => {
     } else if (productNameLower.includes("agencia") || productNameLower.includes("agência")) {
       planName = "agencia";
       leadsLimit = -1; // Ilimitado
-    } else if (productNameLower.includes("pro")) {
+    } else if (productNameLower.includes("pro") && !isUsaAddon) {
       planName = "pro";
       leadsLimit = 200;
     }
@@ -94,7 +97,7 @@ serve(async (req) => {
       isAnnual = true;
     }
 
-    logStep("Plan determined", { planName, isAnnual, leadsLimit });
+    logStep("Plan determined", { planName, isAnnual, leadsLimit, isUsaAddon });
 
     // Criar cliente Supabase com service role
     const supabaseClient = createClient(
@@ -219,6 +222,22 @@ serve(async (req) => {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
+        }
+
+        // If USA add-on purchase, activate it
+        if (isUsaAddon) {
+          const usaAddonUntil = new Date();
+          usaAddonUntil.setMonth(usaAddonUntil.getMonth() + 1);
+          
+          await supabaseClient
+            .from("user_subscriptions")
+            .update({
+              usa_addon: true,
+              usa_addon_active_until: usaAddonUntil.toISOString(),
+            })
+            .eq("user_id", userId);
+          
+          logStep("USA add-on activated", { userId, until: usaAddonUntil.toISOString() });
         }
 
         logStep("Subscription updated", { userId, planName });

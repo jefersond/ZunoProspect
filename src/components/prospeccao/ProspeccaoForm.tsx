@@ -477,31 +477,34 @@ export const ProspeccaoForm = () => {
         )}
         
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Country selector */}
+          {/* Linha 1: País (destaque) */}
+          <div className="p-4 rounded-lg border border-primary/30 bg-primary/5">
             <div className="space-y-2">
-              <Label htmlFor="pais" className="flex items-center gap-1">
-                <Globe className="h-4 w-4" />
+              <Label htmlFor="pais" className="flex items-center gap-2 text-base font-semibold">
+                <Globe className="h-5 w-5 text-primary" />
                 País
+                {!canUseUsaProspecting() && (
+                  <span className="text-xs font-normal text-muted-foreground ml-2">
+                    (EUA requer add-on)
+                  </span>
+                )}
               </Label>
               <Select 
                 value={selectedCountry}
                 onValueChange={(value: Country) => {
-                  // Check if user can use USA prospecting
                   if (value === "US" && !canUseUsaProspecting()) {
-                    // Show upsell modal
                     setShowUsaUpsell(true);
                     return;
                   }
                   setSelectedCountry(value);
                   setValue("pais", value);
-                  setValue("estado", ""); // Reset state when country changes
+                  setValue("estado", "");
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full md:w-64 bg-background">
                   <SelectValue placeholder="Selecione o país" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[100] bg-popover">
                   {COUNTRIES.map((country) => (
                     <SelectItem 
                       key={country.value} 
@@ -515,7 +518,10 @@ export const ProspeccaoForm = () => {
                 </SelectContent>
               </Select>
             </div>
+          </div>
 
+          {/* Linha 2: Cidade, Estado, Nicho */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="cidade">Cidade</Label>
               <Input

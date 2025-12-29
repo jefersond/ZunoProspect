@@ -360,6 +360,42 @@ export type Database = {
         }
         Relationships: []
       }
+      leads_access_log: {
+        Row: {
+          action_type: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          lead_ids: string[] | null
+          leads_count: number | null
+          request_params: Json | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          lead_ids?: string[] | null
+          leads_count?: number | null
+          request_params?: Json | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          lead_ids?: string[] | null
+          leads_count?: number | null
+          request_params?: Json | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       leads_audit_log: {
         Row: {
           billing_period_end: string | null
@@ -619,6 +655,14 @@ export type Database = {
           user_email: string
           user_id: string
         }[]
+      }
+      check_leads_rate_limit: {
+        Args: {
+          p_max_requests?: number
+          p_user_id: string
+          p_window_minutes?: number
+        }
+        Returns: Json
       }
       decrypt_sensitive: { Args: { encrypted_data: string }; Returns: string }
       encrypt_sensitive: { Args: { plain_text: string }; Returns: string }
@@ -890,6 +934,18 @@ export type Database = {
         Returns: Json
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      log_leads_access: {
+        Args: {
+          p_action_type: string
+          p_ip_address?: string
+          p_lead_ids?: string[]
+          p_leads_count?: number
+          p_request_params?: Json
+          p_user_agent?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       reset_monthly_leads_count: { Args: never; Returns: undefined }
       update_lead_encrypted_fields: {
         Args: {

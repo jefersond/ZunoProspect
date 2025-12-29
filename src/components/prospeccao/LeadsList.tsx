@@ -162,14 +162,30 @@ export const LeadsList = () => {
 
   const loadLeads = async () => {
     try {
-      // Usa função RPC para obter dados descriptografados
-      // p_salvo = false para buscar apenas leads não salvos
-      const { data, error } = await supabase
-        .rpc("get_leads_decrypted_filtered", { p_salvo: false });
+      // Usa edge function segura com rate limiting e auditoria
+      const { data, error } = await supabase.functions.invoke('get-leads-secure', {
+        body: {
+          action: 'list',
+          salvo: false,
+        },
+      });
 
       if (error) throw error;
       
-      const leadsFormatted: LeadProspeccao[] = (data || []).map(transformLeadFromDb);
+      if (data.error) {
+        // Handle rate limit
+        if (data.rate_limit && data.rate_limit.remaining === 0) {
+          toast({
+            variant: "destructive",
+            title: "Limite de requisições",
+            description: `Aguarde ${data.rate_limit.reset_in_minutes} minuto(s) para continuar.`,
+          });
+          return;
+        }
+        throw new Error(data.error);
+      }
+      
+      const leadsFormatted: LeadProspeccao[] = (data.data?.leads || []).map(transformLeadFromDb);
       
       setLeads(leadsFormatted);
     } catch (error: any) {

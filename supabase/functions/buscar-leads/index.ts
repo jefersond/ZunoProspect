@@ -48,6 +48,7 @@ interface ProspeccaoRequest {
   canaisProspeccao?: ("email" | "whatsapp" | "instagram")[];
   excludePlaceIds?: string[];
   pageToken?: string;
+  pais?: "BR" | "US";
 }
 
 serve(async (req) => {
@@ -220,8 +221,9 @@ serve(async (req) => {
 
       if (body.proximidadeAtiva) {
         // Geocodifica a cidade + estado para obter lat/lng do centro
+        const countryName = body.pais === "US" ? "USA" : "Brasil";
         const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-          `${body.cidade}, ${body.estado}, Brasil`
+          `${body.cidade}, ${body.estado}, ${countryName}`
         )}&key=${GOOGLE_API_KEY}`;
 
         const geocodeResponse = await fetch(geocodeUrl);
@@ -684,6 +686,7 @@ serve(async (req) => {
             p_instagram_url: siteSignals.instagram_url,
             p_digital_signals: siteSignals,
             p_email: siteSignals.email,
+            p_pais: body.pais || "BR",
           });
 
           if (insertError) {
@@ -726,6 +729,7 @@ serve(async (req) => {
                       instagram_url: siteSignals.instagram_url,
                       instagram_context: null,
                       canaisProspeccao: body.canaisProspeccao || "ambos",
+                      pais: body.pais || "BR",
                     }),
                   }
                 );

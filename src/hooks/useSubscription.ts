@@ -8,6 +8,8 @@ interface SubscriptionInfo {
   leads_remaining: number;
   billing_period_end: string;
   is_admin?: boolean;
+  usa_addon?: boolean;
+  usa_addon_active_until?: string | null;
 }
 
 interface UseSubscriptionReturn {
@@ -20,6 +22,8 @@ interface UseSubscriptionReturn {
   incrementLeadsUsed: (count: number) => Promise<boolean>;
   getPlanDisplayName: () => string;
   getUsagePercentage: () => number;
+  hasUsaAddon: boolean;
+  canUseUsaProspecting: () => boolean;
 }
 
 export const useSubscription = (): UseSubscriptionReturn => {
@@ -68,6 +72,8 @@ export const useSubscription = (): UseSubscriptionReturn => {
             leads_remaining: 30,
             billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             is_admin: adminCheck === true,
+            usa_addon: false,
+            usa_addon_active_until: null,
           });
           return;
         }
@@ -75,7 +81,19 @@ export const useSubscription = (): UseSubscriptionReturn => {
       }
 
       if (data && data.length > 0) {
-        setSubscription({ ...data[0], is_admin: adminCheck === true });
+        // Fetch usa_addon info separately since RPC doesn't return it
+        const { data: subData } = await supabase
+          .from('user_subscriptions')
+          .select('usa_addon, usa_addon_active_until')
+          .eq('user_id', user.id)
+          .single();
+
+        setSubscription({ 
+          ...data[0], 
+          is_admin: adminCheck === true,
+          usa_addon: subData?.usa_addon ?? false,
+          usa_addon_active_until: subData?.usa_addon_active_until ?? null,
+        });
       } else {
         // Cria assinatura padrão se não existir
         const { error: insertError } = await supabase
@@ -93,6 +111,8 @@ export const useSubscription = (): UseSubscriptionReturn => {
           leads_remaining: 30,
           billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           is_admin: adminCheck === true,
+          usa_addon: false,
+          usa_addon_active_until: null,
         });
       }
     } catch (err: any) {
@@ -165,6 +185,27 @@ export const useSubscription = (): UseSubscriptionReturn => {
     return Math.round((subscription.leads_used / subscription.leads_limit) * 100);
   }, [subscription, isAdmin]);
 
+  // Check if USA add-on is active
+  const hasUsaAddon = useCallback((): boolean => {
+    if (!subscription) return false;
+    if (!subscription.usa_addon) return false;
+    if (!subscription.usa_addon_active_until) return false;
+    return new Date(subscription.usa_addon_active_until) > new Date();
+  }, [subscription])();
+
+  // Check if user can use USA prospecting
+  const canUseUsaProspecting = useCallback((): boolean => {
+    if (isAdmin) return true;
+    if (!subscription) return false;
+    // Agency plan has USA included
+    if (subscription.plan_name === 'agencia') return true;
+    // Pro plan needs add-on
+    if (subscription.plan_name === 'pro') {
+      return hasUsaAddon;
+    }
+    return false;
+  }, [subscription, isAdmin, hasUsaAddon]);
+
   return {
     subscription,
     loading,
@@ -175,5 +216,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
     incrementLeadsUsed,
     getPlanDisplayName,
     getUsagePercentage,
+    hasUsaAddon,
+    canUseUsaProspecting,
   };
 };

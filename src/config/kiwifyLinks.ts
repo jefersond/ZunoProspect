@@ -6,6 +6,8 @@ export const KIWIFY_CHECKOUT_LINKS = {
   pro_anual: "https://pay.kiwify.com.br/81bPEL2",
   agencia_mensal: "https://pay.kiwify.com.br/8r3UXxM",
   agencia_anual: "https://pay.kiwify.com.br/Rk36gTd",
+  // Add-on Prospecção EUA (R$ 57/mês)
+  usa_addon_mensal: "https://pay.kiwify.com.br/PLACEHOLDER_USA_ADDON",
 } as const;
 
 export type KiwifyPlanKey = keyof typeof KIWIFY_CHECKOUT_LINKS;
@@ -23,6 +25,16 @@ export function getKiwifyCheckoutUrl(
   email?: string, 
   name?: string
 ): string {
+  // Handle USA add-on special case
+  if (plano === "usa_addon") {
+    const url = KIWIFY_CHECKOUT_LINKS.usa_addon_mensal;
+    const params = new URLSearchParams();
+    if (email) params.append("email", email);
+    if (name) params.append("name", name);
+    const queryString = params.toString();
+    return queryString ? `${url}?${queryString}` : url;
+  }
+
   // Normalizar o nome do plano (remover acentos e converter para minúsculas)
   const planoNormalizado = plano
     .toLowerCase()

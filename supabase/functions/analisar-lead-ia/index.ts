@@ -105,6 +105,7 @@ interface LeadData {
   situacao_cadastral?: string | null;
   porte_empresa?: string | null;
   cnae_principal?: string | null;
+  pais?: "BR" | "US";
 }
 
 function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "whatsapp" | "instagram")[]): ("email" | "whatsapp" | "instagram")[] {

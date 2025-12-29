@@ -401,9 +401,42 @@ serve(async (req) => {
   const corsHeaders = getCorsHeaders(origin);
 
   try {
+    // ============= AUTHENTICATION VALIDATION =============
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error("❌ Requisição sem Authorization header");
+      return new Response(JSON.stringify({ error: 'Não autorizado' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Create authenticated Supabase client to validate user
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      console.error("❌ Token inválido ou usuário não autenticado:", authError?.message);
+      return new Response(JSON.stringify({ error: 'Usuário não autenticado' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Use authenticated user.id instead of request body
+    const authenticatedUserId = user.id;
+    console.log("✅ Usuário autenticado:", authenticatedUserId);
+    // ============= END AUTHENTICATION =============
+
     const requestData = await req.json();
     const leadId = requestData.leadId || requestData.lead_id;
-    const userId = requestData.user_id; // Recebe user_id do buscar-leads
+    // Use authenticated user ID, ignore any user_id from request body for security
+    const userId = authenticatedUserId;
     
     console.log("🔍 Iniciando análise:", { leadId, userId, hasNome: !!requestData.nome });
 

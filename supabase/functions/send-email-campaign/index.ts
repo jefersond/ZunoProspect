@@ -213,15 +213,26 @@ serve(async (req: Request): Promise<Response> => {
 
         const emailResult = await emailResponse.json();
 
-        // Log email
+        // Log email - usar email criptografado e mascarado para segurança
         const emailError = !emailResponse.ok;
-        await supabase.from("email_logs").insert({
-          campaign_id: campaignId,
-          user_id: sub.user_id,
-          user_email: userEmail,
-          status: emailError ? "erro" : "enviado",
-          error_message: emailError ? emailResult.message : null,
+        const emailParts = userEmail.split('@');
+        const maskedEmail = emailParts.length === 2 
+          ? `${emailParts[0].substring(0, 2)}***@${emailParts[1]}`
+          : '***@***.com';
+        
+        // Usar RPC para inserir com criptografia (encrypt_sensitive é SECURITY DEFINER)
+        const { error: logError } = await supabase.rpc('insert_email_log_encrypted', {
+          p_campaign_id: campaignId,
+          p_user_id: sub.user_id,
+          p_user_email: userEmail,
+          p_user_email_masked: maskedEmail,
+          p_status: emailError ? "erro" : "enviado",
+          p_error_message: emailError ? emailResult.message : null,
         });
+        
+        if (logError) {
+          console.error("Erro ao inserir log de email:", logError);
+        }
 
         if (emailError) {
           errorCount++;

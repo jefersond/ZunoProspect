@@ -149,7 +149,8 @@ export type Database = {
           opened_at: string | null
           sent_at: string
           status: string
-          user_email: string
+          user_email_encrypted: string | null
+          user_email_masked: string
           user_id: string
         }
         Insert: {
@@ -160,7 +161,8 @@ export type Database = {
           opened_at?: string | null
           sent_at?: string
           status?: string
-          user_email: string
+          user_email_encrypted?: string | null
+          user_email_masked: string
           user_id: string
         }
         Update: {
@@ -171,7 +173,8 @@ export type Database = {
           opened_at?: string | null
           sent_at?: string
           status?: string
-          user_email?: string
+          user_email_encrypted?: string | null
+          user_email_masked?: string
           user_id?: string
         }
         Relationships: [

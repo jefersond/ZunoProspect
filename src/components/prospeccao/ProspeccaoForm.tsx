@@ -87,6 +87,8 @@ export const ProspeccaoForm = () => {
 
   // Get user info for upsell
   useEffect(() => {
+    console.log("[ProspeccaoForm] render: country selector enabled");
+
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -426,6 +428,9 @@ export const ProspeccaoForm = () => {
             </CardTitle>
             <CardDescription>
               Encontre empresas potenciais para sua prospecção
+              <span className="ml-2 text-xs text-muted-foreground">
+                (País: {selectedCountry === "US" ? "Estados Unidos" : "Brasil"})
+              </span>
             </CardDescription>
           </div>
           <UsageIndicator compact />

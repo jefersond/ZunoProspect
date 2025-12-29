@@ -223,6 +223,13 @@ export type Database = {
             referencedRelation: "leads"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "interacoes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       leads: {
@@ -475,6 +482,13 @@ export type Database = {
             referencedRelation: "leads"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "leads_campanhas_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
@@ -650,9 +664,150 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      leads_safe: {
+        Row: {
+          ai_analise_gerada_em: string | null
+          cidade: string | null
+          cnae_principal: string | null
+          cnpj: string | null
+          created_at: string | null
+          diagnostico_bullets: Json | null
+          digital_signals: Json | null
+          foco: string | null
+          google_place_id: string | null
+          has_address: boolean | null
+          has_cnpj_email: boolean | null
+          has_cnpj_phone: boolean | null
+          has_email: boolean | null
+          has_gtag: boolean | null
+          has_gtm: boolean | null
+          has_instagram: boolean | null
+          has_meta_pixel: boolean | null
+          has_phone: boolean | null
+          has_website: boolean | null
+          has_whatsapp: boolean | null
+          id: string | null
+          instagram_context: string | null
+          latitude: number | null
+          longitude: number | null
+          nicho: string | null
+          nome: string | null
+          nome_responsavel: string | null
+          notas: string | null
+          pais: string | null
+          plano_prospeccao: Json | null
+          porte_empresa: string | null
+          probabilidade_conversao: number | null
+          proximidade_ativa: boolean | null
+          raio_km: number | null
+          rating: number | null
+          razao_social: string | null
+          salvo: boolean | null
+          situacao_cadastral: string | null
+          status: string | null
+          total_reviews: number | null
+          updated_at: string | null
+          user_id: string | null
+          whatsapp_on_site: boolean | null
+        }
+        Insert: {
+          ai_analise_gerada_em?: string | null
+          cidade?: string | null
+          cnae_principal?: string | null
+          cnpj?: string | null
+          created_at?: string | null
+          diagnostico_bullets?: Json | null
+          digital_signals?: Json | null
+          foco?: string | null
+          google_place_id?: string | null
+          has_address?: never
+          has_cnpj_email?: never
+          has_cnpj_phone?: never
+          has_email?: never
+          has_gtag?: boolean | null
+          has_gtm?: boolean | null
+          has_instagram?: never
+          has_meta_pixel?: boolean | null
+          has_phone?: never
+          has_website?: never
+          has_whatsapp?: never
+          id?: string | null
+          instagram_context?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          nicho?: string | null
+          nome?: string | null
+          nome_responsavel?: string | null
+          notas?: string | null
+          pais?: string | null
+          plano_prospeccao?: Json | null
+          porte_empresa?: string | null
+          probabilidade_conversao?: number | null
+          proximidade_ativa?: boolean | null
+          raio_km?: number | null
+          rating?: number | null
+          razao_social?: string | null
+          salvo?: boolean | null
+          situacao_cadastral?: string | null
+          status?: string | null
+          total_reviews?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          whatsapp_on_site?: boolean | null
+        }
+        Update: {
+          ai_analise_gerada_em?: string | null
+          cidade?: string | null
+          cnae_principal?: string | null
+          cnpj?: string | null
+          created_at?: string | null
+          diagnostico_bullets?: Json | null
+          digital_signals?: Json | null
+          foco?: string | null
+          google_place_id?: string | null
+          has_address?: never
+          has_cnpj_email?: never
+          has_cnpj_phone?: never
+          has_email?: never
+          has_gtag?: boolean | null
+          has_gtm?: boolean | null
+          has_instagram?: never
+          has_meta_pixel?: boolean | null
+          has_phone?: never
+          has_website?: never
+          has_whatsapp?: never
+          id?: string | null
+          instagram_context?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          nicho?: string | null
+          nome?: string | null
+          nome_responsavel?: string | null
+          notas?: string | null
+          pais?: string | null
+          plano_prospeccao?: Json | null
+          porte_empresa?: string | null
+          probabilidade_conversao?: number | null
+          proximidade_ativa?: boolean | null
+          raio_km?: number | null
+          rating?: number | null
+          razao_social?: string | null
+          salvo?: boolean | null
+          situacao_cadastral?: string | null
+          status?: string | null
+          total_reviews?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          whatsapp_on_site?: boolean | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      can_access_lead_sensitive: {
+        Args: { p_lead_id: string }
+        Returns: boolean
+      }
       check_leads_count_inconsistencies: {
         Args: never
         Returns: {
@@ -731,6 +886,10 @@ export type Database = {
           whatsapp_number: string
           whatsapp_on_site: boolean
         }[]
+      }
+      get_lead_sensitive: {
+        Args: { p_fields?: string[]; p_lead_id: string }
+        Returns: Json
       }
       get_leads_decrypted: {
         Args: never

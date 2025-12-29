@@ -1,5 +1,8 @@
 project_id = "yklmfcgbtprwhjehipte"
 
+[functions.leads-sensitive]
+verify_jwt = true
+
 [functions.buscar-leads]
 verify_jwt = true
 

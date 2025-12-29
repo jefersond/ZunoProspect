@@ -71,6 +71,7 @@ export const UpgradeIncentive = ({
       <UpgradePlanDialog
         open={showUpgradeDialog}
         onOpenChange={setShowUpgradeDialog}
+        currentPlanName={currentPlanName}
       />
     </>
   );

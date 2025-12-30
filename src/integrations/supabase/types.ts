@@ -491,6 +491,30 @@ export type Database = {
           },
         ]
       }
+      onboarding_emails_sent: {
+        Row: {
+          created_at: string
+          email_type: string
+          id: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_type?: string
+          id?: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email_type?: string
+          id?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

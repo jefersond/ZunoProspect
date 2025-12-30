@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthRedirectBaseUrl, isOnCanonicalDomain } from '@/lib/authRedirect';
 
 /**
  * Hook to handle OAuth callback tokens in URL hash.
- * Cleans the URL and redirects authenticated users to /prospeccao.
+ * Cleans the URL and redirects authenticated users appropriately.
+ * - If coming from checkout flow, redirects to /checkout with google_auth=true
+ * - Otherwise redirects to /prospeccao
  * Also handles redirect to canonical domain if needed.
  */
 export const useOAuthCallback = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -58,7 +61,6 @@ export const useOAuthCallback = () => {
         }
         
         // If we have tokens, explicitly create the session from the hash.
-        // Relying only on getSession() may not consume implicit-flow tokens reliably.
         try {
           const accessToken = hashParams.get('access_token');
           const refreshToken = hashParams.get('refresh_token');
@@ -91,7 +93,27 @@ export const useOAuthCallback = () => {
             });
             navigate('/auth', { replace: true });
           } else if (data.session) {
-            navigate('/prospeccao', { replace: true });
+            // Check if this is a checkout flow redirect
+            const searchParams = new URLSearchParams(window.location.search);
+            const isCheckoutFlow = searchParams.get('google_auth') === 'true' || 
+                                   location.pathname === '/checkout' ||
+                                   localStorage.getItem('checkout_pending');
+            
+            if (isCheckoutFlow && location.pathname === '/checkout') {
+              // Already on checkout page, let the checkout page handle it
+              // Just clean the hash and don't navigate
+              setIsProcessing(false);
+              return;
+            } else if (localStorage.getItem('checkout_pending')) {
+              // Coming from CheckoutDialog, redirect to checkout
+              const pendingData = JSON.parse(localStorage.getItem('checkout_pending') || '{}');
+              const plano = pendingData.plano?.toLowerCase() || 'pro';
+              const isAnual = pendingData.isAnual || false;
+              navigate(`/checkout?plano=${plano}&anual=${isAnual}&google_auth=true`, { replace: true });
+            } else {
+              // Normal auth flow, go to prospeccao
+              navigate('/prospeccao', { replace: true });
+            }
           } else {
             toast({
               variant: "destructive",
@@ -115,7 +137,7 @@ export const useOAuthCallback = () => {
     };
 
     handleOAuthCallback();
-  }, [navigate, toast]);
+  }, [navigate, location, toast]);
 
   return { isProcessing };
 };

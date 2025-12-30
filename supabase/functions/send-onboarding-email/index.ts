@@ -293,6 +293,98 @@ const generateAIAnalysisEmailHtml = (nome: string, savedLeadsCount: number) => `
 </html>
 `;
 
+const generateInactiveEmailHtml = (nome: string, daysSinceLastActivity: number) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentimos sua falta!</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #EC4899 0%, #BE185D 100%); padding: 40px 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">
+                💜 Zuno Prospect
+              </h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px;">
+                Sentimos sua falta!
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="color: #1f2937; margin: 0 0 20px; font-size: 24px;">
+                Olá${nome ? `, ${nome.split(' ')[0]}` : ''}! 👋
+              </h2>
+              
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                Notamos que você não acessa o <strong>Zuno Prospect</strong> há ${daysSinceLastActivity} dias. 
+                Enquanto isso, novos leads podem estar surgindo na sua região!
+              </p>
+              
+              <div style="background-color: #fdf2f8; border-radius: 8px; padding: 20px; margin: 25px 0; border-left: 4px solid #EC4899;">
+                <h3 style="color: #9d174d; margin: 0 0 15px; font-size: 18px;">
+                  🚀 O que você pode estar perdendo:
+                </h3>
+                <ul style="color: #be185d; font-size: 15px; line-height: 1.8; margin: 0; padding-left: 20px;">
+                  <li>Novos negócios abrindo na sua cidade</li>
+                  <li>Empresas que acabaram de criar presença online</li>
+                  <li>Leads com alta probabilidade de conversão</li>
+                  <li>Oportunidades que seus concorrentes podem encontrar primeiro</li>
+                </ul>
+              </div>
+              
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                <strong>Que tal fazer uma busca rápida?</strong> Leva menos de 30 segundos para encontrar 
+                novos leads qualificados no seu nicho.
+              </p>
+              
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center">
+                    <a href="https://zunoprospect.com.br/prospeccao" 
+                       style="display: inline-block; background: linear-gradient(135deg, #EC4899 0%, #BE185D 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(236, 72, 153, 0.4);">
+                      🔍 Buscar Novos Leads
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="color: #9ca3af; font-size: 14px; text-align: center; margin: 30px 0 0;">
+                Continue prospectando e fechando mais negócios!
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
+                Você recebeu este email porque se cadastrou no Zuno Prospect.<br>
+                Caso não queira receber mais emails, responda com "Cancelar".
+              </p>
+              <p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0; text-align: center;">
+                © 2024 Zuno Prospect. Todos os direitos reservados.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -585,6 +677,88 @@ const handler = async (req: Request): Promise<Response> => {
         } catch (emailError: any) {
           allErrors.push(`saved_no_ai - ${user.email}: ${emailError.message}`);
         }
+      }
+    }
+
+    // =============================================
+    // EMAIL 4: Inactive users (7+ days)
+    // =============================================
+    console.log("Processing inactive_7d emails...");
+    
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    // Get all users and check their last activity
+    const eligibleInactive: UserToOnboard[] = [];
+    
+    for (const authUser of authUsers.users) {
+      if (!authUser.email) continue;
+      
+      // Check last sign in
+      const lastSignIn = authUser.last_sign_in_at ? new Date(authUser.last_sign_in_at) : null;
+      const now = new Date();
+      
+      // Skip if user signed in recently (within 7 days)
+      if (lastSignIn && lastSignIn > sevenDaysAgo) continue;
+      
+      // Calculate days since last activity
+      const daysSinceActivity = lastSignIn 
+        ? Math.floor((now.getTime() - lastSignIn.getTime()) / (1000 * 60 * 60 * 24))
+        : 7;
+      
+      // Only send to users inactive for 7+ days
+      if (daysSinceActivity >= 7) {
+        // Check if already sent this email type
+        const { data: existingEmail } = await supabase
+          .from('onboarding_emails_sent')
+          .select('id')
+          .eq('user_id', authUser.id)
+          .eq('email_type', 'inactive_7d')
+          .single();
+        
+        if (!existingEmail) {
+          // Get profile info
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('nome_completo')
+            .eq('id', authUser.id)
+            .single();
+          
+          eligibleInactive.push({
+            user_id: authUser.id,
+            email: authUser.email,
+            nome_completo: profile?.nome_completo || null,
+            leads_used: daysSinceActivity,
+          });
+        }
+      }
+    }
+
+    console.log(`${eligibleInactive.length} users eligible for inactive_7d email`);
+
+    for (const user of eligibleInactive) {
+      try {
+        const emailResponse = await resend.emails.send({
+          from: "Zuno Prospect <noreply@zunoprospect.com.br>",
+          to: [user.email],
+          subject: "💜 Sentimos sua falta no Zuno Prospect!",
+          html: generateInactiveEmailHtml(user.nome_completo || '', user.leads_used),
+        });
+
+        if (emailResponse.error) {
+          allErrors.push(`inactive_7d - ${user.email}: ${emailResponse.error.message}`);
+          continue;
+        }
+
+        await supabase.from('onboarding_emails_sent').insert({
+          user_id: user.user_id,
+          email_type: 'inactive_7d',
+        });
+
+        totalEmailsSent++;
+        console.log(`Sent inactive_7d email to ${user.email}`);
+      } catch (emailError: any) {
+        allErrors.push(`inactive_7d - ${user.email}: ${emailError.message}`);
       }
     }
 

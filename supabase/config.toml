@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.get-leads-secure]
 verify_jwt = true
+
+[functions.send-onboarding-email]
+verify_jwt = false

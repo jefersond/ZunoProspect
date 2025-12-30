@@ -13,9 +13,10 @@ interface UserToOnboard {
   user_id: string;
   email: string;
   nome_completo: string | null;
+  leads_used: number;
 }
 
-const generateEmailHtml = (nome: string) => `
+const generateFirstEmailHtml = (nome: string) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -107,6 +108,98 @@ const generateEmailHtml = (nome: string) => `
 </html>
 `;
 
+const generateSaveLeadsEmailHtml = (nome: string, leadsUsed: number) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dica: Salve seus melhores leads!</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); padding: 40px 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">
+                💾 Zuno Prospect
+              </h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px;">
+                Dica para maximizar sua prospecção
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="color: #1f2937; margin: 0 0 20px; font-size: 24px;">
+                Parabéns${nome ? `, ${nome.split(' ')[0]}` : ''}! 🎉
+              </h2>
+              
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                Você já prospectou <strong>${leadsUsed} leads</strong> - isso é ótimo! Mas notamos que você ainda não 
+                <strong>salvou nenhum lead</strong> como favorito.
+              </p>
+              
+              <div style="background-color: #ecfdf5; border-radius: 8px; padding: 20px; margin: 25px 0; border-left: 4px solid #10B981;">
+                <h3 style="color: #065f46; margin: 0 0 15px; font-size: 18px;">
+                  💡 Por que salvar leads?
+                </h3>
+                <ul style="color: #047857; font-size: 15px; line-height: 1.8; margin: 0; padding-left: 20px;">
+                  <li>Acesse rapidamente seus melhores prospects</li>
+                  <li>Organize seu pipeline de vendas</li>
+                  <li>Acompanhe o status de cada negociação</li>
+                  <li>Exporte para Excel quando precisar</li>
+                </ul>
+              </div>
+              
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                <strong>Como salvar um lead:</strong> Após buscar leads, clique no ícone de coração ❤️ ou no botão 
+                "Salvar" em cada card. Seus leads salvos ficam organizados na aba <strong>"Leads Salvos"</strong>.
+              </p>
+              
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center">
+                    <a href="https://zunoprospect.com.br/leads-salvos" 
+                       style="display: inline-block; background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
+                      📂 Ver Meus Leads Salvos
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="color: #9ca3af; font-size: 14px; text-align: center; margin: 30px 0 0;">
+                Organize seus prospects e feche mais negócios!
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
+                Você recebeu este email porque se cadastrou no Zuno Prospect.<br>
+                Caso não queira receber mais emails, responda com "Cancelar".
+              </p>
+              <p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0; text-align: center;">
+                © 2024 Zuno Prospect. Todos os direitos reservados.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -127,30 +220,7 @@ const handler = async (req: Request): Promise<Response> => {
       },
     });
 
-    // Find users who:
-    // 1. Registered more than 24 hours ago
-    // 2. Have 0 leads used
-    // 3. Haven't received onboarding email yet
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    
-    const { data: usersToEmail, error: queryError } = await supabase
-      .from('user_subscriptions')
-      .select(`
-        user_id,
-        leads_used_this_month,
-        profiles!inner(nome_completo)
-      `)
-      .eq('leads_used_this_month', 0)
-      .not('user_id', 'in', `(SELECT user_id FROM onboarding_emails_sent WHERE email_type = 'first_24h')`);
-
-    if (queryError) {
-      console.error("Error querying users:", queryError);
-      throw queryError;
-    }
-
-    console.log(`Found ${usersToEmail?.length || 0} potential users to email`);
-
-    // Get user emails from auth.users (need to query separately)
+    // Get user emails from auth.users
     const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
     
     if (authError) {
@@ -158,93 +228,174 @@ const handler = async (req: Request): Promise<Response> => {
       throw authError;
     }
 
-    // Create a map of user_id to email
-    const userEmailMap = new Map<string, string>();
-    authUsers.users.forEach(user => {
-      userEmailMap.set(user.id, user.email || '');
-    });
+    let totalEmailsSent = 0;
+    let allErrors: string[] = [];
 
-    // Filter users who registered more than 24h ago
-    const eligibleUsers: UserToOnboard[] = [];
+    // =============================================
+    // EMAIL 1: First 24h - Users who haven't used leads
+    // =============================================
+    console.log("Processing first_24h emails...");
     
-    for (const subscription of usersToEmail || []) {
-      const authUser = authUsers.users.find(u => u.id === subscription.user_id);
+    const { data: usersNoLeads, error: queryError1 } = await supabase
+      .from('user_subscriptions')
+      .select(`
+        user_id,
+        leads_used_this_month,
+        profiles!inner(nome_completo)
+      `)
+      .eq('leads_used_this_month', 0);
+
+    if (queryError1) {
+      console.error("Error querying users for first_24h:", queryError1);
+    } else {
+      const eligibleFirst24h: UserToOnboard[] = [];
       
-      if (!authUser || !authUser.email) continue;
-      
-      // Check if user registered more than 24h ago
-      const createdAt = new Date(authUser.created_at);
-      const now = new Date();
-      const hoursSinceRegistration = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
-      
-      if (hoursSinceRegistration >= 24) {
-        // Check if already sent email
-        const { data: existingEmail } = await supabase
-          .from('onboarding_emails_sent')
-          .select('id')
-          .eq('user_id', subscription.user_id)
-          .eq('email_type', 'first_24h')
-          .single();
+      for (const subscription of usersNoLeads || []) {
+        const authUser = authUsers.users.find(u => u.id === subscription.user_id);
+        if (!authUser || !authUser.email) continue;
         
-        if (!existingEmail) {
-          eligibleUsers.push({
-            user_id: subscription.user_id,
-            email: authUser.email,
-            nome_completo: (subscription.profiles as any)?.nome_completo || null,
-          });
+        const createdAt = new Date(authUser.created_at);
+        const now = new Date();
+        const hoursSinceRegistration = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+        
+        if (hoursSinceRegistration >= 24) {
+          const { data: existingEmail } = await supabase
+            .from('onboarding_emails_sent')
+            .select('id')
+            .eq('user_id', subscription.user_id)
+            .eq('email_type', 'first_24h')
+            .single();
+          
+          if (!existingEmail) {
+            eligibleFirst24h.push({
+              user_id: subscription.user_id,
+              email: authUser.email,
+              nome_completo: (subscription.profiles as any)?.nome_completo || null,
+              leads_used: 0,
+            });
+          }
         }
       }
-    }
 
-    console.log(`${eligibleUsers.length} users eligible for onboarding email`);
+      console.log(`${eligibleFirst24h.length} users eligible for first_24h email`);
 
-    let emailsSent = 0;
-    let errors: string[] = [];
+      for (const user of eligibleFirst24h) {
+        try {
+          const emailResponse = await resend.emails.send({
+            from: "Zuno Prospect <noreply@zunoprospect.com.br>",
+            to: [user.email],
+            subject: "🔍 Seus 30 leads gratuitos estão esperando!",
+            html: generateFirstEmailHtml(user.nome_completo || ''),
+          });
 
-    // Send emails
-    for (const user of eligibleUsers) {
-      try {
-        console.log(`Sending onboarding email to ${user.email}...`);
-        
-        const emailResponse = await resend.emails.send({
-          from: "Zuno Prospect <noreply@zunoprospect.com.br>",
-          to: [user.email],
-          subject: "🔍 Seus 30 leads gratuitos estão esperando!",
-          html: generateEmailHtml(user.nome_completo || ''),
-        });
+          if (emailResponse.error) {
+            allErrors.push(`first_24h - ${user.email}: ${emailResponse.error.message}`);
+            continue;
+          }
 
-        if (emailResponse.error) {
-          console.error(`Error sending to ${user.email}:`, emailResponse.error);
-          errors.push(`${user.email}: ${emailResponse.error.message}`);
-          continue;
-        }
-
-        // Record that we sent the email
-        const { error: insertError } = await supabase
-          .from('onboarding_emails_sent')
-          .insert({
+          await supabase.from('onboarding_emails_sent').insert({
             user_id: user.user_id,
             email_type: 'first_24h',
           });
 
-        if (insertError) {
-          console.error(`Error recording email sent for ${user.email}:`, insertError);
+          totalEmailsSent++;
+          console.log(`Sent first_24h email to ${user.email}`);
+        } catch (emailError: any) {
+          allErrors.push(`first_24h - ${user.email}: ${emailError.message}`);
         }
+      }
+    }
 
-        emailsSent++;
-        console.log(`Successfully sent email to ${user.email}`);
+    // =============================================
+    // EMAIL 2: Used leads but haven't saved any
+    // =============================================
+    console.log("Processing used_not_saved emails...");
+    
+    const { data: usersWithLeads, error: queryError2 } = await supabase
+      .from('user_subscriptions')
+      .select(`
+        user_id,
+        leads_used_this_month,
+        profiles!inner(nome_completo)
+      `)
+      .gt('leads_used_this_month', 0);
+
+    if (queryError2) {
+      console.error("Error querying users for used_not_saved:", queryError2);
+    } else {
+      const eligibleUsedNotSaved: UserToOnboard[] = [];
+      
+      for (const subscription of usersWithLeads || []) {
+        const authUser = authUsers.users.find(u => u.id === subscription.user_id);
+        if (!authUser || !authUser.email) continue;
         
-      } catch (emailError: any) {
-        console.error(`Error processing ${user.email}:`, emailError);
-        errors.push(`${user.email}: ${emailError.message}`);
+        // Check if user registered more than 48h ago (give them time to save)
+        const createdAt = new Date(authUser.created_at);
+        const now = new Date();
+        const hoursSinceRegistration = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+        
+        if (hoursSinceRegistration >= 48) {
+          // Check if already sent this email type
+          const { data: existingEmail } = await supabase
+            .from('onboarding_emails_sent')
+            .select('id')
+            .eq('user_id', subscription.user_id)
+            .eq('email_type', 'used_not_saved')
+            .single();
+          
+          if (!existingEmail) {
+            // Check if user has any saved leads
+            const { count: savedLeadsCount } = await supabase
+              .from('leads')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', subscription.user_id)
+              .eq('salvo', true);
+            
+            if (savedLeadsCount === 0) {
+              eligibleUsedNotSaved.push({
+                user_id: subscription.user_id,
+                email: authUser.email,
+                nome_completo: (subscription.profiles as any)?.nome_completo || null,
+                leads_used: subscription.leads_used_this_month,
+              });
+            }
+          }
+        }
+      }
+
+      console.log(`${eligibleUsedNotSaved.length} users eligible for used_not_saved email`);
+
+      for (const user of eligibleUsedNotSaved) {
+        try {
+          const emailResponse = await resend.emails.send({
+            from: "Zuno Prospect <noreply@zunoprospect.com.br>",
+            to: [user.email],
+            subject: "💡 Dica: Salve seus melhores leads para não perdê-los!",
+            html: generateSaveLeadsEmailHtml(user.nome_completo || '', user.leads_used),
+          });
+
+          if (emailResponse.error) {
+            allErrors.push(`used_not_saved - ${user.email}: ${emailResponse.error.message}`);
+            continue;
+          }
+
+          await supabase.from('onboarding_emails_sent').insert({
+            user_id: user.user_id,
+            email_type: 'used_not_saved',
+          });
+
+          totalEmailsSent++;
+          console.log(`Sent used_not_saved email to ${user.email}`);
+        } catch (emailError: any) {
+          allErrors.push(`used_not_saved - ${user.email}: ${emailError.message}`);
+        }
       }
     }
 
     const result = {
       success: true,
-      emailsSent,
-      totalEligible: eligibleUsers.length,
-      errors: errors.length > 0 ? errors : undefined,
+      emailsSent: totalEmailsSent,
+      errors: allErrors.length > 0 ? allErrors : undefined,
       timestamp: new Date().toISOString(),
     };
 

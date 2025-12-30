@@ -10,9 +10,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Mail, Send, Trash2, Eye, Plus, ArrowLeft, Users, MailOpen, AlertCircle } from "lucide-react";
+import { Loader2, Mail, Send, Trash2, Eye, Plus, ArrowLeft, Users, MailOpen, AlertCircle, Zap } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { OnboardingEmailsDashboard } from "@/components/admin/OnboardingEmailsDashboard";
 
 // Sanitize HTML for safe rendering - allows common email tags
 const sanitizeHtml = (dirty: string): string => {
@@ -289,134 +291,153 @@ const AdminEmail = () => {
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-full bg-primary/10">
-                  <Mail className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total de Campanhas</p>
-                  <p className="text-2xl font-bold">{campaigns.length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-full bg-green-500/10">
-                  <Send className="h-6 w-6 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Emails Enviados</p>
-                  <p className="text-2xl font-bold">
-                    {campaigns.reduce((sum, c) => sum + c.total_enviados, 0)}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-full bg-blue-500/10">
-                  <MailOpen className="h-6 w-6 text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Emails Abertos</p>
-                  <p className="text-2xl font-bold">
-                    {campaigns.reduce((sum, c) => sum + c.total_abertos, 0)}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <Tabs defaultValue="campanhas" className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="campanhas" className="gap-2">
+              <Mail className="h-4 w-4" />
+              Campanhas Manuais
+            </TabsTrigger>
+            <TabsTrigger value="onboarding" className="gap-2">
+              <Zap className="h-4 w-4" />
+              Onboarding Automático
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Campaigns Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Campanhas</CardTitle>
-            <CardDescription>Gerencie suas campanhas de email marketing</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {campaigns.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhuma campanha criada ainda.</p>
-                <Button onClick={() => setShowNewCampaign(true)} className="mt-4 gap-2">
-                  <Plus className="h-4 w-4" />
-                  Criar primeira campanha
-                </Button>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Segmento</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-center">Enviados</TableHead>
-                    <TableHead className="text-center">Abertos</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {campaigns.map((campaign) => (
-                    <TableRow key={campaign.id}>
-                      <TableCell className="font-medium">{campaign.nome}</TableCell>
-                      <TableCell>{getSegmentLabel(campaign.segmento)}</TableCell>
-                      <TableCell>{getStatusBadge(campaign.status)}</TableCell>
-                      <TableCell className="text-center">{campaign.total_enviados}</TableCell>
-                      <TableCell className="text-center">{campaign.total_abertos}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setPreviewCampaign(campaign)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {campaign.status === "rascunho" && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleSendCampaign(campaign.id)}
-                              disabled={sending === campaign.id}
-                            >
-                              {sending === campaign.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Send className="h-4 w-4" />
+          <TabsContent value="campanhas">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-full bg-primary/10">
+                      <Mail className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total de Campanhas</p>
+                      <p className="text-2xl font-bold">{campaigns.length}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-full bg-green-500/10">
+                      <Send className="h-6 w-6 text-green-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Emails Enviados</p>
+                      <p className="text-2xl font-bold">
+                        {campaigns.reduce((sum, c) => sum + c.total_enviados, 0)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-full bg-blue-500/10">
+                      <MailOpen className="h-6 w-6 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Emails Abertos</p>
+                      <p className="text-2xl font-bold">
+                        {campaigns.reduce((sum, c) => sum + c.total_abertos, 0)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Campaigns Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Campanhas</CardTitle>
+                <CardDescription>Gerencie suas campanhas de email marketing</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {campaigns.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhuma campanha criada ainda.</p>
+                    <Button onClick={() => setShowNewCampaign(true)} className="mt-4 gap-2">
+                      <Plus className="h-4 w-4" />
+                      Criar primeira campanha
+                    </Button>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Segmento</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-center">Enviados</TableHead>
+                        <TableHead className="text-center">Abertos</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {campaigns.map((campaign) => (
+                        <TableRow key={campaign.id}>
+                          <TableCell className="font-medium">{campaign.nome}</TableCell>
+                          <TableCell>{getSegmentLabel(campaign.segmento)}</TableCell>
+                          <TableCell>{getStatusBadge(campaign.status)}</TableCell>
+                          <TableCell className="text-center">{campaign.total_enviados}</TableCell>
+                          <TableCell className="text-center">{campaign.total_abertos}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setPreviewCampaign(campaign)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {campaign.status === "rascunho" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleSendCampaign(campaign.id)}
+                                  disabled={sending === campaign.id}
+                                >
+                                  {sending === campaign.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Send className="h-4 w-4" />
+                                  )}
+                                </Button>
                               )}
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteCampaign(campaign.id)}
-                            disabled={deleting === campaign.id}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            {deleting === campaign.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteCampaign(campaign.id)}
+                                disabled={deleting === campaign.id}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                {deleting === campaign.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="onboarding">
+            <OnboardingEmailsDashboard />
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* New Campaign Dialog */}

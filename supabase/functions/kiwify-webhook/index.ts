@@ -11,6 +11,43 @@ const logStep = (step: string, details?: Record<string, unknown>) => {
   console.log(`[KIWIFY-WEBHOOK] ${step}${detailsStr}`);
 };
 
+// Mark A/B test email results as converted when user makes a purchase
+const markABTestConversions = async (supabase: any, userId: string) => {
+  try {
+    // Find all A/B test results for this user that haven't been marked as converted
+    const { data: abResults, error: fetchError } = await supabase
+      .from('email_ab_results')
+      .select('id, converted_at')
+      .eq('user_id', userId)
+      .is('converted_at', null);
+    
+    if (fetchError) {
+      logStep("Error fetching A/B results for conversion", { error: fetchError.message });
+      return;
+    }
+    
+    if (!abResults || abResults.length === 0) {
+      logStep("No A/B test results to mark as converted", { userId });
+      return;
+    }
+    
+    // Mark all as converted
+    const { error: updateError } = await supabase
+      .from('email_ab_results')
+      .update({ converted_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .is('converted_at', null);
+    
+    if (updateError) {
+      logStep("Error marking A/B results as converted", { error: updateError.message });
+    } else {
+      logStep("Marked A/B test results as converted", { userId, count: abResults.length });
+    }
+  } catch (err) {
+    logStep("Exception in markABTestConversions", { error: String(err) });
+  }
+};
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -239,6 +276,9 @@ serve(async (req) => {
           
           logStep("USA add-on activated", { userId, until: usaAddonUntil.toISOString() });
         }
+
+        // Mark A/B test conversions for this user
+        await markABTestConversions(supabaseClient, userId);
 
         logStep("Subscription updated", { userId, planName });
       } else {

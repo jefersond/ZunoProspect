@@ -11,9 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
-import { Loader2, Search, Mail, MessageCircle, Instagram, Globe } from "lucide-react";
+import { Loader2, Search, Mail, MessageCircle, Instagram, Globe, Sparkles } from "lucide-react";
 import { SearchProgress } from "./SearchProgress";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
 import { UpgradeIncentive } from "@/components/subscription/UpgradeIncentive";
@@ -62,6 +63,7 @@ export const ProspeccaoForm = () => {
 
   // Estado para upsell do add-on EUA
   const [showUsaUpsell, setShowUsaUpsell] = useState(false);
+  const [showUsaInlinePromo, setShowUsaInlinePromo] = useState(false);
   const [userEmail, setUserEmail] = useState<string | undefined>();
   const [userName, setUserName] = useState<string | undefined>();
 
@@ -480,22 +482,23 @@ export const ProspeccaoForm = () => {
           {/* Linha 1: País (destaque) */}
           <div className="p-4 rounded-lg border border-primary/30 bg-primary/5">
             <div className="space-y-2">
-              <Label htmlFor="pais" className="flex items-center gap-2 text-base font-semibold">
+              <Label htmlFor="pais" className="flex items-center gap-2 text-base font-semibold flex-wrap">
                 <Globe className="h-5 w-5 text-primary" />
                 País
                 {!canUseUsaProspecting() && (
-                  <span className="text-xs font-normal text-muted-foreground ml-2">
-                    (EUA requer add-on)
-                  </span>
+                  <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-500 font-normal">
+                    EUA: Pro+ apenas
+                  </Badge>
                 )}
               </Label>
               <Select 
                 value={selectedCountry}
                 onValueChange={(value: Country) => {
                   if (value === "US" && !canUseUsaProspecting()) {
-                    setShowUsaUpsell(true);
+                    setShowUsaInlinePromo(true);
                     return;
                   }
+                  setShowUsaInlinePromo(false);
                   setSelectedCountry(value);
                   setValue("pais", value);
                   setValue("estado", "");
@@ -509,7 +512,6 @@ export const ProspeccaoForm = () => {
                     <SelectItem 
                       key={country.value} 
                       value={country.value}
-                      disabled={country.value === "US" && !canUseUsaProspecting()}
                     >
                       {country.label}
                       {country.value === "US" && !canUseUsaProspecting() && " 🔒"}
@@ -518,6 +520,51 @@ export const ProspeccaoForm = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Card de Ativação EUA - aparece quando usuário tenta selecionar US sem acesso */}
+            {showUsaInlinePromo && (
+              <div className="mt-4 p-4 rounded-lg border-2 border-blue-500/30 bg-gradient-to-r from-blue-500/5 to-red-500/5">
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+                  {/* Info lado esquerdo */}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <Sparkles className="h-5 w-5 text-blue-500" />
+                      <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30 hover:bg-amber-500/30">
+                        Exclusivo Pro+
+                      </Badge>
+                      <span className="text-xl">🇺🇸</span>
+                    </div>
+                    <h4 className="font-semibold text-lg mb-1">Prospecção nos Estados Unidos</h4>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Expanda para o mercado americano com leads em todos os 50 estados + DC.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      <strong>Disponível para:</strong> Planos Pro e Agência (+ R$ 57/mês)
+                    </p>
+                  </div>
+                  
+                  {/* Botões lado direito */}
+                  <div className="flex flex-col gap-2 w-full md:w-auto">
+                    <Button
+                      type="button"
+                      onClick={() => setShowUsaUpsell(true)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <Globe className="mr-2 h-4 w-4" />
+                      Ativar Prospecção USA
+                    </Button>
+                    <Button 
+                      type="button"
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => setShowUsaInlinePromo(false)}
+                    >
+                      Continuar no Brasil
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Linha 2: Cidade, Estado, Nicho */}

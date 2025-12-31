@@ -101,6 +101,86 @@ export type Database = {
         }
         Relationships: []
       }
+      email_ab_results: {
+        Row: {
+          clicked_at: string | null
+          converted_at: string | null
+          id: string
+          opened_at: string | null
+          sent_at: string
+          test_id: string
+          user_id: string
+          variant_sent: string
+        }
+        Insert: {
+          clicked_at?: string | null
+          converted_at?: string | null
+          id?: string
+          opened_at?: string | null
+          sent_at?: string
+          test_id: string
+          user_id: string
+          variant_sent: string
+        }
+        Update: {
+          clicked_at?: string | null
+          converted_at?: string | null
+          id?: string
+          opened_at?: string | null
+          sent_at?: string
+          test_id?: string
+          user_id?: string
+          variant_sent?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_ab_results_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "email_ab_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_ab_tests: {
+        Row: {
+          created_at: string
+          email_type: string
+          id: string
+          is_active: boolean
+          name: string
+          subject: string
+          template_html: string
+          updated_at: string
+          variant: string
+          weight: number
+        }
+        Insert: {
+          created_at?: string
+          email_type: string
+          id?: string
+          is_active?: boolean
+          name: string
+          subject: string
+          template_html: string
+          updated_at?: string
+          variant?: string
+          weight?: number
+        }
+        Update: {
+          created_at?: string
+          email_type?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          subject?: string
+          template_html?: string
+          updated_at?: string
+          variant?: string
+          weight?: number
+        }
+        Relationships: []
+      }
       email_campaigns: {
         Row: {
           assunto: string

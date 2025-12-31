@@ -10,9 +10,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Generate tracking pixel URL
-const generateTrackingPixel = (userId: string, emailType: string): string => {
-  const trackingUrl = `${SUPABASE_URL}/functions/v1/track-email-open?uid=${encodeURIComponent(userId)}&type=${encodeURIComponent(emailType)}`;
+// Generate tracking pixel URL with optional test_id for A/B tracking
+const generateTrackingPixel = (userId: string, emailType: string, testId?: string): string => {
+  let trackingUrl = `${SUPABASE_URL}/functions/v1/track-email-open?uid=${encodeURIComponent(userId)}&type=${encodeURIComponent(emailType)}`;
+  if (testId) {
+    trackingUrl += `&test_id=${encodeURIComponent(testId)}`;
+  }
   return `<img src="${trackingUrl}" width="1" height="1" style="display:none;" alt="" />`;
 };
 
@@ -34,6 +37,97 @@ const generateCouponBanner = (): string => `
     </p>
   </div>
 `;
+
+// A/B Test variant interface
+interface ABTestVariant {
+  id: string;
+  email_type: string;
+  variant: string;
+  name: string;
+  subject: string;
+  template_html: string;
+  weight: number;
+}
+
+// Select A/B test variant based on weights
+const selectABVariant = async (supabase: any, emailType: string): Promise<ABTestVariant | null> => {
+  try {
+    const { data: variants, error } = await supabase
+      .from('email_ab_tests')
+      .select('*')
+      .eq('email_type', emailType)
+      .eq('is_active', true);
+    
+    if (error || !variants || variants.length === 0) {
+      return null; // No A/B test active, use default template
+    }
+    
+    // Calculate total weight
+    const totalWeight = variants.reduce((sum: number, v: ABTestVariant) => sum + v.weight, 0);
+    
+    // Generate random number between 0 and totalWeight
+    const random = Math.random() * totalWeight;
+    
+    // Select variant based on cumulative weight
+    let cumulative = 0;
+    for (const variant of variants) {
+      cumulative += variant.weight;
+      if (random <= cumulative) {
+        return variant;
+      }
+    }
+    
+    return variants[0]; // Fallback to first variant
+  } catch (err) {
+    console.error(`Error selecting A/B variant for ${emailType}:`, err);
+    return null;
+  }
+};
+
+// Record A/B test result
+const recordABResult = async (
+  supabase: any,
+  testId: string,
+  userId: string,
+  variantSent: string
+): Promise<void> => {
+  try {
+    await supabase.from('email_ab_results').insert({
+      test_id: testId,
+      user_id: userId,
+      variant_sent: variantSent,
+      sent_at: new Date().toISOString(),
+    });
+    console.log(`Recorded A/B result: test_id=${testId}, user_id=${userId}, variant=${variantSent}`);
+  } catch (err) {
+    console.error('Error recording A/B result:', err);
+  }
+};
+
+// Apply template variables
+const applyTemplateVariables = (
+  template: string,
+  nome: string,
+  userId: string,
+  emailType: string,
+  leadsUsed?: number,
+  savedCount?: number,
+  testId?: string
+): string => {
+  let html = template
+    .replace(/\{\{nome\}\}/g, nome ? nome.split(' ')[0] : 'Usuário')
+    .replace(/\{\{leads_used\}\}/g, String(leadsUsed || 0))
+    .replace(/\{\{saved_count\}\}/g, String(savedCount || 0));
+  
+  // Ensure tracking pixel is present
+  if (!html.includes('track-email-open')) {
+    // Add tracking pixel before closing body tag
+    const trackingPixel = generateTrackingPixel(userId, emailType, testId);
+    html = html.replace('</body>', `${trackingPixel}</body>`);
+  }
+  
+  return html;
+};
 
 interface UserToOnboard {
   user_id: string;
@@ -643,13 +737,40 @@ const handler = async (req: Request): Promise<Response> => {
 
       console.log(`${eligibleFirst24h.length} users eligible for first_24h email`);
 
+      // Check for A/B test variant
+      const abVariantFirst24h = await selectABVariant(supabase, 'first_24h');
+      if (abVariantFirst24h) {
+        console.log(`Using A/B variant ${abVariantFirst24h.variant} for first_24h`);
+      }
+
       for (const user of eligibleFirst24h) {
         try {
+          let emailSubject: string;
+          let emailHtml: string;
+          
+          if (abVariantFirst24h) {
+            // Use A/B test template
+            emailSubject = abVariantFirst24h.subject;
+            emailHtml = applyTemplateVariables(
+              abVariantFirst24h.template_html,
+              user.nome_completo || '',
+              user.user_id,
+              'first_24h',
+              user.leads_used,
+              undefined,
+              abVariantFirst24h.id
+            );
+          } else {
+            // Use default template
+            emailSubject = "🔍 Seus concorrentes já estão prospectando - e você?";
+            emailHtml = generateFirstEmailHtml(user.nome_completo || '', user.user_id);
+          }
+          
           const emailResponse = await resend.emails.send({
             from: "Zuno Prospect <noreply@zunoprospect.com.br>",
             to: [user.email],
-            subject: "🔍 Seus 30 leads gratuitos estão esperando!",
-            html: generateFirstEmailHtml(user.nome_completo || '', user.user_id),
+            subject: emailSubject,
+            html: emailHtml,
           });
 
           if (emailResponse.error) {
@@ -662,8 +783,13 @@ const handler = async (req: Request): Promise<Response> => {
             email_type: 'first_24h',
           });
 
+          // Record A/B test result if using variant
+          if (abVariantFirst24h) {
+            await recordABResult(supabase, abVariantFirst24h.id, user.user_id, abVariantFirst24h.variant);
+          }
+
           totalEmailsSent++;
-          console.log(`Sent first_24h email to ${user.email}`);
+          console.log(`Sent first_24h email to ${user.email}${abVariantFirst24h ? ` (variant ${abVariantFirst24h.variant})` : ''}`);
           await delay(RATE_LIMIT_DELAY); // Rate limit protection
         } catch (emailError: any) {
           allErrors.push(`first_24h - ${user.email}: ${emailError.message}`);

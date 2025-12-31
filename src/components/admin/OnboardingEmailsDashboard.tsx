@@ -314,59 +314,42 @@ const EMAIL_TEMPLATES: Record<string, (nome: string, param?: number) => string> 
   never_upgraded: (nome: string, leadsUsed?: number) => `
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 40px 0;">
-    <tr>
-      <td align="center">
+    <tr><td align="center">
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <tr>
-            <td style="background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); padding: 40px 30px; text-align: center;">
+          <tr><td style="background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); padding: 40px 30px; text-align: center;">
               <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">⚡ Zuno Prospect</h1>
-              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px;">Desbloqueie todo o potencial!</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 40px 30px;">
-              <h2 style="color: #1f2937; margin: 0 0 20px; font-size: 24px;">${nome ? `${nome}, você` : 'Você'} está aproveitando bem o plano gratuito! 🎯</h2>
-              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
-                Você já usou <strong>${leadsUsed || 25}/30 leads</strong> do seu plano gratuito. 
-                Que tal desbloquear <strong>leads ilimitados</strong> e recursos exclusivos?
-              </p>
+              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px;">Hora de escalar sua prospecção</p>
+          </td></tr>
+          <tr><td style="padding: 40px 30px;">
+              <h2 style="color: #1f2937; margin: 0 0 20px; font-size: 24px;">${nome ? `${nome}, você está` : 'Você está'} limitado. Seus concorrentes não. 📊</h2>
+              <div style="background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-radius: 8px; padding: 20px; margin: 0 0 25px; border-left: 4px solid #ef4444;">
+                <p style="color: #991b1b; font-size: 16px; margin: 0; font-weight: 600;">📉 A matemática é simples:</p>
+                <p style="color: #b91c1c; font-size: 14px; margin: 10px 0 0;">Com 30 leads/mês, você precisa fechar 1 a cada 10 contatos. <strong>Com 200 leads, você tem 6x mais chances.</strong></p>
+              </div>
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">Você já usou <strong>${leadsUsed || 25}/30 leads</strong>. Quando acabar, fica parado — enquanto <strong>seus concorrentes continuam fechando</strong>.</p>
               <div style="background-color: #eff6ff; border-radius: 8px; padding: 20px; margin: 25px 0; border-left: 4px solid #3B82F6;">
-                <h3 style="color: #1e40af; margin: 0 0 15px; font-size: 18px;">⭐ Vantagens do plano Pro:</h3>
+                <h3 style="color: #1e40af; margin: 0 0 15px; font-size: 18px;">🚀 O que você ganha com o PRO:</h3>
                 <ul style="color: #1d4ed8; font-size: 15px; line-height: 1.8; margin: 0; padding-left: 20px;">
-                  <li><strong>300 leads/mês</strong> (10x mais!)</li>
-                  <li><strong>Dados CNPJ</strong> completos</li>
-                  <li><strong>Busca por proximidade</strong> geográfica</li>
-                  <li><strong>Exportação Excel</strong> ilimitada</li>
+                  <li><strong>200 leads/mês</strong> = 6x mais oportunidades</li>
+                  <li><strong>Dados completos</strong>: CNPJ, responsável, WhatsApp, Instagram, email</li>
+                  <li><strong>IA ilimitada</strong>: saiba quem vale seu tempo antes de ligar</li>
                 </ul>
               </div>
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td align="center">
-                    <a href="https://zunoprospect.com.br/precos" style="display: inline-block; background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
-                      🚀 Ver Planos e Preços
-                    </a>
-                  </td>
-                </tr>
-              </table>
+              <div style="background-color: #f0fdf4; border-radius: 8px; padding: 15px; margin: 25px 0; text-align: center;">
+                <p style="color: #166534; font-size: 18px; margin: 0; font-weight: 700;">Se você fechar 1 cliente a mais por mês, o plano JÁ SE PAGOU.</p>
+                <p style="color: #15803d; font-size: 14px; margin: 10px 0 0;">R$ 97/mês = menos de <strong>R$ 3,30 por dia</strong></p>
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+                    <a href="https://zunoprospect.com.br/precos" style="display: inline-block; background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">🚀 Desbloquear 200 Leads/Mês</a>
+              </td></tr></table>
               ${generateCouponBanner()}
-            </td>
-          </tr>
-          <tr>
-            <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
-              <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
-                Você recebeu este email porque se cadastrou no Zuno Prospect.
-              </p>
-            </td>
-          </tr>
+          </td></tr>
+          <tr><td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;"><p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">Você recebeu este email porque se cadastrou no Zuno Prospect.</p></td></tr>
         </table>
-      </td>
-    </tr>
+    </td></tr>
   </table>
 </body>
 </html>

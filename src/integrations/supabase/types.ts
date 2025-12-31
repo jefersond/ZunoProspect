@@ -952,6 +952,7 @@ export type Database = {
           nome: string
           nome_responsavel: string
           notas: string
+          pais: string
           plano_prospeccao: Json
           porte_empresa: string
           probabilidade_conversao: number
@@ -1336,6 +1337,7 @@ export type Database = {
           nome: string
           nome_responsavel: string
           notas: string
+          pais: string
           plano_prospeccao: Json
           porte_empresa: string
           probabilidade_conversao: number

@@ -16,6 +16,10 @@ const generateTrackingPixel = (userId: string, emailType: string): string => {
   return `<img src="${trackingUrl}" width="1" height="1" style="display:none;" alt="" />`;
 };
 
+// Delay helper to respect Resend rate limit (max 2 req/sec)
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const RATE_LIMIT_DELAY = 600; // 600ms between emails to stay under 2/sec limit
+
 // Coupon banner HTML
 const generateCouponBanner = (): string => `
   <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
@@ -619,6 +623,7 @@ const handler = async (req: Request): Promise<Response> => {
 
           totalEmailsSent++;
           console.log(`Sent first_24h email to ${user.email}`);
+          await delay(RATE_LIMIT_DELAY); // Rate limit protection
         } catch (emailError: any) {
           allErrors.push(`first_24h - ${user.email}: ${emailError.message}`);
         }
@@ -705,6 +710,7 @@ const handler = async (req: Request): Promise<Response> => {
 
           totalEmailsSent++;
           console.log(`Sent used_not_saved email to ${user.email}`);
+          await delay(RATE_LIMIT_DELAY); // Rate limit protection
         } catch (emailError: any) {
           allErrors.push(`used_not_saved - ${user.email}: ${emailError.message}`);
         }
@@ -808,6 +814,7 @@ const handler = async (req: Request): Promise<Response> => {
 
           totalEmailsSent++;
           console.log(`Sent saved_no_ai email to ${user.email}`);
+          await delay(RATE_LIMIT_DELAY); // Rate limit protection
         } catch (emailError: any) {
           allErrors.push(`saved_no_ai - ${user.email}: ${emailError.message}`);
         }
@@ -891,6 +898,7 @@ const handler = async (req: Request): Promise<Response> => {
 
         totalEmailsSent++;
         console.log(`Sent inactive_7d email to ${user.email}`);
+        await delay(RATE_LIMIT_DELAY); // Rate limit protection
       } catch (emailError: any) {
         allErrors.push(`inactive_7d - ${user.email}: ${emailError.message}`);
       }
@@ -971,6 +979,7 @@ const handler = async (req: Request): Promise<Response> => {
 
           totalEmailsSent++;
           console.log(`Sent never_upgraded email to ${user.email}`);
+          await delay(RATE_LIMIT_DELAY); // Rate limit protection
         } catch (emailError: any) {
           allErrors.push(`never_upgraded - ${user.email}: ${emailError.message}`);
         }

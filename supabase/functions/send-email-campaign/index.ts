@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const EMAIL_LOGS_PEPPER = Deno.env.get("EMAIL_LOGS_PEPPER") || "";
+const LEADS_ENCRYPTION_KEY = Deno.env.get("LEADS_ENCRYPTION_KEY") || "";
 
 // ============= CORS HELPER =============
 // Configure a env var ALLOWED_ORIGINS com os domínios permitidos separados por vírgula
@@ -213,19 +215,16 @@ serve(async (req: Request): Promise<Response> => {
 
         const emailResult = await emailResponse.json();
 
-        // Log email - usar email criptografado e mascarado para segurança
+        // Log email using secure function with HMAC fingerprint and non-identifying mask
         const emailError = !emailResponse.ok;
-        const emailParts = userEmail.split('@');
-        const maskedEmail = emailParts.length === 2 
-          ? `${emailParts[0].substring(0, 2)}***@${emailParts[1]}`
-          : '***@***.com';
         
-        // Usar RPC para inserir com criptografia (encrypt_sensitive é SECURITY DEFINER)
-        const { error: logError } = await supabase.rpc('insert_email_log_encrypted', {
+        // Use secure insert with pepper and encryption key from env
+        const { error: logError } = await supabase.rpc('insert_email_log_secure', {
+          p_pepper: EMAIL_LOGS_PEPPER,
+          p_encryption_key: LEADS_ENCRYPTION_KEY,
           p_campaign_id: campaignId,
           p_user_id: sub.user_id,
           p_user_email: userEmail,
-          p_user_email_masked: maskedEmail,
           p_status: emailError ? "erro" : "enviado",
           p_error_message: emailError ? emailResult.message : null,
         });

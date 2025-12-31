@@ -5,6 +5,62 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_LOGS_PEPPER = Deno.env.get("EMAIL_LOGS_PEPPER") || "";
 const LEADS_ENCRYPTION_KEY = Deno.env.get("LEADS_ENCRYPTION_KEY") || "";
 
+// Rate limiting and retry configuration
+const RATE_LIMIT_DELAY = 1200; // 1.2s between emails to stay well under 2/sec limit
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 2000; // 2s delay before retry on rate limit
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Send email with retry logic for rate limiting
+const sendEmailWithRetry = async (
+  emailPayload: {
+    from: string;
+    replyTo?: string;
+    to: string[];
+    subject: string;
+    html: string;
+  },
+  retries = 0
+): Promise<{ success: boolean; data?: any; error?: string }> => {
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(emailPayload),
+    });
+    
+    const result = await response.json();
+    
+    // Handle rate limiting (429 status)
+    if (response.status === 429) {
+      if (retries < MAX_RETRIES) {
+        console.log(`Rate limited (429), retrying in ${RETRY_DELAY}ms... (attempt ${retries + 1}/${MAX_RETRIES})`);
+        await delay(RETRY_DELAY * (retries + 1)); // Exponential backoff
+        return sendEmailWithRetry(emailPayload, retries + 1);
+      }
+      return { success: false, error: `Rate limit exceeded after ${MAX_RETRIES} retries` };
+    }
+    
+    if (!response.ok) {
+      return { success: false, error: result.message || 'Unknown error' };
+    }
+    
+    return { success: true, data: result };
+  } catch (err: any) {
+    // Handle network errors or other exceptions
+    if (retries < MAX_RETRIES) {
+      console.log(`Error sending email, retrying... (attempt ${retries + 1}/${MAX_RETRIES}): ${err.message}`);
+      await delay(RETRY_DELAY * (retries + 1));
+      return sendEmailWithRetry(emailPayload, retries + 1);
+    }
+    return { success: false, error: err.message };
+  }
+};
+
 // ============= CORS HELPER =============
 // Configure a env var ALLOWED_ORIGINS com os domínios permitidos separados por vírgula
 // Exemplo: "https://meuapp.lovable.app,https://meudominio.com.br,http://localhost:5173"
@@ -197,48 +253,41 @@ serve(async (req: Request): Promise<Response> => {
           `;
         }
 
-        // Send email via Resend API
-        const emailResponse = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${RESEND_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: "Zuno Propect <onboarding@resend.dev>",
-            replyTo: "zunopropect@gmail.com",
-            to: [userEmail],
-            subject: campaign.assunto,
-            html: emailHtml,
-          }),
+        // Send email via Resend API with retry logic
+        const emailResult = await sendEmailWithRetry({
+          from: "Zuno Propect <onboarding@resend.dev>",
+          replyTo: "zunopropect@gmail.com",
+          to: [userEmail],
+          subject: campaign.assunto,
+          html: emailHtml,
         });
 
-        const emailResult = await emailResponse.json();
-
         // Log email using secure function with HMAC fingerprint and non-identifying mask
-        const emailError = !emailResponse.ok;
-        
-        // Use secure insert with pepper and encryption key from env
         const { error: logError } = await supabase.rpc('insert_email_log_secure', {
           p_pepper: EMAIL_LOGS_PEPPER,
           p_encryption_key: LEADS_ENCRYPTION_KEY,
           p_campaign_id: campaignId,
           p_user_id: sub.user_id,
           p_user_email: userEmail,
-          p_status: emailError ? "erro" : "enviado",
-          p_error_message: emailError ? emailResult.message : null,
+          p_status: emailResult.success ? "enviado" : "erro",
+          p_error_message: emailResult.error || null,
         });
         
         if (logError) {
           console.error("Erro ao inserir log de email:", logError);
         }
 
-        if (emailError) {
+        if (!emailResult.success) {
           errorCount++;
-          errors.push(`${userEmail}: ${emailResult.message}`);
+          errors.push(`${userEmail}: ${emailResult.error}`);
+          console.error(`Erro ao enviar para ${userEmail}:`, emailResult.error);
         } else {
           sentCount++;
+          console.log(`Email enviado para ${userEmail}`);
         }
+
+        // Delay between emails to respect rate limit
+        await delay(RATE_LIMIT_DELAY);
       } catch (err: any) {
         errorCount++;
         errors.push(`Erro: ${err.message}`);

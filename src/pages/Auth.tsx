@@ -11,8 +11,9 @@ import { Loader2, CheckCircle2, XCircle, ArrowLeft, Eye, EyeOff } from "lucide-r
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Progress } from "@/components/ui/progress";
 import { z } from "zod";
-import { trackLead, trackCompleteRegistration } from "@/lib/metaPixel";
+import { trackLead, trackCompleteRegistration, trackAddPaymentInfo } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
+import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -130,16 +131,50 @@ const Auth = () => {
     }
   }, [searchParams, toast]);
 
-  // Redirect authenticated users to /prospeccao
+  // Redirect authenticated users - check for pending checkout first
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
+        // Check if there's a pending checkout from Google OAuth
+        const pendingCheckout = localStorage.getItem('checkout_pending');
+        if (pendingCheckout) {
+          try {
+            const { plano, isAnual } = JSON.parse(pendingCheckout);
+            localStorage.removeItem('checkout_pending');
+            
+            const userEmail = session.user.email || '';
+            const userName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || '';
+            
+            // Track payment info
+            trackAddPaymentInfo({
+              content_category: 'Kiwify',
+              currency: 'BRL',
+              value: 0 // We don't have the exact price here, but it's for tracking purposes
+            });
+
+            // Generate Kiwify checkout URL and redirect
+            const checkoutUrl = getKiwifyCheckoutUrl(plano, isAnual, userEmail, userName);
+            
+            toast({
+              title: "Logado com Google!",
+              description: "Redirecionando para o pagamento..."
+            });
+            
+            window.location.href = checkoutUrl;
+            return;
+          } catch (e) {
+            // Invalid JSON, remove the item
+            localStorage.removeItem('checkout_pending');
+          }
+        }
+        
+        // Default: redirect to prospeccao
         navigate("/prospeccao");
       }
     };
     checkAuth();
-  }, [navigate]);
+  }, [navigate, toast]);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();

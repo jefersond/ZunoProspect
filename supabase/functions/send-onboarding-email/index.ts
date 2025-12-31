@@ -3,11 +3,33 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Generate tracking pixel URL
+const generateTrackingPixel = (userId: string, emailType: string): string => {
+  const trackingUrl = `${SUPABASE_URL}/functions/v1/track-email-open?uid=${encodeURIComponent(userId)}&type=${encodeURIComponent(emailType)}`;
+  return `<img src="${trackingUrl}" width="1" height="1" style="display:none;" alt="" />`;
+};
+
+// Coupon banner HTML
+const generateCouponBanner = (): string => `
+  <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
+    <p style="color: #ffffff; font-size: 14px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 1px;">
+      🎁 Cupom exclusivo para você
+    </p>
+    <p style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0 0 8px; font-family: monospace; letter-spacing: 3px;">
+      ZUNO10
+    </p>
+    <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 0;">
+      <strong>10% de desconto</strong> em qualquer plano!
+    </p>
+  </div>
+`;
 
 interface UserToOnboard {
   user_id: string;
@@ -17,7 +39,7 @@ interface UserToOnboard {
   saved_leads_count?: number;
 }
 
-const generateFirstEmailHtml = (nome: string) => `
+const generateFirstEmailHtml = (nome: string, userId: string) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -86,6 +108,8 @@ const generateFirstEmailHtml = (nome: string) => `
               <p style="color: #9ca3af; font-size: 14px; text-align: center; margin: 30px 0 0;">
                 Seus 30 leads gratuitos não expiram. Use quando quiser!
               </p>
+              
+              ${generateCouponBanner()}
             </td>
           </tr>
           
@@ -99,6 +123,7 @@ const generateFirstEmailHtml = (nome: string) => `
               <p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0; text-align: center;">
                 © 2024 Zuno Prospect. Todos os direitos reservados.
               </p>
+              ${generateTrackingPixel(userId, 'first_24h')}
             </td>
           </tr>
         </table>
@@ -109,7 +134,7 @@ const generateFirstEmailHtml = (nome: string) => `
 </html>
 `;
 
-const generateSaveLeadsEmailHtml = (nome: string, leadsUsed: number) => `
+const generateSaveLeadsEmailHtml = (nome: string, leadsUsed: number, userId: string) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -178,6 +203,8 @@ const generateSaveLeadsEmailHtml = (nome: string, leadsUsed: number) => `
               <p style="color: #9ca3af; font-size: 14px; text-align: center; margin: 30px 0 0;">
                 Organize seus prospects e feche mais negócios!
               </p>
+              
+              ${generateCouponBanner()}
             </td>
           </tr>
           
@@ -191,6 +218,7 @@ const generateSaveLeadsEmailHtml = (nome: string, leadsUsed: number) => `
               <p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0; text-align: center;">
                 © 2024 Zuno Prospect. Todos os direitos reservados.
               </p>
+              ${generateTrackingPixel(userId, 'used_not_saved')}
             </td>
           </tr>
         </table>
@@ -201,7 +229,7 @@ const generateSaveLeadsEmailHtml = (nome: string, leadsUsed: number) => `
 </html>
 `;
 
-const generateAIAnalysisEmailHtml = (nome: string, savedLeadsCount: number) => `
+const generateAIAnalysisEmailHtml = (nome: string, savedLeadsCount: number, userId: string) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -270,6 +298,8 @@ const generateAIAnalysisEmailHtml = (nome: string, savedLeadsCount: number) => `
               <p style="color: #9ca3af; font-size: 14px; text-align: center; margin: 30px 0 0;">
                 Prospecção mais inteligente = mais vendas fechadas!
               </p>
+              
+              ${generateCouponBanner()}
             </td>
           </tr>
           
@@ -283,6 +313,7 @@ const generateAIAnalysisEmailHtml = (nome: string, savedLeadsCount: number) => `
               <p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0; text-align: center;">
                 © 2024 Zuno Prospect. Todos os direitos reservados.
               </p>
+              ${generateTrackingPixel(userId, 'saved_no_ai')}
             </td>
           </tr>
         </table>
@@ -293,7 +324,7 @@ const generateAIAnalysisEmailHtml = (nome: string, savedLeadsCount: number) => `
 </html>
 `;
 
-const generateInactiveEmailHtml = (nome: string, daysSinceLastActivity: number) => `
+const generateInactiveEmailHtml = (nome: string, daysSinceLastActivity: number, userId: string) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -362,6 +393,8 @@ const generateInactiveEmailHtml = (nome: string, daysSinceLastActivity: number) 
               <p style="color: #9ca3af; font-size: 14px; text-align: center; margin: 30px 0 0;">
                 Continue prospectando e fechando mais negócios!
               </p>
+              
+              ${generateCouponBanner()}
             </td>
           </tr>
           
@@ -375,6 +408,7 @@ const generateInactiveEmailHtml = (nome: string, daysSinceLastActivity: number) 
               <p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0; text-align: center;">
                 © 2024 Zuno Prospect. Todos os direitos reservados.
               </p>
+              ${generateTrackingPixel(userId, 'inactive_7d')}
             </td>
           </tr>
         </table>
@@ -385,7 +419,7 @@ const generateInactiveEmailHtml = (nome: string, daysSinceLastActivity: number) 
 </html>
 `;
 
-const generateUpgradeEmailHtml = (nome: string, leadsUsed: number, leadsLimit: number) => `
+const generateUpgradeEmailHtml = (nome: string, leadsUsed: number, leadsLimit: number, userId: string) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -459,6 +493,8 @@ const generateUpgradeEmailHtml = (nome: string, leadsUsed: number, leadsLimit: n
               <p style="color: #9ca3af; font-size: 14px; text-align: center; margin: 30px 0 0;">
                 Invista em prospecção inteligente e feche mais negócios!
               </p>
+              
+              ${generateCouponBanner()}
             </td>
           </tr>
           
@@ -472,6 +508,7 @@ const generateUpgradeEmailHtml = (nome: string, leadsUsed: number, leadsLimit: n
               <p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0; text-align: center;">
                 © 2024 Zuno Prospect. Todos os direitos reservados.
               </p>
+              ${generateTrackingPixel(userId, 'never_upgraded')}
             </td>
           </tr>
         </table>
@@ -567,7 +604,7 @@ const handler = async (req: Request): Promise<Response> => {
             from: "Zuno Prospect <noreply@zunoprospect.com.br>",
             to: [user.email],
             subject: "🔍 Seus 30 leads gratuitos estão esperando!",
-            html: generateFirstEmailHtml(user.nome_completo || ''),
+            html: generateFirstEmailHtml(user.nome_completo || '', user.user_id),
           });
 
           if (emailResponse.error) {
@@ -653,7 +690,7 @@ const handler = async (req: Request): Promise<Response> => {
             from: "Zuno Prospect <noreply@zunoprospect.com.br>",
             to: [user.email],
             subject: "💡 Dica: Salve seus melhores leads para não perdê-los!",
-            html: generateSaveLeadsEmailHtml(user.nome_completo || '', user.leads_used),
+            html: generateSaveLeadsEmailHtml(user.nome_completo || '', user.leads_used, user.user_id),
           });
 
           if (emailResponse.error) {
@@ -756,7 +793,7 @@ const handler = async (req: Request): Promise<Response> => {
             from: "Zuno Prospect <noreply@zunoprospect.com.br>",
             to: [user.email],
             subject: "🤖 Você está perdendo o poder da IA nos seus leads!",
-            html: generateAIAnalysisEmailHtml(user.nome_completo || '', user.saved_leads_count || 0),
+            html: generateAIAnalysisEmailHtml(user.nome_completo || '', user.saved_leads_count || 0, user.user_id),
           });
 
           if (emailResponse.error) {
@@ -839,7 +876,7 @@ const handler = async (req: Request): Promise<Response> => {
           from: "Zuno Prospect <noreply@zunoprospect.com.br>",
           to: [user.email],
           subject: "💜 Sentimos sua falta no Zuno Prospect!",
-          html: generateInactiveEmailHtml(user.nome_completo || '', user.leads_used),
+          html: generateInactiveEmailHtml(user.nome_completo || '', user.leads_used, user.user_id),
         });
 
         if (emailResponse.error) {
@@ -919,7 +956,7 @@ const handler = async (req: Request): Promise<Response> => {
             from: "Zuno Prospect <noreply@zunoprospect.com.br>",
             to: [user.email],
             subject: "⚡ Desbloqueie mais leads e recursos PRO!",
-            html: generateUpgradeEmailHtml(user.nome_completo || '', user.leads_used, user.saved_leads_count || 30),
+            html: generateUpgradeEmailHtml(user.nome_completo || '', user.leads_used, user.saved_leads_count || 30, user.user_id),
           });
 
           if (emailResponse.error) {

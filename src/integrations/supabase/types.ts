@@ -244,6 +244,7 @@ export type Database = {
           diagnostico_bullets: Json | null
           digital_signals: Json | null
           email_encrypted: string | null
+          encryption_key_version: number | null
           endereco_encrypted: string | null
           foco: string
           google_place_id: string | null
@@ -289,6 +290,7 @@ export type Database = {
           diagnostico_bullets?: Json | null
           digital_signals?: Json | null
           email_encrypted?: string | null
+          encryption_key_version?: number | null
           endereco_encrypted?: string | null
           foco: string
           google_place_id?: string | null
@@ -334,6 +336,7 @@ export type Database = {
           diagnostico_bullets?: Json | null
           digital_signals?: Json | null
           email_encrypted?: string | null
+          encryption_key_version?: number | null
           endereco_encrypted?: string | null
           foco?: string
           google_place_id?: string | null
@@ -1217,6 +1220,146 @@ export type Database = {
         Returns: string
       }
       reset_monthly_leads_count: { Args: never; Returns: undefined }
+      set_encryption_key_and_get_lead_by_id: {
+        Args: {
+          p_encryption_key: string
+          p_lead_id: string
+          p_user_id?: string
+        }
+        Returns: {
+          ai_analise_gerada_em: string
+          cidade: string
+          cnae_principal: string
+          cnpj: string
+          cnpj_email: string
+          cnpj_telefone: string
+          created_at: string
+          diagnostico_bullets: Json
+          digital_signals: Json
+          email: string
+          endereco: string
+          foco: string
+          google_place_id: string
+          has_gtag: boolean
+          has_gtm: boolean
+          has_meta_pixel: boolean
+          id: string
+          instagram_context: string
+          instagram_url: string
+          latitude: number
+          longitude: number
+          nicho: string
+          nome: string
+          nome_responsavel: string
+          notas: string
+          plano_prospeccao: Json
+          porte_empresa: string
+          probabilidade_conversao: number
+          proximidade_ativa: boolean
+          raio_km: number
+          rating: number
+          razao_social: string
+          salvo: boolean
+          situacao_cadastral: string
+          status: string
+          telefone: string
+          total_reviews: number
+          updated_at: string
+          user_id: string
+          website: string
+          whatsapp_number: string
+          whatsapp_on_site: boolean
+        }[]
+      }
+      set_encryption_key_and_get_lead_sensitive: {
+        Args: {
+          p_encryption_key: string
+          p_fields?: string[]
+          p_lead_id: string
+        }
+        Returns: Json
+      }
+      set_encryption_key_and_get_leads_filtered: {
+        Args: {
+          p_encryption_key: string
+          p_salvo?: boolean
+          p_user_id?: string
+        }
+        Returns: {
+          ai_analise_gerada_em: string
+          cidade: string
+          cnae_principal: string
+          cnpj: string
+          cnpj_email: string
+          cnpj_telefone: string
+          created_at: string
+          diagnostico_bullets: Json
+          digital_signals: Json
+          email: string
+          endereco: string
+          foco: string
+          google_place_id: string
+          has_gtag: boolean
+          has_gtm: boolean
+          has_meta_pixel: boolean
+          id: string
+          instagram_context: string
+          instagram_url: string
+          latitude: number
+          longitude: number
+          nicho: string
+          nome: string
+          nome_responsavel: string
+          notas: string
+          plano_prospeccao: Json
+          porte_empresa: string
+          probabilidade_conversao: number
+          proximidade_ativa: boolean
+          raio_km: number
+          rating: number
+          razao_social: string
+          salvo: boolean
+          situacao_cadastral: string
+          status: string
+          telefone: string
+          total_reviews: number
+          updated_at: string
+          user_id: string
+          website: string
+          whatsapp_number: string
+          whatsapp_on_site: boolean
+        }[]
+      }
+      set_encryption_key_and_insert_lead: {
+        Args: {
+          p_cidade: string
+          p_digital_signals: Json
+          p_email?: string
+          p_encryption_key: string
+          p_endereco: string
+          p_foco: string
+          p_google_place_id: string
+          p_has_gtag: boolean
+          p_has_gtm: boolean
+          p_has_meta_pixel: boolean
+          p_instagram_url: string
+          p_latitude: number
+          p_longitude: number
+          p_nicho: string
+          p_nome: string
+          p_pais?: string
+          p_proximidade_ativa: boolean
+          p_raio_km: number
+          p_rating: number
+          p_telefone: string
+          p_total_reviews: number
+          p_user_id: string
+          p_website: string
+          p_whatsapp_number: string
+          p_whatsapp_on_site: boolean
+        }
+        Returns: Json
+      }
       update_lead_encrypted_fields: {
         Args: {
           p_email?: string

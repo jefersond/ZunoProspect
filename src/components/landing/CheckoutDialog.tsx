@@ -163,12 +163,12 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
       return false;
     }
 
-    const redirectUrl = `${window.location.origin}/prospeccao`;
+    const redirectBase = getAuthRedirectBaseUrl();
     const { error: authError } = await supabase.auth.signUp({
       email,
       password: senha,
       options: {
-        emailRedirectTo: redirectUrl,
+        emailRedirectTo: `${redirectBase}/`,
         data: { full_name: nome }
       }
     });

@@ -4,6 +4,7 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "Zuno Prospect <contato@zunoprospect.com.br>";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -832,7 +833,7 @@ const handler = async (req: Request): Promise<Response> => {
           }
           
           const emailResponse = await resend.emails.send({
-            from: "Zuno Prospect <noreply@zunoprospect.com.br>",
+            from: RESEND_FROM_EMAIL,
             to: [user.email],
             subject: emailSubject,
             html: emailHtml,
@@ -949,7 +950,7 @@ const handler = async (req: Request): Promise<Response> => {
           }
           
           const emailResponse = await resend.emails.send({
-            from: "Zuno Prospect <noreply@zunoprospect.com.br>",
+            from: RESEND_FROM_EMAIL,
             to: [user.email],
             subject: emailSubject,
             html: emailHtml,
@@ -1082,7 +1083,7 @@ const handler = async (req: Request): Promise<Response> => {
           }
           
           const emailResponse = await resend.emails.send({
-            from: "Zuno Prospect <noreply@zunoprospect.com.br>",
+            from: RESEND_FROM_EMAIL,
             to: [user.email],
             subject: emailSubject,
             html: emailHtml,
@@ -1195,7 +1196,7 @@ const handler = async (req: Request): Promise<Response> => {
         }
         
         const emailResponse = await resend.emails.send({
-          from: "Zuno Prospect <noreply@zunoprospect.com.br>",
+          from: RESEND_FROM_EMAIL,
           to: [user.email],
           subject: emailSubject,
           html: emailHtml,
@@ -1305,7 +1306,7 @@ const handler = async (req: Request): Promise<Response> => {
           }
           
           const emailResponse = await resend.emails.send({
-            from: "Zuno Prospect <noreply@zunoprospect.com.br>",
+            from: RESEND_FROM_EMAIL,
             to: [user.email],
             subject: emailSubject,
             html: emailHtml,

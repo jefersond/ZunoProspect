@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import { UpgradeIncentive } from "@/components/subscription/UpgradeIncentive";
 import { UsaAddonUpsell } from "./UsaAddonUpsell";
 import { COUNTRIES, getStatesByCountry, getCityPlaceholder, type Country } from "@/data/locations";
 
+
 const formSchema = z.object({
   pais: z.enum(["BR", "US"]).default("BR"),
   cidade: z.string().min(1, "Cidade é obrigatória"),
@@ -36,6 +38,7 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>;
 
 export const ProspeccaoForm = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { subscription, canUseLeads, incrementLeadsUsed, refetch, canUseUsaProspecting } = useSubscription();
   const [loading, setLoading] = useState(false);
@@ -219,9 +222,20 @@ export const ProspeccaoForm = () => {
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
-        throw new Error("Usuário não autenticado");
+        // Sessão expirada / usuário deslogado → manda para login
+        const msg = "Você precisa entrar para buscar leads.";
+        setSearchError(msg);
+        toast({
+          variant: "destructive",
+          title: "Usuário não autenticado",
+          description: msg,
+        });
+        setLoading(false);
+        setCurrentStep(0);
+        navigate("/auth");
+        return;
       }
 
       // Inicia polling de progresso

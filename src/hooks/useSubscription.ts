@@ -199,8 +199,8 @@ export const useSubscription = (): UseSubscriptionReturn => {
     if (!subscription) return false;
     // Agency plan has USA included
     if (subscription.plan_name === 'agencia') return true;
-    // Pro plan needs add-on
-    if (subscription.plan_name === 'pro') {
+    // Paid plans (pro, iniciante) need add-on - starter cannot use
+    if (subscription.plan_name !== 'starter') {
       return hasUsaAddon;
     }
     return false;

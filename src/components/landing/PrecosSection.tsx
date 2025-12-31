@@ -276,7 +276,7 @@ export function PrecosSection() {
               Expanda suas possibilidades
             </h3>
             <p className="text-muted-foreground max-w-xl mx-auto">
-              Adicione recursos extras aos planos Pro ou Agência
+              Adicione recursos extras a qualquer plano pago
             </p>
           </div>
 
@@ -293,8 +293,8 @@ export function PrecosSection() {
                     <div className="p-2 rounded-lg bg-blue-500/10">
                       <Globe className="h-6 w-6 text-blue-500" />
                     </div>
-                    <Badge variant="outline" className="border-amber-500/30 text-amber-500">
-                      Exclusivo Pro+
+                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-500">
+                      Planos Pagos
                     </Badge>
                     <span className="text-2xl">🇺🇸</span>
                   </div>
@@ -310,7 +310,7 @@ export function PrecosSection() {
                   </div>
                   
                   <p className="text-sm text-muted-foreground mb-6">
-                    Complemento exclusivo para planos Pro e Agência
+                    Disponível para Iniciante, Pro e Agência
                   </p>
                   
                   <Button

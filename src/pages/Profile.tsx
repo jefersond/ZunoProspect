@@ -13,6 +13,7 @@ import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
 import { Badge } from "@/components/ui/badge";
 import { ApiKeysSection } from "@/components/profile/ApiKeysSection";
+import { OnboardingEmailsDashboard } from "@/components/admin/OnboardingEmailsDashboard";
 import {
   Dialog,
   DialogContent,
@@ -281,23 +282,27 @@ const Profile = () => {
           <ApiKeysSection />
         )}
 
-        {/* Admin Email Marketing - Admin only */}
+        {/* Admin Email Onboarding Metrics - Admin only */}
         {isAdmin && (
           <Card className="shadow-lg mt-6 border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-orange-500/5">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Mail className="h-5 w-5 text-amber-500" />
-                Email Marketing (Admin)
-              </CardTitle>
-              <CardDescription>
-                Envie campanhas de email para os usuários
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5 text-amber-500" />
+                    Métricas de Email (Admin)
+                  </CardTitle>
+                  <CardDescription>
+                    Acompanhe o desempenho dos emails de onboarding
+                  </CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => navigate("/admin/email")} className="gap-2">
+                  Ver Dashboard Completo
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <Button onClick={() => navigate("/admin/email")} className="gap-2">
-                <Mail className="h-4 w-4" />
-                Gerenciar Campanhas
-              </Button>
+              <OnboardingEmailsDashboard compact />
             </CardContent>
           </Card>
         )}

@@ -17,6 +17,8 @@ serve(async (req: Request): Promise<Response> => {
     const userId = url.searchParams.get('uid');
     const emailType = url.searchParams.get('type');
     
+    console.log(`[track-email-open] Request received: userId=${userId}, emailType=${emailType}`);
+    
     if (userId && emailType) {
       // Create Supabase client with service role
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -29,20 +31,34 @@ serve(async (req: Request): Promise<Response> => {
         },
       });
       
-      // Update the onboarding_emails_sent record to mark as opened
-      // First check if a record exists for this user/email_type
-      const { data: existingRecord } = await supabase
+      // Find the most recent email record for this user/type that hasn't been opened yet
+      const { data: existingRecord, error: fetchError } = await supabase
         .from('onboarding_emails_sent')
-        .select('id, sent_at')
+        .select('id, sent_at, opened_at')
         .eq('user_id', userId)
         .eq('email_type', emailType)
         .order('sent_at', { ascending: false })
         .limit(1)
         .single();
       
-      if (existingRecord) {
-        // Log the open event (we could add an opened_at column later if needed)
-        console.log(`Email opened: user=${userId}, type=${emailType}, sent_at=${existingRecord.sent_at}`);
+      if (fetchError) {
+        console.log(`[track-email-open] No record found for user=${userId}, type=${emailType}: ${fetchError.message}`);
+      } else if (existingRecord) {
+        // Only update if not already opened
+        if (!existingRecord.opened_at) {
+          const { error: updateError } = await supabase
+            .from('onboarding_emails_sent')
+            .update({ opened_at: new Date().toISOString() })
+            .eq('id', existingRecord.id);
+          
+          if (updateError) {
+            console.error(`[track-email-open] Error updating opened_at: ${updateError.message}`);
+          } else {
+            console.log(`[track-email-open] Email opened: user=${userId}, type=${emailType}, record_id=${existingRecord.id}`);
+          }
+        } else {
+          console.log(`[track-email-open] Email already marked as opened: user=${userId}, type=${emailType}, opened_at=${existingRecord.opened_at}`);
+        }
       }
     }
     
@@ -57,7 +73,7 @@ serve(async (req: Request): Promise<Response> => {
       },
     });
   } catch (error) {
-    console.error('Error tracking email open:', error);
+    console.error('[track-email-open] Error tracking email open:', error);
     // Always return the pixel even if tracking fails
     return new Response(TRACKING_PIXEL, {
       status: 200,

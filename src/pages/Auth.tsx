@@ -133,47 +133,75 @@ const Auth = () => {
 
   // Redirect authenticated users - check for pending checkout first
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        // Check if there's a pending checkout from Google OAuth
-        const pendingCheckout = localStorage.getItem('checkout_pending');
-        if (pendingCheckout) {
-          try {
-            const { plano, isAnual } = JSON.parse(pendingCheckout);
-            localStorage.removeItem('checkout_pending');
-            
-            const userEmail = session.user.email || '';
-            const userName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || '';
-            
-            // Track payment info
-            trackAddPaymentInfo({
-              content_category: 'Kiwify',
-              currency: 'BRL',
-              value: 0 // We don't have the exact price here, but it's for tracking purposes
-            });
+    // Helper function to process pending checkout
+    const processPendingCheckout = (session: { user: { email?: string | null; user_metadata?: { full_name?: string; name?: string } } }) => {
+      const pendingCheckout = localStorage.getItem('checkout_pending');
+      if (pendingCheckout) {
+        try {
+          const { plano, isAnual } = JSON.parse(pendingCheckout);
+          localStorage.removeItem('checkout_pending');
+          
+          const userEmail = session.user.email || '';
+          const userName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || '';
+          
+          // Track payment info
+          trackAddPaymentInfo({
+            content_category: 'Kiwify',
+            currency: 'BRL',
+            value: 0
+          });
 
-            // Generate Kiwify checkout URL and redirect
-            const checkoutUrl = getKiwifyCheckoutUrl(plano, isAnual, userEmail, userName);
-            
-            toast({
-              title: "Logado com Google!",
-              description: "Redirecionando para o pagamento..."
-            });
-            
+          // Generate Kiwify checkout URL and redirect
+          const checkoutUrl = getKiwifyCheckoutUrl(plano, isAnual, userEmail, userName);
+          
+          toast({
+            title: "Logado com Google!",
+            description: "Redirecionando para o pagamento..."
+          });
+          
+          // Use setTimeout(0) to avoid Supabase auth deadlock
+          setTimeout(() => {
             window.location.href = checkoutUrl;
+          }, 0);
+          return true;
+        } catch (e) {
+          localStorage.removeItem('checkout_pending');
+        }
+      }
+      return false;
+    };
+
+    // Set up auth state listener to catch OAuth redirects
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        // Only process on sign-in events
+        if (event === 'SIGNED_IN' && session) {
+          // Check for pending checkout
+          if (processPendingCheckout(session)) {
             return;
-          } catch (e) {
-            // Invalid JSON, remove the item
-            localStorage.removeItem('checkout_pending');
           }
+          
+          // Default: redirect to prospeccao (defer to avoid deadlock)
+          setTimeout(() => {
+            navigate("/prospeccao");
+          }, 0);
+        }
+      }
+    );
+
+    // Also check for existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        // Check for pending checkout
+        if (processPendingCheckout(session)) {
+          return;
         }
         
-        // Default: redirect to prospeccao
         navigate("/prospeccao");
       }
-    };
-    checkAuth();
+    });
+
+    return () => subscription.unsubscribe();
   }, [navigate, toast]);
 
   const handleForgotPassword = async (e: React.FormEvent) => {

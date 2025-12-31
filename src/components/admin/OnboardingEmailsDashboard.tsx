@@ -103,7 +103,7 @@ const EMAIL_TEMPLATES: Record<string, (nome: string, param?: number) => string> 
                 <h3 style="color: #1f2937; margin: 0 0 15px; font-size: 18px;">✨ O que você pode fazer agora:</h3>
                 <ul style="color: #4b5563; font-size: 15px; line-height: 1.8; margin: 0; padding-left: 20px;">
                   <li>Buscar empresas em qualquer cidade do Brasil</li>
-                  <li>Encontrar leads qualificados com WhatsApp e email</li>
+                  <li>Encontrar leads qualificados com WhatsApp, Instagram e email</li>
                   <li>Receber análise de IA sobre cada lead</li>
                   <li>Gerar planos de abordagem personalizados</li>
                 </ul>

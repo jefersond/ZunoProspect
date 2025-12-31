@@ -2,11 +2,14 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Mail, Users, Clock, TrendingUp, RefreshCw, MailOpen, Percent } from "lucide-react";
+import { Loader2, Mail, Users, Clock, TrendingUp, RefreshCw, MailOpen, Percent, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface EmailStats {
   email_type: string;
@@ -22,32 +25,352 @@ interface RecentEmail {
   opened_at: string | null;
 }
 
-const EMAIL_TYPE_LABELS: Record<string, { label: string; color: string; description: string }> = {
+const EMAIL_TYPE_LABELS: Record<string, { label: string; color: string; description: string; subject: string }> = {
   first_24h: {
     label: "Primeira busca",
     color: "#8B5CF6",
     description: "Usuários que não fizeram busca em 24h",
+    subject: "🚀 Seus 30 leads gratuitos estão esperando!",
   },
   used_not_saved: {
     label: "Salvar leads",
     color: "#10B981",
     description: "Usou leads mas não salvou nenhum",
+    subject: "💾 Dica: Salve seus melhores leads!",
   },
   saved_no_ai: {
     label: "Análise IA",
     color: "#F59E0B",
     description: "Salvou leads mas não usou IA",
+    subject: "🤖 Você sabia? IA pode analisar seus leads!",
   },
   inactive_7d: {
     label: "Reengajamento",
     color: "#EC4899",
     description: "Usuários inativos há 7+ dias",
+    subject: "💜 Sentimos sua falta no Zuno Prospect!",
   },
   never_upgraded: {
     label: "Upgrade",
     color: "#3B82F6",
     description: "Nunca fizeram upgrade do plano",
+    subject: "⚡ Desbloqueie todo o potencial do Zuno Prospect!",
   },
+};
+
+// Email templates for preview
+const generateCouponBanner = (): string => `
+  <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
+    <p style="color: #ffffff; font-size: 14px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 1px;">
+      🎁 Cupom exclusivo para você
+    </p>
+    <p style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0 0 8px; font-family: monospace; letter-spacing: 3px;">
+      ZUNO10
+    </p>
+    <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 0;">
+      <strong>10% de desconto</strong> em qualquer plano!
+    </p>
+  </div>
+`;
+
+const EMAIL_TEMPLATES: Record<string, (nome: string, param?: number) => string> = {
+  first_24h: (nome: string) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <tr>
+            <td style="background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%); padding: 40px 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">🚀 Zuno Prospect</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px;">Prospecção Inteligente com IA</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="color: #1f2937; margin: 0 0 20px; font-size: 24px;">Olá${nome ? `, ${nome}` : ''}! 👋</h2>
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                Notamos que você criou sua conta no <strong>Zuno Prospect</strong>, mas ainda não fez sua primeira busca de leads. 
+                Você tem <strong>30 leads gratuitos</strong> esperando por você!
+              </p>
+              <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 25px 0;">
+                <h3 style="color: #1f2937; margin: 0 0 15px; font-size: 18px;">✨ O que você pode fazer agora:</h3>
+                <ul style="color: #4b5563; font-size: 15px; line-height: 1.8; margin: 0; padding-left: 20px;">
+                  <li>Buscar empresas em qualquer cidade do Brasil</li>
+                  <li>Encontrar leads qualificados com WhatsApp e email</li>
+                  <li>Receber análise de IA sobre cada lead</li>
+                  <li>Gerar planos de abordagem personalizados</li>
+                </ul>
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center">
+                    <a href="https://zunoprospect.com.br/prospeccao" style="display: inline-block; background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                      🔍 Fazer Minha Primeira Busca
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              ${generateCouponBanner()}
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
+                Você recebeu este email porque se cadastrou no Zuno Prospect.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`,
+  used_not_saved: (nome: string, leadsUsed?: number) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <tr>
+            <td style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); padding: 40px 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">💾 Zuno Prospect</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px;">Dica para maximizar sua prospecção</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="color: #1f2937; margin: 0 0 20px; font-size: 24px;">Parabéns${nome ? `, ${nome}` : ''}! 🎉</h2>
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                Você já prospectou <strong>${leadsUsed || 15} leads</strong> - isso é ótimo! Mas notamos que você ainda não 
+                <strong>salvou nenhum lead</strong> como favorito.
+              </p>
+              <div style="background-color: #ecfdf5; border-radius: 8px; padding: 20px; margin: 25px 0; border-left: 4px solid #10B981;">
+                <h3 style="color: #065f46; margin: 0 0 15px; font-size: 18px;">💡 Por que salvar leads?</h3>
+                <ul style="color: #047857; font-size: 15px; line-height: 1.8; margin: 0; padding-left: 20px;">
+                  <li>Acesse rapidamente seus melhores prospects</li>
+                  <li>Organize seu pipeline de vendas</li>
+                  <li>Acompanhe o status de cada negociação</li>
+                </ul>
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center">
+                    <a href="https://zunoprospect.com.br/leads-salvos" style="display: inline-block; background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                      📂 Ver Meus Leads Salvos
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              ${generateCouponBanner()}
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
+                Você recebeu este email porque se cadastrou no Zuno Prospect.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`,
+  saved_no_ai: (nome: string, savedLeads?: number) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <tr>
+            <td style="background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); padding: 40px 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">🤖 Zuno Prospect</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px;">Potencialize sua prospecção com IA</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="color: #1f2937; margin: 0 0 20px; font-size: 24px;">${nome ? `${nome}, você` : 'Você'} já salvou ${savedLeads || 5} leads! 🎯</h2>
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                Mas você sabia que pode usar nossa <strong>Inteligência Artificial</strong> para analisar cada lead 
+                e criar planos de abordagem personalizados?
+              </p>
+              <div style="background-color: #fffbeb; border-radius: 8px; padding: 20px; margin: 25px 0; border-left: 4px solid #F59E0B;">
+                <h3 style="color: #92400e; margin: 0 0 15px; font-size: 18px;">🤖 O que a Análise de IA faz:</h3>
+                <ul style="color: #b45309; font-size: 15px; line-height: 1.8; margin: 0; padding-left: 20px;">
+                  <li><strong>Diagnóstico completo</strong> - Identifica pontos fortes e fracos</li>
+                  <li><strong>Probabilidade de conversão</strong> - Score de 0-100%</li>
+                  <li><strong>Plano de abordagem</strong> - Roteiro personalizado</li>
+                </ul>
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center">
+                    <a href="https://zunoprospect.com.br/leads-salvos" style="display: inline-block; background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                      🧠 Analisar Meus Leads com IA
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              ${generateCouponBanner()}
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
+                Você recebeu este email porque se cadastrou no Zuno Prospect.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`,
+  inactive_7d: (nome: string, days?: number) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <tr>
+            <td style="background: linear-gradient(135deg, #EC4899 0%, #BE185D 100%); padding: 40px 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">💜 Zuno Prospect</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px;">Sentimos sua falta!</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="color: #1f2937; margin: 0 0 20px; font-size: 24px;">Olá${nome ? `, ${nome}` : ''}! 👋</h2>
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                Notamos que você não acessa o <strong>Zuno Prospect</strong> há ${days || 7} dias. 
+                Enquanto isso, novos leads podem estar surgindo na sua região!
+              </p>
+              <div style="background-color: #fdf2f8; border-radius: 8px; padding: 20px; margin: 25px 0; border-left: 4px solid #EC4899;">
+                <h3 style="color: #9d174d; margin: 0 0 15px; font-size: 18px;">🚀 O que você pode estar perdendo:</h3>
+                <ul style="color: #be185d; font-size: 15px; line-height: 1.8; margin: 0; padding-left: 20px;">
+                  <li>Novos negócios abriram na sua região</li>
+                  <li>Leads com alta probabilidade de conversão</li>
+                  <li>Oportunidades antes da concorrência</li>
+                </ul>
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center">
+                    <a href="https://zunoprospect.com.br/prospeccao" style="display: inline-block; background: linear-gradient(135deg, #EC4899 0%, #BE185D 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                      🔍 Buscar Novos Leads
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              ${generateCouponBanner()}
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
+                Você recebeu este email porque se cadastrou no Zuno Prospect.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`,
+  never_upgraded: (nome: string, leadsUsed?: number) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <tr>
+            <td style="background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); padding: 40px 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">⚡ Zuno Prospect</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px;">Desbloqueie todo o potencial!</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="color: #1f2937; margin: 0 0 20px; font-size: 24px;">${nome ? `${nome}, você` : 'Você'} está aproveitando bem o plano gratuito! 🎯</h2>
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                Você já usou <strong>${leadsUsed || 25}/30 leads</strong> do seu plano gratuito. 
+                Que tal desbloquear <strong>leads ilimitados</strong> e recursos exclusivos?
+              </p>
+              <div style="background-color: #eff6ff; border-radius: 8px; padding: 20px; margin: 25px 0; border-left: 4px solid #3B82F6;">
+                <h3 style="color: #1e40af; margin: 0 0 15px; font-size: 18px;">⭐ Vantagens do plano Pro:</h3>
+                <ul style="color: #1d4ed8; font-size: 15px; line-height: 1.8; margin: 0; padding-left: 20px;">
+                  <li><strong>300 leads/mês</strong> (10x mais!)</li>
+                  <li><strong>Dados CNPJ</strong> completos</li>
+                  <li><strong>Busca por proximidade</strong> geográfica</li>
+                  <li><strong>Exportação Excel</strong> ilimitada</li>
+                </ul>
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center">
+                    <a href="https://zunoprospect.com.br/precos" style="display: inline-block; background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                      🚀 Ver Planos e Preços
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              ${generateCouponBanner()}
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
+                Você recebeu este email porque se cadastrou no Zuno Prospect.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`,
 };
 
 interface OnboardingEmailsDashboardProps {
@@ -64,6 +387,18 @@ export const OnboardingEmailsDashboard = ({ compact = false }: OnboardingEmailsD
   const [todaySent, setTodaySent] = useState(0);
   const [todayOpened, setTodayOpened] = useState(0);
   const [weekSent, setWeekSent] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewType, setPreviewType] = useState<string | null>(null);
+
+  const handlePreview = (emailType: string) => {
+    setPreviewType(emailType);
+    setPreviewOpen(true);
+  };
+
+  const getPreviewHtml = () => {
+    if (!previewType || !EMAIL_TEMPLATES[previewType]) return "";
+    return EMAIL_TEMPLATES[previewType]("João", 15);
+  };
 
   useEffect(() => {
     loadData();
@@ -405,11 +740,11 @@ export const OnboardingEmailsDashboard = ({ compact = false }: OnboardingEmailsD
         </Card>
       </div>
 
-      {/* Email Types Description */}
+      {/* Email Types Description - with Preview Buttons */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Tipos de Email</CardTitle>
-          <CardDescription>Descrição de cada tipo de email automático</CardDescription>
+          <CardDescription>Clique em "Preview" para visualizar cada template antes de enviar</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -431,13 +766,63 @@ export const OnboardingEmailsDashboard = ({ compact = false }: OnboardingEmailsD
                       </Badge>
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">{info.description}</p>
+                  <p className="text-sm text-muted-foreground mb-3">{info.description}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground truncate max-w-[180px]" title={info.subject}>
+                      Assunto: {info.subject}
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handlePreview(key)}
+                      className="shrink-0"
+                    >
+                      <Eye className="h-3 w-3 mr-1" />
+                      Preview
+                    </Button>
+                  </div>
                 </div>
               );
             })}
           </div>
         </CardContent>
       </Card>
+
+      {/* Email Preview Dialog */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Preview: {previewType && EMAIL_TYPE_LABELS[previewType]?.label}
+            </DialogTitle>
+            <DialogDescription>
+              Assunto: {previewType && EMAIL_TYPE_LABELS[previewType]?.subject}
+            </DialogDescription>
+          </DialogHeader>
+          <Tabs defaultValue="preview" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="preview">Visualização</TabsTrigger>
+              <TabsTrigger value="code">Código HTML</TabsTrigger>
+            </TabsList>
+            <TabsContent value="preview" className="mt-4">
+              <ScrollArea className="h-[60vh] rounded-lg border bg-muted/30">
+                <div 
+                  className="p-4"
+                  dangerouslySetInnerHTML={{ __html: getPreviewHtml() }}
+                />
+              </ScrollArea>
+            </TabsContent>
+            <TabsContent value="code" className="mt-4">
+              <ScrollArea className="h-[60vh] rounded-lg border bg-muted/50">
+                <pre className="p-4 text-xs whitespace-pre-wrap break-words font-mono">
+                  {getPreviewHtml()}
+                </pre>
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
 
       {/* Recent Emails Table */}
       <Card>

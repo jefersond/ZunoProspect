@@ -264,8 +264,21 @@ export function PrecosSection() {
           </Card>
         </div>
 
-        {/* USA Addon - Card especial */}
-        <div className="max-w-5xl mx-auto mt-12">
+        {/* Seção de Complementos Opcionais */}
+        <div className="max-w-5xl mx-auto mt-20 pt-12 border-t border-border/50">
+          <div className="text-center mb-10">
+            <Badge variant="outline" className="mb-4 border-blue-500/30 text-blue-500">
+              Complementos Opcionais
+            </Badge>
+            <h3 className="text-2xl md:text-3xl font-bold mb-3">
+              Expanda suas possibilidades
+            </h3>
+            <p className="text-muted-foreground max-w-xl mx-auto">
+              Adicione recursos extras aos planos Pro ou Agência
+            </p>
+          </div>
+
+          {/* USA Addon - Card especial */}
           <Card className="relative overflow-hidden border-2 border-blue-500/30 bg-gradient-to-br from-blue-500/5 via-background to-red-500/5">
             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-red-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
@@ -278,8 +291,8 @@ export function PrecosSection() {
                     <div className="p-2 rounded-lg bg-blue-500/10">
                       <Globe className="h-6 w-6 text-blue-500" />
                     </div>
-                    <Badge variant="outline" className="border-blue-500/30 text-blue-500">
-                      Add-on
+                    <Badge variant="outline" className="border-amber-500/30 text-amber-500">
+                      Exclusivo Pro+
                     </Badge>
                     <span className="text-2xl">🇺🇸</span>
                   </div>
@@ -295,7 +308,7 @@ export function PrecosSection() {
                   </div>
                   
                   <p className="text-sm text-muted-foreground mb-6">
-                    Adicione ao seu plano atual (Iniciante, Pro ou Agência)
+                    Complemento exclusivo para planos Pro e Agência
                   </p>
                   
                   <Button

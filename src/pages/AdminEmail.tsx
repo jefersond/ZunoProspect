@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingEmailsDashboard } from "@/components/admin/OnboardingEmailsDashboard";
 import { ABTestingDashboard } from "@/components/admin/ABTestingDashboard";
+import { WelcomeEmailsDashboard } from "@/components/admin/WelcomeEmailsDashboard";
 
 // Sanitize HTML for safe rendering - allows common email tags
 const sanitizeHtml = (dirty: string): string => {
@@ -323,9 +324,13 @@ const AdminEmail = () => {
               <Mail className="h-4 w-4" />
               Campanhas Manuais
             </TabsTrigger>
+            <TabsTrigger value="welcome" className="gap-2">
+              <Users className="h-4 w-4" />
+              Boas-Vindas
+            </TabsTrigger>
             <TabsTrigger value="onboarding" className="gap-2">
               <Zap className="h-4 w-4" />
-              Onboarding Automático
+              Onboarding
             </TabsTrigger>
             <TabsTrigger value="abtesting" className="gap-2">
               <FlaskConical className="h-4 w-4" />
@@ -462,6 +467,10 @@ const AdminEmail = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="welcome">
+            <WelcomeEmailsDashboard />
           </TabsContent>
 
           <TabsContent value="onboarding">

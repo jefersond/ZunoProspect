@@ -880,13 +880,38 @@ const handler = async (req: Request): Promise<Response> => {
 
       console.log(`${eligibleUsedNotSaved.length} users eligible for used_not_saved email`);
 
+      // Select A/B variant for used_not_saved emails
+      const abVariantUsedNotSaved = await selectABVariant(supabase, 'used_not_saved');
+      if (abVariantUsedNotSaved) {
+        console.log(`Using A/B variant ${abVariantUsedNotSaved.variant} for used_not_saved emails`);
+      }
+
       for (const user of eligibleUsedNotSaved) {
         try {
+          let emailSubject: string;
+          let emailHtml: string;
+          
+          if (abVariantUsedNotSaved) {
+            emailSubject = abVariantUsedNotSaved.subject;
+            emailHtml = applyTemplateVariables(
+              abVariantUsedNotSaved.template_html,
+              user.nome_completo || '',
+              user.user_id,
+              'used_not_saved',
+              user.leads_used,
+              undefined,
+              abVariantUsedNotSaved.id
+            );
+          } else {
+            emailSubject = "💡 Dica: Salve seus melhores leads para não perdê-los!";
+            emailHtml = generateSaveLeadsEmailHtml(user.nome_completo || '', user.leads_used, user.user_id);
+          }
+          
           const emailResponse = await resend.emails.send({
             from: "Zuno Prospect <noreply@zunoprospect.com.br>",
             to: [user.email],
-            subject: "💡 Dica: Salve seus melhores leads para não perdê-los!",
-            html: generateSaveLeadsEmailHtml(user.nome_completo || '', user.leads_used, user.user_id),
+            subject: emailSubject,
+            html: emailHtml,
           });
 
           if (emailResponse.error) {
@@ -899,9 +924,13 @@ const handler = async (req: Request): Promise<Response> => {
             email_type: 'used_not_saved',
           });
 
+          if (abVariantUsedNotSaved) {
+            await recordABResult(supabase, abVariantUsedNotSaved.id, user.user_id, abVariantUsedNotSaved.variant);
+          }
+
           totalEmailsSent++;
-          console.log(`Sent used_not_saved email to ${user.email}`);
-          await delay(RATE_LIMIT_DELAY); // Rate limit protection
+          console.log(`Sent used_not_saved email to ${user.email}${abVariantUsedNotSaved ? ` (variant ${abVariantUsedNotSaved.variant})` : ''}`);
+          await delay(RATE_LIMIT_DELAY);
         } catch (emailError: any) {
           allErrors.push(`used_not_saved - ${user.email}: ${emailError.message}`);
         }
@@ -984,13 +1013,38 @@ const handler = async (req: Request): Promise<Response> => {
 
       console.log(`${eligibleSavedNoAI.length} users eligible for saved_no_ai email`);
 
+      // Select A/B variant for saved_no_ai emails
+      const abVariantSavedNoAI = await selectABVariant(supabase, 'saved_no_ai');
+      if (abVariantSavedNoAI) {
+        console.log(`Using A/B variant ${abVariantSavedNoAI.variant} for saved_no_ai emails`);
+      }
+
       for (const user of eligibleSavedNoAI) {
         try {
+          let emailSubject: string;
+          let emailHtml: string;
+          
+          if (abVariantSavedNoAI) {
+            emailSubject = abVariantSavedNoAI.subject;
+            emailHtml = applyTemplateVariables(
+              abVariantSavedNoAI.template_html,
+              user.nome_completo || '',
+              user.user_id,
+              'saved_no_ai',
+              user.leads_used,
+              user.saved_leads_count,
+              abVariantSavedNoAI.id
+            );
+          } else {
+            emailSubject = "🤖 Você está perdendo o poder da IA nos seus leads!";
+            emailHtml = generateAIAnalysisEmailHtml(user.nome_completo || '', user.saved_leads_count || 0, user.user_id);
+          }
+          
           const emailResponse = await resend.emails.send({
             from: "Zuno Prospect <noreply@zunoprospect.com.br>",
             to: [user.email],
-            subject: "🤖 Você está perdendo o poder da IA nos seus leads!",
-            html: generateAIAnalysisEmailHtml(user.nome_completo || '', user.saved_leads_count || 0, user.user_id),
+            subject: emailSubject,
+            html: emailHtml,
           });
 
           if (emailResponse.error) {
@@ -1003,9 +1057,13 @@ const handler = async (req: Request): Promise<Response> => {
             email_type: 'saved_no_ai',
           });
 
+          if (abVariantSavedNoAI) {
+            await recordABResult(supabase, abVariantSavedNoAI.id, user.user_id, abVariantSavedNoAI.variant);
+          }
+
           totalEmailsSent++;
-          console.log(`Sent saved_no_ai email to ${user.email}`);
-          await delay(RATE_LIMIT_DELAY); // Rate limit protection
+          console.log(`Sent saved_no_ai email to ${user.email}${abVariantSavedNoAI ? ` (variant ${abVariantSavedNoAI.variant})` : ''}`);
+          await delay(RATE_LIMIT_DELAY);
         } catch (emailError: any) {
           allErrors.push(`saved_no_ai - ${user.email}: ${emailError.message}`);
         }
@@ -1068,13 +1126,38 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`${eligibleInactive.length} users eligible for inactive_7d email`);
 
+    // Select A/B variant for inactive_7d emails
+    const abVariantInactive = await selectABVariant(supabase, 'inactive_7d');
+    if (abVariantInactive) {
+      console.log(`Using A/B variant ${abVariantInactive.variant} for inactive_7d emails`);
+    }
+
     for (const user of eligibleInactive) {
       try {
+        let emailSubject: string;
+        let emailHtml: string;
+        
+        if (abVariantInactive) {
+          emailSubject = abVariantInactive.subject;
+          emailHtml = applyTemplateVariables(
+            abVariantInactive.template_html,
+            user.nome_completo || '',
+            user.user_id,
+            'inactive_7d',
+            user.leads_used,
+            undefined,
+            abVariantInactive.id
+          );
+        } else {
+          emailSubject = "💜 Sentimos sua falta no Zuno Prospect!";
+          emailHtml = generateInactiveEmailHtml(user.nome_completo || '', user.leads_used, user.user_id);
+        }
+        
         const emailResponse = await resend.emails.send({
           from: "Zuno Prospect <noreply@zunoprospect.com.br>",
           to: [user.email],
-          subject: "💜 Sentimos sua falta no Zuno Prospect!",
-          html: generateInactiveEmailHtml(user.nome_completo || '', user.leads_used, user.user_id),
+          subject: emailSubject,
+          html: emailHtml,
         });
 
         if (emailResponse.error) {
@@ -1087,9 +1170,13 @@ const handler = async (req: Request): Promise<Response> => {
           email_type: 'inactive_7d',
         });
 
+        if (abVariantInactive) {
+          await recordABResult(supabase, abVariantInactive.id, user.user_id, abVariantInactive.variant);
+        }
+
         totalEmailsSent++;
-        console.log(`Sent inactive_7d email to ${user.email}`);
-        await delay(RATE_LIMIT_DELAY); // Rate limit protection
+        console.log(`Sent inactive_7d email to ${user.email}${abVariantInactive ? ` (variant ${abVariantInactive.variant})` : ''}`);
+        await delay(RATE_LIMIT_DELAY);
       } catch (emailError: any) {
         allErrors.push(`inactive_7d - ${user.email}: ${emailError.message}`);
       }
@@ -1149,13 +1236,38 @@ const handler = async (req: Request): Promise<Response> => {
 
       console.log(`${eligibleNeverUpgraded.length} users eligible for never_upgraded email`);
 
+      // Select A/B variant for never_upgraded emails
+      const abVariantNeverUpgraded = await selectABVariant(supabase, 'never_upgraded');
+      if (abVariantNeverUpgraded) {
+        console.log(`Using A/B variant ${abVariantNeverUpgraded.variant} for never_upgraded emails`);
+      }
+
       for (const user of eligibleNeverUpgraded) {
         try {
+          let emailSubject: string;
+          let emailHtml: string;
+          
+          if (abVariantNeverUpgraded) {
+            emailSubject = abVariantNeverUpgraded.subject;
+            emailHtml = applyTemplateVariables(
+              abVariantNeverUpgraded.template_html,
+              user.nome_completo || '',
+              user.user_id,
+              'never_upgraded',
+              user.leads_used,
+              user.saved_leads_count,
+              abVariantNeverUpgraded.id
+            );
+          } else {
+            emailSubject = "⚡ Desbloqueie mais leads e recursos PRO!";
+            emailHtml = generateUpgradeEmailHtml(user.nome_completo || '', user.leads_used, user.saved_leads_count || 30, user.user_id);
+          }
+          
           const emailResponse = await resend.emails.send({
             from: "Zuno Prospect <noreply@zunoprospect.com.br>",
             to: [user.email],
-            subject: "⚡ Desbloqueie mais leads e recursos PRO!",
-            html: generateUpgradeEmailHtml(user.nome_completo || '', user.leads_used, user.saved_leads_count || 30, user.user_id),
+            subject: emailSubject,
+            html: emailHtml,
           });
 
           if (emailResponse.error) {
@@ -1168,9 +1280,13 @@ const handler = async (req: Request): Promise<Response> => {
             email_type: 'never_upgraded',
           });
 
+          if (abVariantNeverUpgraded) {
+            await recordABResult(supabase, abVariantNeverUpgraded.id, user.user_id, abVariantNeverUpgraded.variant);
+          }
+
           totalEmailsSent++;
-          console.log(`Sent never_upgraded email to ${user.email}`);
-          await delay(RATE_LIMIT_DELAY); // Rate limit protection
+          console.log(`Sent never_upgraded email to ${user.email}${abVariantNeverUpgraded ? ` (variant ${abVariantNeverUpgraded.variant})` : ''}`);
+          await delay(RATE_LIMIT_DELAY);
         } catch (emailError: any) {
           allErrors.push(`never_upgraded - ${user.email}: ${emailError.message}`);
         }

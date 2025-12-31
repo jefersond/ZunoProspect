@@ -30,7 +30,48 @@ const generateTrackableLink = (userId: string, emailType: string, destinationUrl
 
 // Delay helper to respect Resend rate limit (max 2 req/sec)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-const RATE_LIMIT_DELAY = 600; // 600ms between emails to stay under 2/sec limit
+const RATE_LIMIT_DELAY = 1200; // 1.2s between emails to stay well under 2/sec limit
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 2000; // 2s delay before retry on rate limit
+
+// Send email with retry logic for rate limiting
+const sendEmailWithRetry = async (
+  emailPayload: {
+    from: string;
+    to: string[];
+    subject: string;
+    html: string;
+  },
+  retries = 0
+): Promise<{ success: boolean; data?: any; error?: string }> => {
+  try {
+    const emailResponse = await resend.emails.send(emailPayload);
+    
+    // Check if response indicates rate limiting (status 429)
+    if (emailResponse.error) {
+      const errorMessage = emailResponse.error.message || '';
+      if (errorMessage.includes('rate') || errorMessage.includes('Too many')) {
+        if (retries < MAX_RETRIES) {
+          console.log(`Rate limited, retrying in ${RETRY_DELAY}ms... (attempt ${retries + 1}/${MAX_RETRIES})`);
+          await delay(RETRY_DELAY * (retries + 1)); // Exponential backoff
+          return sendEmailWithRetry(emailPayload, retries + 1);
+        }
+        return { success: false, error: `Rate limit exceeded after ${MAX_RETRIES} retries` };
+      }
+      return { success: false, error: emailResponse.error.message };
+    }
+    
+    return { success: true, data: emailResponse };
+  } catch (err: any) {
+    // Handle network errors or other exceptions
+    if (retries < MAX_RETRIES) {
+      console.log(`Error sending email, retrying... (attempt ${retries + 1}/${MAX_RETRIES}): ${err.message}`);
+      await delay(RETRY_DELAY * (retries + 1));
+      return sendEmailWithRetry(emailPayload, retries + 1);
+    }
+    return { success: false, error: err.message };
+  }
+};
 
 // Coupon banner HTML
 const generateCouponBanner = (): string => `

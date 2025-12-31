@@ -182,24 +182,49 @@ const AdminEmail = () => {
   const handleSendCampaign = async (campaignId: string) => {
     setSending(campaignId);
     try {
+      console.log("Iniciando envio da campanha:", campaignId);
+      
       const { data, error } = await supabase.functions.invoke("send-email-campaign", {
         body: { campaignId },
       });
 
-      if (error) throw error;
+      console.log("Resposta da função:", { data, error });
+
+      if (error) {
+        console.error("Erro na resposta:", error);
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error("Nenhuma resposta recebida da função de envio");
+      }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
 
       toast({
         title: "Campanha enviada!",
-        description: `${data.sent} emails enviados com sucesso.${data.errors > 0 ? ` ${data.errors} erros.` : ""}`,
+        description: `${data.sent || 0} emails enviados com sucesso.${data.errors > 0 ? ` ${data.errors} erros.` : ""}`,
       });
+
+      // Show error details if any
+      if (data.errorDetails && data.errorDetails.length > 0) {
+        console.warn("Detalhes dos erros:", data.errorDetails);
+        toast({
+          variant: "destructive",
+          title: "Alguns emails falharam",
+          description: data.errorDetails.slice(0, 2).join(", "),
+        });
+      }
 
       await loadCampaigns();
     } catch (error: any) {
-      console.error("Erro ao enviar:", error);
+      console.error("Erro ao enviar campanha:", error);
       toast({
         variant: "destructive",
         title: "Erro ao enviar campanha",
-        description: error.message,
+        description: error.message || "Ocorreu um erro desconhecido. Verifique os logs.",
       });
     } finally {
       setSending(null);

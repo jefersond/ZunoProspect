@@ -31,7 +31,9 @@ const generateTrackableLink = (userId: string, emailType: string, destinationUrl
 
 // Delay helper to respect Resend rate limit (max 2 req/sec)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-const RATE_LIMIT_DELAY = 1200; // 1.2s between emails to stay well under 2/sec limit
+const RATE_LIMIT_DELAY = 1500; // 1.5s between emails for safety margin
+const BATCH_SIZE = 10; // Process emails in batches
+const BATCH_PAUSE = 5000; // 5s pause between batches
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 2000; // 2s delay before retry on rate limit
 

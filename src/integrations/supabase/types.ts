@@ -809,6 +809,41 @@ export type Database = {
           usa_addon_active_until?: string | null
           user_id?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      welcome_emails_sent: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          sent_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          sent_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          sent_at?: string
+          status?: string
+          user_id?: string
+        }
         Relationships: []
       }
     }

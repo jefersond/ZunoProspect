@@ -79,6 +79,16 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    // SECURITY: Get encryption key from external secret (NOT from database)
+    const encryptionKey = Deno.env.get('LEADS_ENCRYPTION_KEY');
+    if (!encryptionKey) {
+      console.error("❌ LEADS_ENCRYPTION_KEY not configured");
+      return new Response(JSON.stringify({ error: "Configuração de segurança inválida" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Client for user auth verification
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -160,13 +170,14 @@ serve(async (req) => {
 
     console.log(`📊 [leads-sensitive] User: ${user.id} | Lead: ${leadId} | Fields: ${requestedFields.join(',')} | IP: ${ipAddress}`);
 
-    // Admin client for database operations
+    // Admin client for database operations with encryption key
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Call the secure RPC function that handles ownership check and decryption
-    // The RPC uses SECURITY DEFINER but validates ownership internally
+    // Call the secure wrapper function that sets encryption key and validates ownership
+    // SECURITY: Encryption key passed as parameter, restricted to service_role
     const { data: sensitiveData, error: rpcError } = await supabaseAdmin
-      .rpc('get_lead_sensitive', {
+      .rpc('set_encryption_key_and_get_lead_sensitive', {
+        p_encryption_key: encryptionKey,
         p_lead_id: leadId,
         p_fields: requestedFields
       });
@@ -196,45 +207,15 @@ serve(async (req) => {
         });
       }
       
+      if (rpcError.message.includes('Encryption key') || rpcError.code === 'P0500') {
+        console.error("❌ [leads-sensitive] Encryption key error - check configuration");
+        return new Response(JSON.stringify({ error: "Erro de configuração de segurança" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
       throw rpcError;
-    }
-
-    // The RPC already does decryption inside Postgres using the key from app_config
-    // We just need to ensure auth.uid() is passed correctly
-    // For this edge function, we need to call as authenticated user, not service role
-    
-    // Actually, let's call it properly with the user's context
-    const { data: userSensitiveData, error: userRpcError } = await supabaseClient
-      .rpc('get_lead_sensitive', {
-        p_lead_id: leadId,
-        p_fields: requestedFields
-      });
-
-    if (userRpcError) {
-      console.error("❌ [leads-sensitive] User RPC error:", userRpcError.message);
-      
-      if (userRpcError.message.includes('Não autenticado') || userRpcError.code === 'P0401') {
-        return new Response(JSON.stringify({ error: "Não autenticado" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      
-      if (userRpcError.message.includes('Lead não encontrado') || userRpcError.code === 'P0404') {
-        return new Response(JSON.stringify({ error: "Lead não encontrado" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      
-      if (userRpcError.message.includes('Acesso negado') || userRpcError.code === 'P0403') {
-        return new Response(JSON.stringify({ error: "Acesso negado" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      
-      throw userRpcError;
     }
 
     // Log access (async, don't block response) - without logging sensitive data
@@ -253,7 +234,7 @@ serve(async (req) => {
     console.log(`✅ [leads-sensitive] Data returned for lead ${leadId} to user ${user.id}`);
 
     // Remove _meta from response if present (internal use only)
-    const responseData = { ...userSensitiveData };
+    const responseData = { ...sensitiveData };
     delete responseData._meta;
 
     return new Response(JSON.stringify({ 
@@ -271,7 +252,6 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     console.error('❌ [leads-sensitive] Error:', error);
-    const message = error instanceof Error ? error.message : 'Erro interno';
     
     // Never expose internal error details
     return new Response(JSON.stringify({ error: "Erro ao processar requisição" }), {

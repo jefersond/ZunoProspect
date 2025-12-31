@@ -58,6 +58,16 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    // SECURITY: Get encryption key from external secret (NOT from database)
+    const encryptionKey = Deno.env.get('LEADS_ENCRYPTION_KEY');
+    if (!encryptionKey) {
+      console.error("❌ LEADS_ENCRYPTION_KEY not configured");
+      return new Response(JSON.stringify({ error: "Configuração de segurança inválida" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Client for user auth verification
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -66,7 +76,7 @@ serve(async (req) => {
       },
     });
 
-    // Admin client for logging and rate limit checks
+    // Admin client for database operations with encryption key
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verify authentication
@@ -140,9 +150,11 @@ serve(async (req) => {
 
     // Handle different actions
     if (action === 'view_detail' && leadId) {
-      // Get single lead with full details
+      // Get single lead with full details using secure wrapper
+      // SECURITY: Encryption key passed as parameter, restricted to service_role
       const { data: leads, error } = await supabaseAdmin
-        .rpc('get_lead_decrypted_by_id', { 
+        .rpc('set_encryption_key_and_get_lead_by_id', { 
+          p_encryption_key: encryptionKey,
           p_lead_id: leadId, 
           p_user_id: user.id 
         });
@@ -164,11 +176,11 @@ serve(async (req) => {
       leadIds = [leadId];
       
     } else if (action === 'list' || action === 'export') {
-      // Get leads list with optional filtering
-      // IMPORTANT: Pass p_user_id explicitly because auth.uid() returns NULL 
-      // when called via supabaseAdmin (service role)
+      // Get leads list with optional filtering using secure wrapper
+      // SECURITY: Encryption key passed as parameter, restricted to service_role
       const { data: leads, error } = await supabaseAdmin
-        .rpc('get_leads_decrypted_filtered', { 
+        .rpc('set_encryption_key_and_get_leads_filtered', { 
+          p_encryption_key: encryptionKey,
           p_salvo: salvo ?? null,
           p_user_id: user.id
         });

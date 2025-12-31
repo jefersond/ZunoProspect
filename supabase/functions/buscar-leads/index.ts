@@ -59,15 +59,28 @@ serve(async (req) => {
   const corsHeaders = getCorsHeaders(origin);
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      }
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    
+    // SECURITY: Get encryption key from external secret (NOT from database)
+    const encryptionKey = Deno.env.get('LEADS_ENCRYPTION_KEY');
+    if (!encryptionKey) {
+      console.error("❌ LEADS_ENCRYPTION_KEY not configured");
+      return new Response(JSON.stringify({ error: "Configuração de segurança inválida" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: { Authorization: req.headers.get("Authorization")! },
+      },
+    });
+    
+    // Admin client for secure insert operations
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verifica autenticação
     const {
@@ -660,9 +673,10 @@ serve(async (req) => {
             return null;
           }
           
-          // Insere no banco usando a nova RPC v2 que retorna { id, is_new }
-          // IMPORTANTE: Dados sensíveis são criptografados no banco
-          const { data: rpcResult, error: insertError } = await supabaseClient.rpc('insert_lead_with_encryption_v2', {
+          // Insere no banco usando a wrapper segura que define a chave de criptografia
+          // SECURITY: Encryption key passed as parameter, restricted to service_role
+          const { data: rpcResult, error: insertError } = await supabaseAdmin.rpc('set_encryption_key_and_insert_lead', {
+            p_encryption_key: encryptionKey,
             p_nome: details.name,
             p_endereco: details.formatted_address,
             p_telefone: details.formatted_phone_number || null,

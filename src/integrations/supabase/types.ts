@@ -147,9 +147,11 @@ export type Database = {
           error_message: string | null
           id: string
           opened_at: string | null
+          retention_expires_at: string | null
           sent_at: string
           status: string
           user_email_encrypted: string | null
+          user_email_fingerprint: string | null
           user_email_masked: string
           user_id: string
         }
@@ -159,9 +161,11 @@ export type Database = {
           error_message?: string | null
           id?: string
           opened_at?: string | null
+          retention_expires_at?: string | null
           sent_at?: string
           status?: string
           user_email_encrypted?: string | null
+          user_email_fingerprint?: string | null
           user_email_masked: string
           user_id: string
         }
@@ -171,9 +175,11 @@ export type Database = {
           error_message?: string | null
           id?: string
           opened_at?: string | null
+          retention_expires_at?: string | null
           sent_at?: string
           status?: string
           user_email_encrypted?: string | null
+          user_email_fingerprint?: string | null
           user_email_masked?: string
           user_id?: string
         }
@@ -186,6 +192,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      email_logs_access_audit: {
+        Row: {
+          accessor_user_id: string
+          action_type: string
+          created_at: string
+          filters_used: Json | null
+          id: string
+          ip_address: string | null
+          reason_code: string | null
+          record_count: number | null
+        }
+        Insert: {
+          accessor_user_id: string
+          action_type: string
+          created_at?: string
+          filters_used?: Json | null
+          id?: string
+          ip_address?: string | null
+          reason_code?: string | null
+          record_count?: number | null
+        }
+        Update: {
+          accessor_user_id?: string
+          action_type?: string
+          created_at?: string
+          filters_used?: Json | null
+          id?: string
+          ip_address?: string | null
+          reason_code?: string | null
+          record_count?: number | null
+        }
+        Relationships: []
       }
       interacoes: {
         Row: {
@@ -855,6 +894,16 @@ export type Database = {
         }
         Returns: Json
       }
+      cleanup_expired_email_logs: { Args: never; Returns: number }
+      decrypt_email_log_audited: {
+        Args: {
+          p_accessor_user_id: string
+          p_encryption_key: string
+          p_log_id: string
+          p_reason_code: string
+        }
+        Returns: string
+      }
       decrypt_sensitive: { Args: { encrypted_data: string }; Returns: string }
       encrypt_sensitive: { Args: { plain_text: string }; Returns: string }
       fix_leads_count_inconsistencies: {
@@ -867,6 +916,11 @@ export type Database = {
           was_corrected: boolean
         }[]
       }
+      generate_email_fingerprint: {
+        Args: { email: string; pepper: string }
+        Returns: string
+      }
+      generate_safe_email_mask: { Args: { email: string }; Returns: string }
       get_lead_decrypted_by_id: {
         Args: { p_lead_id: string; p_user_id?: string }
         Returns: {
@@ -1092,6 +1146,18 @@ export type Database = {
         }
         Returns: string
       }
+      insert_email_log_secure: {
+        Args: {
+          p_campaign_id: string
+          p_encryption_key: string
+          p_error_message?: string
+          p_pepper: string
+          p_status: string
+          p_user_email: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       insert_lead_with_encryption:
         | {
             Args: {
@@ -1218,6 +1284,21 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      read_email_logs_secure: {
+        Args: { p_campaign_id?: string; p_limit?: number; p_pepper: string }
+        Returns: {
+          campaign_id: string
+          clicked_at: string
+          error_message: string
+          id: string
+          opened_at: string
+          sent_at: string
+          status: string
+          user_email_fingerprint: string
+          user_email_masked: string
+          user_id: string
+        }[]
       }
       reset_monthly_leads_count: { Args: never; Returns: undefined }
       set_encryption_key_and_get_lead_by_id: {

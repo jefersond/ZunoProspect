@@ -14,7 +14,9 @@ import {
   Trophy, 
   BarChart3,
   RefreshCw,
-  Trash2
+  Trash2,
+  TrendingUp,
+  DollarSign
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -240,6 +242,14 @@ export const ABTestingDashboard = () => {
     return Math.round((result.clicked_count / result.sent_count) * 100);
   };
 
+  const calculateConversionRate = (result: ABResult | null): number => {
+    if (!result || result.sent_count === 0) return 0;
+    return Math.round((result.converted_count / result.sent_count) * 100);
+  };
+
+  // Calculate total conversions
+  const totalConversions = Object.values(results).flat().reduce((sum, r) => sum + r.converted_count, 0);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -331,7 +341,72 @@ export const ABTestingDashboard = () => {
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-full bg-emerald-500/10">
+                <DollarSign className="h-5 w-5 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Conversões</p>
+                <p className="text-2xl font-bold text-emerald-600">
+                  {totalConversions}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Conversion Summary by Email Type */}
+      {Object.keys(testsByType).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-emerald-500" />
+              Métricas de Conversão por Tipo de Email
+            </CardTitle>
+            <CardDescription>
+              Usuários que se tornaram pagantes após receber cada tipo de email
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(testsByType).map(([emailType, typeTests]) => {
+                const typeResults = typeTests.flatMap(t => results[t.id] || []);
+                const totalSent = typeResults.reduce((sum, r) => sum + r.sent_count, 0);
+                const totalConverted = typeResults.reduce((sum, r) => sum + r.converted_count, 0);
+                const conversionRate = totalSent > 0 ? Math.round((totalConverted / totalSent) * 100) : 0;
+                
+                return (
+                  <div key={emailType} className="p-4 rounded-lg border bg-card">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Badge className={EMAIL_TYPE_LABELS[emailType]?.color || "bg-gray-500"}>
+                        {EMAIL_TYPE_LABELS[emailType]?.label || emailType}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Enviados</p>
+                        <p className="text-lg font-bold">{totalSent}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Convertidos</p>
+                        <p className="text-lg font-bold text-emerald-600">{totalConverted}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Taxa</p>
+                        <p className="text-lg font-bold text-emerald-600">{conversionRate}%</p>
+                      </div>
+                    </div>
+                    <Progress value={conversionRate} className="mt-3 h-2" />
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tests by Type */}
       {Object.keys(testsByType).length === 0 ? (
@@ -371,6 +446,7 @@ export const ABTestingDashboard = () => {
                     <TableHead className="text-center">Enviados</TableHead>
                     <TableHead className="text-center">Taxa Abertura</TableHead>
                     <TableHead className="text-center">Taxa Clique</TableHead>
+                    <TableHead className="text-center">Taxa Conversão</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -379,14 +455,17 @@ export const ABTestingDashboard = () => {
                     const result = getTestResults(test.id);
                     const openRate = calculateOpenRate(result);
                     const clickRate = calculateClickRate(result);
+                    const conversionRate = calculateConversionRate(result);
                     
-                    // Find best performer
+                    // Find best performer by conversion rate (or open rate if no conversions)
                     const allResults = typeTests.map(t => ({
                       test: t,
                       result: getTestResults(t.id),
                     }));
+                    const bestConversionRate = Math.max(...allResults.map(r => calculateConversionRate(r.result)));
                     const bestOpenRate = Math.max(...allResults.map(r => calculateOpenRate(r.result)));
-                    const isBest = openRate === bestOpenRate && openRate > 0;
+                    const isBest = (conversionRate === bestConversionRate && conversionRate > 0) || 
+                                   (bestConversionRate === 0 && openRate === bestOpenRate && openRate > 0);
 
                     return (
                       <TableRow key={test.id}>
@@ -425,6 +504,22 @@ export const ABTestingDashboard = () => {
                           <div className="flex flex-col items-center gap-1">
                             <span className="text-sm font-medium">{clickRate}%</span>
                             <Progress value={clickRate} className="w-16 h-1" />
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className={`text-sm font-medium ${conversionRate > 0 ? 'text-emerald-600' : ''}`}>
+                              {conversionRate}%
+                            </span>
+                            <Progress 
+                              value={conversionRate} 
+                              className="w-16 h-1"
+                            />
+                            {result && result.converted_count > 0 && (
+                              <span className="text-xs text-emerald-600">
+                                ({result.converted_count})
+                              </span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">

@@ -72,13 +72,34 @@ const Prospeccao = () => {
   }, [searchParams, setSearchParams, navigate]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
-        navigate("/auth");
+    // Set up auth state listener to ensure session is fully established
+    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (session?.user) {
+          setUser(session.user);
+        } else if (event === 'SIGNED_OUT' || !session) {
+          // Only redirect if explicitly signed out or no session after initial check
+          setTimeout(() => {
+            supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+              if (!currentSession) {
+                navigate("/auth");
+              }
+            });
+          }, 100);
+        }
+      }
+    );
+
+    // Also check for existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user);
       } else {
-        setUser(user);
+        navigate("/auth");
       }
     });
+
+    return () => authSubscription.unsubscribe();
   }, [navigate]);
   
   if (!user) return null;

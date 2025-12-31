@@ -16,8 +16,9 @@ serve(async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     const userId = url.searchParams.get('uid');
     const emailType = url.searchParams.get('type');
+    const testId = url.searchParams.get('test_id'); // A/B test ID
     
-    console.log(`[track-email-open] Request received: userId=${userId}, emailType=${emailType}`);
+    console.log(`[track-email-open] Request received: userId=${userId}, emailType=${emailType}, testId=${testId}`);
     
     if (userId && emailType) {
       // Create Supabase client with service role
@@ -31,7 +32,7 @@ serve(async (req: Request): Promise<Response> => {
         },
       });
       
-      // Find the most recent email record for this user/type that hasn't been opened yet
+      // Update onboarding_emails_sent table
       const { data: existingRecord, error: fetchError } = await supabase
         .from('onboarding_emails_sent')
         .select('id, sent_at, opened_at')
@@ -58,6 +59,33 @@ serve(async (req: Request): Promise<Response> => {
           }
         } else {
           console.log(`[track-email-open] Email already marked as opened: user=${userId}, type=${emailType}, opened_at=${existingRecord.opened_at}`);
+        }
+      }
+      
+      // Update A/B test results if test_id is provided
+      if (testId) {
+        const { data: abResult, error: abFetchError } = await supabase
+          .from('email_ab_results')
+          .select('id, opened_at')
+          .eq('test_id', testId)
+          .eq('user_id', userId)
+          .order('sent_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (abFetchError) {
+          console.log(`[track-email-open] No A/B result found for test_id=${testId}, user=${userId}: ${abFetchError.message}`);
+        } else if (abResult && !abResult.opened_at) {
+          const { error: abUpdateError } = await supabase
+            .from('email_ab_results')
+            .update({ opened_at: new Date().toISOString() })
+            .eq('id', abResult.id);
+          
+          if (abUpdateError) {
+            console.error(`[track-email-open] Error updating A/B result opened_at: ${abUpdateError.message}`);
+          } else {
+            console.log(`[track-email-open] A/B test opened: test_id=${testId}, user=${userId}`);
+          }
         }
       }
     }

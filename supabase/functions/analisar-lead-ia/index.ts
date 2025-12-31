@@ -482,7 +482,10 @@ serve(async (req) => {
         situacao_cadastral: lead.situacao_cadastral,
         porte_empresa: lead.porte_empresa,
         cnae_principal: lead.cnae_principal,
+        pais: lead.pais || "BR", // Important: Read country from database
       };
+      
+      console.log(`🌍 Lead country: ${leadData.pais} | isUS: ${isUSLead(leadData)}`);
       
       // Re-scrape website for fresh signals
       if (lead.website) {
@@ -542,7 +545,10 @@ serve(async (req) => {
         instagram_url: requestData.instagram_url,
         instagram_context: requestData.instagram_context,
         canaisProspeccao: requestData.canaisProspeccao,
+        pais: requestData.pais || "BR", // Read country from request
       };
+      
+      console.log(`🌍 Lead country (from request): ${leadData.pais} | isUS: ${isUSLead(leadData)}`);
     }
 
     console.log("🤖 Analisando:", leadData.nome, "| Canais detectados:", 

@@ -96,40 +96,7 @@ export default function Checkout() {
   const hasTrackedCheckout = useRef(false);
   const hasHandledGoogleAuth = useRef(false);
 
-  // Handle Google OAuth callback
-  useEffect(() => {
-    const handleGoogleAuthCallback = async () => {
-      if (googleAuth === "true" && !hasHandledGoogleAuth.current) {
-        hasHandledGoogleAuth.current = true;
-        
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          const userEmail = session.user.email || '';
-          const userName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || '';
-          
-          const preco = isAnual ? plano.precoAnual : plano.precoMensal;
-          
-          // Track payment info
-          trackAddPaymentInfo({
-            content_category: 'Kiwify',
-            currency: 'BRL',
-            value: preco
-          });
-
-          // Generate Kiwify checkout URL
-          const checkoutUrl = getKiwifyCheckoutUrl(plano.nome, isAnual, userEmail, userName);
-          
-          toast.success("Logado com Google! Redirecionando para o pagamento...");
-          
-          // Redirect to Kiwify
-          window.location.href = checkoutUrl;
-        }
-      }
-    };
-
-    handleGoogleAuthCallback();
-  }, [googleAuth, plano, isAnual]);
+  // Note: OAuth callback is now handled by /auth page which checks for checkout_pending
 
   // Track InitiateCheckout on mount
   useEffect(() => {
@@ -174,20 +141,28 @@ export default function Checkout() {
   const handleGoogleSignIn = async () => {
     setIsGoogleProcessing(true);
     try {
+      // Store checkout info in localStorage for after OAuth redirect
+      localStorage.setItem('checkout_pending', JSON.stringify({
+        plano: plano.nome,
+        isAnual
+      }));
+
       const redirectBase = getAuthRedirectBaseUrl();
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${redirectBase}/checkout?plano=${selectedPlano}&anual=${isAnual}&google_auth=true`,
+          redirectTo: `${redirectBase}/auth`,
         }
       });
 
       if (error) {
+        localStorage.removeItem('checkout_pending');
         toast.error("Erro ao entrar com Google", { description: error.message });
         setIsGoogleProcessing(false);
       }
     } catch (error) {
+      localStorage.removeItem('checkout_pending');
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
       toast.error("Erro ao processar", { description: errorMessage });
       setIsGoogleProcessing(false);

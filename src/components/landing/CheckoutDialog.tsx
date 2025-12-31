@@ -67,35 +67,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
     }
   }, [open, plano, isAnual]);
 
-  // Listen for auth state changes to handle Google OAuth callback
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user && isGoogleProcessing && plano) {
-        // User signed in via Google, redirect to payment
-        const userEmail = session.user.email || '';
-        const userName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || '';
-        
-        const preco = isAnual ? plano.precoAnual : plano.precoMensal;
-        
-        // Track payment info
-        trackAddPaymentInfo({
-          content_category: 'Kiwify',
-          currency: 'BRL',
-          value: preco
-        });
-
-        // Generate Kiwify checkout URL
-        const checkoutUrl = getKiwifyCheckoutUrl(plano.nome, isAnual, userEmail, userName);
-        
-        toast.success("Logado com Google! Redirecionando para o pagamento...");
-        
-        // Redirect to Kiwify
-        window.location.href = checkoutUrl;
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [isGoogleProcessing, plano, isAnual]);
+  // Note: OAuth callback is now handled by /auth page which checks for checkout_pending
 
   if (!plano) return null;
 
@@ -138,7 +110,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${redirectBase}/checkout?plano=${plano.nome.toLowerCase()}&anual=${isAnual}&google_auth=true`,
+          redirectTo: `${redirectBase}/auth`,
         }
       });
 

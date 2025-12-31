@@ -4,6 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_LOGS_PEPPER = Deno.env.get("EMAIL_LOGS_PEPPER") || "";
 const LEADS_ENCRYPTION_KEY = Deno.env.get("LEADS_ENCRYPTION_KEY") || "";
+const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "Zuno Prospect <contato@zunoprospect.com.br>";
+const RESEND_REPLY_TO_EMAIL = Deno.env.get("RESEND_REPLY_TO_EMAIL") || "zunopropect@gmail.com";
 
 // Rate limiting and retry configuration
 const RATE_LIMIT_DELAY = 1200; // 1.2s between emails to stay well under 2/sec limit
@@ -255,8 +257,8 @@ serve(async (req: Request): Promise<Response> => {
 
         // Send email via Resend API with retry logic
         const emailResult = await sendEmailWithRetry({
-          from: "Zuno Propect <onboarding@resend.dev>",
-          replyTo: "zunopropect@gmail.com",
+          from: RESEND_FROM_EMAIL,
+          replyTo: RESEND_REPLY_TO_EMAIL,
           to: [userEmail],
           subject: campaign.assunto,
           html: emailHtml,

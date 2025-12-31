@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
 import { trackInitiateCheckout, trackAddPaymentInfo } from "@/lib/metaPixel";
 import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
+import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -173,10 +174,12 @@ export default function Checkout() {
   const handleGoogleSignIn = async () => {
     setIsGoogleProcessing(true);
     try {
+      const redirectBase = getAuthRedirectBaseUrl();
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/checkout?plano=${selectedPlano}&anual=${isAnual}&google_auth=true`,
+          redirectTo: `${redirectBase}/checkout?plano=${selectedPlano}&anual=${isAnual}&google_auth=true`,
         }
       });
 

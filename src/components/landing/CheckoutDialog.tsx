@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Plano } from "./data";
 import { trackInitiateCheckout, trackAddPaymentInfo } from "@/lib/metaPixel";
 import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
+import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -132,10 +133,12 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
         isAnual
       }));
 
+      const redirectBase = getAuthRedirectBaseUrl();
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/checkout?plano=${plano.nome.toLowerCase()}&anual=${isAnual}&google_auth=true`,
+          redirectTo: `${redirectBase}/checkout?plano=${plano.nome.toLowerCase()}&anual=${isAnual}&google_auth=true`,
         }
       });
 

@@ -71,9 +71,9 @@ export function UsaAddonDialog({ open, onOpenChange, isAnual }: UsaAddonDialogPr
         }
       }
 
-      // Check if eligible plan (pro or agencia)
+      // Check if eligible plan (any paid plan: pro or agencia - starter is not eligible)
       const planNormalized = sub.plan_name.toLowerCase();
-      const isEligible = planNormalized === "pro" || planNormalized === "agencia" || planNormalized === "agência";
+      const isEligible = planNormalized !== "starter";
 
       if (isEligible) {
         setUserState({ 
@@ -106,7 +106,7 @@ export function UsaAddonDialog({ open, onOpenChange, isAnual }: UsaAddonDialogPr
     onOpenChange(false);
   };
 
-  const handlePlanCheckout = (plan: "pro" | "agencia") => {
+  const handlePlanCheckout = (plan: "iniciante" | "pro" | "agencia") => {
     const url = getKiwifyCheckoutUrl(plan, isAnual);
     window.open(url, "_blank");
     onOpenChange(false);
@@ -122,6 +122,7 @@ export function UsaAddonDialog({ open, onOpenChange, isAnual }: UsaAddonDialogPr
     onOpenChange(false);
   };
 
+  const INICIANTE_PRICE = isAnual ? 470 : 47;
   const PRO_PRICE = isAnual ? 970 : 97;
   const AGENCIA_PRICE = isAnual ? 2470 : 247;
   const ADDON_PRICE = isAnual ? 570 : 57;
@@ -219,44 +220,80 @@ export function UsaAddonDialog({ open, onOpenChange, isAnual }: UsaAddonDialogPr
                     Seu plano atual: {userState.planName}
                   </Badge>
                   <p className="text-muted-foreground">
-                    Este complemento está disponível apenas para os planos <strong>Pro</strong> e <strong>Agência</strong>
+                    Este complemento está disponível para planos pagos: <strong>Iniciante</strong>, <strong>Pro</strong> e <strong>Agência</strong>
                   </p>
                 </div>
               )}
 
               {userState.type === "not_logged_in" && (
                 <p className="text-center text-muted-foreground mb-6">
-                  Este complemento está disponível para os planos <strong>Pro</strong> e <strong>Agência</strong>
+                  Este complemento está disponível para planos pagos: <strong>Iniciante</strong>, <strong>Pro</strong> e <strong>Agência</strong>
                 </p>
               )}
 
-              <div className="grid md:grid-cols-2 gap-4">
-                {/* Pro Card */}
-                <Card className="p-6 border-2 hover:border-primary/50 transition-colors">
+              <div className="grid md:grid-cols-3 gap-4">
+                {/* Iniciante Card */}
+                <Card className="p-5 border-2 hover:border-primary/50 transition-colors">
                   <div className="text-center">
-                    <h4 className="font-bold text-lg mb-1">Plano Pro</h4>
+                    <h4 className="font-bold text-lg mb-1">Plano Iniciante</h4>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Ideal para freelancers
+                      Para começar
                     </p>
                     
                     <div className="space-y-1 mb-4">
                       <div className="flex items-baseline justify-center gap-1">
-                        <span className="text-2xl font-bold">
-                          R$ {isAnual ? Math.round(PRO_PRICE / 12) : PRO_PRICE}
+                        <span className="text-xl font-bold">
+                          R$ {isAnual ? Math.round(INICIANTE_PRICE / 12) : INICIANTE_PRICE}
                         </span>
                         <span className="text-muted-foreground text-sm">/mês</span>
                       </div>
                       <div className="text-sm text-blue-600">
-                        + R$ {isAnual ? Math.round(ADDON_PRICE / 12) : ADDON_PRICE}/mês add-on USA
+                        + R$ {isAnual ? Math.round(ADDON_PRICE / 12) : ADDON_PRICE}/mês USA
                       </div>
                       <div className="text-xs text-muted-foreground pt-1 border-t">
-                        = <span className="font-semibold">R$ {isAnual ? Math.round((PRO_PRICE + ADDON_PRICE) / 12) : PRO_PRICE + ADDON_PRICE}</span>/mês total
+                        = <span className="font-semibold">R$ {isAnual ? Math.round((INICIANTE_PRICE + ADDON_PRICE) / 12) : INICIANTE_PRICE + ADDON_PRICE}</span>/mês
                       </div>
                     </div>
 
                     <Button 
                       className="w-full"
                       variant="outline"
+                      size="sm"
+                      onClick={() => handlePlanCheckout("iniciante")}
+                    >
+                      Escolher Iniciante
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </div>
+                </Card>
+
+                {/* Pro Card */}
+                <Card className="p-5 border-2 border-primary/30 bg-primary/5">
+                  <div className="text-center">
+                    <Badge className="mb-2">Popular</Badge>
+                    <h4 className="font-bold text-lg mb-1">Plano Pro</h4>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Para freelancers
+                    </p>
+                    
+                    <div className="space-y-1 mb-4">
+                      <div className="flex items-baseline justify-center gap-1">
+                        <span className="text-xl font-bold">
+                          R$ {isAnual ? Math.round(PRO_PRICE / 12) : PRO_PRICE}
+                        </span>
+                        <span className="text-muted-foreground text-sm">/mês</span>
+                      </div>
+                      <div className="text-sm text-blue-600">
+                        + R$ {isAnual ? Math.round(ADDON_PRICE / 12) : ADDON_PRICE}/mês USA
+                      </div>
+                      <div className="text-xs text-muted-foreground pt-1 border-t">
+                        = <span className="font-semibold">R$ {isAnual ? Math.round((PRO_PRICE + ADDON_PRICE) / 12) : PRO_PRICE + ADDON_PRICE}</span>/mês
+                      </div>
+                    </div>
+
+                    <Button 
+                      className="w-full"
+                      size="sm"
                       onClick={() => handlePlanCheckout("pro")}
                     >
                       Escolher Pro
@@ -266,31 +303,32 @@ export function UsaAddonDialog({ open, onOpenChange, isAnual }: UsaAddonDialogPr
                 </Card>
 
                 {/* Agência Card */}
-                <Card className="p-6 border-2 border-primary/30 bg-primary/5">
+                <Card className="p-5 border-2 hover:border-primary/50 transition-colors">
                   <div className="text-center">
-                    <Badge className="mb-2">Recomendado</Badge>
                     <h4 className="font-bold text-lg mb-1">Plano Agência</h4>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Para equipes e agências
+                      Para equipes
                     </p>
                     
                     <div className="space-y-1 mb-4">
                       <div className="flex items-baseline justify-center gap-1">
-                        <span className="text-2xl font-bold">
+                        <span className="text-xl font-bold">
                           R$ {isAnual ? Math.round(AGENCIA_PRICE / 12) : AGENCIA_PRICE}
                         </span>
                         <span className="text-muted-foreground text-sm">/mês</span>
                       </div>
-                      <div className="text-sm text-blue-600">
-                        + R$ {isAnual ? Math.round(ADDON_PRICE / 12) : ADDON_PRICE}/mês add-on USA
+                      <div className="text-sm text-emerald-600">
+                        USA já incluso!
                       </div>
                       <div className="text-xs text-muted-foreground pt-1 border-t">
-                        = <span className="font-semibold">R$ {isAnual ? Math.round((AGENCIA_PRICE + ADDON_PRICE) / 12) : AGENCIA_PRICE + ADDON_PRICE}</span>/mês total
+                        <span className="font-semibold">Leads ilimitados</span>
                       </div>
                     </div>
 
                     <Button 
                       className="w-full"
+                      variant="outline"
+                      size="sm"
                       onClick={() => handlePlanCheckout("agencia")}
                     >
                       Escolher Agência
@@ -303,7 +341,7 @@ export function UsaAddonDialog({ open, onOpenChange, isAnual }: UsaAddonDialogPr
               {userState.type === "not_logged_in" && (
                 <div className="text-center mt-6 pt-4 border-t">
                   <p className="text-sm text-muted-foreground mb-2">
-                    Já tem Pro ou Agência?
+                    Já tem um plano pago?
                   </p>
                   <Button variant="link" onClick={goToLogin}>
                     Faça login para adicionar o add-on

@@ -19,6 +19,15 @@ const generateTrackingPixel = (userId: string, emailType: string, testId?: strin
   return `<img src="${trackingUrl}" width="1" height="1" style="display:none;" alt="" />`;
 };
 
+// Generate trackable CTA link that redirects to destination after recording click
+const generateTrackableLink = (userId: string, emailType: string, destinationUrl: string, testId?: string): string => {
+  let trackingUrl = `${SUPABASE_URL}/functions/v1/track-email-click?uid=${encodeURIComponent(userId)}&type=${encodeURIComponent(emailType)}&redirect=${encodeURIComponent(destinationUrl)}`;
+  if (testId) {
+    trackingUrl += `&test_id=${encodeURIComponent(testId)}`;
+  }
+  return trackingUrl;
+};
+
 // Delay helper to respect Resend rate limit (max 2 req/sec)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const RATE_LIMIT_DELAY = 600; // 600ms between emails to stay under 2/sec limit
@@ -137,7 +146,9 @@ interface UserToOnboard {
   saved_leads_count?: number;
 }
 
-const generateFirstEmailHtml = (nome: string, userId: string) => `
+const generateFirstEmailHtml = (nome: string, userId: string, testId?: string) => {
+  const ctaUrl = generateTrackableLink(userId, 'first_24h', 'https://zunoprospect.com.br/prospeccao', testId);
+  return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -201,7 +212,7 @@ const generateFirstEmailHtml = (nome: string, userId: string) => `
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center">
-                    <a href="https://zunoprospect.com.br/prospeccao" 
+                    <a href="${ctaUrl}" 
                        style="display: inline-block; background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);">
                       🔍 Encontrar Meus Primeiros Leads Agora
                     </a>
@@ -227,7 +238,7 @@ const generateFirstEmailHtml = (nome: string, userId: string) => `
               <p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0; text-align: center;">
                 © 2024 Zuno Prospect. Todos os direitos reservados.
               </p>
-              ${generateTrackingPixel(userId, 'first_24h')}
+              ${generateTrackingPixel(userId, 'first_24h', testId)}
             </td>
           </tr>
         </table>
@@ -237,8 +248,11 @@ const generateFirstEmailHtml = (nome: string, userId: string) => `
 </body>
 </html>
 `;
+};
 
-const generateSaveLeadsEmailHtml = (nome: string, leadsUsed: number, userId: string) => `
+const generateSaveLeadsEmailHtml = (nome: string, leadsUsed: number, userId: string, testId?: string) => {
+  const ctaUrl = generateTrackableLink(userId, 'used_not_saved', 'https://zunoprospect.com.br/prospeccao', testId);
+  return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -304,7 +318,7 @@ const generateSaveLeadsEmailHtml = (nome: string, leadsUsed: number, userId: str
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center">
-                    <a href="https://zunoprospect.com.br/prospeccao" 
+                    <a href="${ctaUrl}" 
                        style="display: inline-block; background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
                       🔍 Buscar e Salvar Meus Leads
                     </a>
@@ -330,7 +344,7 @@ const generateSaveLeadsEmailHtml = (nome: string, leadsUsed: number, userId: str
               <p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0; text-align: center;">
                 © 2024 Zuno Prospect. Todos os direitos reservados.
               </p>
-              ${generateTrackingPixel(userId, 'used_not_saved')}
+              ${generateTrackingPixel(userId, 'used_not_saved', testId)}
             </td>
           </tr>
         </table>
@@ -340,8 +354,11 @@ const generateSaveLeadsEmailHtml = (nome: string, leadsUsed: number, userId: str
 </body>
 </html>
 `;
+};
 
-const generateAIAnalysisEmailHtml = (nome: string, savedLeadsCount: number, userId: string) => `
+const generateAIAnalysisEmailHtml = (nome: string, savedLeadsCount: number, userId: string, testId?: string) => {
+  const ctaUrl = generateTrackableLink(userId, 'saved_no_ai', 'https://zunoprospect.com.br/leads-salvos', testId);
+  return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -409,7 +426,7 @@ const generateAIAnalysisEmailHtml = (nome: string, savedLeadsCount: number, user
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center">
-                    <a href="https://zunoprospect.com.br/leads-salvos" 
+                    <a href="${ctaUrl}" 
                        style="display: inline-block; background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);">
                       🤖 Analisar Meus ${savedLeadsCount} Leads Agora
                     </a>
@@ -435,7 +452,7 @@ const generateAIAnalysisEmailHtml = (nome: string, savedLeadsCount: number, user
               <p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0; text-align: center;">
                 © 2024 Zuno Prospect. Todos os direitos reservados.
               </p>
-              ${generateTrackingPixel(userId, 'saved_no_ai')}
+              ${generateTrackingPixel(userId, 'saved_no_ai', testId)}
             </td>
           </tr>
         </table>
@@ -445,8 +462,11 @@ const generateAIAnalysisEmailHtml = (nome: string, savedLeadsCount: number, user
 </body>
 </html>
 `;
+};
 
-const generateInactiveEmailHtml = (nome: string, daysSinceLastActivity: number, userId: string) => `
+const generateInactiveEmailHtml = (nome: string, daysSinceLastActivity: number, userId: string, testId?: string) => {
+  const ctaUrl = generateTrackableLink(userId, 'inactive_7d', 'https://zunoprospect.com.br/prospeccao', testId);
+  return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -509,7 +529,7 @@ const generateInactiveEmailHtml = (nome: string, daysSinceLastActivity: number, 
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center">
-                    <a href="https://zunoprospect.com.br/prospeccao" 
+                    <a href="${ctaUrl}" 
                        style="display: inline-block; background: linear-gradient(135deg, #EC4899 0%, #BE185D 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(236, 72, 153, 0.4);">
                       🔍 Ver Quem Abriu na Minha Região
                     </a>
@@ -535,7 +555,7 @@ const generateInactiveEmailHtml = (nome: string, daysSinceLastActivity: number, 
               <p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0; text-align: center;">
                 © 2024 Zuno Prospect. Todos os direitos reservados.
               </p>
-              ${generateTrackingPixel(userId, 'inactive_7d')}
+              ${generateTrackingPixel(userId, 'inactive_7d', testId)}
             </td>
           </tr>
         </table>
@@ -545,8 +565,11 @@ const generateInactiveEmailHtml = (nome: string, daysSinceLastActivity: number, 
 </body>
 </html>
 `;
+};
 
-const generateUpgradeEmailHtml = (nome: string, leadsUsed: number, leadsLimit: number, userId: string) => `
+const generateUpgradeEmailHtml = (nome: string, leadsUsed: number, leadsLimit: number, userId: string, testId?: string) => {
+  const ctaUrl = generateTrackableLink(userId, 'never_upgraded', 'https://zunoprospect.com.br/precos', testId);
+  return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -621,7 +644,7 @@ const generateUpgradeEmailHtml = (nome: string, leadsUsed: number, leadsLimit: n
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center">
-                    <a href="https://zunoprospect.com.br/precos" 
+                    <a href="${ctaUrl}" 
                        style="display: inline-block; background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);">
                       🚀 Desbloquear 200 Leads/Mês Agora
                     </a>
@@ -647,7 +670,7 @@ const generateUpgradeEmailHtml = (nome: string, leadsUsed: number, leadsLimit: n
               <p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0; text-align: center;">
                 © 2024 Zuno Prospect. Todos os direitos reservados.
               </p>
-              ${generateTrackingPixel(userId, 'never_upgraded')}
+              ${generateTrackingPixel(userId, 'never_upgraded', testId)}
             </td>
           </tr>
         </table>
@@ -657,6 +680,7 @@ const generateUpgradeEmailHtml = (nome: string, leadsUsed: number, leadsLimit: n
 </body>
 </html>
 `;
+};
 
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests

@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { CheckCircle2, Building2, Kanban, BarChart3, Code2, Headphones, Infinity, Globe, MapPin, Sparkles, MessageCircle, Target } from "lucide-react";
 import { PLANOS, PLANO_AGENCIA, Plano } from "./data";
 import { CheckoutDialog } from "./CheckoutDialog";
+import { UsaAddonDialog } from "./UsaAddonDialog";
 import { trackViewContent, trackLead } from "@/lib/metaPixel";
 
 export function PrecosSection() {
@@ -14,6 +15,7 @@ export function PrecosSection() {
   const [isAnual, setIsAnual] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedPlano, setSelectedPlano] = useState<Plano | null>(null);
+  const [usaDialogOpen, setUsaDialogOpen] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
   const hasTrackedView = useRef(false);
 
@@ -314,9 +316,7 @@ export function PrecosSection() {
                   <Button
                     size="lg"
                     className="w-full md:w-auto px-8 bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={() => {
-                      window.open("https://pay.kiwify.com.br/FNkABm6", "_blank");
-                    }}
+                    onClick={() => setUsaDialogOpen(true)}
                   >
                     <Globe className="mr-2 h-4 w-4" />
                     Ativar Prospecção USA
@@ -375,6 +375,7 @@ export function PrecosSection() {
       </div>
 
       <CheckoutDialog open={checkoutOpen} onOpenChange={setCheckoutOpen} plano={selectedPlano} isAnual={isAnual} />
+      <UsaAddonDialog open={usaDialogOpen} onOpenChange={setUsaDialogOpen} isAnual={isAnual} />
     </section>
   );
 }

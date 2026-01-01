@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Eye, Code } from "lucide-react";
+import { Loader2, Eye, Code, Wand2 } from "lucide-react";
 
 interface ABTest {
   id: string;
@@ -36,19 +36,32 @@ const EMAIL_TYPES = [
   { value: "never_upgraded", label: "Nunca fez upgrade" },
 ];
 
-const DEFAULT_TEMPLATE = `<!DOCTYPE html>
+// Generate HTML template from natural language inputs
+const generateHtmlFromNaturalLanguage = (
+  subject: string,
+  body: string,
+  ctaText: string,
+  ctaUrl: string
+): string => {
+  const bodyHtml = body
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => `<p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 15px;">${line}</p>`)
+    .join('\n              ');
+
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{subject}}</title>
+  <title>${subject}</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 40px 0;">
     <tr>
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <!-- Header -->
           <tr>
             <td style="background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%); padding: 40px 30px; text-align: center;">
               <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">
@@ -56,33 +69,35 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
               </h1>
             </td>
           </tr>
-          
-          <!-- Content -->
           <tr>
             <td style="padding: 40px 30px;">
               <h2 style="color: #1f2937; margin: 0 0 20px; font-size: 24px;">
-                {{nome}}, sua mensagem aqui!
+                {{nome}}, temos algo para você!
               </h2>
-              
-              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
-                Conteúdo do email...
-              </p>
-              
-              <!-- CTA Button -->
-              <table width="100%" cellpadding="0" cellspacing="0">
+              ${bodyHtml}
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                 <tr>
                   <td align="center">
-                    <a href="https://zunoprospect.com.br/prospeccao" 
-                       style="display: inline-block; background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
-                      🔍 CTA Aqui
+                    <a href="${ctaUrl}" 
+                       style="display: inline-block; background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);">
+                      ${ctaText}
                     </a>
                   </td>
                 </tr>
               </table>
+              <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
+                <p style="color: #ffffff; font-size: 14px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 1px;">
+                  🎁 Cupom exclusivo
+                </p>
+                <p style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0 0 8px; font-family: monospace; letter-spacing: 3px;">
+                  ZUNO10
+                </p>
+                <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 0;">
+                  <strong>10% de desconto</strong> em qualquer plano!
+                </p>
+              </div>
             </td>
           </tr>
-          
-          <!-- Footer -->
           <tr>
             <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
               <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
@@ -96,20 +111,31 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
   </table>
 </body>
 </html>`;
+};
 
 export const ABTestEditor = ({ open, onOpenChange, editingTest, onSave }: ABTestEditorProps) => {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [editorMode, setEditorMode] = useState<"natural" | "html">("natural");
+  
   const [form, setForm] = useState({
     email_type: "first_24h",
     variant: "A",
     name: "",
     subject: "",
-    template_html: DEFAULT_TEMPLATE,
+    template_html: "",
     weight: 50,
     is_active: true,
   });
-  const [previewTab, setPreviewTab] = useState<"code" | "preview">("code");
+  
+  // Natural language fields
+  const [nlForm, setNlForm] = useState({
+    body: "",
+    ctaText: "🔍 Encontrar Meus Leads Agora",
+    ctaUrl: "https://zunoprospect.com.br/prospeccao",
+  });
+  
+  const [previewTab, setPreviewTab] = useState<"code" | "preview">("preview");
 
   useEffect(() => {
     if (editingTest) {
@@ -122,25 +148,56 @@ export const ABTestEditor = ({ open, onOpenChange, editingTest, onSave }: ABTest
         weight: editingTest.weight,
         is_active: editingTest.is_active,
       });
+      setEditorMode("html"); // Existing tests show HTML mode
     } else {
       setForm({
         email_type: "first_24h",
         variant: "A",
         name: "",
         subject: "",
-        template_html: DEFAULT_TEMPLATE,
+        template_html: "",
         weight: 50,
         is_active: true,
       });
+      setNlForm({
+        body: "",
+        ctaText: "🔍 Encontrar Meus Leads Agora",
+        ctaUrl: "https://zunoprospect.com.br/prospeccao",
+      });
+      setEditorMode("natural");
     }
   }, [editingTest, open]);
+
+  const handleGenerateTemplate = () => {
+    if (!form.subject || !nlForm.body) {
+      toast({
+        variant: "destructive",
+        title: "Campos obrigatórios",
+        description: "Preencha assunto e corpo do email.",
+      });
+      return;
+    }
+    
+    const html = generateHtmlFromNaturalLanguage(
+      form.subject,
+      nlForm.body,
+      nlForm.ctaText,
+      nlForm.ctaUrl
+    );
+    
+    setForm({ ...form, template_html: html });
+    toast({
+      title: "Template gerado!",
+      description: "Confira o preview e ajuste se necessário.",
+    });
+  };
 
   const handleSave = async () => {
     if (!form.name || !form.subject || !form.template_html) {
       toast({
         variant: "destructive",
         title: "Campos obrigatórios",
-        description: "Preencha nome, assunto e template.",
+        description: "Preencha nome, assunto e gere o template.",
       });
       return;
     }
@@ -148,7 +205,6 @@ export const ABTestEditor = ({ open, onOpenChange, editingTest, onSave }: ABTest
     setSaving(true);
     try {
       if (editingTest) {
-        // Update existing test
         const { error } = await supabase
           .from("email_ab_tests")
           .update({
@@ -167,7 +223,6 @@ export const ABTestEditor = ({ open, onOpenChange, editingTest, onSave }: ABTest
           description: `Variante ${form.variant} foi atualizada.`,
         });
       } else {
-        // Create new test
         const { error } = await supabase
           .from("email_ab_tests")
           .insert({
@@ -200,7 +255,6 @@ export const ABTestEditor = ({ open, onOpenChange, editingTest, onSave }: ABTest
     }
   };
 
-  // Preview with sample data
   const getPreviewHtml = () => {
     return form.template_html
       .replace(/\{\{nome\}\}/g, "João")
@@ -217,7 +271,10 @@ export const ABTestEditor = ({ open, onOpenChange, editingTest, onSave }: ABTest
             {editingTest ? `Editar Variante ${editingTest.variant}` : "Novo Teste A/B"}
           </DialogTitle>
           <DialogDescription>
-            Configure a variante do email para teste
+            {editorMode === "natural" 
+              ? "Escreva em linguagem natural — o template HTML será gerado automaticamente"
+              : "Edite o código HTML diretamente"
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -293,9 +350,6 @@ export const ABTestEditor = ({ open, onOpenChange, editingTest, onSave }: ABTest
                     value={form.weight}
                     onChange={(e) => setForm({ ...form, weight: parseInt(e.target.value) || 50 })}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Define a probabilidade de envio desta variante
-                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Status</Label>
@@ -314,18 +368,75 @@ export const ABTestEditor = ({ open, onOpenChange, editingTest, onSave }: ABTest
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Template HTML</Label>
-                <Textarea
-                  className="font-mono text-xs min-h-[200px]"
-                  placeholder="Código HTML do email..."
-                  value={form.template_html}
-                  onChange={(e) => setForm({ ...form, template_html: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Variáveis disponíveis: {"{{nome}}"}, {"{{leads_used}}"}, {"{{saved_count}}"}
-                </p>
+              {/* Mode Toggle */}
+              <div className="flex items-center gap-2 pt-2">
+                <Tabs value={editorMode} onValueChange={(v) => setEditorMode(v as "natural" | "html")}>
+                  <TabsList>
+                    <TabsTrigger value="natural" className="gap-1">
+                      <Wand2 className="h-3 w-3" />
+                      Natural
+                    </TabsTrigger>
+                    <TabsTrigger value="html" className="gap-1">
+                      <Code className="h-3 w-3" />
+                      HTML
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
+
+              {editorMode === "natural" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label>Corpo do Email</Label>
+                    <Textarea
+                      className="min-h-[120px]"
+                      placeholder="Escreva o texto do email aqui...&#10;&#10;Ex: Você criou sua conta mas ainda não prospectou nenhum lead.&#10;&#10;Seus 30 leads gratuitos estão esperando por você!"
+                      value={nlForm.body}
+                      onChange={(e) => setNlForm({ ...nlForm, body: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Use parágrafos separados por linha em branco
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Texto do Botão (CTA)</Label>
+                      <Input
+                        placeholder="🔍 Encontrar Leads"
+                        value={nlForm.ctaText}
+                        onChange={(e) => setNlForm({ ...nlForm, ctaText: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>URL do Botão</Label>
+                      <Input
+                        placeholder="https://..."
+                        value={nlForm.ctaUrl}
+                        onChange={(e) => setNlForm({ ...nlForm, ctaUrl: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <Button onClick={handleGenerateTemplate} className="w-full gap-2">
+                    <Wand2 className="h-4 w-4" />
+                    Gerar Template
+                  </Button>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <Label>Template HTML</Label>
+                  <Textarea
+                    className="font-mono text-xs min-h-[200px]"
+                    placeholder="Código HTML do email..."
+                    value={form.template_html}
+                    onChange={(e) => setForm({ ...form, template_html: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Variáveis: {"{{nome}}"}, {"{{leads_used}}"}, {"{{saved_count}}"}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Preview Column */}
@@ -347,16 +458,25 @@ export const ABTestEditor = ({ open, onOpenChange, editingTest, onSave }: ABTest
               </div>
               
               <div className="border rounded-lg overflow-hidden h-[500px]">
-                {previewTab === "preview" ? (
-                  <iframe
-                    srcDoc={getPreviewHtml()}
-                    className="w-full h-full border-0 bg-white"
-                    title="Email Preview"
-                  />
+                {form.template_html ? (
+                  previewTab === "preview" ? (
+                    <iframe
+                      srcDoc={getPreviewHtml()}
+                      className="w-full h-full border-0 bg-white"
+                      title="Email Preview"
+                    />
+                  ) : (
+                    <pre className="p-4 text-xs overflow-auto h-full bg-muted">
+                      <code>{form.template_html}</code>
+                    </pre>
+                  )
                 ) : (
-                  <pre className="p-4 text-xs overflow-auto h-full bg-muted">
-                    <code>{form.template_html}</code>
-                  </pre>
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    {editorMode === "natural" 
+                      ? "Preencha os campos e clique em 'Gerar Template'"
+                      : "Digite o HTML do email"
+                    }
+                  </div>
                 )}
               </div>
             </div>

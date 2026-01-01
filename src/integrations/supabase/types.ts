@@ -220,6 +220,27 @@ export type Database = {
         }
         Relationships: []
       }
+      email_job_locks: {
+        Row: {
+          created_at: string
+          job_name: string
+          locked_by: string | null
+          locked_until: string | null
+        }
+        Insert: {
+          created_at?: string
+          job_name: string
+          locked_by?: string | null
+          locked_until?: string | null
+        }
+        Update: {
+          created_at?: string
+          job_name?: string
+          locked_by?: string | null
+          locked_until?: string | null
+        }
+        Relationships: []
+      }
       email_logs: {
         Row: {
           campaign_id: string | null

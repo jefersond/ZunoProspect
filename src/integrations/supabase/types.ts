@@ -327,6 +327,65 @@ export type Database = {
         }
         Relationships: []
       }
+      email_queue: {
+        Row: {
+          campaign_id: string | null
+          created_at: string
+          email_type: string
+          error_message: string | null
+          html_content: string
+          id: string
+          metadata: Json | null
+          retry_count: number
+          sent_at: string | null
+          status: string
+          subject: string
+          to_email: string
+          to_name: string | null
+          user_id: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string
+          email_type?: string
+          error_message?: string | null
+          html_content: string
+          id?: string
+          metadata?: Json | null
+          retry_count?: number
+          sent_at?: string | null
+          status?: string
+          subject: string
+          to_email: string
+          to_name?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string
+          email_type?: string
+          error_message?: string | null
+          html_content?: string
+          id?: string
+          metadata?: Json | null
+          retry_count?: number
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          to_email?: string
+          to_name?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_queue_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interacoes: {
         Row: {
           conteudo: string

@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingEmailsDashboard } from "@/components/admin/OnboardingEmailsDashboard";
 import { ABTestingDashboard } from "@/components/admin/ABTestingDashboard";
 import { WelcomeEmailsDashboard } from "@/components/admin/WelcomeEmailsDashboard";
+import { EmailTestCard } from "@/components/admin/EmailTestCard";
 
 // Sanitize HTML for safe rendering - allows common email tags
 const sanitizeHtml = (dirty: string): string => {
@@ -339,6 +340,11 @@ const AdminEmail = () => {
           </TabsList>
 
           <TabsContent value="campanhas">
+            {/* Email Test Card */}
+            <div className="mb-6">
+              <EmailTestCard />
+            </div>
+            
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               <Card>

@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.test-email-config]
 verify_jwt = true
+
+[functions.n8n-email-webhook]
+verify_jwt = false

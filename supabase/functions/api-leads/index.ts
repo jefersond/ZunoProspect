@@ -187,13 +187,26 @@ serve(async (req) => {
 
     // GET /api-leads?id=<uuid> - Get single lead
     if (method === 'GET' && leadId) {
-      const { data: lead, error } = await supabaseAdmin
-        .rpc('get_leads_decrypted')
-        .eq('user_id', userId)
-        .eq('id', leadId)
-        .single();
+      const encryptionKey = Deno.env.get('LEADS_ENCRYPTION_KEY');
+      if (!encryptionKey) {
+        console.error('LEADS_ENCRYPTION_KEY not configured');
+        return new Response(JSON.stringify({ error: 'Configuração de criptografia ausente' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: leads, error } = await supabaseAdmin
+        .rpc('set_encryption_key_and_get_lead_by_id', { 
+          p_encryption_key: encryptionKey,
+          p_lead_id: leadId, 
+          p_user_id: userId 
+        });
+
+      const lead = leads?.[0];
 
       if (error || !lead) {
+        console.error('Lead fetch error:', error?.message || 'Not found');
         return new Response(JSON.stringify({ error: 'Lead não encontrado' }), {
           status: 404,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },

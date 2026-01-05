@@ -70,7 +70,7 @@ export function PrecosSection() {
             Escolha o plano ideal para você
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-            Comece grátis e escale conforme sua necessidade. Cancele quando quiser.
+            Escolha o plano ideal para você. Cancele quando quiser.
           </p>
 
           <div className="flex items-center justify-center gap-4">
@@ -89,8 +89,8 @@ export function PrecosSection() {
           </div>
         </div>
 
-        {/* Grid for Starter, Iniciante, Pro */}
-        <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+        {/* Grid for Iniciante, Pro */}
+        <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
           {PLANOS.map((plano, index) => {
             const preco = isAnual ? plano.precoAnual : plano.precoMensal;
             const precoMensal = isAnual ? Math.round(plano.precoAnual / 12) : plano.precoMensal;

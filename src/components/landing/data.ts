@@ -124,21 +124,6 @@ export interface Plano {
 
 export const PLANOS: Plano[] = [
   {
-    nome: "Starter",
-    precoMensal: 0,
-    precoAnual: 0,
-    descricao: "Para testar a plataforma",
-    destaque: false,
-    features: [
-      "Até 30 leads por mês",
-      "Análise básica de leads",
-      "Plano de prospecção de 7 dias",
-      "Salvar leads favoritos"
-    ],
-    cta: "Começar grátis",
-    gratuito: true
-  },
-  {
     nome: "Iniciante",
     precoMensal: 47,
     precoAnual: 470,
@@ -218,7 +203,7 @@ export const FAQ_ITEMS = [
     resposta: "Sim! Usamos o Google Places como base, então qualquer cidade com empresas cadastradas no Google funciona. Quanto maior a cidade, mais resultados."
   },
   {
-    pergunta: "Tem teste grátis?",
-    resposta: "Sim! Você pode criar uma conta e fazer suas primeiras buscas gratuitamente para conhecer a plataforma antes de assinar."
+    pergunta: "Tem garantia?",
+    resposta: "Sim! Todos os planos têm garantia de 7 dias. Se não gostar, devolvemos seu dinheiro sem burocracia."
   }
 ];

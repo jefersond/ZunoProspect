@@ -16,7 +16,7 @@ import { LeadProspeccao } from '@/types/lead';
 import { PipelineColumn } from './PipelineColumn';
 import { PipelineCard } from './PipelineCard';
 import { PIPELINE_STATUSES } from './StatusSelector';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+// ScrollArea removed - using native overflow for page-level scrolling
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSecureLeads } from '@/hooks/useSecureLeads';
 import { useSessionManager } from '@/hooks/useSessionManager';
@@ -141,20 +141,17 @@ export function LeadsPipeline({ onViewDetails }: LeadsPipelineProps) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="h-[calc(100vh-220px)] overflow-hidden">
-        <ScrollArea className="w-full h-full">
-          <div className="flex gap-4 p-4 h-full">
-            {PIPELINE_STATUSES.map((status) => (
-              <PipelineColumn
-                key={status.id}
-                status={status}
-                leads={getLeadsByStatus(status.id)}
-                onViewDetails={onViewDetails}
-              />
-            ))}
-          </div>
-          <ScrollBar orientation="horizontal" className="h-3 bg-muted/50" />
-        </ScrollArea>
+      <div className="min-h-[400px] overflow-x-auto overflow-y-visible pb-4">
+        <div className="flex gap-4 p-4 min-w-max">
+          {PIPELINE_STATUSES.map((status) => (
+            <PipelineColumn
+              key={status.id}
+              status={status}
+              leads={getLeadsByStatus(status.id)}
+              onViewDetails={onViewDetails}
+            />
+          ))}
+        </div>
       </div>
 
       <DragOverlay>

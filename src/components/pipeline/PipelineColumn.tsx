@@ -20,7 +20,7 @@ export function PipelineColumn({ status, leads, onViewDetails }: PipelineColumnP
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col min-w-[280px] w-[280px] h-full max-h-[calc(100vh-280px)] bg-muted/30 rounded-lg border transition-colors ${
+      className={`flex flex-col min-w-[280px] w-[280px] max-h-[70vh] bg-muted/30 rounded-lg border transition-colors ${
         isOver 
           ? 'border-primary/50 bg-primary/5' 
           : 'border-border/50'

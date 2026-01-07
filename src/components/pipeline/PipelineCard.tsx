@@ -11,7 +11,8 @@ import {
   MessageCircle,
   Building2,
   MapPin,
-  Target
+  Target,
+  GripVertical
 } from 'lucide-react';
 import { LeadProspeccao } from '@/types/lead';
 
@@ -61,14 +62,20 @@ export function PipelineCard({ lead, onViewDetails }: PipelineCardProps) {
     <Card
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
-      className={`p-3 cursor-grab active:cursor-grabbing bg-card border-border/50 hover:border-border transition-all ${
+      className={`p-3 bg-card border-border/50 hover:border-border transition-all ${
         isDragging ? 'opacity-50 shadow-lg shadow-primary/10 scale-105' : ''
       }`}
     >
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2 mb-2">
+      {/* Header with Drag Handle */}
+      <div className="flex items-start gap-2 mb-2">
+        {/* Drag Handle */}
+        <div
+          {...attributes}
+          {...listeners}
+          className="shrink-0 cursor-grab active:cursor-grabbing touch-none p-0.5 -ml-1 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
         <h4 
           className="font-medium text-sm text-foreground truncate flex-1 cursor-pointer hover:text-primary transition-colors"
           onClick={() => onViewDetails(lead)}

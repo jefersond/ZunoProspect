@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -143,9 +143,9 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (error) {
-    logStep('Error in admin-get-users', { error: error.message });
-    return new Response(JSON.stringify({ error: error.message }), {
+  } catch (error: any) {
+    logStep('Error in admin-get-users', { error: error?.message || String(error) });
+    return new Response(JSON.stringify({ error: error?.message || 'Erro desconhecido' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

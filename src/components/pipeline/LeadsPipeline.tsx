@@ -4,6 +4,7 @@ import {
   DragOverlay,
   closestCorners,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragStartEvent,
@@ -18,6 +19,7 @@ import { PIPELINE_STATUSES } from './StatusSelector';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSecureLeads } from '@/hooks/useSecureLeads';
+import { useSessionManager } from '@/hooks/useSessionManager';
 
 interface LeadsPipelineProps {
   onViewDetails: (lead: LeadProspeccao) => void;
@@ -27,10 +29,28 @@ export function LeadsPipeline({ onViewDetails }: LeadsPipelineProps) {
   const { leads, loading, fetchLeads, setLeads } = useSecureLeads({ salvo: true });
   const [activeId, setActiveId] = useState<string | null>(null);
 
+  // Auto-refresh session to prevent auth errors during prolonged use
+  useSessionManager({
+    checkInterval: 5,
+    refreshThreshold: 10,
+    onSessionExpired: () => {
+      toast.error('Sessão expirada. Redirecionando para login...');
+      window.location.href = '/auth';
+    },
+  });
+
+  // Configure sensors with higher activation distance to prevent accidental drags
+  // and separate touch handling to allow normal scrolling
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 10, // Increased from 8 to reduce accidental drags
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250, // Must hold for 250ms before drag starts
+        tolerance: 5, // Allow 5px movement during delay
       },
     })
   );

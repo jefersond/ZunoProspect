@@ -17,14 +17,14 @@ import { PipelineCard } from './PipelineCard';
 import { PIPELINE_STATUSES } from './StatusSelector';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useSecureLeads } from '@/hooks/useSecureLeads';
 
 interface LeadsPipelineProps {
   onViewDetails: (lead: LeadProspeccao) => void;
 }
 
 export function LeadsPipeline({ onViewDetails }: LeadsPipelineProps) {
-  const [leads, setLeads] = useState<LeadProspeccao[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { leads, loading, fetchLeads, setLeads } = useSecureLeads({ salvo: true });
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
@@ -36,69 +36,8 @@ export function LeadsPipeline({ onViewDetails }: LeadsPipelineProps) {
   );
 
   useEffect(() => {
-    loadLeads();
+    fetchLeads(true);
   }, []);
-
-  const loadLeads = async () => {
-    try {
-      const { data, error } = await supabase.rpc('get_leads_decrypted_filtered', {
-        p_salvo: true,
-      });
-
-      if (error) throw error;
-
-      const transformedLeads: LeadProspeccao[] = (data || []).map((lead: any) => ({
-        id: lead.id,
-        placeId: lead.google_place_id,
-        nome: lead.nome,
-        telefone: lead.telefone,
-        whatsapp_link: lead.whatsapp_number 
-          ? `https://wa.me/55${lead.whatsapp_number.replace(/\D/g, '')}` 
-          : null,
-        email: lead.email,
-        website: lead.website,
-        instagram_url: lead.instagram_url,
-        instagram_context: lead.instagram_context,
-        endereco: lead.endereco,
-        cidade: lead.cidade,
-        nicho: lead.nicho,
-        foco: lead.foco as any,
-        proximidadeAtiva: lead.proximidade_ativa,
-        raioKm: lead.raio_km,
-        sinais: {
-          has_whatsapp_on_site: lead.whatsapp_on_site,
-          has_meta_pixel: lead.has_meta_pixel,
-          has_gtag: lead.has_gtag,
-          has_gtm: lead.has_gtm,
-        },
-        diagnostico_bullets: lead.diagnostico_bullets || [],
-        probabilidade_conversao: lead.probabilidade_conversao,
-        plano_prospecao_7dias: lead.plano_prospeccao || [],
-        rating: lead.rating,
-        total_reviews: lead.total_reviews,
-        status: lead.status || 'novo',
-        created_at: lead.created_at,
-        ai_analise_gerada_em: lead.ai_analise_gerada_em,
-        salvo: lead.salvo,
-        notas: lead.notas || null,
-        cnpj: lead.cnpj,
-        razao_social: lead.razao_social,
-        nome_responsavel: lead.nome_responsavel,
-        cnpj_telefone: lead.cnpj_telefone,
-        cnpj_email: lead.cnpj_email,
-        situacao_cadastral: lead.situacao_cadastral,
-        porte_empresa: lead.porte_empresa,
-        cnae_principal: lead.cnae_principal,
-      }));
-
-      setLeads(transformedLeads);
-    } catch (error) {
-      console.error('Error loading leads:', error);
-      toast.error('Erro ao carregar leads');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -138,7 +77,7 @@ export function LeadsPipeline({ onViewDetails }: LeadsPipelineProps) {
       console.error('Error updating lead status:', error);
       toast.error('Erro ao atualizar status');
       // Revert optimistic update
-      loadLeads();
+      fetchLeads(true);
     }
   };
 

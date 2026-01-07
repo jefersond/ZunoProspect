@@ -297,28 +297,42 @@ export const ProspeccaoForm = () => {
       setProgressMessage("Busca concluída!");
 
       const leadsCount = responseData?.leadsCount || 0;
-      const newLeadsCount = responseData?.newLeadsCount ?? leadsCount; // Fallback para compatibilidade
+      const newLeadsCount = responseData?.newLeadsCount ?? leadsCount;
       const updatedLeadsCount = responseData?.updatedLeadsCount || 0;
+      const analysisQueued = responseData?.analysisQueued || false;
+      const analysisCount = responseData?.analysisCount || 0;
       
       setLeadsFound(leadsCount);
-      setLeadsAnalyzed(leadsCount);
+      // NÃO define leadsAnalyzed como completo - deixa o polling atualizar com dados reais
+      // Isso corrige o bug onde mostrava "analisados" antes da IA terminar
+      if (!analysisQueued) {
+        setLeadsAnalyzed(leadsCount);
+      }
       setEstimatedTimeSeconds(0);
 
-      console.log(`[Busca] Concluída! ${leadsCount} leads processados (${newLeadsCount} novos, ${updatedLeadsCount} atualizados)`);
+      console.log(`[Busca] Concluída! ${leadsCount} leads processados (${newLeadsCount} novos, ${updatedLeadsCount} atualizados)${analysisQueued ? ` - ${analysisCount} análises IA em background` : ''}`);
 
       // Incrementa o contador de leads usados apenas para leads NOVOS
-      // Isso corrige o bug de dupla contagem quando usuário faz múltiplas buscas
       if (newLeadsCount > 0) {
         await incrementLeadsUsed(newLeadsCount);
-        refetch(); // Atualiza os dados da assinatura
+        refetch();
       }
 
       // Toast com informação clara sobre leads novos vs atualizados
-      const toastDescription = newLeadsCount > 0 
-        ? `${newLeadsCount} leads novos${updatedLeadsCount > 0 ? ` + ${updatedLeadsCount} atualizados` : ''}${isIncrementalSearch && responseData?.radiusExpanded ? " (raio expandido)" : ""}`
-        : updatedLeadsCount > 0
-          ? `${updatedLeadsCount} leads atualizados (nenhum novo encontrado)`
-          : responseData?.error || "Nenhum lead novo encontrado nesta região. Tente aumentar o raio de busca ou modificar os termos.";
+      let toastDescription = '';
+      if (newLeadsCount > 0) {
+        toastDescription = `${newLeadsCount} leads novos${updatedLeadsCount > 0 ? ` + ${updatedLeadsCount} atualizados` : ''}`;
+        if (analysisQueued) {
+          toastDescription += ` (análise IA em andamento...)`;
+        }
+        if (isIncrementalSearch && responseData?.radiusExpanded) {
+          toastDescription += " (raio expandido)";
+        }
+      } else if (updatedLeadsCount > 0) {
+        toastDescription = `${updatedLeadsCount} leads atualizados (nenhum novo encontrado)`;
+      } else {
+        toastDescription = responseData?.error || "Nenhum lead novo encontrado nesta região. Tente aumentar o raio de busca ou modificar os termos.";
+      }
       
       toast({
         title: newLeadsCount > 0 ? "Busca concluída!" : (updatedLeadsCount > 0 ? "Leads atualizados" : "Nenhum lead novo"),
@@ -384,9 +398,15 @@ export const ProspeccaoForm = () => {
       
       // Extrai a mensagem de erro mais específica
       let errorMessage = "Não foi possível buscar os leads";
+      let isTimeoutError = false;
       
       if (error.message) {
         errorMessage = error.message;
+        // Detecta timeout/conexão
+        if (error.message.includes('timeout') || error.message.includes('504') || error.message.includes('FunctionsHttpError')) {
+          isTimeoutError = true;
+          errorMessage = "A busca demorou mais que o esperado. Os leads podem ter sido salvos mesmo assim.";
+        }
       } else if (error.context?.body) {
         try {
           const errorBody = typeof error.context.body === 'string' 
@@ -398,12 +418,19 @@ export const ProspeccaoForm = () => {
         }
       }
       
+      // Se foi timeout, recarrega os leads (podem ter sido salvos)
+      if (isTimeoutError) {
+        window.dispatchEvent(new CustomEvent("reloadLeads"));
+      }
+      
       setSearchError(errorMessage);
       
       toast({
         variant: "destructive",
-        title: "Erro na busca",
-        description: errorMessage,
+        title: isTimeoutError ? "Busca parcialmente concluída" : "Erro na busca",
+        description: isTimeoutError 
+          ? "Recarregue para ver os leads encontrados. A análise IA pode estar em andamento."
+          : errorMessage,
       });
       setLoading(false);
       setCurrentStep(0);

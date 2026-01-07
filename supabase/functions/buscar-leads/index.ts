@@ -818,43 +818,58 @@ serve(async (req) => {
     const leadsDetails = leadsWithAnalysis.map(item => item.leadResult);
 
     // ============================================
-    // PROCESSAMENTO PARALELO DE ANÁLISES IA (5x mais rápido)
+    // ANÁLISE IA EM BACKGROUND (NÃO BLOQUEIA RESPOSTA)
     // ============================================
-    const AI_BATCH_SIZE = 5; // 5 análises simultâneas
-    const DELAY_BETWEEN_BATCHES_MS = 500; // 0.5 segundo entre lotes
+    // Usa EdgeRuntime.waitUntil para rodar análises após retornar resposta
+    // Isso evita timeout e garante que o usuário veja os leads imediatamente
     
-    console.log(`📊 Processando ${leadsWithAnalysis.length} análises de IA em lotes de ${AI_BATCH_SIZE} (paralelo)...`);
-    
-    // Processa análises em lotes paralelos
-    for (let i = 0; i < leadsWithAnalysis.length; i += AI_BATCH_SIZE) {
-      const batch = leadsWithAnalysis.slice(i, i + AI_BATCH_SIZE);
-      const batchNumber = Math.floor(i / AI_BATCH_SIZE) + 1;
-      const totalBatches = Math.ceil(leadsWithAnalysis.length / AI_BATCH_SIZE);
+    const runAIAnalysisInBackground = async () => {
+      const AI_BATCH_SIZE = 5;
+      const DELAY_BETWEEN_BATCHES_MS = 500;
       
-      console.log(`🔄 Processando lote ${batchNumber}/${totalBatches} (${batch.length} análises em paralelo)...`);
+      console.log(`🤖 [BACKGROUND] Iniciando análise IA de ${leadsWithAnalysis.length} leads...`);
       
-      // Executa lote em PARALELO
-      const batchPromises = batch.map(async (item, idx) => {
-        if (item.scheduleAnalysis) {
-          try {
-            await item.scheduleAnalysis();
-            console.log(`✅ Análise ${i + idx + 1}/${leadsWithAnalysis.length} concluída.`);
-          } catch (err) {
-            console.error(`❌ Erro na análise ${i + idx + 1}/${leadsWithAnalysis.length}:`, err);
+      for (let i = 0; i < leadsWithAnalysis.length; i += AI_BATCH_SIZE) {
+        const batch = leadsWithAnalysis.slice(i, i + AI_BATCH_SIZE);
+        const batchNumber = Math.floor(i / AI_BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(leadsWithAnalysis.length / AI_BATCH_SIZE);
+        
+        console.log(`🔄 [BACKGROUND] Lote ${batchNumber}/${totalBatches} (${batch.length} análises)...`);
+        
+        const batchPromises = batch.map(async (item, idx) => {
+          if (item.scheduleAnalysis) {
+            try {
+              await item.scheduleAnalysis();
+              console.log(`✅ [BACKGROUND] Análise ${i + idx + 1}/${leadsWithAnalysis.length} ok.`);
+            } catch (err) {
+              console.error(`❌ [BACKGROUND] Análise ${i + idx + 1} falhou:`, err);
+            }
           }
+        });
+        
+        await Promise.all(batchPromises);
+        
+        if (i + AI_BATCH_SIZE < leadsWithAnalysis.length) {
+          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
         }
-      });
-      
-      await Promise.all(batchPromises);
-      
-      // Delay apenas ENTRE lotes (não entre análises do mesmo lote)
-      if (i + AI_BATCH_SIZE < leadsWithAnalysis.length) {
-        console.log(`⏳ Aguardando ${DELAY_BETWEEN_BATCHES_MS/1000}s antes do próximo lote...`);
-        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
       }
+      
+      console.log(`✅ [BACKGROUND] Todas as ${leadsWithAnalysis.length} análises IA concluídas!`);
+    };
+
+    // Agenda análise em background - NÃO AGUARDA (resposta retorna imediatamente)
+    // @ts-ignore - EdgeRuntime disponível no Deno Edge Functions
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(runAIAnalysisInBackground());
+      console.log(`🚀 Análise IA agendada em background para ${leadsWithAnalysis.length} leads`);
+    } else {
+      // Fallback: se EdgeRuntime não disponível, dispara sem await (fire and forget)
+      runAIAnalysisInBackground().catch(err => 
+        console.error("❌ Erro na análise IA em background:", err)
+      );
+      console.log(`🚀 Análise IA disparada (fire-and-forget) para ${leadsWithAnalysis.length} leads`);
     }
-    
-    console.log(`✅ Todas as ${leadsWithAnalysis.length} análises de IA foram processadas em paralelo!`);
 
     // Prepara preview dos leads bloqueados (dados básicos apenas, sem processar)
     const lockedLeadsData = lockedLeadsPreview.map((place: any) => ({
@@ -873,16 +888,18 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         leadsCount: leadsDetails.length,
-        newLeadsCount: newLeadsCount, // NOVO: só leads realmente inseridos
-        updatedLeadsCount: updatedLeadsCount, // Leads que foram atualizados
+        newLeadsCount: newLeadsCount,
+        updatedLeadsCount: updatedLeadsCount,
         leads: leadsDetails,
-        lockedLeads: lockedLeadsData, // Preview dos leads bloqueados
+        lockedLeads: lockedLeadsData,
         hasMore: leads.length >= body.quantidade,
-        // Campos para incentivo de upgrade
         totalAvailable: leadsAfterFilter,
         limitedByQuota,
         additionalLeadsAvailable,
         lockedLeadsCount: additionalLeadsAvailable,
+        // NOVO: Indica que análise IA está rodando em background
+        analysisQueued: leadsWithAnalysis.length > 0,
+        analysisCount: leadsWithAnalysis.length,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

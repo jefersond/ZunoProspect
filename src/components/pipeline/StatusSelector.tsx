@@ -7,6 +7,8 @@ export interface PipelineStatus {
   color: string;
   bgColor: string;
   borderColor: string;
+  badgeBg: string;
+  badgeText: string;
 }
 
 export const PIPELINE_STATUSES: PipelineStatus[] = [
@@ -17,6 +19,8 @@ export const PIPELINE_STATUSES: PipelineStatus[] = [
     color: 'bg-gray-400',
     bgColor: 'to-gray-500/10',
     borderColor: 'border-gray-500/30',
+    badgeBg: 'bg-gray-500/20',
+    badgeText: 'text-gray-300',
   },
   {
     id: 'em_contato',
@@ -25,6 +29,8 @@ export const PIPELINE_STATUSES: PipelineStatus[] = [
     color: 'bg-blue-400',
     bgColor: 'to-blue-500/10',
     borderColor: 'border-blue-500/30',
+    badgeBg: 'bg-blue-500/20',
+    badgeText: 'text-blue-300',
   },
   {
     id: 'qualificacao',
@@ -33,6 +39,8 @@ export const PIPELINE_STATUSES: PipelineStatus[] = [
     color: 'bg-amber-400',
     bgColor: 'to-amber-500/10',
     borderColor: 'border-amber-500/30',
+    badgeBg: 'bg-amber-500/20',
+    badgeText: 'text-amber-300',
   },
   {
     id: 'negociacao',
@@ -41,6 +49,8 @@ export const PIPELINE_STATUSES: PipelineStatus[] = [
     color: 'bg-orange-400',
     bgColor: 'to-orange-500/10',
     borderColor: 'border-orange-500/30',
+    badgeBg: 'bg-orange-500/20',
+    badgeText: 'text-orange-300',
   },
   {
     id: 'convertido',
@@ -49,6 +59,8 @@ export const PIPELINE_STATUSES: PipelineStatus[] = [
     color: 'bg-emerald-400',
     bgColor: 'to-emerald-500/10',
     borderColor: 'border-emerald-500/30',
+    badgeBg: 'bg-emerald-500/20',
+    badgeText: 'text-emerald-300',
   },
   {
     id: 'perdido',
@@ -57,6 +69,8 @@ export const PIPELINE_STATUSES: PipelineStatus[] = [
     color: 'bg-red-400',
     bgColor: 'to-red-500/10',
     borderColor: 'border-red-500/30',
+    badgeBg: 'bg-red-500/20',
+    badgeText: 'text-red-300',
   },
 ];
 

@@ -34,7 +34,7 @@ export function PipelineColumn({ status, leads, onViewDetails }: PipelineColumnP
           </div>
           <Badge 
             variant="secondary" 
-            className="text-xs bg-background/50 text-muted-foreground"
+            className={`text-xs font-semibold ${status.badgeBg} ${status.badgeText} border-0`}
           >
             {leads.length}
           </Badge>

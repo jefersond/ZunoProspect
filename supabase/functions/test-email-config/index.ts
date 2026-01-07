@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ============= CONFIGURATION =============
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -30,6 +29,36 @@ const validateFromEmail = (from: string): { valid: boolean; error?: string } => 
   
   return { valid: true };
 };
+
+// ============= RESEND API HELPER =============
+async function sendEmailViaResend(payload: {
+  from: string;
+  to: string[];
+  subject: string;
+  html: string;
+  reply_to?: string;
+}): Promise<{ data?: any; error?: { message: string } }> {
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { error: { message: data.message || "Erro ao enviar email" } };
+    }
+
+    return { data };
+  } catch (error: any) {
+    return { error: { message: error.message } };
+  }
+}
 
 interface TestEmailRequest {
   toEmail: string;
@@ -114,8 +143,6 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     // ============= SEND TEST EMAIL =============
-    const resend = new Resend(RESEND_API_KEY);
-    
     const emailPayload: any = {
       from: RESEND_FROM_EMAIL,
       to: [toEmail],
@@ -150,7 +177,7 @@ serve(async (req: Request): Promise<Response> => {
       reply_to: emailPayload.reply_to 
     }));
 
-    const emailResponse = await resend.emails.send(emailPayload);
+    const emailResponse = await sendEmailViaResend(emailPayload);
 
     if (emailResponse.error) {
       console.error("[Test] Resend error:", emailResponse.error);

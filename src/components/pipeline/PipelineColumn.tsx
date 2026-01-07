@@ -43,7 +43,7 @@ export function PipelineColumn({ status, leads, onViewDetails }: PipelineColumnP
       </div>
 
       {/* Cards Container with native scroll */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2 custom-scrollbar">
         <SortableContext 
           items={leads.map(l => l.id)} 
           strategy={verticalListSortingStrategy}

@@ -41,7 +41,7 @@ const RATE_LIMIT_WINDOW_MINUTES = 1; // Window in minutes
 
 interface GetLeadsRequest {
   action: 'list' | 'view_detail' | 'export';
-  salvo?: boolean | null;
+  salvo?: boolean | string | null;
   leadId?: string;
   page?: number;
   limit?: number;
@@ -94,6 +94,11 @@ serve(async (req) => {
     const body: GetLeadsRequest = await req.json();
     const { action = 'list', salvo, leadId, page = 1, limit = 50 } = body;
 
+    // IMPORTANT: Normalize salvo parameter - handle string/boolean conversion
+    // The value can come as string "true"/"false" or boolean true/false
+    const salvoValue = salvo === true || salvo === 'true' ? true : 
+                       salvo === false || salvo === 'false' ? false : null;
+
     // Validate inputs
     const validActions = ['list', 'view_detail', 'export'];
     if (!validActions.includes(action)) {
@@ -109,7 +114,7 @@ serve(async (req) => {
                       "unknown";
     const userAgent = req.headers.get("user-agent") || "unknown";
 
-    console.log(`📊 [${action}] User: ${user.id} | IP: ${ipAddress}`);
+    console.log(`📊 [${action}] User: ${user.id} | IP: ${ipAddress} | salvo: ${salvo} → normalized: ${salvoValue}`);
 
     // Check rate limit for list/export actions
     if (action === 'list' || action === 'export') {
@@ -181,7 +186,7 @@ serve(async (req) => {
       const { data: leads, error } = await supabaseAdmin
         .rpc('set_encryption_key_and_get_leads_filtered', { 
           p_encryption_key: encryptionKey,
-          p_salvo: salvo ?? null,
+          p_salvo: salvoValue,
           p_user_id: user.id
         });
 

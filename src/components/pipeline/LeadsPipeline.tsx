@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -35,9 +35,14 @@ export function LeadsPipeline({ onViewDetails }: LeadsPipelineProps) {
     })
   );
 
-  useEffect(() => {
+  // Memoize fetchLeads call to avoid lint warnings
+  const loadLeads = useCallback(() => {
     fetchLeads(true);
-  }, []);
+  }, [fetchLeads]);
+
+  useEffect(() => {
+    loadLeads();
+  }, [loadLeads]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -64,6 +69,14 @@ export function LeadsPipeline({ onViewDetails }: LeadsPipelineProps) {
     );
 
     try {
+      // Check if session is still valid before updating
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Sessão expirada. Faça login novamente.');
+        loadLeads();
+        return;
+      }
+
       const { error } = await supabase
         .from('leads')
         .update({ status: newStatus })
@@ -77,7 +90,7 @@ export function LeadsPipeline({ onViewDetails }: LeadsPipelineProps) {
       console.error('Error updating lead status:', error);
       toast.error('Erro ao atualizar status');
       // Revert optimistic update
-      fetchLeads(true);
+      loadLeads();
     }
   };
 

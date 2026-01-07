@@ -11,6 +11,7 @@ interface RateLimitInfo {
 
 interface UseSecureLeadsOptions {
   salvo?: boolean | null;
+  noPagination?: boolean;
   onRateLimitExceeded?: () => void;
 }
 
@@ -109,6 +110,7 @@ export const useSecureLeads = (options: UseSecureLeadsOptions = {}) => {
         body: {
           action: 'list',
           salvo: salvoFilter ?? options.salvo ?? null,
+          noPagination: options.noPagination ?? false,
         },
       });
 

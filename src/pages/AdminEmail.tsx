@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Mail, Send, Trash2, Eye, Plus, ArrowLeft, Users, MailOpen, AlertCircle, Zap, FlaskConical } from "lucide-react";
+import { Loader2, Mail, Send, Trash2, Eye, Plus, ArrowLeft, Users, MailOpen, AlertCircle, Zap, FlaskConical, UserCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +18,7 @@ import { OnboardingEmailsDashboard } from "@/components/admin/OnboardingEmailsDa
 import { ABTestingDashboard } from "@/components/admin/ABTestingDashboard";
 import { WelcomeEmailsDashboard } from "@/components/admin/WelcomeEmailsDashboard";
 import { EmailTestCard } from "@/components/admin/EmailTestCard";
+import { UsersDashboard } from "@/components/admin/UsersDashboard";
 
 // Sanitize HTML for safe rendering - allows common email tags
 const sanitizeHtml = (dirty: string): string => {
@@ -337,6 +338,10 @@ const AdminEmail = () => {
               <FlaskConical className="h-4 w-4" />
               A/B Testing
             </TabsTrigger>
+            <TabsTrigger value="usuarios" className="gap-2">
+              <UserCircle className="h-4 w-4" />
+              Usuários
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="campanhas">
@@ -485,6 +490,10 @@ const AdminEmail = () => {
 
           <TabsContent value="abtesting">
             <ABTestingDashboard />
+          </TabsContent>
+
+          <TabsContent value="usuarios">
+            <UsersDashboard />
           </TabsContent>
         </Tabs>
       </main>

@@ -47,3 +47,6 @@ verify_jwt = true
 
 [functions.n8n-email-webhook]
 verify_jwt = false
+
+[functions.admin-get-users]
+verify_jwt = false

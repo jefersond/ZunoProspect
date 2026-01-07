@@ -26,7 +26,8 @@ interface LeadsPipelineProps {
 }
 
 export function LeadsPipeline({ onViewDetails }: LeadsPipelineProps) {
-  const { leads, loading, fetchLeads, setLeads } = useSecureLeads({ salvo: true });
+  // noPagination: true ensures ALL saved leads are loaded, not just the first 50
+  const { leads, loading, fetchLeads, setLeads } = useSecureLeads({ salvo: true, noPagination: true });
   const [activeId, setActiveId] = useState<string | null>(null);
 
   // Auto-refresh session to prevent auth errors during prolonged use

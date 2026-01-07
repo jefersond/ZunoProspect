@@ -45,6 +45,7 @@ interface GetLeadsRequest {
   leadId?: string;
   page?: number;
   limit?: number;
+  noPagination?: boolean;
 }
 
 serve(async (req) => {
@@ -92,7 +93,7 @@ serve(async (req) => {
 
     // Parse request
     const body: GetLeadsRequest = await req.json();
-    const { action = 'list', salvo, leadId, page = 1, limit = 50 } = body;
+    const { action = 'list', salvo, leadId, page = 1, limit = 50, noPagination = false } = body;
 
     // IMPORTANT: Normalize salvo parameter - handle string/boolean conversion
     // The value can come as string "true"/"false" or boolean true/false
@@ -198,13 +199,15 @@ serve(async (req) => {
       // Leads already filtered by user_id in the RPC function
       const userLeads = leads || [];
       
-      // Apply pagination for list (not export)
+      // Apply pagination for list (not export) - skip if noPagination is true
       const safeLimit = Math.min(Math.max(1, limit), action === 'export' ? 500 : 100);
       const offset = (Math.max(1, page) - 1) * safeLimit;
       
       const paginatedLeads = action === 'export' 
         ? userLeads.slice(0, 500) // Export limit
-        : userLeads.slice(offset, offset + safeLimit);
+        : noPagination 
+          ? userLeads // Return all leads when noPagination is true (e.g., Pipeline)
+          : userLeads.slice(offset, offset + safeLimit);
 
       leadsCount = paginatedLeads.length;
       leadIds = paginatedLeads.map((l: any) => l.id);

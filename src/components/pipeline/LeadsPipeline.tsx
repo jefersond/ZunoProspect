@@ -141,7 +141,7 @@ export function LeadsPipeline({ onViewDetails }: LeadsPipelineProps) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="min-h-[400px] overflow-x-auto overflow-y-visible pb-4">
+      <div className="min-h-[400px] overflow-x-auto overflow-y-visible pb-4 custom-scrollbar">
         <div className="flex gap-4 p-4 min-w-max">
           {PIPELINE_STATUSES.map((status) => (
             <PipelineColumn

@@ -232,3 +232,51 @@ All colors MUST be HSL.
 .animate-marquee-slow:hover {
   animation-play-state: paused;
 }
+
+/* Custom Scrollbar Styles */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.45 0 0 / 0.5) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: oklch(0.3 0 0 / 0.15);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, oklch(0.5 0 0 / 0.4), oklch(0.4 0 0 / 0.4));
+  border-radius: 10px;
+  border: 1px solid oklch(0.4 0 0 / 0.2);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, oklch(0.6 0 0 / 0.6), oklch(0.5 0 0 / 0.6));
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Dark mode scrollbar */
+.dark .custom-scrollbar {
+  scrollbar-color: oklch(0.5 0 0 / 0.6) oklch(0.25 0 0 / 0.3);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: oklch(0.25 0 0 / 0.25);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, oklch(0.5 0 0 / 0.5), oklch(0.4 0 0 / 0.5));
+  border: 1px solid oklch(0.45 0 0 / 0.3);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, oklch(0.6 0 0 / 0.7), oklch(0.5 0 0 / 0.7));
+}

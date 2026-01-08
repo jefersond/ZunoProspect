@@ -102,6 +102,8 @@ serve(async (req) => {
     
     let leads: any[] = [];
     let totalAvailable = 0; // Total de leads disponíveis ANTES de limitar
+    let exhaustedSource = false; // Indica se esgotou as possibilidades do Google
+    let searchMetadata = { roundsUsed: 1, finalRadius: 0 }; // Metadados da busca
 
     // ============================================
     // FUNÇÃO DE PAGINAÇÃO AUTOMÁTICA
@@ -110,19 +112,20 @@ serve(async (req) => {
     async function fetchAllPagesFromGoogle(
       initialUrl: string,
       targetQuantity: number,
-      maxPages: number = 3
-    ): Promise<{ results: any[]; totalFound: number }> {
+      maxPages: number = 3,
+      existingPlaceIds: Set<string> = new Set()
+    ): Promise<{ results: any[]; totalFound: number; hasMorePages: boolean }> {
       const allResults: any[] = [];
-      const seenPlaceIds = new Set<string>();
+      const seenPlaceIds = new Set<string>(existingPlaceIds);
       let pageToken: string | null = null;
       let currentPage = 0;
+      let hasMorePages = false;
 
       while (allResults.length < targetQuantity && currentPage < maxPages) {
         let url = initialUrl;
         
         // Se temos pageToken, usa ele (substitui a URL inteira)
         if (pageToken) {
-          // Extrai a base URL para adicionar apenas o pageToken
           const baseUrl = initialUrl.includes('nearbysearch') 
             ? 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
             : 'https://maps.googleapis.com/maps/api/place/textsearch/json';
@@ -145,6 +148,7 @@ serve(async (req) => {
           console.log(`✅ Página ${currentPage + 1}: ${data.results.length} resultados (total acumulado: ${allResults.length})`);
           
           pageToken = data.next_page_token || null;
+          hasMorePages = !!pageToken;
           
           // Se ainda não atingimos a quantidade e tem mais páginas
           if (pageToken && allResults.length < targetQuantity) {
@@ -161,36 +165,131 @@ serve(async (req) => {
         }
 
         currentPage++;
-        if (!pageToken) break; // Sem mais páginas
+        if (!pageToken) break;
       }
 
       console.log(`📊 Paginação completa: ${allResults.length} leads únicos em ${currentPage} página(s)`);
-      return { results: allResults, totalFound: allResults.length };
+      return { results: allResults, totalFound: allResults.length, hasMorePages };
+    }
+
+    // ============================================
+    // BUSCA MULTI-RODADA COM EXPANSÃO DE RAIO
+    // Supera o limite de ~60 resultados do Google
+    // ============================================
+    async function multiRoundSearch(
+      nicho: string,
+      targetQuantity: number,
+      location: { lat: number; lng: number },
+      initialRadius: number,
+      excludePlaceIds: string[] = []
+    ): Promise<{ results: any[]; totalFound: number; exhaustedSource: boolean; finalRadius: number; roundsUsed: number }> {
+      const allResults: any[] = [];
+      const seenPlaceIds = new Set<string>(excludePlaceIds);
+      
+      // Configuração de rodadas
+      const MAX_ROUNDS = 5;
+      const RADIUS_MULTIPLIERS = [1, 1.5, 2, 2.5, 3]; // Expande progressivamente
+      const MAX_RADIUS_KM = body.pais === "US" ? 50 : 30; // Limite máximo
+      
+      let currentRadius = initialRadius;
+      let roundsUsed = 0;
+      let isExhausted = false;
+      let consecutiveEmptyRounds = 0;
+
+      console.log(`🔄 Iniciando busca multi-rodada: alvo=${targetQuantity}, raio inicial=${initialRadius}km`);
+
+      for (let round = 0; round < MAX_ROUNDS && allResults.length < targetQuantity; round++) {
+        currentRadius = Math.min(initialRadius * RADIUS_MULTIPLIERS[round], MAX_RADIUS_KM);
+        roundsUsed = round + 1;
+
+        console.log(`\n🔄 RODADA ${round + 1}/${MAX_ROUNDS}: raio=${currentRadius.toFixed(1)}km, encontrados até agora=${allResults.length}`);
+
+        const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
+          Math.round(currentRadius * 1000)
+        }&keyword=${encodeURIComponent(nicho)}&key=${GOOGLE_API_KEY}`;
+
+        const { results: roundResults } = await fetchAllPagesFromGoogle(
+          nearbyUrl,
+          targetQuantity - allResults.length + 20, // Busca um pouco mais para compensar duplicatas
+          3,
+          seenPlaceIds
+        );
+
+        // Conta novos resultados únicos
+        let newInRound = 0;
+        for (const result of roundResults) {
+          if (!seenPlaceIds.has(result.place_id)) {
+            seenPlaceIds.add(result.place_id);
+            allResults.push({ ...result, _nicho: nicho });
+            newInRound++;
+          }
+        }
+
+        console.log(`📊 Rodada ${round + 1}: +${newInRound} novos (total: ${allResults.length}/${targetQuantity})`);
+
+        // Se não encontrou novos em 2 rodadas seguidas, para
+        if (newInRound < 3) {
+          consecutiveEmptyRounds++;
+          if (consecutiveEmptyRounds >= 2) {
+            console.log(`⚠️ 2 rodadas sem novos resultados. Encerrando busca.`);
+            isExhausted = true;
+            break;
+          }
+        } else {
+          consecutiveEmptyRounds = 0;
+        }
+
+        // Se atingiu o raio máximo
+        if (currentRadius >= MAX_RADIUS_KM) {
+          console.log(`⚠️ Raio máximo atingido (${MAX_RADIUS_KM}km). Encerrando busca.`);
+          isExhausted = true;
+          break;
+        }
+
+        // Pequeno delay entre rodadas para evitar rate limit
+        if (round < MAX_ROUNDS - 1 && allResults.length < targetQuantity) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      console.log(`✅ Busca multi-rodada concluída: ${allResults.length} leads em ${roundsUsed} rodadas (raio final: ${currentRadius.toFixed(1)}km)`);
+
+      return { 
+        results: allResults, 
+        totalFound: allResults.length, 
+        exhaustedSource: isExhausted || allResults.length < targetQuantity,
+        finalRadius: currentRadius,
+        roundsUsed 
+      };
     }
 
     // ============================================
     // FUNÇÃO PARA BUSCAR UM NICHO ESPECÍFICO
+    // Agora usa multi-rodada quando proximidade ativa
     // ============================================
     async function searchSingleNiche(
       nicho: string,
       targetQuantity: number,
       location?: { lat: number; lng: number },
-      searchRadius?: number
-    ): Promise<{ results: any[]; totalFound: number }> {
+      searchRadius?: number,
+      excludePlaceIds: string[] = []
+    ): Promise<{ results: any[]; totalFound: number; exhaustedSource?: boolean; finalRadius?: number; roundsUsed?: number }> {
       if (body.proximidadeAtiva && location && searchRadius) {
-        // Nearby Search com keyword (nicho) e raio
-        const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
-          searchRadius * 1000
-        }&keyword=${encodeURIComponent(nicho)}&key=${GOOGLE_API_KEY}`;
-
-        return await fetchAllPagesFromGoogle(nearbyUrl, targetQuantity, 3);
+        // Usa busca multi-rodada para superar limite de 60
+        return await multiRoundSearch(nicho, targetQuantity, location, searchRadius, excludePlaceIds);
+      } else if (location) {
+        // Text Search não tem proximidade, mas podemos usar Nearby Search com raio maior
+        console.log("🔄 Usando Nearby Search híbrido (localização disponível)");
+        const defaultRadius = 15; // 15km padrão para busca sem proximidade explícita
+        return await multiRoundSearch(nicho, targetQuantity, location, defaultRadius, excludePlaceIds);
       } else {
-        // Text Search
+        // Text Search puro (sem localização conhecida) - limitado a ~60 resultados
         const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
           `${nicho} ${body.cidade} ${body.estado}`
         )}&key=${GOOGLE_API_KEY}`;
 
-        return await fetchAllPagesFromGoogle(textSearchUrl, targetQuantity, 3);
+        const { results, totalFound } = await fetchAllPagesFromGoogle(textSearchUrl, targetQuantity, 3);
+        return { results, totalFound, exhaustedSource: totalFound < targetQuantity };
       }
     }
 
@@ -228,34 +327,31 @@ serve(async (req) => {
         console.log(`🔍 Detectados ${nichos.length} nichos: ${nichos.join(', ')}`);
       }
 
-      // Prepara coordenadas se busca por proximidade
+      // Prepara coordenadas - SEMPRE geocodifica para poder usar busca híbrida
       let location: { lat: number; lng: number } | undefined;
       let searchRadius = body.raioKm || 5;
 
-      if (body.proximidadeAtiva) {
-        // Geocodifica a cidade + estado para obter lat/lng do centro
-        const countryName = body.pais === "US" ? "USA" : "Brasil";
-        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-          `${body.cidade}, ${body.estado}, ${countryName}`
-        )}&key=${GOOGLE_API_KEY}`;
+      // Geocodifica a cidade + estado para obter lat/lng do centro
+      const countryName = body.pais === "US" ? "USA" : "Brasil";
+      const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+        `${body.cidade}, ${body.estado}, ${countryName}`
+      )}&key=${GOOGLE_API_KEY}`;
 
-        const geocodeResponse = await fetch(geocodeUrl);
-        const geocodeData = await geocodeResponse.json();
+      const geocodeResponse = await fetch(geocodeUrl);
+      const geocodeData = await geocodeResponse.json();
 
-        if (geocodeData.status !== "OK" || !geocodeData.results[0]) {
-          console.error("Geocode API status:", geocodeData.status);
-          throw new Error(`Cidade "${body.cidade}" não encontrada. Verifique se digitou corretamente o nome da cidade.`);
-        }
-
+      if (geocodeData.status === "OK" && geocodeData.results[0]) {
         location = geocodeData.results[0].geometry.location;
         console.log("📍 Coordenadas do centro da cidade:", location);
+      } else {
+        console.warn("⚠️ Geocodificação falhou, usando Text Search limitado:", geocodeData.status);
+      }
 
-        // Se for busca incremental, aumenta o raio em 50% para encontrar novos leads
-        const isIncremental = body.excludePlaceIds && body.excludePlaceIds.length > 0;
-        if (isIncremental && body.raioKm) {
-          searchRadius = body.raioKm * 1.5;
-          console.log(`Busca incremental: raio expandido de ${body.raioKm}km para ${searchRadius}km`);
-        }
+      // Se for busca incremental, aumenta o raio em 50% para encontrar novos leads
+      const isIncremental = body.excludePlaceIds && body.excludePlaceIds.length > 0;
+      if (isIncremental && body.raioKm) {
+        searchRadius = body.raioKm * 1.5;
+        console.log(`Busca incremental: raio expandido de ${body.raioKm}km para ${searchRadius}km`);
       }
 
       // ============================================
@@ -311,51 +407,36 @@ serve(async (req) => {
           throw new Error(`Nenhum resultado encontrado para "${nichos.join(', ')}" em ${body.cidade}`);
         }
       } else {
-        // NICHO ÚNICO: Busca normal (código original)
+        // NICHO ÚNICO: Busca com multi-rodada
         const singleNicho = nichos[0] || body.nicho;
         
-        if (body.proximidadeAtiva && location) {
-          console.log("🔍 Buscando por proximidade (Nearby Search) com paginação automática...");
+        console.log(`🔍 Iniciando busca para nicho "${singleNicho}" (proximidade=${body.proximidadeAtiva}, location=${!!location})`);
 
-          const { results: nearbyResults, totalFound } = await searchSingleNiche(
-            singleNicho,
-            body.quantidade,
-            location,
-            searchRadius
-          );
+        const searchResult = await searchSingleNiche(
+          singleNicho,
+          body.quantidade,
+          location,
+          body.proximidadeAtiva ? searchRadius : undefined,
+          body.excludePlaceIds || []
+        );
 
-          if (nearbyResults.length > 0) {
-            totalAvailable = totalFound;
-            // Marca o nicho em cada resultado
-            leads = (body.excludePlaceIds && body.excludePlaceIds.length > 0
-              ? nearbyResults
-              : nearbyResults.slice(0, body.quantidade))
-              .map((r: any) => ({ ...r, _nicho: singleNicho }));
-            
-            console.log(`🎯 Total disponível: ${totalAvailable}, entregando: ${leads.length}`);
-          } else {
-            throw new Error(`Nenhum resultado encontrado para "${singleNicho}" em ${body.cidade}`);
-          }
+        if (searchResult.results.length > 0) {
+          totalAvailable = searchResult.totalFound;
+          exhaustedSource = searchResult.exhaustedSource || false;
+          searchMetadata = {
+            roundsUsed: searchResult.roundsUsed || 1,
+            finalRadius: searchResult.finalRadius || searchRadius
+          };
+          
+          // Marca o nicho em cada resultado
+          leads = (body.excludePlaceIds && body.excludePlaceIds.length > 0
+            ? searchResult.results
+            : searchResult.results.slice(0, body.quantidade))
+            .map((r: any) => ({ ...r, _nicho: singleNicho }));
+          
+          console.log(`🎯 Total disponível: ${totalAvailable}, entregando: ${leads.length}, esgotado: ${exhaustedSource}`);
         } else {
-          console.log("🔍 Buscando por texto (Text Search) com paginação automática...");
-
-          const { results: textResults, totalFound } = await searchSingleNiche(
-            singleNicho,
-            body.quantidade
-          );
-
-          if (textResults.length > 0) {
-            totalAvailable = totalFound;
-            // Marca o nicho em cada resultado
-            leads = (body.excludePlaceIds && body.excludePlaceIds.length > 0
-              ? textResults
-              : textResults.slice(0, body.quantidade))
-              .map((r: any) => ({ ...r, _nicho: singleNicho }));
-            
-            console.log(`🎯 Total disponível: ${totalAvailable}, entregando: ${leads.length}`);
-          } else {
-            throw new Error(`Nenhum resultado encontrado para "${singleNicho}" em ${body.cidade}`);
-          }
+          throw new Error(`Nenhum resultado encontrado para "${singleNicho}" em ${body.cidade}`);
         }
       }
     }
@@ -897,9 +978,21 @@ serve(async (req) => {
         limitedByQuota,
         additionalLeadsAvailable,
         lockedLeadsCount: additionalLeadsAvailable,
-        // NOVO: Indica que análise IA está rodando em background
+        // Indica que análise IA está rodando em background
         analysisQueued: leadsWithAnalysis.length > 0,
         analysisCount: leadsWithAnalysis.length,
+        // NOVO: Metadados da busca multi-rodada
+        exhaustedSource,
+        searchMetadata: {
+          roundsUsed: searchMetadata.roundsUsed,
+          finalRadiusKm: searchMetadata.finalRadius,
+          requestedQuantity: body.quantidade,
+          foundQuantity: leadsDetails.length,
+        },
+        // Sugestão para o usuário quando não atingiu a meta
+        suggestion: exhaustedSource && leadsDetails.length < body.quantidade
+          ? `Encontramos ${leadsDetails.length} de ${body.quantidade} leads. Tente: aumentar o raio, usar múltiplos nichos (ex: "restaurante, pizzaria"), ou testar outra cidade próxima.`
+          : null,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

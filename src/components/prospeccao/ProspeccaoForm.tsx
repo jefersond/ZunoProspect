@@ -320,24 +320,36 @@ export const ProspeccaoForm = () => {
 
       // Toast com informação clara sobre leads novos vs atualizados
       let toastDescription = '';
+      const exhaustedSource = responseData?.exhaustedSource || false;
+      const suggestion = responseData?.suggestion;
+      const searchMeta = responseData?.searchMetadata;
+      
       if (newLeadsCount > 0) {
         toastDescription = `${newLeadsCount} leads novos${updatedLeadsCount > 0 ? ` + ${updatedLeadsCount} atualizados` : ''}`;
         if (analysisQueued) {
           toastDescription += ` (análise IA em andamento...)`;
         }
-        if (isIncrementalSearch && responseData?.radiusExpanded) {
-          toastDescription += " (raio expandido)";
+        // Informa sobre expansão de raio se usou multi-rodada
+        if (searchMeta?.roundsUsed > 1) {
+          toastDescription += ` (raio expandido para ${searchMeta.finalRadiusKm?.toFixed(1)}km)`;
+        }
+        // Se não atingiu a meta, adiciona sugestão
+        if (exhaustedSource && newLeadsCount < data.quantidade) {
+          toastDescription += `. ${suggestion || 'Tente múltiplos nichos ou outra cidade.'}`;
         }
       } else if (updatedLeadsCount > 0) {
         toastDescription = `${updatedLeadsCount} leads atualizados (nenhum novo encontrado)`;
       } else {
-        toastDescription = responseData?.error || "Nenhum lead novo encontrado nesta região. Tente aumentar o raio de busca ou modificar os termos.";
+        toastDescription = responseData?.error || suggestion || "Nenhum lead novo encontrado nesta região. Tente aumentar o raio de busca ou usar múltiplos nichos.";
       }
       
       toast({
-        title: newLeadsCount > 0 ? "Busca concluída!" : (updatedLeadsCount > 0 ? "Leads atualizados" : "Nenhum lead novo"),
+        title: newLeadsCount > 0 
+          ? (exhaustedSource && newLeadsCount < data.quantidade ? `${newLeadsCount} leads encontrados` : "Busca concluída!") 
+          : (updatedLeadsCount > 0 ? "Leads atualizados" : "Nenhum lead novo"),
         description: toastDescription,
-        variant: newLeadsCount > 0 ? "default" : (updatedLeadsCount > 0 ? "default" : "destructive")
+        variant: newLeadsCount > 0 ? "default" : (updatedLeadsCount > 0 ? "default" : "destructive"),
+        duration: exhaustedSource ? 8000 : 5000, // Mostra mais tempo se tiver sugestão
       });
 
       // Verifica se há leads adicionais disponíveis (incentivo de upgrade)

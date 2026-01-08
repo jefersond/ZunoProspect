@@ -11,6 +11,7 @@ import LandingProspeccaoIA from "./pages/LandingProspeccaoIA";
 
 // Lazy load all pages except landing page for code splitting
 const Auth = lazy(() => import("./pages/Auth"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const Prospeccao = lazy(() => import("./pages/Prospeccao"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -51,12 +52,12 @@ const AppContent = () => {
         <Routes>
           <Route path="/" element={<LandingProspeccaoIA />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/lp-prospeccao-ia" element={<Navigate to="/" replace />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/prospeccao" element={<Prospeccao />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/templates" element={<Templates />} />
           <Route path="/historico" element={<Historico />} />
           <Route path="/leads-salvos" element={<LeadsSalvos />} />
           <Route path="/pipeline" element={<Pipeline />} />

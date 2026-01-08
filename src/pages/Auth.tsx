@@ -220,7 +220,9 @@ const Auth = () => {
     setLoading(true);
     const redirectBase = getAuthRedirectBaseUrl();
     const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: `${redirectBase}/reset-password`,
+      // Usamos um endpoint de callback dedicado para garantir que o app processe o retorno
+      // (seja via hash ou via ?code=...)
+      redirectTo: `${redirectBase}/auth/callback`,
     });
 
     if (error) {

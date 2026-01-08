@@ -171,6 +171,7 @@ export const LeadsList = () => {
         body: {
           action: 'list',
           salvo: false,
+          limit: 300,
           ...(searchRunId ? { searchRunId } : {}),
         },
       });

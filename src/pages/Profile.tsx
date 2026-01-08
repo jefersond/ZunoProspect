@@ -14,6 +14,7 @@ import { UsageIndicator } from "@/components/subscription/UsageIndicator";
 import { Badge } from "@/components/ui/badge";
 import { ApiKeysSection } from "@/components/profile/ApiKeysSection";
 import { OnboardingEmailsDashboard } from "@/components/admin/OnboardingEmailsDashboard";
+import ChangePasswordSection from "@/components/profile/ChangePasswordSection";
 import {
   Dialog,
   DialogContent,
@@ -203,6 +204,9 @@ const Profile = () => {
             </form>
           </CardContent>
         </Card>
+
+        {/* Card de Alteração de Senha */}
+        <ChangePasswordSection />
 
         {/* Card de Upgrade de Plano */}
         <Card className="shadow-lg mt-6 border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5">

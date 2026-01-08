@@ -391,8 +391,11 @@ export const ProspeccaoForm = () => {
         console.error("Erro ao salvar no histórico:", error);
       }
 
-      // Recarrega a lista de leads
-      window.dispatchEvent(new CustomEvent("reloadLeads"));
+      // Recarrega a lista de leads com o searchRunId da busca atual
+      const searchRunIdFromResponse = responseData?.searchRunId;
+      window.dispatchEvent(new CustomEvent("reloadLeads", { 
+        detail: { searchRunId: searchRunIdFromResponse } 
+      }));
       
       // Aguarda um pouco antes de resetar o progresso
       setTimeout(() => {

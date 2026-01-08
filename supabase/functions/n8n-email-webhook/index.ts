@@ -34,8 +34,8 @@ interface RequestBody {
 
 const validateSecret = (req: Request): boolean => {
   if (!N8N_WEBHOOK_SECRET) {
-    console.warn("[Auth] N8N_WEBHOOK_SECRET not configured - allowing all requests");
-    return true;
+    console.error("[Auth] N8N_WEBHOOK_SECRET not configured - rejecting all requests for security");
+    return false;
   }
   
   const providedSecret = req.headers.get("x-n8n-secret");

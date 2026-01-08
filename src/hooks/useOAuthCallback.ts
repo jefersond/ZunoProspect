@@ -38,6 +38,10 @@ export const useOAuthCallback = () => {
         const error = hashParams.get('error');
         const errorDescription = hashParams.get('error_description');
         
+        // Check if this is a password recovery flow
+        const tokenType = hashParams.get('type');
+        const isPasswordRecovery = tokenType === 'recovery';
+        
         if (error) {
           // Clean the URL immediately
           window.history.replaceState({}, '', window.location.pathname);
@@ -93,6 +97,13 @@ export const useOAuthCallback = () => {
             });
             navigate('/auth', { replace: true });
           } else if (data.session) {
+            // If this is a password recovery flow, redirect to reset-password page
+            if (isPasswordRecovery) {
+              navigate('/reset-password', { replace: true });
+              setIsProcessing(false);
+              return;
+            }
+            
             // Check if this is a checkout flow redirect
             const searchParams = new URLSearchParams(window.location.search);
             const isCheckoutFlow = searchParams.get('google_auth') === 'true' || 

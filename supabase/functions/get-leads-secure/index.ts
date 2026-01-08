@@ -46,6 +46,7 @@ interface GetLeadsRequest {
   page?: number;
   limit?: number;
   noPagination?: boolean;
+  searchRunId?: string;
 }
 
 serve(async (req) => {
@@ -93,7 +94,7 @@ serve(async (req) => {
 
     // Parse request
     const body: GetLeadsRequest = await req.json();
-    const { action = 'list', salvo, leadId, page = 1, limit = 50, noPagination = false } = body;
+    const { action = 'list', salvo, leadId, page = 1, limit = 50, noPagination = false, searchRunId } = body;
 
     // IMPORTANT: Normalize salvo parameter - handle string/boolean conversion
     // The value can come as string "true"/"false" or boolean true/false
@@ -115,7 +116,7 @@ serve(async (req) => {
                       "unknown";
     const userAgent = req.headers.get("user-agent") || "unknown";
 
-    console.log(`📊 [${action}] User: ${user.id} | IP: ${ipAddress} | salvo: ${salvo} → normalized: ${salvoValue}`);
+    console.log(`📊 [${action}] User: ${user.id} | IP: ${ipAddress} | salvo: ${salvo} → normalized: ${salvoValue} | searchRunId: ${searchRunId || 'none'}`);
 
     // Check rate limit for list/export actions
     if (action === 'list' || action === 'export') {
@@ -188,7 +189,8 @@ serve(async (req) => {
         .rpc('set_encryption_key_and_get_leads_filtered', { 
           p_encryption_key: encryptionKey,
           p_salvo: salvoValue,
-          p_user_id: user.id
+          p_user_id: user.id,
+          p_search_run_id: searchRunId || null
         });
 
       if (error) {
@@ -199,14 +201,16 @@ serve(async (req) => {
       // Leads already filtered by user_id in the RPC function
       const userLeads = leads || [];
       
-      // Apply pagination for list (not export) - skip if noPagination is true
+      // Apply pagination for list (not export)
+      // When searchRunId is provided, skip pagination (return all from that search)
+      const skipPagination = noPagination || !!searchRunId;
       const safeLimit = Math.min(Math.max(1, limit), action === 'export' ? 500 : 100);
       const offset = (Math.max(1, page) - 1) * safeLimit;
       
       const paginatedLeads = action === 'export' 
         ? userLeads.slice(0, 500) // Export limit
-        : noPagination 
-          ? userLeads // Return all leads when noPagination is true (e.g., Pipeline)
+        : skipPagination 
+          ? userLeads // Return all leads when searchRunId is provided or noPagination is true
           : userLeads.slice(offset, offset + safeLimit);
 
       leadsCount = paginatedLeads.length;

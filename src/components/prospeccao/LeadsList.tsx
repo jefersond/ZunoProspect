@@ -34,6 +34,7 @@ export const LeadsList = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [reanalyzingLeads, setReanalyzingLeads] = useState<Set<string>>(new Set());
+  const [currentSearchRunId, setCurrentSearchRunId] = useState<string | null>(null);
 
   // Função para validar se um número de telefone brasileiro é válido
   const isValidBrazilianPhone = (phone: string): boolean => {
@@ -162,13 +163,15 @@ export const LeadsList = () => {
     };
   };
 
-  const loadLeads = async () => {
+  const loadLeads = async (searchRunId?: string) => {
     try {
       // Usa edge function segura com rate limiting e auditoria
+      // Se temos um searchRunId, busca apenas leads dessa busca
       const { data, error } = await supabase.functions.invoke('get-leads-secure', {
         body: {
           action: 'list',
           salvo: false,
+          ...(searchRunId ? { searchRunId } : {}),
         },
       });
 
@@ -190,6 +193,11 @@ export const LeadsList = () => {
       const leadsFormatted: LeadProspeccao[] = (data.data?.leads || []).map(transformLeadFromDb);
       
       setLeads(leadsFormatted);
+      
+      // Salva o searchRunId se foi passado
+      if (searchRunId) {
+        setCurrentSearchRunId(searchRunId);
+      }
     } catch (error: any) {
       console.error("Erro ao carregar leads:", error);
       toast({
@@ -203,12 +211,16 @@ export const LeadsList = () => {
   };
 
   useEffect(() => {
-    // Carrega leads ao montar o componente (mantém resultados da última pesquisa)
+    // Carrega leads ao montar o componente (sem filtro por searchRunId = pega todos não salvos)
     loadLeads();
     
     // Listener para recarregar quando novos leads são adicionados
-    const handleReload = () => loadLeads();
-    window.addEventListener("reloadLeads", handleReload);
+    // Agora recebe searchRunId do evento para filtrar apenas leads da busca atual
+    const handleReload = (event: CustomEvent<{ searchRunId?: string }>) => {
+      const searchRunId = event.detail?.searchRunId;
+      loadLeads(searchRunId);
+    };
+    window.addEventListener("reloadLeads", handleReload as EventListener);
     
     // Listener para limpar leads antes de nova busca
     const handleClear = () => {
@@ -319,7 +331,7 @@ export const LeadsList = () => {
       .subscribe();
     
     return () => {
-      window.removeEventListener("reloadLeads", handleReload);
+      window.removeEventListener("reloadLeads", handleReload as EventListener);
       window.removeEventListener("clearLeads", handleClear);
       window.removeEventListener("setLockedLeads", handleSetLockedLeads as EventListener);
       supabase.removeChannel(channel);

@@ -63,6 +63,9 @@ serve(async (req) => {
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     
+    // Generate unique search_run_id for this search session
+    const searchRunId = crypto.randomUUID();
+    
     // SECURITY: Get encryption key from external secret (NOT from database)
     const encryptionKey = Deno.env.get('LEADS_ENCRYPTION_KEY');
     if (!encryptionKey) {
@@ -759,29 +762,30 @@ serve(async (req) => {
           const { data: rpcResult, error: insertError } = await supabaseAdmin.rpc('set_encryption_key_and_insert_lead', {
             p_encryption_key: encryptionKey,
             p_nome: details.name,
-            p_endereco: details.formatted_address,
-            p_telefone: details.formatted_phone_number || null,
-            p_website: details.website || null,
-            p_google_place_id: place.place_id,
-            p_rating: details.rating || null,
-            p_total_reviews: details.user_ratings_total || 0,
             p_cidade: body.cidade,
-            p_latitude: details.geometry?.location?.lat || null,
-            p_longitude: details.geometry?.location?.lng || null,
-            p_nicho: place._nicho || body.nicho, // Usa o nicho específico se disponível
-            p_foco: body.foco,
-            p_user_id: user.id,
-            p_proximidade_ativa: body.proximidadeAtiva,
-            p_raio_km: body.raioKm,
-            p_whatsapp_on_site: siteSignals.whatsapp_on_site,
-            p_whatsapp_number: siteSignals.whatsapp_number,
-            p_has_meta_pixel: siteSignals.has_meta_pixel,
-            p_has_gtag: siteSignals.has_gtag,
-            p_has_gtm: siteSignals.has_gtm,
-            p_instagram_url: siteSignals.instagram_url,
             p_digital_signals: siteSignals,
             p_email: siteSignals.email,
+            p_endereco: details.formatted_address,
+            p_foco: body.foco,
+            p_has_gtag: siteSignals.has_gtag,
+            p_has_gtm: siteSignals.has_gtm,
+            p_has_meta_pixel: siteSignals.has_meta_pixel,
+            p_instagram_url: siteSignals.instagram_url,
+            p_latitude: details.geometry?.location?.lat || null,
+            p_longitude: details.geometry?.location?.lng || null,
+            p_nicho: place._nicho || body.nicho,
+            p_telefone: details.formatted_phone_number || null,
+            p_proximidade_ativa: body.proximidadeAtiva,
+            p_raio_km: body.raioKm,
+            p_rating: details.rating || null,
+            p_total_reviews: details.user_ratings_total || 0,
+            p_user_id: user.id,
+            p_website: details.website || null,
+            p_whatsapp_on_site: siteSignals.whatsapp_on_site,
+            p_whatsapp_number: siteSignals.whatsapp_number,
+            p_google_place_id: place.place_id,
             p_pais: body.pais || "BR",
+            p_search_run_id: searchRunId,
           });
 
           if (insertError) {
@@ -981,7 +985,9 @@ serve(async (req) => {
         // Indica que análise IA está rodando em background
         analysisQueued: leadsWithAnalysis.length > 0,
         analysisCount: leadsWithAnalysis.length,
-        // NOVO: Metadados da busca multi-rodada
+        // NOVO: search_run_id para identificar esta busca
+        searchRunId: searchRunId,
+        // Metadados da busca multi-rodada
         exhaustedSource,
         searchMetadata: {
           roundsUsed: searchMetadata.roundsUsed,

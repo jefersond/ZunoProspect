@@ -94,7 +94,7 @@ serve(async (req) => {
 
     // Parse request
     const body: GetLeadsRequest = await req.json();
-    const { action = 'list', salvo, leadId, page = 1, limit = 50, noPagination = false, searchRunId } = body;
+    const { action = 'list', salvo, leadId, page = 1, limit = 200, noPagination = false, searchRunId } = body;
 
     // IMPORTANT: Normalize salvo parameter - handle string/boolean conversion
     // The value can come as string "true"/"false" or boolean true/false
@@ -204,7 +204,7 @@ serve(async (req) => {
       // Apply pagination for list (not export)
       // When searchRunId is provided, skip pagination (return all from that search)
       const skipPagination = noPagination || !!searchRunId;
-      const safeLimit = Math.min(Math.max(1, limit), action === 'export' ? 500 : 100);
+      const safeLimit = Math.min(Math.max(1, limit), action === 'export' ? 500 : 300);
       const offset = (Math.max(1, page) - 1) * safeLimit;
       
       const paginatedLeads = action === 'export' 

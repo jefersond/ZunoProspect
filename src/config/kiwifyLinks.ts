@@ -19,12 +19,14 @@ export type KiwifyPlanKey = keyof typeof KIWIFY_CHECKOUT_LINKS;
  * @param isAnual - Se é plano anual
  * @param email - Email do usuário (opcional, pré-preenche no checkout)
  * @param name - Nome do usuário (opcional, pré-preenche no checkout)
+ * @param leadsQty - Quantidade de leads selecionada (opcional, para referência futura)
  */
 export function getKiwifyCheckoutUrl(
   plano: string, 
   isAnual: boolean, 
   email?: string, 
-  name?: string
+  name?: string,
+  leadsQty?: number
 ): string {
   // Handle USA add-on special case
   if (plano === "usa_addon") {
@@ -54,6 +56,7 @@ export function getKiwifyCheckoutUrl(
   const params = new URLSearchParams();
   if (email) params.append("email", email);
   if (name) params.append("name", name);
+  if (leadsQty) params.append("leads", leadsQty.toString());
   
   const queryString = params.toString();
   return queryString ? `${url}?${queryString}` : url;

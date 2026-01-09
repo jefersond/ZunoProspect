@@ -4,20 +4,28 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { CheckCircle2, Building2, Kanban, BarChart3, Code2, Headphones, Infinity, Globe, MapPin, Sparkles, MessageCircle, Target } from "lucide-react";
-import { PLANOS, PLANO_AGENCIA, Plano } from "./data";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CheckCircle2, Building2, Kanban, BarChart3, Code2, Headphones, Globe, MapPin, Sparkles, MessageCircle, Target } from "lucide-react";
+import { PLANOS, PLANO_AGENCIA, LEAD_QUANTITIES, LEAD_PRICING_CONFIG, Plano } from "./data";
 import { CheckoutDialog } from "./CheckoutDialog";
 import { UsaAddonDialog } from "./UsaAddonDialog";
 import { trackViewContent, trackLead } from "@/lib/metaPixel";
+import { useLeadPricing } from "@/hooks/useLeadPricing";
 
 export function PrecosSection() {
   const navigate = useNavigate();
   const [isAnual, setIsAnual] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedPlano, setSelectedPlano] = useState<Plano | null>(null);
+  const [selectedLeads, setSelectedLeads] = useState<Record<string, number>>({
+    starter: 100,
+    pro: 100,
+    agencia: 100,
+  });
   const [usaDialogOpen, setUsaDialogOpen] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
   const hasTrackedView = useRef(false);
+  const { calculatePrice, getDisplayPrice } = useLeadPricing();
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -43,23 +51,27 @@ export function PrecosSection() {
     return () => observer.disconnect();
   }, []);
 
-  const handleSelectPlano = (plano: Plano) => {
+  const handleSelectPlano = (plano: Plano, leadsQty: number) => {
+    const preco = calculatePrice(plano.planKey, leadsQty, isAnual);
     trackLead({
-      content_name: plano.nome,
-      content_category: plano.gratuito ? 'Free Plan' : 'Paid Plan',
-      value: isAnual ? plano.precoAnual : plano.precoMensal,
+      content_name: `${plano.nome} - ${leadsQty} leads`,
+      content_category: 'Paid Plan',
+      value: preco,
       currency: 'BRL'
     });
 
-    if (plano.gratuito) {
-      navigate("/auth?tab=signup");
-      return;
-    }
-    setSelectedPlano(plano);
+    setSelectedPlano({ ...plano, selectedLeads: leadsQty } as any);
     setCheckoutOpen(true);
   };
 
-  const agenciaPrecoMensal = isAnual ? Math.round(PLANO_AGENCIA.precoAnual / 12) : PLANO_AGENCIA.precoMensal;
+  const handleLeadsChange = (planKey: string, value: string) => {
+    setSelectedLeads(prev => ({ ...prev, [planKey]: parseInt(value) }));
+  };
+
+  // Calculate Agência price
+  const agenciaLeads = selectedLeads.agencia;
+  const agenciaPrecoMensal = getDisplayPrice('agencia', agenciaLeads, isAnual);
+  const agenciaPrecoTotal = calculatePrice('agencia', agenciaLeads, isAnual);
 
   return (
     <section id="precos" ref={sectionRef} className="py-20 bg-background">
@@ -70,7 +82,7 @@ export function PrecosSection() {
             Escolha o plano ideal para você
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-            Escolha o plano ideal para você. Cancele quando quiser.
+            Escolha o plano e a quantidade de leads que você precisa. Cancele quando quiser.
           </p>
 
           <div className="flex items-center justify-center gap-4">
@@ -92,8 +104,9 @@ export function PrecosSection() {
         {/* Grid for Iniciante, Pro */}
         <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
           {PLANOS.map((plano, index) => {
-            const preco = isAnual ? plano.precoAnual : plano.precoMensal;
-            const precoMensal = isAnual ? Math.round(plano.precoAnual / 12) : plano.precoMensal;
+            const leadsQty = selectedLeads[plano.planKey];
+            const precoMensal = getDisplayPrice(plano.planKey, leadsQty, isAnual);
+            const precoTotal = calculatePrice(plano.planKey, leadsQty, isAnual);
             
             return (
               <Card
@@ -113,24 +126,43 @@ export function PrecosSection() {
                 <div className="text-center mb-6">
                   <h3 className="text-xl font-bold mb-2">{plano.nome}</h3>
                   <p className="text-sm text-muted-foreground mb-4">{plano.descricao}</p>
-                  <div className="flex items-baseline justify-center gap-1">
-                    {plano.gratuito ? (
-                      <span className="text-4xl font-bold">Grátis</span>
-                    ) : (
-                      <>
-                        <span className="text-4xl font-bold">R$ {precoMensal}</span>
-                        <span className="text-muted-foreground">/mês</span>
-                      </>
-                    )}
+                  
+                  {/* Lead Quantity Selector */}
+                  <div className="mb-4">
+                    <label className="text-xs text-muted-foreground block mb-2">Leads por mês</label>
+                    <Select 
+                      value={leadsQty.toString()} 
+                      onValueChange={(v) => handleLeadsChange(plano.planKey, v)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LEAD_QUANTITIES.map((qty) => (
+                          <SelectItem key={qty} value={qty.toString()}>
+                            {qty.toLocaleString('pt-BR')} leads
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  {isAnual && !plano.gratuito && (
+
+                  <div className="flex items-baseline justify-center gap-1">
+                    <span className="text-4xl font-bold">R$ {precoMensal}</span>
+                    <span className="text-muted-foreground">/mês</span>
+                  </div>
+                  {isAnual && (
                     <p className="text-xs text-muted-foreground mt-2">
-                      cobrado R$ {preco} por ano
+                      cobrado R$ {precoTotal.toLocaleString('pt-BR')} por ano
                     </p>
                   )}
                 </div>
 
                 <ul className="space-y-3 mb-8 flex-1">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-muted-foreground text-sm font-medium">{leadsQty.toLocaleString('pt-BR')} leads por mês</span>
+                  </li>
                   {plano.features.map((feature, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
@@ -142,7 +174,7 @@ export function PrecosSection() {
                 <Button
                   className="w-full"
                   variant="success"
-                  onClick={() => handleSelectPlano(plano)}
+                  onClick={() => handleSelectPlano(plano, leadsQty)}
                 >
                   {plano.cta}
                 </Button>
@@ -173,14 +205,34 @@ export function PrecosSection() {
                   <h3 className="text-2xl md:text-3xl font-bold mb-2">{PLANO_AGENCIA.nome}</h3>
                   <p className="text-muted-foreground mb-6">{PLANO_AGENCIA.descricao}</p>
                   
-                  <div className="flex items-baseline gap-2 mb-6">
+                  {/* Lead Quantity Selector for Agência */}
+                  <div className="mb-6">
+                    <label className="text-xs text-muted-foreground block mb-2">Leads por mês</label>
+                    <Select 
+                      value={agenciaLeads.toString()} 
+                      onValueChange={(v) => handleLeadsChange('agencia', v)}
+                    >
+                      <SelectTrigger className="w-full max-w-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LEAD_QUANTITIES.map((qty) => (
+                          <SelectItem key={qty} value={qty.toString()}>
+                            {qty.toLocaleString('pt-BR')} leads
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex items-baseline gap-2 mb-2">
                     <span className="text-4xl md:text-5xl font-bold">R$ {agenciaPrecoMensal}</span>
                     <span className="text-muted-foreground">/mês</span>
                   </div>
                   
                   {isAnual && (
                     <p className="text-sm text-muted-foreground mb-6">
-                      cobrado R$ {PLANO_AGENCIA.precoAnual} por ano
+                      cobrado R$ {agenciaPrecoTotal.toLocaleString('pt-BR')} por ano
                     </p>
                   )}
                   
@@ -188,7 +240,7 @@ export function PrecosSection() {
                     size="lg"
                     variant="success"
                     className="w-full md:w-auto px-8"
-                    onClick={() => handleSelectPlano(PLANO_AGENCIA)}
+                    onClick={() => handleSelectPlano(PLANO_AGENCIA, agenciaLeads)}
                   >
                     {PLANO_AGENCIA.cta}
                   </Button>
@@ -213,15 +265,6 @@ export function PrecosSection() {
                       + Recursos exclusivos
                     </p>
                     <div className="grid gap-3">
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                        <div className="p-2 rounded-md bg-emerald-500/20">
-                          <Infinity className="h-5 w-5 text-emerald-500" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm text-emerald-600 dark:text-emerald-400">Leads Ilimitados</p>
-                          <p className="text-xs text-muted-foreground">Sem limite de buscas por mês</p>
-                        </div>
-                      </div>
                       <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                         <div className="p-2 rounded-md bg-emerald-500/20">
                           <Kanban className="h-5 w-5 text-emerald-500" />
@@ -362,7 +405,7 @@ export function PrecosSection() {
                       </div>
                       <div>
                         <p className="font-medium text-sm text-blue-600 dark:text-blue-400">Mesma IA poderosa</p>
-                        <p className="text-xs text-muted-foreground">Sinais digitais, website, Instagram e mais</p>
+                        <p className="text-xs text-muted-foreground">Análise e prospecção inteligente</p>
                       </div>
                     </div>
                   </div>
@@ -371,10 +414,15 @@ export function PrecosSection() {
             </div>
           </Card>
         </div>
-
       </div>
 
-      <CheckoutDialog open={checkoutOpen} onOpenChange={setCheckoutOpen} plano={selectedPlano} isAnual={isAnual} />
+      <CheckoutDialog 
+        open={checkoutOpen} 
+        onOpenChange={setCheckoutOpen} 
+        plano={selectedPlano} 
+        isAnual={isAnual}
+        selectedLeads={(selectedPlano as any)?.selectedLeads || 100}
+      />
       <UsaAddonDialog open={usaDialogOpen} onOpenChange={setUsaDialogOpen} isAnual={isAnual} />
     </section>
   );

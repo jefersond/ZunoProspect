@@ -10,6 +10,7 @@ import { Plano } from "./data";
 import { trackInitiateCheckout, trackAddPaymentInfo } from "@/lib/metaPixel";
 import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
+import { useLeadPricing } from "@/hooks/useLeadPricing";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -38,9 +39,10 @@ interface CheckoutDialogProps {
   onOpenChange: (open: boolean) => void;
   plano: Plano | null;
   isAnual: boolean;
+  selectedLeads?: number;
 }
 
-export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutDialogProps) {
+export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLeads = 100 }: CheckoutDialogProps) {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -48,16 +50,17 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGoogleProcessing, setIsGoogleProcessing] = useState(false);
   const hasTrackedCheckout = useRef(false);
+  const { calculatePrice, getDisplayPrice } = useLeadPricing();
 
   // Track InitiateCheckout when dialog opens
   useEffect(() => {
     if (open && plano && !hasTrackedCheckout.current) {
       hasTrackedCheckout.current = true;
-      const preco = isAnual ? plano.precoAnual : plano.precoMensal;
+      const preco = calculatePrice(plano.planKey, selectedLeads, isAnual);
       trackInitiateCheckout({
         value: preco,
         currency: 'BRL',
-        content_name: plano.nome,
+        content_name: `${plano.nome} - ${selectedLeads} leads`,
         content_category: isAnual ? 'Annual' : 'Monthly',
         num_items: 1
       });
@@ -65,15 +68,14 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
     if (!open) {
       hasTrackedCheckout.current = false;
     }
-  }, [open, plano, isAnual]);
-
-  // Note: OAuth callback is now handled by /auth page which checks for checkout_pending
+  }, [open, plano, isAnual, selectedLeads, calculatePrice]);
 
   if (!plano) return null;
 
-  const preco = isAnual ? plano.precoAnual : plano.precoMensal;
+  const preco = calculatePrice(plano.planKey, selectedLeads, isAnual);
+  const precoMensal = getDisplayPrice(plano.planKey, selectedLeads, isAnual);
   const periodo = isAnual ? "/ano" : "/mês";
-  const economia = isAnual ? Math.round((plano.precoMensal * 12 - plano.precoAnual) / (plano.precoMensal * 12) * 100) : 0;
+  const economia = isAnual ? 17 : 0; // Fixed 17% discount on annual
 
   const passwordValidation = {
     minLength: senha.length >= 8,
@@ -102,6 +104,8 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
       // Store checkout info in localStorage for after OAuth redirect
       localStorage.setItem('checkout_pending', JSON.stringify({
         plano: plano.nome,
+        planKey: plano.planKey,
+        selectedLeads,
         isAnual
       }));
 
@@ -174,8 +178,8 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
         value: preco
       });
 
-      // Gerar URL do checkout Kiwify
-      const checkoutUrl = getKiwifyCheckoutUrl(plano.nome, isAnual, email, nome);
+      // Gerar URL do checkout Kiwify (passing leads quantity)
+      const checkoutUrl = getKiwifyCheckoutUrl(plano.nome, isAnual, email, nome, selectedLeads);
       
       toast.success("Conta criada! Redirecionando para o pagamento...");
       
@@ -208,10 +212,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
         <DialogHeader>
           <DialogTitle>Checkout - Plano {plano.nome}</DialogTitle>
           <DialogDescription>
-            {plano.gratuito 
-              ? "Crie sua conta gratuita" 
-              : `R$ ${preco}${periodo}${isAnual && economia > 0 ? ` (${economia}% de desconto)` : ""}`
-            }
+            {selectedLeads.toLocaleString('pt-BR')} leads/mês • R$ {isAnual ? precoMensal : preco}{periodo}{isAnual && economia > 0 ? ` (${economia}% de desconto)` : ""}
           </DialogDescription>
         </DialogHeader>
 
@@ -329,8 +330,11 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual }: CheckoutD
             {/* Resumo do plano */}
             <div className="p-4 bg-muted/50 rounded-lg border">
               <div className="flex items-center justify-between mb-2">
-                <span className="font-medium">Plano {plano.nome}</span>
-                <span className="font-bold text-lg">R$ {preco}</span>
+                <div>
+                  <span className="font-medium">Plano {plano.nome}</span>
+                  <p className="text-xs text-muted-foreground">{selectedLeads.toLocaleString('pt-BR')} leads/mês</p>
+                </div>
+                <span className="font-bold text-lg">R$ {preco.toLocaleString('pt-BR')}</span>
               </div>
               <p className="text-xs text-muted-foreground">
                 {isAnual ? "Cobrança anual" : "Cobrança mensal"} • Cancele quando quiser

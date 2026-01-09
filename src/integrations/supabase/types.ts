@@ -431,6 +431,36 @@ export type Database = {
           },
         ]
       }
+      lead_pricing_tiers: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          id: string
+          leads_quantity: number
+          plan_name: string
+          price_annual: number
+          price_monthly: number
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: string
+          leads_quantity: number
+          plan_name: string
+          price_annual: number
+          price_monthly: number
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: string
+          leads_quantity?: number
+          plan_name?: string
+          price_annual?: number
+          price_monthly?: number
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           ai_analise_gerada_em: string | null
@@ -857,6 +887,7 @@ export type Database = {
           id: string
           is_annual: boolean
           leads_limit: number
+          leads_package: number | null
           leads_used_this_month: number
           plan_name: string
           updated_at: string
@@ -871,6 +902,7 @@ export type Database = {
           id?: string
           is_annual?: boolean
           leads_limit?: number
+          leads_package?: number | null
           leads_used_this_month?: number
           plan_name?: string
           updated_at?: string
@@ -885,6 +917,7 @@ export type Database = {
           id?: string
           is_annual?: boolean
           leads_limit?: number
+          leads_package?: number | null
           leads_used_this_month?: number
           plan_name?: string
           updated_at?: string

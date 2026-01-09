@@ -113,8 +113,8 @@ export const PERFIS_ALVO: PerfilAlvo[] = [
 
 export interface Plano {
   nome: string;
-  precoMensal: number;
-  precoAnual: number;
+  planKey: string; // Key used in database (starter, pro, agencia)
+  precoBase: number; // Base price for 100 leads
   descricao: string;
   destaque: boolean;
   features: string[];
@@ -125,12 +125,11 @@ export interface Plano {
 export const PLANOS: Plano[] = [
   {
     nome: "Iniciante",
-    precoMensal: 47,
-    precoAnual: 470,
+    planKey: "starter",
+    precoBase: 47,
     descricao: "Para quem está começando",
     destaque: false,
     features: [
-      "100 leads por mês",
       "Análise de leads com diagnóstico",
       "Plano de prospecção de 7 dias",
       "CRM: salvar + status + anotações",
@@ -141,16 +140,14 @@ export const PLANOS: Plano[] = [
   },
   {
     nome: "Pro",
-    precoMensal: 97,
-    precoAnual: 970,
+    planKey: "pro",
+    precoBase: 97,
     descricao: "Para profissionais",
     destaque: true,
     features: [
-      "200 leads por mês",
+      "Tudo do Iniciante +",
       "Análise completa + score de conversão",
       "Plano de 7 dias (WhatsApp/Insta/E-mail)",
-      "CRM completo com anotações",
-      "Templates de mensagem",
       "Exportação para Excel",
       "Suporte prioritário"
     ],
@@ -161,12 +158,11 @@ export const PLANOS: Plano[] = [
 
 export const PLANO_AGENCIA: Plano = {
   nome: "Agência",
-  precoMensal: 247,
-  precoAnual: 2470,
+  planKey: "agencia",
+  precoBase: 147,
   descricao: "Para agências e times",
   destaque: false,
   features: [
-    "Leads ilimitados",
     "Tudo do plano Pro",
     "Pipeline Kanban visual (drag-and-drop)",
     "Relatórios e dashboards completos",
@@ -176,6 +172,22 @@ export const PLANO_AGENCIA: Plano = {
   cta: "Assinar Agência",
   gratuito: false
 };
+
+// Pricing configuration
+export const LEAD_PRICING_CONFIG = {
+  baseLeads: 100,
+  incrementLeads: 50,
+  incrementPrice: 23.50,
+  maxLeads: 2000,
+  annualDiscountMonths: 2, // 2 months free on annual
+};
+
+// Available lead quantities for selector
+export const LEAD_QUANTITIES = [
+  100, 150, 200, 250, 300, 350, 400, 450, 500, 
+  600, 700, 800, 900, 1000, 
+  1500, 2000
+];
 
 export const FAQ_ITEMS = [
   {

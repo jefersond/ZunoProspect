@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +14,8 @@ import {
 import { CheckCircle2, Crown, ExternalLink, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
-import { PLANOS, PLANO_AGENCIA, type Plano } from "@/components/landing/data";
+import { PLANOS, PLANO_AGENCIA, LEAD_QUANTITIES, type Plano } from "@/components/landing/data";
+import { useLeadPricing } from "@/hooks/useLeadPricing";
 
 interface UpgradePlanDialogProps {
   open: boolean;
@@ -23,39 +25,46 @@ interface UpgradePlanDialogProps {
 
 export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: UpgradePlanDialogProps) => {
   const [isAnual, setIsAnual] = useState(false);
+  const [selectedLeads, setSelectedLeads] = useState<Record<string, number>>({
+    starter: 100,
+    pro: 100,
+    agencia: 100,
+  });
+  const { calculatePrice, getDisplayPrice } = useLeadPricing();
 
   // Define a ordem dos planos para comparação
   const planOrder: Record<string, number> = {
     starter: 0,
-    pro: 1, // Inclui Iniciante (100 leads) e Pro (200 leads)
+    pro: 1,
     agencia: 2,
   };
 
   const currentPlanLevel = planOrder[currentPlanName || 'starter'] ?? 0;
   
   // Filtra planos pagos que são superiores ao plano atual
-  // Se o usuário é Pro, só mostra Agência
   const PLANOS_UPGRADE = PLANOS.filter((p) => {
     if (p.gratuito) return false;
-    // Mapeia nome do plano para o nome no banco
-    const planNameMap: Record<string, string> = {
-      'Iniciante': 'pro',
-      'Pro': 'pro',
-    };
-    const dbPlanName = planNameMap[p.nome] || p.nome.toLowerCase();
-    const planLevel = planOrder[dbPlanName] ?? 0;
+    const planLevel = planOrder[p.planKey] ?? 0;
     return planLevel > currentPlanLevel;
   });
 
   // Verifica se deve mostrar o card Agência (só se o plano atual for menor que agência)
   const showAgenciaCard = currentPlanLevel < 2;
 
-  const handleSelectPlano = (plano: Plano) => {
-    const checkoutUrl = getKiwifyCheckoutUrl(plano.nome, isAnual);
+  const handleLeadsChange = (planKey: string, value: string) => {
+    setSelectedLeads(prev => ({ ...prev, [planKey]: parseInt(value) }));
+  };
+
+  const handleSelectPlano = (plano: Plano, leadsQty: number) => {
+    const checkoutUrl = getKiwifyCheckoutUrl(plano.nome, isAnual, undefined, undefined, leadsQty);
     toast.success("Redirecionando para o pagamento...");
     window.open(checkoutUrl, "_blank");
     onOpenChange(false);
   };
+
+  const agenciaLeads = selectedLeads.agencia;
+  const agenciaPrecoMensal = getDisplayPrice('agencia', agenciaLeads, isAnual);
+  const agenciaPrecoTotal = calculatePrice('agencia', agenciaLeads, isAnual);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -66,7 +75,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
             Fazer Upgrade do Plano
           </DialogTitle>
           <DialogDescription>
-            Escolha o plano ideal para escalar sua prospecção.
+            Escolha o plano e a quantidade de leads ideal para escalar sua prospecção.
           </DialogDescription>
         </DialogHeader>
 
@@ -94,7 +103,9 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
         {PLANOS_UPGRADE.length > 0 && (
           <div className={`grid ${PLANOS_UPGRADE.length === 1 ? 'md:grid-cols-1 max-w-md mx-auto' : 'md:grid-cols-2'} gap-4 py-4`}>
             {PLANOS_UPGRADE.map((plano, index) => {
-              const precoMensal = isAnual ? Math.round(plano.precoAnual / 12) : plano.precoMensal;
+              const leadsQty = selectedLeads[plano.planKey];
+              const precoMensal = getDisplayPrice(plano.planKey, leadsQty, isAnual);
+              const precoTotal = calculatePrice(plano.planKey, leadsQty, isAnual);
 
               return (
                 <Card
@@ -116,13 +127,33 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
                   <div className="text-center mb-4">
                     <h3 className="text-lg font-bold mb-1">{plano.nome}</h3>
                     <p className="text-sm text-muted-foreground mb-3">{plano.descricao}</p>
+                    
+                    {/* Lead Quantity Selector */}
+                    <div className="mb-3">
+                      <Select 
+                        value={leadsQty.toString()} 
+                        onValueChange={(v) => handleLeadsChange(plano.planKey, v)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LEAD_QUANTITIES.map((qty) => (
+                            <SelectItem key={qty} value={qty.toString()}>
+                              {qty.toLocaleString('pt-BR')} leads/mês
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <div className="flex items-baseline justify-center gap-1">
                       <span className="text-3xl font-bold">R$ {precoMensal}</span>
                       <span className="text-muted-foreground">/mês</span>
                     </div>
                     {isAnual && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        cobrado R$ {plano.precoAnual} por ano
+                        cobrado R$ {precoTotal.toLocaleString('pt-BR')} por ano
                       </p>
                     )}
                   </div>
@@ -139,7 +170,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
                   <Button
                     className={`w-full ${plano.destaque ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
                     variant={plano.destaque ? "default" : "outline"}
-                    onClick={() => handleSelectPlano(plano)}
+                    onClick={() => handleSelectPlano(plano, leadsQty)}
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
                     {plano.cta}
@@ -165,21 +196,38 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
               <h3 className="text-xl font-bold mb-1">{PLANO_AGENCIA.nome}</h3>
               <p className="text-sm text-muted-foreground mb-4">{PLANO_AGENCIA.descricao}</p>
 
+              {/* Lead Quantity Selector */}
+              <div className="mb-4">
+                <Select 
+                  value={agenciaLeads.toString()} 
+                  onValueChange={(v) => handleLeadsChange('agencia', v)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LEAD_QUANTITIES.map((qty) => (
+                      <SelectItem key={qty} value={qty.toString()}>
+                        {qty.toLocaleString('pt-BR')} leads/mês
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="flex items-baseline gap-1 mb-2">
-                <span className="text-3xl font-bold">
-                  R$ {isAnual ? Math.round(PLANO_AGENCIA.precoAnual / 12) : PLANO_AGENCIA.precoMensal}
-                </span>
+                <span className="text-3xl font-bold">R$ {agenciaPrecoMensal}</span>
                 <span className="text-muted-foreground">/mês</span>
               </div>
               {isAnual && (
                 <p className="text-xs text-muted-foreground">
-                  cobrado R$ {PLANO_AGENCIA.precoAnual} por ano
+                  cobrado R$ {agenciaPrecoTotal.toLocaleString('pt-BR')} por ano
                 </p>
               )}
 
               <Button
                 className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => handleSelectPlano(PLANO_AGENCIA)}
+                onClick={() => handleSelectPlano(PLANO_AGENCIA, agenciaLeads)}
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
                 {PLANO_AGENCIA.cta}

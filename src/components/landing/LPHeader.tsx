@@ -43,9 +43,6 @@ export function LPHeader() {
             <Button variant="ghost" size="sm" asChild>
               <Link to="/auth?tab=login">Entrar</Link>
             </Button>
-            <Button size="sm" variant="success" onClick={() => scrollToSection("precos")}>
-              Começar
-            </Button>
           </div>
 
           <div className="flex lg:hidden items-center gap-2">
@@ -76,9 +73,6 @@ export function LPHeader() {
                   <div className="border-t pt-4 mt-2 space-y-3">
                     <Button variant="outline" className="w-full" asChild>
                       <Link to="/auth?tab=login">Entrar</Link>
-                    </Button>
-                    <Button className="w-full" variant="success" onClick={() => scrollToSection("precos")}>
-                      Começar agora
                     </Button>
                   </div>
                 </nav>

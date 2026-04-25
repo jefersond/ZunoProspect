@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Suspense, lazy } from "react";
 import { ExitIntentTracker } from "@/components/ExitIntentTracker";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useOAuthCallback } from "@/hooks/useOAuthCallback";
 import LandingProspeccaoIA from "./pages/LandingProspeccaoIA";
 

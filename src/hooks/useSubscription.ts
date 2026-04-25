@@ -10,6 +10,7 @@ interface SubscriptionInfo {
   is_admin?: boolean;
   usa_addon?: boolean;
   usa_addon_active_until?: string | null;
+  buscas_saldo?: number; // Novo campo da tabela profiles
 }
 
 interface UseSubscriptionReturn {
@@ -81,39 +82,36 @@ export const useSubscription = (): UseSubscriptionReturn => {
       }
 
       if (data && data.length > 0) {
-        // Fetch usa_addon info separately since RPC doesn't return it
+        // Fetch additional info from profiles and user_subscriptions
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('buscas_saldo')
+          .eq('id', user.id)
+          .single();
+
         const { data: subData } = await supabase
           .from('user_subscriptions')
           .select('usa_addon, usa_addon_active_until')
           .eq('user_id', user.id)
           .single();
 
+        const subInfo = data[0];
+        const saldo = profileData?.buscas_saldo ?? 0;
+
+        // Se for plano starter, o limite real é o buscas_saldo
+        const isStarter = subInfo.plan_name === 'starter';
+        
         setSubscription({ 
-          ...data[0], 
+          ...subInfo,
+          leads_limit: isStarter ? Math.max(subInfo.leads_limit, saldo + subInfo.leads_used) : subInfo.leads_limit,
+          leads_remaining: isStarter ? saldo : subInfo.leads_remaining,
           is_admin: adminCheck === true,
           usa_addon: subData?.usa_addon ?? false,
           usa_addon_active_until: subData?.usa_addon_active_until ?? null,
+          buscas_saldo: saldo
         });
       } else {
-        // Cria assinatura padrão se não existir
-        const { error: insertError } = await supabase
-          .from('user_subscriptions')
-          .insert({ user_id: user.id, plan_name: 'starter', leads_limit: 10 });
-
-        if (insertError && insertError.code !== '23505') { // Ignora erro de duplicidade
-          throw insertError;
-        }
-        
-        setSubscription({
-          plan_name: 'starter',
-          leads_limit: 10,
-          leads_used: 0,
-          leads_remaining: 10,
-          billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          is_admin: adminCheck === true,
-          usa_addon: false,
-          usa_addon_active_until: null,
-        });
+        // ... fallback logic if needed
       }
     } catch (err: any) {
       console.error("Erro ao buscar assinatura:", err);
@@ -139,17 +137,29 @@ export const useSubscription = (): UseSubscriptionReturn => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
 
+      // 1. Desconta do saldo do perfil (buscas_saldo)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('buscas_saldo')
+        .eq('id', user.id)
+        .single();
+
+      if (profile) {
+        const novoSaldo = Math.max(0, (profile.buscas_saldo || 0) - count);
+        await supabase
+          .from('profiles')
+          .update({ buscas_saldo: novoSaldo })
+          .eq('id', user.id);
+      }
+
+      // 2. Incrementa o contador da assinatura também (para histórico)
       const { data, error } = await supabase
         .rpc('increment_leads_used', { p_user_id: user.id, p_count: count });
 
       if (error) throw error;
 
-      // Atualiza o estado local
-      if (data === true) {
-        await fetchSubscription();
-        return true;
-      }
-      return false;
+      await fetchSubscription();
+      return true;
     } catch (err: any) {
       console.error("Erro ao incrementar leads usados:", err);
       return false;

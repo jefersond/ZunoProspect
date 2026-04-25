@@ -441,7 +441,6 @@ serve(async (req) => {
     console.log("🔍 Iniciando análise:", { leadId, userId, hasNome: !!requestData.nome });
 
     const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -556,33 +555,13 @@ serve(async (req) => {
 
     let analise: AnaliseResult;
 
-    // Prioriza Gemini → OpenAI → Lovable AI → Mock
+    // Prioriza Gemini → Lovable AI → Mock
     if (GOOGLE_GEMINI_API_KEY) {
       console.log("🚀 Usando Gemini 2.0 Flash (principal)...");
       try {
         analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
       } catch (geminiError: any) {
         console.log(`⚠️ Gemini falhou: ${geminiError.message}`);
-        if (OPENAI_API_KEY) {
-          console.log("🔄 Fallback para OpenAI GPT-4o...");
-          try {
-            analise = await analyzeWithOpenAI(leadData, OPENAI_API_KEY);
-          } catch (openaiError: any) {
-            console.log(`⚠️ OpenAI falhou: ${openaiError.message}`);
-            console.log("🔄 Fallback para Lovable AI...");
-            analise = await analyzeWithLovableAI(leadData);
-          }
-        } else {
-          console.log("🔄 Fallback para Lovable AI...");
-          analise = await analyzeWithLovableAI(leadData);
-        }
-      }
-    } else if (OPENAI_API_KEY) {
-      console.log("🤖 Usando OpenAI GPT-4o (secundário)...");
-      try {
-        analise = await analyzeWithOpenAI(leadData, OPENAI_API_KEY);
-      } catch (openaiError: any) {
-        console.log(`⚠️ OpenAI falhou: ${openaiError.message}`);
         console.log("🔄 Fallback para Lovable AI...");
         analise = await analyzeWithLovableAI(leadData);
       }
@@ -745,98 +724,6 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string): Promise<
     if (error.name === 'AbortError') {
       throw new Error("Timeout: IA demorou mais de 90 segundos");
     }
-    throw error;
-  }
-}
-
-// =============================================================================
-// OPENAI (FALLBACK)
-// =============================================================================
-async function analyzeWithOpenAI(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
-  const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
-  const canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
-  
-  const isUS = isUSLead(lead);
-  const systemPrompt = buildEliteCopywriterSystemPrompt(isUS);
-  const userPrompt = buildEliteUserPrompt(lead, canaisDisponiveis, isUS);
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 90000);
-
-  try {
-    // Usa fetchWithRetry para lidar com rate limits (429)
-    const response = await fetchWithRetry(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ],
-          tools: [{
-            type: "function",
-            function: {
-              name: "gerar_analise_lead",
-              description: "Gera análise completa do lead",
-              parameters: {
-                type: "object",
-                properties: {
-                  diagnostico_bullets: { type: "array", items: { type: "string" } },
-                  probabilidade_conversao: { type: "number" },
-                  plano_prospeccao_7dias: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        dia: { type: "number" },
-                        canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
-                        acao_sugerida: { type: "string", description: "Ação tática específica: enviar áudio, texto, curtir posts, reagir story, etc." },
-                        mensagem: { type: "string" },
-                        objecao_provavel: { type: "string" },
-                        resposta_sugerida: { type: "string" },
-                        cta: { type: "string" }
-                      },
-                      required: ["dia", "canal", "acao_sugerida", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
-                    }
-                  }
-                },
-                required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"]
-              }
-            }
-          }],
-          tool_choice: { type: "function", function: { name: "gerar_analise_lead" } },
-          temperature: 0.7,
-          max_tokens: 4000
-        }),
-        signal: controller.signal,
-      },
-      3, // maxRetries
-      2000 // baseDelay 2s
-    );
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`OpenAI API error: ${response.status}`, errorText);
-      throw new Error(`OpenAI error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    
-    if (!toolCall) throw new Error("IA não retornou análise");
-
-    return JSON.parse(toolCall.function.arguments);
-
-  } catch (error: any) {
-    clearTimeout(timeoutId);
     throw error;
   }
 }

@@ -6,6 +6,7 @@ import { TrendingUp, Users, Target, Activity, Loader2 } from "lucide-react";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { AppHeader } from "@/components/AppHeader";
+import { ReferralCard } from "@/components/ReferralCard";
 
 interface DashboardMetrics {
   totalLeads: number;
@@ -138,6 +139,9 @@ const Dashboard = () => {
       <AppHeader isAdmin={isAdmin} />
 
       <main className="container mx-auto px-4 py-8 space-y-6">
+        {/* Componente de Viralidade / Indicações */}
+        <ReferralCard />
+
         {/* KPIs principais */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="shadow-lg">

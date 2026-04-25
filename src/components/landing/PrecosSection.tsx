@@ -21,7 +21,7 @@ export function PrecosSection() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedPlano, setSelectedPlano] = useState<Plano | null>(null);
   const [selectedLeads, setSelectedLeads] = useState<Record<string, number>>({
-    starter: 100,
+    iniciante: 100,
     pro: 100,
     agencia: 100,
   });

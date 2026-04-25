@@ -431,9 +431,10 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-1">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Login</TabsTrigger>
+              <TabsTrigger value="signup">Cadastrar</TabsTrigger>
             </TabsList>
             
             <TabsContent value="login">

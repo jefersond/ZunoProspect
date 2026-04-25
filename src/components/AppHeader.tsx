@@ -86,25 +86,25 @@ export function AppHeader({
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+    <header className="sticky top-0 z-50 bg-background/60 backdrop-blur-md border-b border-border/40 shadow-sm">
       <div className="container mx-auto px-4 md:px-6 py-3 md:py-4">
         <div className="flex items-center justify-between gap-2 md:gap-4">
           {/* Logo */}
           <Logo />
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-1 mr-2 pr-2 border-r border-border">
+          <nav className="hidden lg:flex items-center gap-1 mr-2 pr-2 border-r border-border/40">
             {navItems.map((item) => (
               <Button
                 key={item.to}
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate(item.to)}
-                className={`gap-2 ${
+                className={`gap-2 text-muted-foreground hover:text-foreground ${
                   item.isAdmin
                     ? "text-amber-500 hover:text-amber-400"
                     : isActive(item.to)
-                    ? "bg-accent"
+                    ? "bg-accent text-foreground"
                     : ""
                 }`}
               >
@@ -148,7 +148,7 @@ export function AppHeader({
               variant="ghost"
               size="sm"
               onClick={() => navigate("/profile")}
-              className="gap-2"
+              className="gap-2 text-muted-foreground hover:text-foreground"
             >
               <User className="h-4 w-4" />
               <span className="hidden xl:inline">Perfil</span>

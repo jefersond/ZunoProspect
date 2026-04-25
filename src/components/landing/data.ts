@@ -125,7 +125,7 @@ export interface Plano {
 export const PLANOS: Plano[] = [
   {
     nome: "Iniciante",
-    planKey: "starter",
+    planKey: "iniciante",
     precoBase: 47,
     descricao: "Para quem está começando",
     destaque: false,

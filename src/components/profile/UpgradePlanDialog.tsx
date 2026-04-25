@@ -35,8 +35,9 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
   // Define a ordem dos planos para comparação
   const planOrder: Record<string, number> = {
     starter: 0,
-    pro: 1,
-    agencia: 2,
+    iniciante: 1,
+    pro: 2,
+    agencia: 3,
   };
 
   const currentPlanLevel = planOrder[currentPlanName || 'starter'] ?? 0;

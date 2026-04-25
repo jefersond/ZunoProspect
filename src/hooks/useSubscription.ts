@@ -172,6 +172,8 @@ export const useSubscription = (): UseSubscriptionReturn => {
     
     const names: Record<string, string> = {
       starter: "Starter (Gratuito)",
+      iniciante: "Iniciante",
+      pro: "Pro",
       agencia: "Agência",
     };
     return names[subscription.plan_name] || subscription.plan_name;

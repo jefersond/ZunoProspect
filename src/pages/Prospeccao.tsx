@@ -7,7 +7,7 @@ import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { useSubscription } from "@/hooks/useSubscription";
 import { toast } from "sonner";
-import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
+
 import { AppHeader } from "@/components/AppHeader";
 
 const Prospeccao = () => {
@@ -50,19 +50,25 @@ const Prospeccao = () => {
             return;
           }
           
-          toast.info("Conta criada com Google! Redirecionando para pagamento...");
+          toast.info("Conta criada com Google! Gerando link de pagamento...");
           
           // Clear session storage
           sessionStorage.removeItem("checkout_in_progress");
           sessionStorage.removeItem("checkout_plano");
           sessionStorage.removeItem("checkout_isAnual");
           
-          // Get user name from metadata if available
-          const userName = currentUser.user_metadata?.full_name || currentUser.user_metadata?.name;
+          // Chamar Edge Function do Stripe
+          const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
+            body: { planKey: plano.toLowerCase(), leadsQty: 100, isAnual }
+          });
           
-          // Redirect to Kiwify checkout
-          const kiwifyUrl = getKiwifyCheckoutUrl(plano, isAnual, currentUser.email, userName);
-          window.location.href = kiwifyUrl;
+          if (error || !data?.url) {
+            toast.error("Erro ao gerar link de pagamento. Tente pelo checkout.");
+            navigate(`/checkout?plano=${plano}&anual=${isAnual}`);
+            return;
+          }
+          
+          window.location.href = data.url;
         }
         setSearchParams({});
       }

@@ -10,7 +10,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
 import { trackInitiateCheckout, trackAddPaymentInfo } from "@/lib/metaPixel";
-import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 
 // Google Icon Component
@@ -212,18 +211,30 @@ export default function Checkout() {
       
       // Track payment info
       trackAddPaymentInfo({
-        content_category: 'Kiwify',
+        content_category: 'Stripe',
         currency: 'BRL',
         value: preco
       });
 
-      // Gerar URL do checkout Kiwify
-      const checkoutUrl = getKiwifyCheckoutUrl(plano.nome, isAnual, email, nome);
+      toast.loading("Conta criada! Gerando link de pagamento seguro...");
+
+      // Chamar Edge Function do Stripe
+      const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
+        body: {
+          planKey: selectedPlano,
+          leadsQty: 100,
+          isAnual
+        }
+      });
+
+      toast.dismiss();
+
+      if (error || !data?.url) {
+        throw new Error("Falha ao gerar link de pagamento. Tente novamente.");
+      }
       
-      toast.success("Conta criada! Redirecionando para o pagamento...");
-      
-      // Redirecionar para Kiwify
-      window.location.href = checkoutUrl;
+      toast.success("Redirecionando para o pagamento seguro...");
+      window.location.href = data.url;
       
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";

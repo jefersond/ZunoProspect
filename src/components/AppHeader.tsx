@@ -86,14 +86,14 @@ export function AppHeader({
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <header className="sticky top-0 z-50 bg-background/60 backdrop-blur-md border-b border-border/40 shadow-sm">
+    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/50 shadow-sm">
       <div className="container mx-auto px-4 md:px-6 py-3 md:py-4">
         <div className="flex items-center justify-between gap-2 md:gap-4">
           {/* Logo */}
           <Logo />
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-1 mr-2 pr-2 border-r border-border/40">
+          <nav className="hidden lg:flex items-center gap-1 mr-2 pr-2 border-r border-border/50">
             {navItems.map((item) => (
               <Button
                 key={item.to}

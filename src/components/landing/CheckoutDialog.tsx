@@ -173,18 +173,32 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
 
       // Track payment info
       trackAddPaymentInfo({
-        content_category: 'Kiwify',
+        content_category: 'Stripe',
         currency: 'BRL',
         value: preco
       });
 
-      // Gerar URL do checkout Kiwify (passing leads quantity)
-      const checkoutUrl = getKiwifyCheckoutUrl(plano.nome, isAnual, email, nome, selectedLeads);
+      toast.loading("Conta criada! Gerando link de pagamento...");
+
+      // Gerar URL do checkout via Stripe Edge Function
+      const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
+        body: {
+          planKey: plano.planKey,
+          leadsQty: selectedLeads,
+          isAnual
+        }
+      });
+
+      toast.dismiss();
+
+      if (error || !data?.url) {
+        throw new Error("Falha ao gerar link de pagamento");
+      }
       
-      toast.success("Conta criada! Redirecionando para o pagamento...");
+      toast.success("Redirecionando para o pagamento seguro...");
       
-      // Redirecionar para Kiwify
-      window.location.href = checkoutUrl;
+      // Redirecionar para Checkout Stripe
+      window.location.href = data.url;
       
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";

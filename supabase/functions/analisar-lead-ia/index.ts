@@ -556,19 +556,19 @@ serve(async (req) => {
 
     let analise: AnaliseResult;
 
-    // Prioriza OpenAI → Gemini → Lovable AI → Mock
-    if (OPENAI_API_KEY) {
-      console.log("🤖 Usando OpenAI GPT-4o (principal)...");
+    // Prioriza Gemini → OpenAI → Lovable AI → Mock
+    if (GOOGLE_GEMINI_API_KEY) {
+      console.log("🚀 Usando Gemini 2.0 Flash (principal)...");
       try {
-        analise = await analyzeWithOpenAI(leadData, OPENAI_API_KEY);
-      } catch (openaiError: any) {
-        console.log(`⚠️ OpenAI falhou: ${openaiError.message}`);
-        if (GOOGLE_GEMINI_API_KEY) {
-          console.log("🔄 Fallback para Gemini...");
+        analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
+      } catch (geminiError: any) {
+        console.log(`⚠️ Gemini falhou: ${geminiError.message}`);
+        if (OPENAI_API_KEY) {
+          console.log("🔄 Fallback para OpenAI GPT-4o...");
           try {
-            analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
-          } catch (geminiError: any) {
-            console.log(`⚠️ Gemini falhou: ${geminiError.message}`);
+            analise = await analyzeWithOpenAI(leadData, OPENAI_API_KEY);
+          } catch (openaiError: any) {
+            console.log(`⚠️ OpenAI falhou: ${openaiError.message}`);
             console.log("🔄 Fallback para Lovable AI...");
             analise = await analyzeWithLovableAI(leadData);
           }
@@ -577,12 +577,12 @@ serve(async (req) => {
           analise = await analyzeWithLovableAI(leadData);
         }
       }
-    } else if (GOOGLE_GEMINI_API_KEY) {
-      console.log("🚀 Usando Gemini (secundário)...");
+    } else if (OPENAI_API_KEY) {
+      console.log("🤖 Usando OpenAI GPT-4o (secundário)...");
       try {
-        analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
-      } catch (geminiError: any) {
-        console.log(`⚠️ Gemini falhou: ${geminiError.message}`);
+        analise = await analyzeWithOpenAI(leadData, OPENAI_API_KEY);
+      } catch (openaiError: any) {
+        console.log(`⚠️ OpenAI falhou: ${openaiError.message}`);
         console.log("🔄 Fallback para Lovable AI...");
         analise = await analyzeWithLovableAI(leadData);
       }

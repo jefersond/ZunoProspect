@@ -11,6 +11,9 @@ import { CheckoutDialog } from "./CheckoutDialog";
 import { UsaAddonDialog } from "./UsaAddonDialog";
 import { trackViewContent, trackLead } from "@/lib/metaPixel";
 import { useLeadPricing } from "@/hooks/useLeadPricing";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 export function PrecosSection() {
   const navigate = useNavigate();
@@ -51,7 +54,17 @@ export function PrecosSection() {
     return () => observer.disconnect();
   }, []);
 
-  const handleSelectPlano = (plano: Plano, leadsQty: number) => {
+  const [isProcessing, setIsProcessing] = useState<string | null>(null);
+
+  const handleSelectPlano = async (plano: Plano, leadsQty: number) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    // Se não estiver logado, vai para o cadastro
+    if (!session) {
+      navigate("/auth?tab=signup");
+      return;
+    }
+
     const preco = calculatePrice(plano.planKey, leadsQty, isAnual);
     trackLead({
       content_name: `${plano.nome} - ${leadsQty} leads`,
@@ -60,8 +73,32 @@ export function PrecosSection() {
       currency: 'BRL'
     });
 
-    setSelectedPlano({ ...plano, selectedLeads: leadsQty } as any);
-    setCheckoutOpen(true);
+    setIsProcessing(plano.planKey);
+    try {
+      toast.loading("Gerando link de pagamento seguro...");
+
+      const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
+        body: {
+          planKey: plano.planKey,
+          leadsQty: leadsQty,
+          isAnual
+        }
+      });
+
+      toast.dismiss();
+
+      if (error || !data?.url) {
+        throw new Error("Falha ao gerar link de pagamento.");
+      }
+      
+      window.location.href = data.url;
+      
+    } catch (error: any) {
+      toast.dismiss();
+      toast.error("Erro ao processar", { description: error.message });
+    } finally {
+      setIsProcessing(null);
+    }
   };
 
   const handleLeadsChange = (planKey: string, value: string) => {
@@ -172,11 +209,15 @@ export function PrecosSection() {
                 </ul>
 
                 <Button
-                  className="w-full"
-                  variant="success"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 text-base shadow-lg shadow-emerald-600/20"
                   onClick={() => handleSelectPlano(plano, leadsQty)}
+                  disabled={isProcessing === plano.planKey}
                 >
-                  {plano.cta}
+                  {isProcessing === plano.planKey ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    plano.cta
+                  )}
                 </Button>
               </Card>
             );
@@ -238,11 +279,15 @@ export function PrecosSection() {
                   
                   <Button
                     size="lg"
-                    variant="success"
-                    className="w-full md:w-auto px-8"
+                    className="w-full md:w-auto px-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20 h-14 text-lg"
                     onClick={() => handleSelectPlano(PLANO_AGENCIA, agenciaLeads)}
+                    disabled={isProcessing === 'agencia'}
                   >
-                    {PLANO_AGENCIA.cta}
+                    {isProcessing === 'agencia' ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      PLANO_AGENCIA.cta
+                    )}
                   </Button>
                 </div>
 

@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { SocialProofBar } from "./SocialProofBar";
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
@@ -44,11 +45,13 @@ export function HeroSection() {
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Button 
                     size="lg" 
-                    className="bg-teal-500 hover:bg-teal-600 text-white font-bold shadow-[0_0_20px_rgba(20,184,166,0.3)] border border-teal-400/50 text-lg px-8 py-6 rounded-xl transition-all hover:scale-105" 
-                    onClick={() => scrollToSection("precos")}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-[0_0_20px_rgba(5,150,105,0.3)] border border-emerald-500/50 text-lg px-8 py-6 rounded-xl transition-all hover:scale-105" 
+                    asChild
                   >
-                    Começar Plano Grátis
-                    <ArrowRight className="ml-2 h-5 w-5" />
+                    <Link to="/auth?tab=signup">
+                      Começar Plano Grátis
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Link>
                   </Button>
                   <Button 
                     size="lg" 

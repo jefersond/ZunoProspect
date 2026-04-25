@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { ArrowRight, Smartphone } from "lucide-react";
 
 export function CTAFinalSection() {
@@ -18,12 +19,13 @@ export function CTAFinalSection() {
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center max-w-md sm:max-w-none mx-auto">
           <Button
             size="lg"
-            variant="success"
-            className="text-base sm:text-lg px-6 sm:px-8 w-full sm:w-auto"
-            onClick={() => scrollToSection("precos")}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base sm:text-lg px-6 sm:px-8 w-full sm:w-auto shadow-lg shadow-emerald-600/20"
+            asChild
           >
-            Começar agora
-            <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
+            <Link to="/auth?tab=signup">
+              Começar agora
+              <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
+            </Link>
           </Button>
           <Button
             size="lg"

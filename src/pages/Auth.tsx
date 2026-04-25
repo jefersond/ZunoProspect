@@ -432,9 +432,19 @@ const Auth = () => {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Cadastrar</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-6 bg-muted/50 p-1">
+              <TabsTrigger 
+                value="login" 
+                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm transition-all"
+              >
+                Login
+              </TabsTrigger>
+              <TabsTrigger 
+                value="signup" 
+                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm transition-all"
+              >
+                Cadastrar
+              </TabsTrigger>
             </TabsList>
             
             <TabsContent value="login">

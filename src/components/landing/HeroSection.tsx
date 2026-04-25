@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import { SocialProofBar } from "./SocialProofBar";
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 
@@ -40,23 +40,31 @@ export function HeroSection() {
                 Feito para equipes B2B que não têm tempo a perder. Nossa IA audita a empresa, identifica falhas no marketing e te entrega o diagnóstico e o passo a passo exato do que enviar para fechar a venda.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-4 mt-10 pb-4 md:pb-8">
-                <Button 
-                  size="lg" 
-                  className="bg-teal-500 hover:bg-teal-600 text-white shadow-[0_0_20px_rgba(20,184,166,0.3)] border border-teal-400/50 text-lg px-8 py-6 rounded-xl transition-all hover:scale-105" 
-                  onClick={() => scrollToSection("precos")}
-                >
-                  Começar Grátis
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  className="bg-white/5 hover:bg-white/10 border-white/10 text-white backdrop-blur-sm text-lg px-8 py-6 rounded-xl transition-all" 
-                  onClick={() => scrollToSection("como-funciona")}
-                >
-                  Ver como funciona
-                </Button>
+              <div className="flex flex-col gap-3 mt-10 pb-4 md:pb-8">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Button 
+                    size="lg" 
+                    className="bg-gradient-to-r from-teal-400 to-emerald-500 hover:from-teal-300 hover:to-emerald-400 text-zinc-950 font-bold shadow-[0_0_30px_rgba(20,184,166,0.5)] hover:shadow-[0_0_40px_rgba(20,184,166,0.7)] text-lg px-8 py-6 rounded-xl transition-all hover:scale-105 border-0" 
+                    onClick={() => scrollToSection("precos")}
+                  >
+                    Começar Plano Grátis
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                  <Button 
+                    size="lg" 
+                    variant="outline" 
+                    className="bg-white/5 hover:bg-white/10 border-white/10 text-white backdrop-blur-sm text-lg px-8 py-6 rounded-xl transition-all" 
+                    onClick={() => scrollToSection("como-funciona")}
+                  >
+                    Ver como funciona
+                  </Button>
+                </div>
+
+                {/* Micro-copy de quebra de objeção */}
+                <p className="flex items-center gap-1.5 text-sm text-zinc-500 mt-1">
+                  <ShieldCheck className="w-4 h-4 text-zinc-600 flex-shrink-0" />
+                  Sem compromisso. Não exigimos cartão de crédito agora.
+                </p>
               </div>
             </div>
           </div>

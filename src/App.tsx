@@ -26,6 +26,7 @@ const ApiDocs = lazy(() => import("./pages/ApiDocs"));
 const Relatorios = lazy(() => import("./pages/Relatorios"));
 const AdminEmail = lazy(() => import("./pages/AdminEmail"));
 const Precos = lazy(() => import("./pages/Precos"));
+const DesignTokens = lazy(() => import("./pages/DesignTokens"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -68,6 +69,7 @@ const AppContent = () => {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/precos" element={<Precos />} />
           <Route path="/preco" element={<Navigate to="/precos" replace />} />
+          <Route path="/design-tokens" element={<DesignTokens />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -327,7 +327,8 @@ const Auth = () => {
       options: {
         emailRedirectTo: `${redirectBase}/`,
         data: {
-          full_name: fullName
+          full_name: fullName,
+          referred_by_code: searchParams.get("ref") || null
         }
       }
     });

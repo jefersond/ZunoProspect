@@ -3,19 +3,51 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Copy, CheckCircle2, Gift } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect } from "react";
 
 export function ReferralCard() {
   const [copied, setCopied] = useState(false);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [indicacoesAtuais, setIndicacoesAtuais] = useState(0);
+  const [buscasSaldo, setBuscasSaldo] = useState(0);
+
+  useEffect(() => {
+    async function loadReferralData() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('referral_code, buscas_saldo')
+        .eq('id', user.id)
+        .single();
+        
+      if (data && !error) {
+        setReferralCode(data.referral_code);
+        setBuscasSaldo(data.buscas_saldo || 0);
+      }
+
+      // Count referrals
+      const { count } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('referred_by', user.id);
+        
+      setIndicacoesAtuais(count || 0);
+    }
+    loadReferralData();
+  }, []);
   
-  // Dummy data for visual progress
-  const indicacoesAtuais = 2;
   const indicacoesMeta = 5;
-  const progressPercent = (indicacoesAtuais / indicacoesMeta) * 100;
+  const progressPercent = Math.min((indicacoesAtuais / indicacoesMeta) * 100, 100);
   
-  // Dummy referral link
-  const referralLink = "https://zunoprospect.com.br/invite/ref_98a7bx";
+  const referralLink = referralCode 
+    ? `https://zunoprospect.com.br/auth?ref=${referralCode}` 
+    : "Gerando link único...";
 
   const handleCopyLink = () => {
+    if (!referralCode) return;
     navigator.clipboard.writeText(referralLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
@@ -31,7 +63,7 @@ export function ReferralCard() {
           <CardTitle className="text-xl text-white">Ganhe Buscas Grátis</CardTitle>
         </div>
         <CardDescription className="text-zinc-400 text-base">
-          Indique o Zuno Prospect e ganhe <strong>100 buscas adicionais</strong> por cada amigo que se cadastrar.
+          Indique o Zuno Prospect para um parceiro e ganhe <strong>100 buscas adicionais grátis na mesma hora.</strong>
         </CardDescription>
       </CardHeader>
       
@@ -39,7 +71,7 @@ export function ReferralCard() {
         {/* Progresso de Indicações */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm text-zinc-400">
-            <span>Progresso da Meta Mensal</span>
+            <span>Progresso da Meta Mensal (Saldo Atual: {buscasSaldo} buscas)</span>
             <span className="font-medium text-emerald-400">{indicacoesAtuais} / {indicacoesMeta} indicações</span>
           </div>
           <Progress value={progressPercent} className="h-2 bg-zinc-800" />

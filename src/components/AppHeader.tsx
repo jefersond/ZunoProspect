@@ -1,7 +1,7 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import {
   Sheet,
@@ -86,25 +86,25 @@ export function AppHeader({
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <header className="sticky top-0 z-50 bg-zinc-950/80 backdrop-blur-md border-b border-white/10 shadow-[0_2px_20px_rgba(0,0,0,0.4)]">
+    <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
       <div className="container mx-auto px-4 md:px-6 py-3 md:py-4">
         <div className="flex items-center justify-between gap-2 md:gap-4">
           {/* Logo */}
           <Logo />
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-1 mr-2 pr-2 border-r border-white/10">
+          <nav className="hidden lg:flex items-center gap-1 mr-2 pr-2 border-r border-border">
             {navItems.map((item) => (
               <Button
                 key={item.to}
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate(item.to)}
-                className={`gap-2 text-zinc-300 hover:text-white hover:bg-white/10 ${
+                className={`gap-2 ${
                   item.isAdmin
-                    ? "text-amber-400 hover:text-amber-300"
+                    ? "text-amber-500 hover:text-amber-400"
                     : isActive(item.to)
-                    ? "bg-white/10 text-white"
+                    ? "bg-accent"
                     : ""
                 }`}
               >
@@ -137,25 +137,27 @@ export function AppHeader({
                 variant="ghost"
                 size="icon"
                 onClick={onRefreshClick}
-                className="text-zinc-400 hover:text-white hover:bg-white/10"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
             )}
 
+            <ThemeToggle />
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate("/profile")}
-              className="gap-2 text-zinc-300 hover:text-white hover:bg-white/10"
+              className="gap-2"
             >
               <User className="h-4 w-4" />
               <span className="hidden xl:inline">Perfil</span>
             </Button>
             <Button
+              variant="outline"
               size="sm"
               onClick={handleLogout}
-              className="gap-2 ml-1 bg-white/5 hover:bg-red-500/20 text-zinc-300 hover:text-red-300 border border-white/10 hover:border-red-500/30"
+              className="gap-2 ml-1"
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden xl:inline">Sair</span>
@@ -184,7 +186,7 @@ export function AppHeader({
                 variant="ghost"
                 size="icon"
                 onClick={onRefreshClick}
-                className="text-zinc-400 hover:text-white hover:bg-white/10"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
@@ -193,25 +195,23 @@ export function AppHeader({
             {/* Mobile Menu */}
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-zinc-300 hover:text-white hover:bg-white/10">
+                <Button variant="ghost" size="icon">
                   <Menu className="h-5 w-5" />
                   <span className="sr-only">Menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-72 bg-zinc-950/95 backdrop-blur-xl border-l border-white/10">
+              <SheetContent side="right" className="w-72">
                 <SheetHeader>
-                  <SheetTitle className="text-white">Menu</SheetTitle>
+                  <SheetTitle>Menu</SheetTitle>
                 </SheetHeader>
                 <div className="flex flex-col gap-1 mt-6">
                   {/* Navigation Links */}
                   {navItems.map((item) => (
                     <Button
                       key={item.to}
-                      variant="ghost"
-                      className={`w-full justify-start gap-3 text-zinc-300 hover:text-white hover:bg-white/10 ${
-                        item.isAdmin ? "text-amber-400 hover:text-amber-300" : ""
-                      } ${
-                        isActive(item.to) ? "bg-white/10 text-white" : ""
+                      variant={isActive(item.to) ? "secondary" : "ghost"}
+                      className={`w-full justify-start gap-3 ${
+                        item.isAdmin ? "text-amber-500 hover:text-amber-400" : ""
                       }`}
                       onClick={() => handleNavClick(item.to)}
                     >
@@ -221,25 +221,31 @@ export function AppHeader({
                   ))}
 
                   {/* Divider */}
-                  <div className="border-t border-white/10 my-3" />
+                  <div className="border-t border-border my-3" />
+
+                  {/* Theme Toggle */}
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span className="text-sm text-muted-foreground">Tema</span>
+                    <ThemeToggle />
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t border-border my-3" />
 
                   {/* Profile */}
                   <Button
-                    variant="ghost"
-                    className={`w-full justify-start gap-3 text-zinc-300 hover:text-white hover:bg-white/10 ${ isActive("/profile") ? "bg-white/10 text-white" : "" }`}
+                    variant={isActive("/profile") ? "secondary" : "ghost"}
+                    className="w-full justify-start gap-3"
                     onClick={() => handleNavClick("/profile")}
                   >
                     <User className="h-4 w-4" />
                     Perfil
                   </Button>
 
-                  {/* Divider */}
-                  <div className="border-t border-white/10 my-3" />
-
                   {/* Logout */}
                   <Button
                     variant="ghost"
-                    className="w-full justify-start gap-3 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                    className="w-full justify-start gap-3 text-destructive hover:text-destructive"
                     onClick={() => {
                       handleLogout();
                       setSheetOpen(false);

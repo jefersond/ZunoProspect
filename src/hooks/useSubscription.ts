@@ -67,9 +67,9 @@ export const useSubscription = (): UseSubscriptionReturn => {
           
           setSubscription({
             plan_name: 'starter',
-            leads_limit: 30,
+            leads_limit: 10,
             leads_used: 0,
-            leads_remaining: 30,
+            leads_remaining: 10,
             billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             is_admin: adminCheck === true,
             usa_addon: false,
@@ -98,7 +98,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
         // Cria assinatura padrão se não existir
         const { error: insertError } = await supabase
           .from('user_subscriptions')
-          .insert({ user_id: user.id, plan_name: 'starter', leads_limit: 30 });
+          .insert({ user_id: user.id, plan_name: 'starter', leads_limit: 10 });
 
         if (insertError && insertError.code !== '23505') { // Ignora erro de duplicidade
           throw insertError;
@@ -106,9 +106,9 @@ export const useSubscription = (): UseSubscriptionReturn => {
         
         setSubscription({
           plan_name: 'starter',
-          leads_limit: 30,
+          leads_limit: 10,
           leads_used: 0,
-          leads_remaining: 30,
+          leads_remaining: 10,
           billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           is_admin: adminCheck === true,
           usa_addon: false,

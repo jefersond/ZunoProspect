@@ -11,9 +11,9 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { CheckCircle2, Crown, ExternalLink, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2, CheckCircle2, Crown, ExternalLink, Sparkles } from "lucide-react";
 import { PLANOS, PLANO_AGENCIA, LEAD_QUANTITIES, type Plano } from "@/components/landing/data";
 import { useLeadPricing } from "@/hooks/useLeadPricing";
 
@@ -55,11 +55,37 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
     setSelectedLeads(prev => ({ ...prev, [planKey]: parseInt(value) }));
   };
 
-  const handleSelectPlano = (plano: Plano, leadsQty: number) => {
-    const checkoutUrl = getKiwifyCheckoutUrl(plano.nome, isAnual, undefined, undefined, leadsQty);
-    toast.success("Redirecionando para o pagamento...");
-    window.open(checkoutUrl, "_blank");
-    onOpenChange(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleSelectPlano = async (plano: Plano, leadsQty: number) => {
+    setIsProcessing(true);
+    try {
+      toast.loading("Gerando link de pagamento seguro...");
+
+      const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
+        body: {
+          planKey: plano.planKey,
+          leadsQty: leadsQty,
+          isAnual
+        }
+      });
+
+      toast.dismiss();
+
+      if (error || !data?.url) {
+        throw new Error("Falha ao gerar link de pagamento.");
+      }
+      
+      toast.success("Redirecionando para o pagamento...");
+      window.location.href = data.url;
+      onOpenChange(false);
+      
+    } catch (error: any) {
+      toast.dismiss();
+      toast.error("Erro ao processar upgrade", { description: error.message });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const agenciaLeads = selectedLeads.agencia;
@@ -228,8 +254,13 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
               <Button
                 className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white"
                 onClick={() => handleSelectPlano(PLANO_AGENCIA, agenciaLeads)}
+                disabled={isProcessing}
               >
-                <ExternalLink className="h-4 w-4 mr-2" />
+                {isProcessing ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                )}
                 {PLANO_AGENCIA.cta}
               </Button>
             </div>

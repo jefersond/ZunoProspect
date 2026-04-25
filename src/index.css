@@ -14,8 +14,8 @@ All colors MUST be HSL.
     --card-foreground: oklch(0.3211 0 0);
     --popover: oklch(0.9702 0 0);
     --popover-foreground: oklch(0.3211 0 0);
-    --primary: oklch(0.627 0.194 149.21);
-    --primary-foreground: oklch(1.0000 0 0);
+    --primary: 162 72% 41%;
+    --primary-foreground: 0 0% 100%;
     --secondary: oklch(0.9067 0 0);
     --secondary-foreground: oklch(0.3211 0 0);
     --muted: oklch(0.8853 0 0);
@@ -63,7 +63,7 @@ All colors MUST be HSL.
     --tracking-normal: 0em;
     --spacing: 0.25rem;
     
-    --gradient-primary: linear-gradient(135deg, oklch(0.627 0.194 149.21), oklch(0.8 0.15 160));
+    --gradient-primary: linear-gradient(135deg, hsl(162, 72%, 41%), hsl(160, 84%, 39%));
     --gradient-subtle: linear-gradient(180deg, oklch(0.9551 0 0), oklch(0.9702 0 0));
   }
 
@@ -74,8 +74,8 @@ All colors MUST be HSL.
     --card-foreground: oklch(0.8853 0 0);
     --popover: oklch(0.2435 0 0);
     --popover-foreground: oklch(0.8853 0 0);
-    --primary: oklch(0.7058 0.15 155);
-    --primary-foreground: oklch(0.2178 0 0);
+    --primary: 162 72% 48%;
+    --primary-foreground: 222 47% 11%;
     --secondary: oklch(0.3092 0 0);
     --secondary-foreground: oklch(0.8853 0 0);
     --muted: oklch(0.2850 0 0);
@@ -121,7 +121,7 @@ All colors MUST be HSL.
     --shadow-xl: 0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 8px 10px -1px hsl(0 0% 20% / 0.15);
     --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 20% / 0.38);
     
-    --gradient-primary: linear-gradient(135deg, oklch(0.7058 0.15 155), oklch(0.4 0.1 145));
+    --gradient-primary: linear-gradient(135deg, hsl(162, 72%, 48%), hsl(162, 72%, 30%));
     --gradient-subtle: linear-gradient(180deg, oklch(0.2178 0 0), oklch(0.2435 0 0));
   }
 }

@@ -135,13 +135,10 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/10 to-primary/5">
+    <div className="min-h-screen bg-zinc-950">
       <AppHeader isAdmin={isAdmin} />
 
       <main className="container mx-auto px-4 py-8 space-y-6">
-        {/* Componente de Viralidade / Indicações */}
-        <ReferralCard />
-
         {/* KPIs principais */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="shadow-lg">
@@ -196,6 +193,9 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Motor de Viralidade — Indique e Ganhe */}
+        <ReferralCard />
 
         {/* Gráficos */}
         <div className="grid gap-6 md:grid-cols-2">

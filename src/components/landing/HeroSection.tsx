@@ -11,7 +11,7 @@ export function HeroSection() {
   };
 
   return (
-    <section className="relative overflow-hidden bg-zinc-950 pt-24 pb-16 md:py-32 selection:bg-teal-500/30">
+    <section className="relative overflow-hidden bg-background pt-24 pb-16 md:py-32 selection:bg-teal-500/30">
       {/* Background Orbs para dar o ar Premium/Dark */}
       <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-teal-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
@@ -44,7 +44,7 @@ export function HeroSection() {
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Button 
                     size="lg" 
-                    className="bg-gradient-to-r from-teal-400 to-emerald-500 hover:from-teal-300 hover:to-emerald-400 text-zinc-950 font-bold shadow-[0_0_30px_rgba(20,184,166,0.5)] hover:shadow-[0_0_40px_rgba(20,184,166,0.7)] text-lg px-8 py-6 rounded-xl transition-all hover:scale-105 border-0" 
+                    className="bg-teal-500 hover:bg-teal-600 text-white font-bold shadow-[0_0_20px_rgba(20,184,166,0.3)] border border-teal-400/50 text-lg px-8 py-6 rounded-xl transition-all hover:scale-105" 
                     onClick={() => scrollToSection("precos")}
                   >
                     Começar Plano Grátis

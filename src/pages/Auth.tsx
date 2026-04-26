@@ -14,6 +14,7 @@ import { z } from "zod";
 import { trackLead, trackCompleteRegistration, trackAddPaymentInfo } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
+import { Logo } from "@/components/Logo";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -423,10 +424,12 @@ const Auth = () => {
         <ThemeToggle />
       </div>
       
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-3xl font-bold text-center bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Zuno Propect</CardTitle>
-          <CardDescription className="text-center">
+      <Card className="w-full max-w-md shadow-lg border-primary/20 bg-background/50 backdrop-blur-sm">
+        <CardHeader className="space-y-4">
+          <div className="flex justify-center mb-2">
+            <Logo className="scale-125" />
+          </div>
+          <CardDescription className="text-center font-medium">
             Sistema profissional de geração de leads
           </CardDescription>
         </CardHeader>

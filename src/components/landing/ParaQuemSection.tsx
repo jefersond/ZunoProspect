@@ -32,7 +32,7 @@ export function ParaQuemSection() {
               <ul className="space-y-3">
                 {perfil.bullets.map((bullet, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                    <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                     <span className="text-muted-foreground">{bullet}</span>
                   </li>
                 ))}

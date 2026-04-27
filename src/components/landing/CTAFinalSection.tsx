@@ -19,7 +19,7 @@ export function CTAFinalSection() {
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center max-w-md sm:max-w-none mx-auto">
           <Button
             size="lg"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base sm:text-lg px-6 sm:px-8 w-full sm:w-auto shadow-lg shadow-emerald-600/20"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-base sm:text-lg px-6 sm:px-8 w-full sm:w-auto shadow-lg shadow-primary/20"
             asChild
           >
             <Link to="/auth?tab=signup">

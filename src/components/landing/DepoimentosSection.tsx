@@ -6,10 +6,10 @@ import { DEPOIMENTOS } from "./data";
 
 const AVATAR_COLORS = [
   "bg-primary",
-  "bg-emerald-500",
-  "bg-blue-500",
-  "bg-purple-500",
-  "bg-amber-500",
+  "bg-primary/80",
+  "bg-primary/60",
+  "bg-secondary-foreground",
+  "bg-primary/90",
 ];
 
 export function DepoimentosSection() {

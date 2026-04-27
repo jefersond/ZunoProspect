@@ -40,10 +40,10 @@ export function LPHeader() {
 
           <div className="hidden lg:flex items-center gap-3">
             <ThemeToggle />
-            <Button variant="ghost" className="text-sm font-medium hover:text-emerald-500 hover:bg-emerald-500/5 transition-colors" asChild>
+            <Button variant="ghost" className="text-sm font-medium hover:text-primary hover:bg-primary/5 transition-colors" asChild>
               <Link to="/auth">Entrar</Link>
             </Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 px-6" asChild>
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 px-6" asChild>
               <Link to="/auth?tab=signup">Começar Grátis</Link>
             </Button>
           </div>

@@ -20,21 +20,20 @@ export function HeroSection() {
       <div className="container mx-auto px-4 relative z-10">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-center">
           <div className="space-y-8 md:space-y-10 relative">
-            
+
             {/* Efeito Glassmorphism atrás do conteúdo de texto - respeitando o tema */}
             <div className="absolute -inset-4 md:-inset-8 bg-card/60 backdrop-blur-md border border-border/40 rounded-3xl -z-10 shadow-xl" />
 
             <div className="pt-4 md:pt-8 pl-2 md:pl-4">
               <SocialProofBar />
 
-              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1] text-foreground mt-6">
-                Economize horas. <br className="hidden md:block" />
-                <span className="relative inline-block mt-2">
-                  <span className="text-primary drop-shadow-sm">
-                    O Plano de Prospecção de 7 Dias
-                  </span>
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1] mt-6">
+                <span className="text-primary">Economize horas.</span>{" "}
+                <br className="hidden md:block" />
+                <span className="text-foreground">
+                  O Plano de Prospecção de 7 Dias
                 </span>{" "}
-                em segundos.
+                <span className="text-primary">em segundos.</span>
               </h1>
 
               <p className="text-lg sm:text-xl text-muted-foreground max-w-xl font-light leading-relaxed mt-6">
@@ -43,9 +42,9 @@ export function HeroSection() {
 
               <div className="flex flex-col gap-3 mt-10 pb-4 md:pb-8">
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <Button 
-                    size="lg" 
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-[0_0_20px_hsl(var(--primary)/0.25)] border border-primary/30 text-lg px-8 py-6 rounded-xl transition-all hover:scale-105" 
+                  <Button
+                    size="lg"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-[0_0_32px_hsl(162_72%_41%/0.5)] border-2 border-primary/50 text-lg px-10 py-7 rounded-xl transition-all hover:scale-105 hover:shadow-[0_0_48px_hsl(162_72%_41%/0.7)]"
                     asChild
                   >
                     <Link to="/auth?tab=signup">
@@ -53,10 +52,10 @@ export function HeroSection() {
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>
                   </Button>
-                  <Button 
-                    size="lg" 
-                    variant="outline" 
-                    className="text-lg px-8 py-6 rounded-xl transition-all" 
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="text-lg px-8 py-6 rounded-xl transition-all border-primary/30 text-primary hover:bg-primary/10 hover:border-primary/60"
                     onClick={() => scrollToSection("como-funciona")}
                   >
                     Ver como funciona
@@ -65,7 +64,7 @@ export function HeroSection() {
 
                 {/* Micro-copy de quebra de objeção */}
                 <p className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
-                  <ShieldCheck className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <ShieldCheck className="w-4 h-4 text-primary flex-shrink-0" />
                   Sem compromisso. Não exigimos cartão de crédito agora.
                 </p>
               </div>

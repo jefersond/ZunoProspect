@@ -7,9 +7,6 @@ import { getAuthRedirectBaseUrl, isOnCanonicalDomain } from '@/lib/authRedirect'
 /**
  * Hook to handle OAuth callback tokens in URL hash.
  * Cleans the URL and redirects authenticated users appropriately.
- * - If coming from checkout flow, redirects to /checkout with google_auth=true
- * - Otherwise redirects to /prospeccao
- * Also handles redirect to canonical domain if needed.
  */
 export const useOAuthCallback = () => {
   const navigate = useNavigate();
@@ -18,181 +15,123 @@ export const useOAuthCallback = () => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    const handleOAuthCallback = async () => {
+    const processOAuthCallback = async () => {
       const hash = window.location.hash;
       const searchParams = new URLSearchParams(window.location.search);
 
-      // Support code-based callbacks (common in email links like password recovery)
-      const code = searchParams.get("code");
-      const queryType = searchParams.get("type");
-      const isRecoveryByQuery = queryType === "recovery";
+      const hasOAuthHash = 
+        hash.includes("access_token") || 
+        hash.includes("refresh_token") || 
+        hash.includes("error");
 
-      if (code) {
-        setIsProcessing(true);
-        try {
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+      const hasOAuthCode = searchParams.has("code");
+      const isRecoveryByQuery = searchParams.get("type") === "recovery";
 
-          // Clean URL (remove ?code=... and any other auth params)
-          window.history.replaceState({}, "", window.location.pathname);
-
-          if (error || !data.session) {
-            toast({
-              variant: "destructive",
-              title: "Erro na autenticação",
-              description: error?.message || "Não foi possível finalizar a autenticação."
-            });
-            navigate("/auth", { replace: true });
-            setIsProcessing(false);
-            return;
-          }
-
-          if (isRecoveryByQuery) {
-            navigate("/reset-password", { replace: true });
-          } else {
-            navigate("/prospeccao", { replace: true });
-          }
-          setIsProcessing(false);
-          return;
-        } catch {
-          window.history.replaceState({}, "", window.location.pathname);
-          toast({
-            variant: "destructive",
-            title: "Erro inesperado",
-            description: "Não foi possível processar a autenticação."
-          });
-          navigate("/auth", { replace: true });
-          setIsProcessing(false);
-          return;
-        }
-      }
-
-      // If we have tokens and we're NOT on the canonical domain, redirect there with tokens
-      if (hash && hash.includes("access_token") && !isOnCanonicalDomain()) {
-        const canonicalBase = getAuthRedirectBaseUrl();
-        // Redirect to canonical domain, preserving the hash with tokens
-        window.location.href = `${canonicalBase}${window.location.pathname}${window.location.search}${hash}`;
+      if (!hasOAuthHash && !hasOAuthCode) {
+        setIsProcessing(false);
         return;
       }
 
-      // Check if URL has OAuth tokens in hash
-      if (hash && (hash.includes("access_token") || hash.includes("error"))) {
-        setIsProcessing(true);
+      setIsProcessing(true);
 
-        // Check for errors in the hash
-        const hashParams = new URLSearchParams(hash.substring(1));
-        const error = hashParams.get("error");
-        const errorDescription = hashParams.get("error_description");
-
-        // Check if this is a password recovery flow
-        const tokenType = hashParams.get("type");
-        const isPasswordRecovery = tokenType === "recovery";
-
-        if (error) {
-          // Clean the URL immediately
+      try {
+        if (hasOAuthCode) {
+          const code = searchParams.get("code") as string;
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
           window.history.replaceState({}, "", window.location.pathname);
 
-          let errorMessage = "Ocorreu um erro durante a autenticação.";
-          if (error === "access_denied") {
-            errorMessage = "Acesso negado. Você cancelou o login ou não autorizou o acesso.";
-          } else if (errorDescription) {
-            errorMessage = decodeURIComponent(errorDescription.replace(/\+/g, " "));
+          if (error) {
+             console.error("Erro exchangeCodeForSession:", error.message);
           }
+        }
 
-          toast({
-            variant: "destructive",
-            title: "Erro no login",
-            description: errorMessage
-          });
-
-          navigate("/auth", { replace: true });
-          setIsProcessing(false);
+        // Se temos tokens de OAuth na URL e não estamos no domínio principal (caso exista redirecionamento cross-domain)
+        if (hash && hash.includes("access_token") && !isOnCanonicalDomain()) {
+          const canonicalBase = getAuthRedirectBaseUrl();
+          window.location.href = `${canonicalBase}${window.location.pathname}${window.location.search}${hash}`;
           return;
         }
 
-        // If we have tokens, explicitly create the session from the hash.
-        try {
-          const accessToken = hashParams.get("access_token");
-          const refreshToken = hashParams.get("refresh_token");
+        const hashParams = new URLSearchParams(hash.replace("#", ""));
+        const hashError = hashParams.get("error");
+        const hashErrorDescription = hashParams.get("error_description");
+        const tokenType = hashParams.get("type");
+        const isPasswordRecovery = tokenType === "recovery" || isRecoveryByQuery;
 
-          if (!accessToken || !refreshToken) {
-            window.history.replaceState({}, "", window.location.pathname + window.location.search);
-            toast({
-              variant: "destructive",
-              title: "Erro na autenticação",
-              description: "Não foi possível finalizar o login (tokens ausentes)."
-            });
-            navigate("/auth", { replace: true });
-            setIsProcessing(false);
+        if (hashError) {
+          console.error("OAuth error:", hashError, hashErrorDescription);
+          window.history.replaceState({}, document.title, "/auth");
+          toast({
+            variant: "destructive",
+            title: "Erro no login",
+            description: hashError === "access_denied" ? "Acesso negado." : "Ocorreu um erro na autenticação."
+          });
+          navigate("/auth", { replace: true });
+          return;
+        }
+
+        // Dá tempo para o Supabase processar o token da URL
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        const { data, error } = await supabase.auth.getSession();
+
+        if (import.meta.env.DEV) {
+          console.log("OAuth hash detectado:", hash.includes("access_token"));
+          console.log("OAuth code detectado:", searchParams.has("code"));
+          console.log("Sessão encontrada:", !!data.session);
+        }
+
+        if (error) {
+          console.error("Erro ao obter sessão OAuth:", error.message);
+          window.history.replaceState({}, document.title, "/auth");
+          navigate("/auth", { replace: true });
+          return;
+        }
+
+        if (data.session) {
+          // Limpa o hash de forma segura
+          window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+
+          if (isPasswordRecovery) {
+            navigate("/reset-password", { replace: true });
             return;
           }
 
-          const { data, error: setSessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken
-          });
+          // Checkout redirections
+          const isCheckoutFlow =
+            searchParams.get("google_auth") === "true" ||
+            location.pathname === "/checkout" ||
+            localStorage.getItem("checkout_pending");
 
-          // Clean the URL hash immediately after processing (keep pathname + querystring)
-          window.history.replaceState({}, "", window.location.pathname + window.location.search);
-
-          if (setSessionError) {
-            toast({
-              variant: "destructive",
-              title: "Erro na autenticação",
-              description: setSessionError.message
-            });
-            navigate("/auth", { replace: true });
-          } else if (data.session) {
-            // If this is a password recovery flow, redirect to reset-password page
-            if (isPasswordRecovery) {
-              navigate("/reset-password", { replace: true });
-              setIsProcessing(false);
-              return;
-            }
-
-            // Check if this is a checkout flow redirect
-            const isCheckoutFlow =
-              searchParams.get("google_auth") === "true" ||
-              location.pathname === "/checkout" ||
-              localStorage.getItem("checkout_pending");
-
-            if (isCheckoutFlow && location.pathname === "/checkout") {
-              // Already on checkout page, let the checkout page handle it
-              // Just clean the hash and don't navigate
-              setIsProcessing(false);
-              return;
-            } else if (localStorage.getItem("checkout_pending")) {
-              // Coming from CheckoutDialog, redirect to checkout
-              const pendingData = JSON.parse(localStorage.getItem("checkout_pending") || "{}");
-              const plano = pendingData.plano?.toLowerCase() || "pro";
-              const isAnual = pendingData.isAnual || false;
-              navigate(`/checkout?plano=${plano}&anual=${isAnual}&google_auth=true`, { replace: true });
-            } else {
-              // Normal auth flow, go to prospeccao
-              navigate("/prospeccao", { replace: true });
-            }
-          } else {
-            toast({
-              variant: "destructive",
-              title: "Erro na autenticação",
-              description: "Não foi possível criar a sessão. Tente novamente."
-            });
-            navigate("/auth", { replace: true });
+          if (isCheckoutFlow && location.pathname === "/checkout") {
+            // Already on checkout page
+            return;
+          } else if (localStorage.getItem("checkout_pending")) {
+            const pendingData = JSON.parse(localStorage.getItem("checkout_pending") || "{}");
+            const plano = pendingData.plano?.toLowerCase() || "pro";
+            const isAnual = pendingData.isAnual || false;
+            navigate(`/checkout?plano=${plano}&anual=${isAnual}&google_auth=true`, { replace: true });
+            return;
           }
-        } catch {
-          window.history.replaceState({}, "", window.location.pathname + window.location.search);
-          toast({
-            variant: "destructive",
-            title: "Erro inesperado",
-            description: "Não foi possível processar a autenticação."
-          });
-          navigate("/auth", { replace: true });
+
+          window.history.replaceState({}, document.title, "/prospeccao");
+          navigate("/prospeccao", { replace: true });
+          return;
         }
 
+        console.warn("OAuth retornou, mas nenhuma sessão foi encontrada.");
+        window.history.replaceState({}, document.title, "/auth");
+        navigate("/auth", { replace: true });
+      } catch (error) {
+        console.error("Erro inesperado no callback OAuth:", error);
+        window.history.replaceState({}, document.title, "/auth");
+        navigate("/auth", { replace: true });
+      } finally {
         setIsProcessing(false);
       }
     };
 
-    handleOAuthCallback();
+    processOAuthCallback();
   }, [navigate, location, toast]);
 
   return { isProcessing };

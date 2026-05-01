@@ -69,29 +69,30 @@ const Auth = () => {
     setGoogleLoading(true);
     
     try {
-      // Always redirect to the canonical domain to avoid domain mismatches
-      const redirectBase = getAuthRedirectBaseUrl();
-      
+      const referralCode = searchParams.get("ref");
+      if (referralCode) {
+        localStorage.setItem("pending_referral", referralCode);
+      }
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${redirectBase}/auth`
+          redirectTo: `${window.location.origin}/auth`,
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          }
         }
       });
       
       if (error) {
-        toast({
-          variant: "destructive",
-          title: "Erro ao entrar com Google",
-          description: error.message
-        });
-        setGoogleLoading(false);
+        throw error;
       }
-    } catch (err) {
+    } catch (err: any) {
       toast({
         variant: "destructive",
         title: "Erro inesperado",
-        description: "Não foi possível iniciar o login com Google. Tente novamente."
+        description: err.message || "Não foi possível iniciar o login com Google. Tente novamente."
       });
       setGoogleLoading(false);
     }
@@ -326,7 +327,7 @@ const Auth = () => {
       email,
       password,
       options: {
-        emailRedirectTo: `${redirectBase}/`,
+        emailRedirectTo: `${window.location.origin}/auth`,
         data: {
           full_name: fullName,
           referred_by_code: searchParams.get("ref") || null
@@ -399,6 +400,7 @@ const Auth = () => {
     localStorage.setItem('rememberMe', rememberMe.toString());
     
     const {
+      data,
       error
     } = await supabase.auth.signInWithPassword({
       email,
@@ -410,7 +412,7 @@ const Auth = () => {
         title: "Erro ao entrar",
         description: "Email ou senha incorretos. Verifique suas credenciais."
       });
-    } else {
+    } else if (data.session) {
       // Se "lembrar-me" estiver desmarcado, configurar logout ao fechar o navegador
       if (!rememberMe) {
         sessionStorage.setItem('logoutOnClose', 'true');

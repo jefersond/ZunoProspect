@@ -22,7 +22,7 @@ import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const API_BASE_URL = "https://yklmfcgbtprwhjehipte.supabase.co/functions/v1/api-leads";
+const API_BASE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/api-leads`;
 
 const ApiDocs = () => {
   const navigate = useNavigate();

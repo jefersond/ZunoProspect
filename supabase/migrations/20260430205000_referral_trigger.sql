@@ -23,34 +23,23 @@ BEFORE INSERT OR UPDATE ON public.profiles
 FOR EACH ROW
 EXECUTE FUNCTION generate_referral_code();
 
--- 3. Função do Motor de Indicação (Gatilho)
--- Quando um novo perfil for criado (o que acontece logo após o cadastro do auth.users)
+-- 3. Função do Motor de Indicação (Gatilho no INSERT via Email/Senha)
 CREATE OR REPLACE FUNCTION process_referral_reward()
 RETURNS TRIGGER AS $$
 DECLARE
   referrer_id UUID;
   referral_code_used TEXT;
 BEGIN
-  -- Tenta pegar o código de indicação que veio do Auth metadata
-  -- Nota: No Supabase, o auth.users propaga o raw_user_meta_data.
-  -- Como a trigger ideal para pegar o metadata no momento do cadastro é em auth.users,
-  -- precisamos checar de onde estamos extraindo. Como estamos lidando com a tabela profiles,
-  -- assumiremos que uma trigger em auth.users lida melhor com raw_user_meta_data.
-
-  -- Vamos olhar a tabela auth.users correspondente
   SELECT raw_user_meta_data->>'referred_by_code' INTO referral_code_used 
   FROM auth.users 
   WHERE id = NEW.id;
 
   IF referral_code_used IS NOT NULL THEN
-    -- Acha o dono do código
     SELECT id INTO referrer_id FROM public.profiles WHERE referral_code = referral_code_used LIMIT 1;
     
-    IF referrer_id IS NOT NULL THEN
-      -- Define quem indicou o novo usuário
+    IF referrer_id IS NOT NULL AND referrer_id != NEW.id THEN
       NEW.referred_by := referrer_id;
       
-      -- E AQUI A MÁGICA ACONTECE: Soma 100 ao saldo do dono do código
       UPDATE public.profiles 
       SET buscas_saldo = COALESCE(buscas_saldo, 0) + 100 
       WHERE id = referrer_id;
@@ -61,12 +50,36 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Trigger para processar a recompensa no momento que o profile é criado
 DROP TRIGGER IF EXISTS on_profile_created_reward ON public.profiles;
 CREATE TRIGGER on_profile_created_reward
 BEFORE INSERT ON public.profiles
 FOR EACH ROW
 EXECUTE FUNCTION process_referral_reward();
 
--- 4. Criar função auxiliar para recriar códigos para usuários antigos
+-- 4. Função do Motor de Indicação (Gatilho no UPDATE - útil para OAuth)
+CREATE OR REPLACE FUNCTION process_referral_reward_on_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Só processa se o referred_by está sendo definido pela primeira vez
+  IF OLD.referred_by IS NULL AND NEW.referred_by IS NOT NULL THEN
+    IF NEW.referred_by != NEW.id THEN
+      UPDATE public.profiles 
+      SET buscas_saldo = COALESCE(buscas_saldo, 0) + 100 
+      WHERE id = NEW.referred_by;
+    ELSE
+      NEW.referred_by := NULL;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_profile_update_reward ON public.profiles;
+CREATE TRIGGER on_profile_update_reward
+BEFORE UPDATE OF referred_by ON public.profiles
+FOR EACH ROW
+EXECUTE FUNCTION process_referral_reward_on_update();
+
+-- 5. Criar função auxiliar para recriar códigos para usuários antigos
 UPDATE public.profiles SET referral_code = 'ref_' || substr(md5(random()::text), 1, 8) WHERE referral_code IS NULL;

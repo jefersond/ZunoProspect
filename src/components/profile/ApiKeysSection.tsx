@@ -254,7 +254,7 @@ export const ApiKeysSection = () => {
             <div className="bg-muted/50 rounded-lg p-3 text-xs font-mono overflow-x-auto">
               <p className="text-muted-foreground"># Exemplo de requisição</p>
               <p>curl -H "x-api-key: zuno_xxxxx..." \</p>
-              <p className="pl-4">https://yklmfcgbtprwhjehipte.supabase.co/functions/v1/api-leads</p>
+              <p className="pl-4">{import.meta.env.VITE_SUPABASE_URL}/functions/v1/api-leads</p>
             </div>
             <div className="mt-3 text-sm">
               <p className="font-medium mb-1">Endpoints disponíveis:</p>

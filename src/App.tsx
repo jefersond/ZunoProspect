@@ -9,6 +9,8 @@ import { ExitIntentTracker } from "@/components/ExitIntentTracker";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useOAuthCallback } from "@/hooks/useOAuthCallback";
 import LandingProspeccaoIA from "./pages/LandingProspeccaoIA";
+import { AuthProvider } from "@/hooks/useAuth";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 // Lazy load all pages except landing page for code splitting
 const Auth = lazy(() => import("./pages/Auth"));
@@ -57,19 +59,25 @@ const AppContent = () => {
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/lp-prospeccao-ia" element={<Navigate to="/" replace />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/prospeccao" element={<Prospeccao />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/historico" element={<Historico />} />
-          <Route path="/leads-salvos" element={<LeadsSalvos />} />
-          <Route path="/pipeline" element={<Pipeline />} />
-          <Route path="/relatorios" element={<Relatorios />} />
-          <Route path="/admin/email" element={<AdminEmail />} />
-          <Route path="/api-docs" element={<ApiDocs />} />
-          <Route path="/checkout" element={<Checkout />} />
+          
+          {/* Protected Routes */}
+          <Route path="/prospeccao" element={<ProtectedRoute><Prospeccao /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
+          <Route path="/historico" element={<ProtectedRoute><Historico /></ProtectedRoute>} />
+          <Route path="/leads-salvos" element={<ProtectedRoute><LeadsSalvos /></ProtectedRoute>} />
+          <Route path="/pipeline" element={<ProtectedRoute><Pipeline /></ProtectedRoute>} />
+          <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
+          <Route path="/admin/email" element={<ProtectedRoute><AdminEmail /></ProtectedRoute>} />
+          <Route path="/api-docs" element={<ProtectedRoute><ApiDocs /></ProtectedRoute>} />
+          <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+          
+          {/* Public or informational */}
           <Route path="/precos" element={<Precos />} />
           <Route path="/preco" element={<Navigate to="/precos" replace />} />
           <Route path="/design-tokens" element={<DesignTokens />} />
+          
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -85,9 +93,11 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
-            <AppContent />
-          </BrowserRouter>
+          <AuthProvider>
+            <BrowserRouter>
+              <AppContent />
+            </BrowserRouter>
+          </AuthProvider>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

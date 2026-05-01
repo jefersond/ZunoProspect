@@ -25,7 +25,7 @@
 - [x] Implementar a mecânica de "Copiar link de indicação" (Copiado para área de transferência com feedback visual).
 - [x] Adicionar barra de progresso visual simulando as indicações.
 
-### Fase 4: Deploy e Entrega
-- [x] Criar/atualizar as variáveis de ambiente necessárias (Gemini).
-- [x] Garantir que todo o código será feito em branch isolada (se aplicável) e depois mergeado na `main`.
-- [x] Entregar a lista definitiva do `.env` que precisará ser colocada no servidor de hospedagem.
+### Fase 5: Infraestrutura e Roteamento
+- [ ] Criar arquivo `vercel.json` na raiz do projeto `reach-gen`.
+- [ ] Configurar regras de `rewrites` para suportar Single Page Application (SPA).
+- [ ] Testar acesso direto à rota `/auth` e fluxos de autenticação.

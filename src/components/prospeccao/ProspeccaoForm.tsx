@@ -291,7 +291,14 @@ export const ProspeccaoForm = () => {
         pollInterval = null;
       }
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erro Edge Function:", {
+          message: error.message,
+          name: error.name,
+          context: error.context,
+        });
+        throw new Error(error.message || "Não foi possível buscar leads agora.");
+      }
 
       setCurrentStep(7);
       setProgressMessage("Busca concluída!");

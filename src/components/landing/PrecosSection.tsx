@@ -168,7 +168,7 @@ export function PrecosSection() {
                   <div className="mb-4">
                     <label className="text-xs text-muted-foreground block mb-2">Leads por mês</label>
                     <Select 
-                      value={leadsQty.toString()} 
+                      value={String(leadsQty ?? 100)} 
                       onValueChange={(v) => handleLeadsChange(plano.planKey, v)}
                     >
                       <SelectTrigger className="w-full">
@@ -176,7 +176,7 @@ export function PrecosSection() {
                       </SelectTrigger>
                       <SelectContent>
                         {LEAD_QUANTITIES.map((qty) => (
-                          <SelectItem key={qty} value={qty.toString()}>
+                          <SelectItem key={qty} value={String(qty ?? 100)}>
                             {qty.toLocaleString('pt-BR')} leads
                           </SelectItem>
                         ))}
@@ -250,7 +250,7 @@ export function PrecosSection() {
                   <div className="mb-6">
                     <label className="text-xs text-muted-foreground block mb-2">Leads por mês</label>
                     <Select 
-                      value={agenciaLeads.toString()} 
+                      value={String(agenciaLeads ?? 100)} 
                       onValueChange={(v) => handleLeadsChange('agencia', v)}
                     >
                       <SelectTrigger className="w-full max-w-xs">
@@ -258,7 +258,7 @@ export function PrecosSection() {
                       </SelectTrigger>
                       <SelectContent>
                         {LEAD_QUANTITIES.map((qty) => (
-                          <SelectItem key={qty} value={qty.toString()}>
+                          <SelectItem key={qty} value={String(qty ?? 100)}>
                             {qty.toLocaleString('pt-BR')} leads
                           </SelectItem>
                         ))}

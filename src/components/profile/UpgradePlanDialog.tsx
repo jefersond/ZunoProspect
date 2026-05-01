@@ -158,7 +158,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
                     {/* Lead Quantity Selector */}
                     <div className="mb-3">
                       <Select 
-                        value={leadsQty.toString()} 
+                        value={String(leadsQty ?? 100)} 
                         onValueChange={(v) => handleLeadsChange(plano.planKey, v)}
                       >
                         <SelectTrigger className="w-full">
@@ -166,7 +166,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
                         </SelectTrigger>
                         <SelectContent>
                           {LEAD_QUANTITIES.map((qty) => (
-                            <SelectItem key={qty} value={qty.toString()}>
+                            <SelectItem key={qty} value={String(qty ?? 100)}>
                               {qty.toLocaleString('pt-BR')} leads/mês
                             </SelectItem>
                           ))}
@@ -226,7 +226,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
               {/* Lead Quantity Selector */}
               <div className="mb-4">
                 <Select 
-                  value={agenciaLeads.toString()} 
+                  value={String(agenciaLeads ?? 100)} 
                   onValueChange={(v) => handleLeadsChange('agencia', v)}
                 >
                   <SelectTrigger className="w-full">
@@ -234,7 +234,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
                   </SelectTrigger>
                   <SelectContent>
                     {LEAD_QUANTITIES.map((qty) => (
-                      <SelectItem key={qty} value={qty.toString()}>
+                      <SelectItem key={qty} value={String(qty ?? 100)}>
                         {qty.toLocaleString('pt-BR')} leads/mês
                       </SelectItem>
                     ))}

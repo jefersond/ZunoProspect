@@ -1,20 +1,13 @@
-# Progress - Zuno Prospect
-
-## ✅ Concluído
-
-### Sprint 27/04/2026 - Correção 404 + Harmonização LP
-
-**Problema 1: Erro 404 ao acessar o app**
-- [x] Causa identificada: SPA sem `vercel.json` de roteamento.
-- [x] Criado `vercel.json` com regra `rewrites` → todas as rotas servem `index.html`.
-- [x] Após o próximo `git push`, o erro 404 será eliminado.
-
-**Problema 2: LP com cores inconsistentes com o design system**
-- [x] `HeroSection.tsx`: Removido tema dark hardcoded (`bg-zinc-900/40`, `text-white`, `text-zinc-400`, gradiente `teal/cyan`). Substituído por variáveis semânticas (`text-foreground`, `text-muted-foreground`, `bg-card/60`, `text-primary`).
-- [x] `LPHeader.tsx`: Corrigidos botões `Entrar` e `Começar Grátis` — de `emerald-600` hardcoded para `bg-primary`.
-- [x] `CTAFinalSection.tsx`: Corrigido botão principal de `emerald-600` para `bg-primary`.
-- [x] `DepoimentosSection.tsx`: Corrigidas cores dos avatares — removidos `blue-500`, `purple-500`, `amber-500`. Substituídos por variações de `primary`.
-- [x] `ParaQuemSection.tsx`: Corrigido `text-emerald-500` → `text-primary` nos ícones de checkmark.
-
-## Próximos Passos
-- [ ] Fazer `git add . && git commit && git push` para aplicar as correções no Vercel.
+# VLAEG - Progress
+- Tentativa de aplicar migration `20260502133000_email_remarketing_safety.sql` via Supabase CLI.
+- Erro no push: Conflito com tabela `leads` pré-existente (`relation "leads" already exists`), o histórico de migrações remoto está dessincronizado.
+- Todas as funções foram publicadas com sucesso no projeto ihtltqxxlvbsxbiacbpr:
+  - `send-email-campaign`
+  - `test-email-config`
+  - `track-email-open`
+  - `track-email-click`
+  - `unsubscribe-email`
+- As secrets (RESEND_API_KEY, RESEND_FROM_EMAIL, etc.) serão adicionadas pelo usuário.
+- O código atualizado foi enviado para a Vercel com sucesso, permitindo o teste de envio real em produção.
+- Card de indicação (`ReferralCard.tsx`) aprimorado para exibir 3 métricas distintas: Indicações Feitas, Buscas Extras Disponíveis e Leads Disponíveis Totais.
+- Integração do `useSubscription` no `ReferralCard.tsx` para garantir que o saldo total seja o mesmo exibido nos demais badges da aplicação.

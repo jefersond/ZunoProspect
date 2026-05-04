@@ -1,4 +1,4 @@
-project_id = "ihltlgxxlvbsxbiacbpr"
+project_id = "ihtltqxxlvbsxbiacbpr"
 
 [functions.leads-sensitive]
 verify_jwt = true
@@ -49,4 +49,7 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.admin-get-users]
+verify_jwt = false
+
+[functions.unsubscribe-email]
 verify_jwt = false

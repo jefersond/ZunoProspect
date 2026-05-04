@@ -756,26 +756,35 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          buscas_saldo: number
           created_at: string
           empresa: string | null
           id: string
           nome_completo: string | null
+          referral_code: string | null
+          referred_by: string | null
           updated_at: string
         }
         Insert: {
           avatar_url?: string | null
+          buscas_saldo?: number
           created_at?: string
           empresa?: string | null
           id: string
           nome_completo?: string | null
+          referral_code?: string | null
+          referred_by?: string | null
           updated_at?: string
         }
         Update: {
           avatar_url?: string | null
+          buscas_saldo?: number
           created_at?: string
           empresa?: string | null
           id?: string
           nome_completo?: string | null
+          referral_code?: string | null
+          referred_by?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1104,6 +1113,10 @@ export type Database = {
       }
     }
     Functions: {
+      apply_referral_code: {
+        Args: { p_referral_code: string; p_user_id: string }
+        Returns: boolean
+      }
       can_access_lead_sensitive: {
         Args: { p_lead_id: string }
         Returns: boolean

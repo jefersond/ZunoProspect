@@ -76,7 +76,9 @@ export default function Checkout() {
   // Get params from URL
   const planoParam = searchParams.get("plano")?.toLowerCase() as PlanoKey | null;
   const anualParam = searchParams.get("anual");
+  const leadsQtyParam = Number(searchParams.get("leadsQty") || "100");
   const googleAuth = searchParams.get("google_auth");
+  const referralCode = searchParams.get("ref");
   
   // State for selected plan - default to URL param or "pro"
   const [selectedPlano, setSelectedPlano] = useState<PlanoKey>(
@@ -86,16 +88,27 @@ export default function Checkout() {
   const plano = PLANOS[selectedPlano];
   
   const [isAnual, setIsAnual] = useState(anualParam === "true");
+  const selectedLeadsQty = Number.isFinite(leadsQtyParam) && leadsQtyParam > 0 ? leadsQtyParam : 100;
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGoogleProcessing, setIsGoogleProcessing] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
   const hasTrackedCheckout = useRef(false);
   const hasHandledGoogleAuth = useRef(false);
 
   // Note: OAuth callback is now handled by /auth page which checks for checkout_pending
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return;
+
+      setHasSession(true);
+      setEmail(session.user.email || "");
+      setNome(session.user.user_metadata?.full_name || session.user.user_metadata?.name || "");
+    });
+  }, []);
 
   // Track InitiateCheckout on mount
   useEffect(() => {
@@ -142,9 +155,13 @@ export default function Checkout() {
     try {
       // Store checkout info in localStorage for after OAuth redirect
       localStorage.setItem('checkout_pending', JSON.stringify({
-        plano: plano.nome,
-        isAnual
+        plano: selectedPlano,
+        isAnual,
+        leadsQty: selectedLeadsQty
       }));
+      if (referralCode) {
+        localStorage.setItem("pending_referral", referralCode);
+      }
 
       const redirectBase = getAuthRedirectBaseUrl();
       
@@ -169,6 +186,11 @@ export default function Checkout() {
   };
 
   const validateAndCreateAccount = async (): Promise<boolean> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      return true;
+    }
+
     if (!senha || senha.length < 8) {
       toast.error("A senha deve ter pelo menos 8 caracteres");
       return false;
@@ -179,14 +201,21 @@ export default function Checkout() {
     }
 
     const redirectBase = getAuthRedirectBaseUrl();
-    const { error: authError } = await supabase.auth.signUp({
+    console.log("Auth action:", "checkout-signup");
+    console.log("referral code:", referralCode ? "presente" : "ausente");
+    const { data, error: authError } = await supabase.auth.signUp({
       email,
       password: senha,
       options: {
-        emailRedirectTo: `${redirectBase}/`,
-        data: { full_name: nome }
+        emailRedirectTo: `${redirectBase}/auth`,
+        data: {
+          full_name: nome,
+          selected_plan: selectedPlano,
+          referred_by_code: referralCode || null,
+        }
       }
     });
+    console.log("signUp session exists:", !!data.session);
 
     if (authError) {
       if (authError.message.includes("already registered")) {
@@ -196,6 +225,15 @@ export default function Checkout() {
       }
       return false;
     }
+    if (!data.session) {
+      toast.info("Conta criada. Verifique seu e-mail para confirmar o acesso.", {
+        description: "Depois de confirmar, entre novamente para finalizar o pagamento."
+      });
+      setSenha("");
+      return false;
+    }
+
+    setHasSession(true);
     return true;
   };
 
@@ -203,6 +241,7 @@ export default function Checkout() {
     e.preventDefault();
     if (!nome.trim()) { toast.error("Informe seu nome completo"); return; }
     if (!email.trim()) { toast.error("Informe seu email"); return; }
+    if (!hasSession && !senha.trim()) { toast.error("Informe uma senha para criar sua conta"); return; }
     
     setIsProcessing(true);
     try {
@@ -216,13 +255,13 @@ export default function Checkout() {
         value: preco
       });
 
-      toast.loading("Conta criada! Gerando link de pagamento seguro...");
+      toast.loading(hasSession ? "Gerando link de pagamento seguro..." : "Conta criada! Gerando link de pagamento seguro...");
 
       // Chamar Edge Function do Stripe
       const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
         body: {
           planKey: selectedPlano,
-          leadsQty: 100,
+          leadsQty: selectedLeadsQty,
           isAnual
         }
       });
@@ -346,7 +385,7 @@ export default function Checkout() {
               </div>
 
               {/* Google Sign In Button */}
-              <div className="space-y-3">
+              {!hasSession && <div className="space-y-3">
                 <Button
                   type="button"
                   variant="outline"
@@ -366,10 +405,10 @@ export default function Checkout() {
                     </>
                   )}
                 </Button>
-              </div>
+              </div>}
 
               {/* Divider */}
-              <div className="relative">
+              {!hasSession && <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
                 </div>
@@ -378,7 +417,7 @@ export default function Checkout() {
                     ou cadastre com email
                   </span>
                 </div>
-              </div>
+              </div>}
 
               {/* Form Fields */}
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -391,7 +430,7 @@ export default function Checkout() {
                       value={nome} 
                       onChange={e => setNome(e.target.value)} 
                       required 
-                      disabled={isAnyProcessing}
+                      disabled={isAnyProcessing || hasSession}
                     />
                   </div>
                   <div className="space-y-2">
@@ -403,10 +442,10 @@ export default function Checkout() {
                       value={email} 
                       onChange={e => setEmail(e.target.value)} 
                       required 
-                      disabled={isAnyProcessing}
+                      disabled={isAnyProcessing || hasSession}
                     />
                   </div>
-                  <div className="space-y-2">
+                  {!hasSession && <div className="space-y-2">
                     <Label htmlFor="senha">Senha *</Label>
                     <div className="relative">
                       <Input 
@@ -452,7 +491,7 @@ export default function Checkout() {
                         </div>
                       </div>
                     )}
-                  </div>
+                  </div>}
                 </div>
 
                 {/* Submit Button */}
@@ -470,7 +509,7 @@ export default function Checkout() {
                     ) : (
                       <>
                         <ExternalLink className="h-5 w-5 mr-2" />
-                        Criar conta e pagar
+                        {hasSession ? "Ir para pagamento" : "Criar conta e pagar"}
                       </>
                     )}
                   </Button>

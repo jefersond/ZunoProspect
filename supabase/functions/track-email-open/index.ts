@@ -17,6 +17,7 @@ serve(async (req: Request): Promise<Response> => {
     const userId = url.searchParams.get('uid');
     const emailType = url.searchParams.get('type');
     const testId = url.searchParams.get('test_id'); // A/B test ID
+    const queueId = url.searchParams.get('qid');
     
     console.log(`[track-email-open] Request received: userId=${userId}, emailType=${emailType}, testId=${testId}`);
     
@@ -31,6 +32,47 @@ serve(async (req: Request): Promise<Response> => {
           persistSession: false,
         },
       });
+
+      if (queueId) {
+        const openedAt = new Date().toISOString();
+
+        const { data: queueRecord, error: queueFetchError } = await supabase
+          .from('email_queue')
+          .select('id, campaign_id, opened_at')
+          .eq('id', queueId)
+          .maybeSingle();
+
+        if (queueFetchError) {
+          console.error(`[track-email-open] Error fetching queue_id=${queueId}: ${queueFetchError.message}`);
+        } else if (queueRecord && !queueRecord.opened_at) {
+          await supabase
+            .from('email_queue')
+            .update({ opened_at: openedAt })
+            .eq('id', queueId);
+
+          await supabase
+            .from('email_logs')
+            .update({ opened_at: openedAt, status: 'aberto' })
+            .eq('queue_id', queueId);
+
+          if (queueRecord.campaign_id) {
+            const { error: incrementError } = await supabase.rpc('increment_email_campaign_open', {
+              p_campaign_id: queueRecord.campaign_id,
+            });
+            if (incrementError) {
+              console.error(`[track-email-open] Error incrementing campaign opens: ${incrementError.message}`);
+            }
+          }
+
+          await supabase.from('email_events').insert({
+            campaign_id: queueRecord.campaign_id,
+            queue_id: queueId,
+            user_id: userId,
+            email_type: emailType,
+            event_type: 'open',
+          });
+        }
+      }
       
       // Update onboarding_emails_sent table
       const { data: existingRecord, error: fetchError } = await supabase

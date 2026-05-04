@@ -7,7 +7,8 @@ serve(async (req: Request): Promise<Response> => {
     const userId = url.searchParams.get('uid');
     const emailType = url.searchParams.get('type');
     const testId = url.searchParams.get('test_id');
-    const redirectUrl = url.searchParams.get('redirect') || 'https://leadflux.digital';
+    const queueId = url.searchParams.get('qid');
+    const redirectUrl = url.searchParams.get('redirect') || 'https://www.zunopropect.com.br';
     
     console.log(`[track-email-click] Click received: userId=${userId}, emailType=${emailType}, testId=${testId}, redirect=${redirectUrl}`);
     
@@ -21,6 +22,39 @@ serve(async (req: Request): Promise<Response> => {
           persistSession: false,
         },
       });
+
+      if (queueId) {
+        const clickedAt = new Date().toISOString();
+
+        const { data: queueRecord, error: queueFetchError } = await supabase
+          .from('email_queue')
+          .select('id, campaign_id, clicked_at')
+          .eq('id', queueId)
+          .maybeSingle();
+
+        if (queueFetchError) {
+          console.error(`[track-email-click] Error fetching queue_id=${queueId}: ${queueFetchError.message}`);
+        } else if (queueRecord && !queueRecord.clicked_at) {
+          await supabase
+            .from('email_queue')
+            .update({ clicked_at: clickedAt })
+            .eq('id', queueId);
+
+          await supabase
+            .from('email_logs')
+            .update({ clicked_at: clickedAt, status: 'clicado' })
+            .eq('queue_id', queueId);
+
+          await supabase.from('email_events').insert({
+            campaign_id: queueRecord.campaign_id,
+            queue_id: queueId,
+            user_id: userId,
+            email_type: emailType,
+            event_type: 'click',
+            metadata: { redirect: redirectUrl },
+          });
+        }
+      }
       
       // Update onboarding_emails_sent table if it has clicked_at column
       // For now, we'll just log it since the table doesn't have clicked_at
@@ -68,7 +102,7 @@ serve(async (req: Request): Promise<Response> => {
     console.error('[track-email-click] Error tracking click:', error);
     // Still redirect even if tracking fails
     const url = new URL(req.url);
-    const redirectUrl = url.searchParams.get('redirect') || 'https://leadflux.digital';
+    const redirectUrl = url.searchParams.get('redirect') || 'https://www.zunopropect.com.br';
     return new Response(null, {
       status: 302,
       headers: { 'Location': redirectUrl },

@@ -1,16 +1,20 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Copy, CheckCircle2, Gift, Users, Sparkles } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Copy, CheckCircle2, Gift, Users, Sparkles, Database } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useSubscription } from "@/hooks/useSubscription";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const supabaseAny = supabase as any;
 
 export function ReferralCard() {
+  const { subscription, isAdmin } = useSubscription();
   const [copied, setCopied] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [indicacoesAtuais, setIndicacoesAtuais] = useState(0);
-  const [buscasSaldo, setBuscasSaldo] = useState(0);
+  const [bonusIndicacaoSaldo, setBonusIndicacaoSaldo] = useState(0);
 
   useEffect(() => {
     async function loadReferralData() {
@@ -26,7 +30,7 @@ export function ReferralCard() {
 
         if (data) {
           setReferralCode(data.referral_code ?? null);
-          setBuscasSaldo(data.buscas_saldo ?? 0);
+          setBonusIndicacaoSaldo(data.buscas_saldo ?? 0);
         }
 
         const { count } = await supabaseAny
@@ -36,11 +40,14 @@ export function ReferralCard() {
 
         setIndicacoesAtuais(count ?? 0);
       } catch {
-        // Colunas ainda não migradas — card renderiza com valores padrão
+        // Colunas ainda não migradas: o card renderiza com valores padrão.
       }
     }
     loadReferralData();
   }, []);
+
+  const buscasExtrasDisponiveis = indicacoesAtuais > 0 ? bonusIndicacaoSaldo : 0;
+  const leadsTotais = isAdmin ? "Ilimitado" : (subscription?.leads_remaining ?? 0);
 
   const referralLink = referralCode
     ? `https://zunopropect.com.br/auth?ref=${referralCode}`
@@ -54,84 +61,110 @@ export function ReferralCard() {
   };
 
   return (
-    <div className="relative rounded-2xl overflow-hidden">
-      {/* Borda gradiente */}
-      <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-indigo-500/40 via-purple-500/30 to-teal-500/40 p-[1px]">
-        <div className="h-full w-full rounded-2xl bg-card/90" />
-      </div>
-
-      {/* Brilhos de fundo */}
-      <div className="absolute top-0 left-1/4 w-64 h-64 bg-indigo-600/10 rounded-full blur-[80px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-600/10 rounded-full blur-[80px] pointer-events-none" />
-
-      <div className="relative z-10 p-6 md:p-8">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center gap-6">
-
-          {/* Ícone decorativo */}
-          <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center">
-            <Gift className="w-7 h-7 text-indigo-400" />
-          </div>
-
-          {/* Texto principal */}
-          <div className="flex-1 space-y-1">
-            <div className="flex items-center gap-2">
-              <h3 className="text-xl font-bold text-foreground">🎁 Indique e Ganhe</h3>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 text-xs font-medium">
-                <Sparkles className="w-3 h-3" /> Novo
-              </span>
-            </div>
-            <p className="text-muted-foreground text-sm leading-relaxed max-w-xl">
-              Indique o Zuno Prospect para um parceiro e ganhe{" "}
-              <span className="text-indigo-400 font-semibold">100 buscas adicionais grátis</span>{" "}
-              na mesma hora.
-            </p>
-
-            {/* Estatísticas rápidas */}
-            <div className="flex items-center gap-4 pt-1">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Users className="w-3.5 h-3.5 text-indigo-400" />
-                <span className="text-foreground font-medium">{indicacoesAtuais}</span>
-                <span>indicações feitas</span>
+    <Card className="border-border/60 bg-card text-card-foreground shadow-lg">
+      <CardContent className="p-5 md:p-6">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] xl:items-center">
+          <div className="space-y-5">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/30">
+                <Gift className="h-5 w-5 text-primary" />
               </div>
-              <div className="w-px h-3 bg-border" />
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-foreground font-medium">{buscasSaldo}</span>
-                <span>buscas disponíveis</span>
+
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-semibold tracking-tight text-foreground">
+                    Indique e Ganhe
+                  </h3>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    Referral
+                  </span>
+                </div>
+                <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Convide parceiros para usar o Zuno Prospect e receba buscas extras quando eles entrarem.
+                </p>
               </div>
             </div>
-          </div>
 
-          {/* Área do link + botão */}
-          <div className="w-full lg:w-auto flex flex-col sm:flex-row lg:flex-col gap-2 flex-shrink-0 lg:min-w-[280px]">
-            <div className="flex-1 bg-background border border-border rounded-xl px-3 py-2.5 text-muted-foreground font-mono text-xs truncate">
-              {referralLink}
+            <div className="rounded-lg border border-border/50 bg-background/40 p-4">
+              <p className="text-sm text-muted-foreground">
+                Cada indicação válida adiciona{" "}
+                <span className="font-medium text-foreground">100 buscas extras</span>{" "}
+                ao seu saldo bônus. Seu saldo total de leads é atualizado separadamente.
+              </p>
             </div>
-            <Button
-              onClick={handleCopyLink}
-              disabled={!referralCode}
-              className={`w-full sm:w-auto lg:w-full gap-2 font-semibold py-5 rounded-xl transition-all duration-300 ${
-                copied
-                  ? "bg-emerald-500 hover:bg-emerald-600 text-white"
-                  : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white hover:scale-[1.02]"
-              }`}
-            >
-              {copied ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  Link Copiado! ✅
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  Copiar Link de Indicação
-                </>
-              )}
-            </Button>
+
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/40 p-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted/50">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold leading-none text-foreground">{indicacoesAtuais}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">indicações feitas</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/40 p-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted/50">
+                  <Sparkles className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold leading-none text-foreground">{buscasExtrasDisponiveis}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">buscas extras disponíveis</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/40 p-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted/50">
+                  <Database className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold leading-none text-foreground">{leadsTotais}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">leads disponíveis totais</p>
+                </div>
+              </div>
+            </div>
           </div>
 
+          <div className="rounded-lg border border-border/50 bg-background/40 p-4">
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Link de indicação</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Compartilhe este link com quem pode aproveitar o Zuno Prospect.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
+                <Input
+                  value={referralLink}
+                  readOnly
+                  className="h-10 flex-1 truncate font-mono text-xs text-muted-foreground"
+                  aria-label="Link de indicação"
+                />
+                <Button
+                  onClick={handleCopyLink}
+                  disabled={!referralCode}
+                  variant={copied ? "success" : "default"}
+                  className="h-10 shrink-0 sm:min-w-[210px] xl:w-full"
+                >
+                  {copied ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" />
+                      Link copiado
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" />
+                      Copiar link de indicação
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

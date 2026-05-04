@@ -115,14 +115,7 @@ serve(async (req) => {
       .eq('user_id', userId)
       .single();
 
-    const { data: adminRole } = await supabaseAdmin
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'admin')
-      .single();
-
-    const isAdmin = !!adminRole;
+    const { data: isAdmin } = await supabaseAdmin.rpc('is_admin', { _user_id: userId });
     const isAgency = subscription?.plan_name === 'agencia';
 
     if (!isAdmin && !isAgency) {

@@ -40,7 +40,16 @@ type FormData = z.infer<typeof formSchema>;
 export const ProspeccaoForm = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { subscription, canUseLeads, incrementLeadsUsed, refetch, canUseUsaProspecting } = useSubscription();
+  const {
+    subscription,
+    loading: subscriptionLoading,
+    error: subscriptionError,
+    isAdmin,
+    canUseLeads,
+    incrementLeadsUsed,
+    refetch,
+    canUseUsaProspecting,
+  } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [proximidadeAtiva, setProximidadeAtiva] = useState(false);
   const [raioKm, setRaioKm] = useState([5]);
@@ -121,9 +130,17 @@ export const ProspeccaoForm = () => {
   const canaisProspeccao = watch("canaisProspeccao");
   const quantidade = watch("quantidade");
 
-  // Verifica se pode buscar leads
-  const canSearch = canUseLeads(quantidade || 0);
-  const isAtLimit = subscription && subscription.leads_limit !== -1 && subscription.leads_remaining <= 0;
+  const isAtLimit = !subscriptionLoading && !isAdmin && subscription && subscription.leads_limit !== -1 && subscription.leads_remaining <= 0;
+  const availableLeads = subscription?.leads_limit === -1 || isAdmin
+    ? 100
+    : Math.max(1, Math.min(100, subscription?.leads_remaining ?? 100));
+  const quantityAvailabilityText = subscription
+    ? (subscription.leads_limit === -1 || isAdmin
+        ? "Leads ilimitados"
+        : (Math.max(0, subscription.leads_remaining) === 0
+            ? "nenhum disponível"
+            : `${Math.max(0, subscription.leads_remaining)} ${Math.max(0, subscription.leads_remaining) === 1 ? "disponível" : "disponíveis"}`))
+    : null;
 
   // Calcula tempo estimado baseado na quantidade de leads
   const calculateEstimatedTime = (qty: number): number => {
@@ -188,6 +205,23 @@ export const ProspeccaoForm = () => {
   };
 
   const runSearch = async (data: FormData, isIncrementalSearch: boolean) => {
+    if (subscriptionLoading) {
+      toast({
+        title: "Carregando informações do plano...",
+        description: "Aguarde alguns instantes enquanto preparamos sua conta.",
+      });
+      return;
+    }
+
+    if (!subscription) {
+      toast({
+        title: "Preparando sua conta...",
+        description: "Estamos criando seu perfil e saldo inicial. Tente novamente em instantes.",
+      });
+      await refetch();
+      return;
+    }
+
     // Verifica se tem pelo menos 1 lead disponível
     if (!canUseLeads(1)) {
       toast({
@@ -292,12 +326,32 @@ export const ProspeccaoForm = () => {
       }
 
       if (error) {
-        console.error("Erro Edge Function:", {
+        let edgeErrorPayload: any = null;
+        const contextResponse = (error as any)?.context;
+
+        if (contextResponse instanceof Response) {
+          try {
+            const text = await contextResponse.clone().text();
+            edgeErrorPayload = text ? JSON.parse(text) : null;
+          } catch (parseError) {
+            console.error("Erro ao ler resposta de erro da Edge Function:", parseError);
+          }
+        }
+
+        console.error("Erro da Edge Function:", {
           message: error.message,
           name: error.name,
           context: error.context,
+          payload: edgeErrorPayload,
         });
-        throw new Error(error.message || "Não foi possível buscar leads agora.");
+
+        throw new Error(
+          edgeErrorPayload?.details ||
+          edgeErrorPayload?.error ||
+          error.message ||
+          "Não foi possível buscar leads agora."
+        );
+
       }
 
       setCurrentStep(7);
@@ -502,6 +556,31 @@ export const ProspeccaoForm = () => {
         </div>
       </CardHeader>
       <CardContent>
+        {subscriptionLoading && (
+          <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground flex items-center gap-3">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <span>Carregando informações do plano...</span>
+          </div>
+        )}
+
+        {!subscriptionLoading && !subscription && (
+          <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
+            Preparando sua conta...
+          </div>
+        )}
+
+        {!subscriptionLoading && subscriptionError && (
+          <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
+            Não foi possível atualizar os dados do plano agora. Você ainda pode tentar buscar leads.
+          </div>
+        )}
+
+        {isAtLimit && (
+          <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            Limite de leads atingido. Faça upgrade do seu plano para continuar prospectando.
+          </div>
+        )}
+
         {/* Incentivo de upgrade */}
         {upgradeIncentive && (
           <div className="mb-6">
@@ -684,9 +763,9 @@ export const ProspeccaoForm = () => {
             <div className="space-y-2">
               <Label htmlFor="quantidade">
                 Quantidade de leads
-                {subscription && subscription.leads_limit !== -1 && (
+                {quantityAvailabilityText && (
                   <span className="text-xs text-muted-foreground ml-2">
-                    (máx: {subscription.leads_remaining})
+                    ({quantityAvailabilityText})
                   </span>
                 )}
               </Label>
@@ -694,7 +773,7 @@ export const ProspeccaoForm = () => {
                 id="quantidade"
                 type="number"
                 min="1"
-                max={subscription?.leads_limit === -1 ? 100 : Math.min(100, subscription?.leads_remaining || 100)}
+                max={availableLeads}
                 {...register("quantidade", { valueAsNumber: true })}
               />
               {errors.quantidade && (
@@ -831,45 +910,60 @@ export const ProspeccaoForm = () => {
             )}
           </div>
 
-          <div className="space-y-3">
-            <Button type="submit" className="w-full shadow-primary" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Buscando leads...
-                </>
-              ) : (
-                <>
-                  <Search className="mr-2 h-4 w-4" />
-                  Buscar leads
-                </>
-              )}
-            </Button>
-            
-            {showRepeatButton && lastSearchParams && (
-              <div className="flex gap-3">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={handleRepeatSearch}
-                  disabled={loading}
-                  className="flex-1"
-                >
-                  <Search className="mr-2 h-4 w-4" />
-                  Buscar novamente
-                </Button>
-                <Button 
-                  type="button" 
-                  variant="secondary" 
-                  onClick={handleIncrementalSearch}
-                  disabled={loading}
-                  className="flex-1"
-                >
-                  <Search className="mr-2 h-4 w-4" />
-                  Buscar mais leads
-                </Button>
+          <div className="rounded-xl border border-border/60 bg-card/45 p-5 shadow-sm ring-1 ring-white/5 sm:p-6">
+            <div className="mx-auto flex max-w-xl flex-col items-center gap-4 text-center">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">
+                  Revise os filtros e inicie sua busca
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Quando estiver tudo pronto, clique para encontrar os leads.
+                </p>
               </div>
-            )}
+
+              <Button
+                type="submit"
+                className="min-h-11 w-full max-w-sm shadow-primary"
+                disabled={loading || subscriptionLoading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Buscando leads...
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    Buscar leads
+                  </>
+                )}
+              </Button>
+
+              {showRepeatButton && lastSearchParams && (
+                <div className="grid w-full gap-3 sm:grid-cols-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleRepeatSearch}
+                    disabled={loading}
+                    className="w-full"
+                  >
+                    <Search className="mr-2 h-4 w-4" />
+                    Buscar novamente
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleIncrementalSearch}
+                    disabled={loading}
+                    className="w-full"
+                  >
+                    <Search className="mr-2 h-4 w-4" />
+                    Buscar mais leads
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </form>
 

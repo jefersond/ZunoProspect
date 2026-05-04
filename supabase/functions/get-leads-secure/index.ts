@@ -160,8 +160,7 @@ serve(async (req) => {
       // Get single lead with full details using secure wrapper
       // SECURITY: Encryption key passed as parameter, restricted to service_role
       const { data: leads, error } = await supabaseAdmin
-        .rpc('set_encryption_key_and_get_lead_by_id', { 
-          p_encryption_key: encryptionKey,
+        .rpc('get_lead_decrypted_by_id', {
           p_lead_id: leadId, 
           p_user_id: user.id 
         });

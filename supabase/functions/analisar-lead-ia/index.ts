@@ -440,7 +440,7 @@ serve(async (req) => {
     
     console.log("🔍 Iniciando análise:", { leadId, userId, hasNome: !!requestData.nome });
 
-    const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get("Gemini_API") || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_GEMINI_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 

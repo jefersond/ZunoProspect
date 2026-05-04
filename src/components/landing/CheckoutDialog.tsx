@@ -51,6 +51,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
   const [isGoogleProcessing, setIsGoogleProcessing] = useState(false);
   const hasTrackedCheckout = useRef(false);
   const { calculatePrice, getDisplayPrice } = useLeadPricing();
+  const referralCode = new URLSearchParams(window.location.search).get("ref");
 
   // Track InitiateCheckout when dialog opens
   useEffect(() => {
@@ -108,6 +109,9 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
         selectedLeads,
         isAnual
       }));
+      if (referralCode) {
+        localStorage.setItem("pending_referral", referralCode);
+      }
 
       const redirectBase = getAuthRedirectBaseUrl();
       
@@ -140,14 +144,21 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
     }
 
     const redirectBase = getAuthRedirectBaseUrl();
-    const { error: authError } = await supabase.auth.signUp({
+    console.log("Auth action:", "checkout-dialog-signup");
+    console.log("referral code:", referralCode ? "presente" : "ausente");
+    const { data, error: authError } = await supabase.auth.signUp({
       email,
       password: senha,
       options: {
-        emailRedirectTo: `${redirectBase}/`,
-        data: { full_name: nome }
+        emailRedirectTo: `${redirectBase}/auth`,
+        data: {
+          full_name: nome,
+          selected_plan: plano.planKey,
+          referred_by_code: referralCode || null,
+        }
       }
     });
+    console.log("signUp session exists:", !!data.session);
 
     if (authError) {
       if (authError.message.includes("already registered")) {
@@ -155,6 +166,13 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
       } else {
         toast.error("Erro ao criar conta", { description: authError.message });
       }
+      return false;
+    }
+    if (!data.session) {
+      toast.info("Conta criada. Verifique seu e-mail para confirmar o acesso.", {
+        description: "Depois de confirmar, entre novamente para finalizar o pagamento."
+      });
+      setSenha("");
       return false;
     }
     return true;

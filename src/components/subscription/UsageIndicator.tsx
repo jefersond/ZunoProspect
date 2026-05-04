@@ -8,7 +8,7 @@ interface UsageIndicatorProps {
 }
 
 export const UsageIndicator = ({ compact = false }: UsageIndicatorProps) => {
-  const { subscription, loading, isAdmin, getPlanDisplayName, getUsagePercentage } = useSubscription();
+  const { subscription, loading, isAdmin, getUsagePercentage } = useSubscription();
 
   if (loading || !subscription) {
     return null;
@@ -18,6 +18,12 @@ export const UsageIndicator = ({ compact = false }: UsageIndicatorProps) => {
   const percentage = getUsagePercentage();
   const isNearLimit = percentage >= 80;
   const isAtLimit = percentage >= 100;
+  const bonusSaldo = Math.max(0, subscription.buscas_saldo ?? 0);
+  const remainingLeads = Math.max(0, subscription.leads_remaining);
+
+  const availableLeadsText = remainingLeads <= 0
+    ? "Nenhum lead disponível"
+    : `${remainingLeads} ${remainingLeads === 1 ? "lead disponível" : "leads disponíveis"}`;
 
   if (compact) {
     return (
@@ -25,20 +31,20 @@ export const UsageIndicator = ({ compact = false }: UsageIndicatorProps) => {
         {isAdmin ? (
           <Badge variant="default" className="gap-1 bg-amber-500 hover:bg-amber-600">
             <Shield className="h-3 w-3" />
-            Admin
+            Leads ilimitados
           </Badge>
         ) : isUnlimited ? (
           <Badge variant="secondary" className="gap-1">
             <Infinity className="h-3 w-3" />
-            Ilimitado
+            Leads ilimitados
           </Badge>
         ) : (
-          <Badge 
+          <Badge
             variant={isAtLimit ? "destructive" : isNearLimit ? "outline" : "secondary"}
             className="gap-1"
           >
             <Zap className="h-3 w-3" />
-            {subscription.leads_used}/{subscription.leads_limit}
+            {availableLeadsText}
           </Badge>
         )}
       </div>
@@ -48,7 +54,7 @@ export const UsageIndicator = ({ compact = false }: UsageIndicatorProps) => {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">Leads usados este mês</span>
+        <span className="text-muted-foreground">Leads usados este mes</span>
         <span className="font-medium">
           {isUnlimited ? (
             <span className="flex items-center gap-1">
@@ -61,22 +67,36 @@ export const UsageIndicator = ({ compact = false }: UsageIndicatorProps) => {
       </div>
 
       {!isUnlimited && (
-        <Progress 
-          value={percentage} 
-          className={`h-2 ${isAtLimit ? '[&>div]:bg-destructive' : isNearLimit ? '[&>div]:bg-yellow-500' : ''}`}
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Leads disponíveis</span>
+          <span className="font-medium">{remainingLeads}</span>
+        </div>
+      )}
+
+      {!isUnlimited && bonusSaldo > 0 && (
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Buscas extras por indicação</span>
+          <span className="font-medium text-emerald-600 dark:text-emerald-400">{bonusSaldo}</span>
+        </div>
+      )}
+
+      {!isUnlimited && (
+        <Progress
+          value={percentage}
+          className={`h-2 ${isAtLimit ? "[&>div]:bg-destructive" : isNearLimit ? "[&>div]:bg-yellow-500" : ""}`}
         />
       )}
 
       {isAtLimit && !isUnlimited && (
         <div className="flex items-center gap-2 text-sm text-destructive">
           <AlertTriangle className="h-4 w-4" />
-          <span>Limite de leads atingido. Faça upgrade para continuar.</span>
+          <span>Limite de leads atingido. Faca upgrade para continuar.</span>
         </div>
       )}
 
       {isNearLimit && !isAtLimit && !isUnlimited && (
         <p className="text-xs text-muted-foreground">
-          Você usou {percentage}% do seu limite mensal
+          Voce usou {percentage}% do seu limite mensal
         </p>
       )}
 
@@ -89,7 +109,7 @@ export const UsageIndicator = ({ compact = false }: UsageIndicatorProps) => {
 
       {isUnlimited && !isAdmin && (
         <p className="text-xs text-emerald-600 dark:text-emerald-400">
-          Você tem leads ilimitados no plano Agência
+          Voce tem leads ilimitados no plano Agencia
         </p>
       )}
     </div>

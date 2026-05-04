@@ -11,9 +11,8 @@ import { Loader2, CheckCircle2, XCircle, ArrowLeft, Eye, EyeOff } from "lucide-r
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Progress } from "@/components/ui/progress";
 import { z } from "zod";
-import { trackLead, trackCompleteRegistration, trackAddPaymentInfo } from "@/lib/metaPixel";
+import { trackLead, trackCompleteRegistration } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
-import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
 import { Logo } from "@/components/Logo";
 
 // Google Icon Component
@@ -48,7 +47,7 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [signupPassword, setSignupPassword] = useState("");
-  const [activeTab, setActiveTab] = useState<string>("login");
+  const [activeTab, setActiveTab] = useState<string>(() => searchParams.get("tab") === "signup" ? "signup" : "login");
   const [showPassword, setShowPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -63,6 +62,52 @@ const Auth = () => {
     hasLowercase: false,
     hasNumber: false
   });
+  const selectedPlan = searchParams.get("plan") || searchParams.get("plano");
+  const selectedLeads = searchParams.get("leadsQty") || searchParams.get("leads") || "100";
+  const isAnualParam = searchParams.get("anual") || searchParams.get("isAnual") || "false";
+  const referralCode = searchParams.get("ref");
+
+  const checkoutTarget = selectedPlan
+    ? `/checkout?plano=${encodeURIComponent(selectedPlan)}&anual=${encodeURIComponent(isAnualParam)}&leadsQty=${encodeURIComponent(selectedLeads)}`
+    : null;
+
+  const storePendingCheckout = () => {
+    if (!selectedPlan) return;
+    localStorage.setItem("checkout_pending", JSON.stringify({
+      plano: selectedPlan,
+      isAnual: isAnualParam === "true",
+      leadsQty: Number(selectedLeads) || 100,
+    }));
+  };
+
+  const redirectAfterAuth = () => {
+    const pendingCheckout = localStorage.getItem("checkout_pending");
+    if (pendingCheckout) {
+      try {
+        const pending = JSON.parse(pendingCheckout);
+        localStorage.removeItem("checkout_pending");
+        navigate(`/checkout?plano=${encodeURIComponent(pending.plano || "pro")}&anual=${encodeURIComponent(String(!!pending.isAnual))}&leadsQty=${encodeURIComponent(String(pending.leadsQty || selectedLeads))}`, { replace: true });
+        return;
+      } catch {
+        localStorage.removeItem("checkout_pending");
+      }
+    }
+
+    if (checkoutTarget) {
+      navigate(checkoutTarget, { replace: true });
+      return;
+    }
+
+    const returnTo = searchParams.get("returnTo");
+    navigate(returnTo || "/prospeccao", { replace: true });
+  };
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", value);
+    window.history.replaceState({}, "", `${window.location.pathname}?${nextParams.toString()}`);
+  };
 
   // Handle Google OAuth login
   const handleGoogleLogin = async () => {
@@ -73,6 +118,7 @@ const Auth = () => {
       if (referralCode) {
         localStorage.setItem("pending_referral", referralCode);
       }
+      storePendingCheckout();
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -135,57 +181,13 @@ const Auth = () => {
 
   // Redirect authenticated users - check for pending checkout first
   useEffect(() => {
-    // Helper function to process pending checkout
-    const processPendingCheckout = (session: { user: { email?: string | null; user_metadata?: { full_name?: string; name?: string } } }) => {
-      const pendingCheckout = localStorage.getItem('checkout_pending');
-      if (pendingCheckout) {
-        try {
-          const { plano, isAnual } = JSON.parse(pendingCheckout);
-          localStorage.removeItem('checkout_pending');
-          
-          const userEmail = session.user.email || '';
-          const userName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || '';
-          
-          // Track payment info
-          trackAddPaymentInfo({
-            content_category: 'Kiwify',
-            currency: 'BRL',
-            value: 0
-          });
-
-          // Generate Kiwify checkout URL and redirect
-          const checkoutUrl = getKiwifyCheckoutUrl(plano, isAnual, userEmail, userName);
-          
-          toast({
-            title: "Logado com Google!",
-            description: "Redirecionando para o pagamento..."
-          });
-          
-          // Use setTimeout(0) to avoid Supabase auth deadlock
-          setTimeout(() => {
-            window.location.href = checkoutUrl;
-          }, 0);
-          return true;
-        } catch (e) {
-          localStorage.removeItem('checkout_pending');
-        }
-      }
-      return false;
-    };
-
     // Set up auth state listener to catch OAuth redirects
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         // Only process on sign-in events
         if (event === 'SIGNED_IN' && session) {
-          // Check for pending checkout
-          if (processPendingCheckout(session)) {
-            return;
-          }
-          
-          // Default: redirect to prospeccao (defer to avoid deadlock)
           setTimeout(() => {
-            navigate("/prospeccao");
+            redirectAfterAuth();
           }, 0);
         }
       }
@@ -194,17 +196,12 @@ const Auth = () => {
     // Also check for existing session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        // Check for pending checkout
-        if (processPendingCheckout(session)) {
-          return;
-        }
-        
-        navigate("/prospeccao");
+        redirectAfterAuth();
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, toast]);
+  }, [navigate, toast, checkoutTarget]);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -320,6 +317,16 @@ const Auth = () => {
     }
 
     const redirectBase = getAuthRedirectBaseUrl();
+    storePendingCheckout();
+    console.log("Auth action:", activeTab);
+    console.log("referral code:", referralCode ? "presente" : "ausente");
+    console.info("[Auth] submit", {
+      activeTab,
+      action: "signUp",
+      hasSelectedPlan: !!selectedPlan,
+      selectedPlan,
+      url: window.location.pathname + window.location.search,
+    });
     const {
       data,
       error
@@ -327,13 +334,15 @@ const Auth = () => {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth`,
+        emailRedirectTo: `${redirectBase}/auth`,
         data: {
           full_name: fullName,
-          referred_by_code: searchParams.get("ref") || null
+          selected_plan: selectedPlan || null,
+          referred_by_code: referralCode || null
         }
       }
     });
+    console.log("signUp session exists:", !!data.session);
     if (error) {
       // Traduzir erros comuns do Supabase
       let errorMessage = error.message;
@@ -360,19 +369,19 @@ const Auth = () => {
       // Verificar se já existe sessão (auto-confirm ativado)
       if (data.session) {
         toast({
-          title: "Bem-vindo ao Zuno Propect!",
+          title: "Bem-vindo ao Zuno Prospect!",
           description: "Sua conta foi criada com sucesso."
         });
         // Login automático - redireciona direto para o app
-        navigate("/prospeccao");
+        redirectAfterAuth();
       } else {
         // Fallback caso auto-confirm esteja desativado
         toast({
           title: "Conta criada com sucesso!",
-          description: "Verifique seu email para confirmar a conta."
+          description: "Conta criada. Verifique seu e-mail para confirmar o acesso."
         });
         setSignupPassword("");
-        setActiveTab("login");
+        handleTabChange("login");
       }
     }
     setLoading(false);
@@ -398,6 +407,14 @@ const Auth = () => {
     
     // Armazenar preferência de "lembrar-me"
     localStorage.setItem('rememberMe', rememberMe.toString());
+    storePendingCheckout();
+    console.info("[Auth] submit", {
+      activeTab,
+      action: "signInWithPassword",
+      hasSelectedPlan: !!selectedPlan,
+      selectedPlan,
+      url: window.location.pathname + window.location.search,
+    });
     
     const {
       data,
@@ -417,7 +434,7 @@ const Auth = () => {
       if (!rememberMe) {
         sessionStorage.setItem('logoutOnClose', 'true');
       }
-      navigate("/prospeccao");
+      redirectAfterAuth();
     }
     setLoading(false);
   };
@@ -436,7 +453,7 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6 bg-muted/50 p-1">
               <TabsTrigger 
                 value="login" 

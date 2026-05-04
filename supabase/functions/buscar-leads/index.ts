@@ -51,23 +51,88 @@ interface ProspeccaoRequest {
   pais?: "BR" | "US";
 }
 
+const ADMIN_EMAILS = new Set([
+  "jeferson.zanotell@gmail.com",
+  "jefeson.zanotell@gmail.com",
+]);
+
+function logStep(searchRunId: string, step: string, data?: Record<string, unknown>) {
+  console.log(`[buscar-leads:${searchRunId}] ${step}`, data ?? {});
+}
+
+function logError(searchRunId: string, step: string, error: unknown, data?: Record<string, unknown>) {
+  const safeError = error instanceof Error
+    ? { name: error.name, message: error.message }
+    : error;
+  console.error(`[buscar-leads:${searchRunId}] ${step}`, { error: safeError, ...(data ?? {}) });
+}
+
+function errorResponse(
+  corsHeaders: Record<string, string>,
+  status: number,
+  error: string,
+  details?: string,
+  code?: string,
+) {
+  return new Response(
+    JSON.stringify({ error, details, code }),
+    {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    }
+  );
+}
+
 serve(async (req) => {
   const corsCheck = handleCorsRequest(req);
   if (corsCheck) return corsCheck;
 
   const origin = req.headers.get("Origin");
   const corsHeaders = getCorsHeaders(origin);
+  const searchRunId = crypto.randomUUID();
 
   try {
+    logStep(searchRunId, "Inicio da Edge Function", {
+      method: req.method,
+      origin: origin ?? "sem-origin",
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    
-    // Generate unique search_run_id for this search session
-    const searchRunId = crypto.randomUUID();
+    const GOOGLE_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY");
     
     // SECURITY: Get encryption key from external secret (NOT from database)
     const encryptionKey = Deno.env.get('LEADS_ENCRYPTION_KEY');
+    logStep(searchRunId, "Secrets presentes", {
+      hasSupabaseUrl: !!supabaseUrl,
+      hasSupabaseAnonKey: !!supabaseAnonKey,
+      hasSupabaseServiceRoleKey: !!supabaseServiceKey,
+      hasGooglePlacesApiKey: !!GOOGLE_API_KEY,
+      hasLeadsEncryptionKey: !!encryptionKey,
+    });
+
+    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
+      return errorResponse(
+        corsHeaders,
+        500,
+        "Configuração Supabase incompleta",
+        "Verifique SUPABASE_URL, SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY nas secrets da Edge Function.",
+        "missing_supabase_secret",
+      );
+    }
+
+    if (!encryptionKey) {
+      logError(searchRunId, "Secret LEADS_ENCRYPTION_KEY ausente", new Error("LEADS_ENCRYPTION_KEY not configured"));
+      return errorResponse(
+        corsHeaders,
+        500,
+        "Configuração de segurança inválida",
+        "A secret LEADS_ENCRYPTION_KEY não está configurada no Supabase.",
+        "missing_leads_encryption_key",
+      );
+    }
     if (!encryptionKey) {
       console.error("❌ LEADS_ENCRYPTION_KEY not configured");
       return new Response(JSON.stringify({ error: "Configuração de segurança inválida" }), {
@@ -98,11 +163,32 @@ serve(async (req) => {
       });
     }
 
-    const body: ProspeccaoRequest = await req.json();
-    console.log("Buscando leads:", body);
+    const normalizedEmail = user.email?.trim().toLowerCase() || "";
+    logStep(searchRunId, "Usuário autenticado", {
+      userId: user.id,
+      emailDomain: normalizedEmail.split("@")[1] ?? "sem-email",
+    });
 
-    const GOOGLE_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY");
-    
+    const { data: adminCheck, error: adminError } = await supabaseAdmin.rpc("is_admin", { _user_id: user.id });
+    if (adminError) {
+      logError(searchRunId, "Erro ao consultar is_admin", adminError);
+    }
+    const isAdminUser = ADMIN_EMAILS.has(normalizedEmail) || adminCheck === true;
+
+    const body: ProspeccaoRequest = await req.json();
+    logStep(searchRunId, "Payload recebido", {
+      cidade: body.cidade,
+      estado: body.estado,
+      nichoLength: body.nicho?.length ?? 0,
+      quantidade: body.quantidade,
+      foco: body.foco,
+      proximidadeAtiva: body.proximidadeAtiva,
+      raioKm: body.raioKm ?? null,
+      canaisProspeccao: body.canaisProspeccao ?? null,
+      excludePlaceIdsCount: body.excludePlaceIds?.length ?? 0,
+      pais: body.pais ?? "BR",
+    });
+
     let leads: any[] = [];
     let totalAvailable = 0; // Total de leads disponíveis ANTES de limitar
     let exhaustedSource = false; // Indica se esgotou as possibilidades do Google
@@ -138,6 +224,14 @@ serve(async (req) => {
         console.log(`📄 Buscando página ${currentPage + 1}/${maxPages}...`);
         const response = await fetch(url);
         const data = await response.json();
+        logStep(searchRunId, "Resposta Google Places Search", {
+          page: currentPage + 1,
+          httpStatus: response.status,
+          googleStatus: data.status,
+          resultsCount: data.results?.length ?? 0,
+          hasErrorMessage: !!data.error_message,
+          errorMessage: data.error_message ?? null,
+        });
 
         if (data.status === "OK" && data.results?.length > 0) {
           // Deduplica por place_id
@@ -342,6 +436,13 @@ serve(async (req) => {
 
       const geocodeResponse = await fetch(geocodeUrl);
       const geocodeData = await geocodeResponse.json();
+      logStep(searchRunId, "Resposta Google Geocoding", {
+        httpStatus: geocodeResponse.status,
+        googleStatus: geocodeData.status,
+        resultsCount: geocodeData.results?.length ?? 0,
+        hasErrorMessage: !!geocodeData.error_message,
+        errorMessage: geocodeData.error_message ?? null,
+      });
 
       if (geocodeData.status === "OK" && geocodeData.results[0]) {
         location = geocodeData.results[0].geometry.location;
@@ -473,19 +574,45 @@ serve(async (req) => {
     }
     
     // Verificar quota do usuário ANTES de processar
-    const { data: subscriptionData } = await supabaseClient.rpc('get_subscription_info', {
+    const { data: subscriptionData, error: subscriptionError } = await supabaseAdmin.rpc('get_subscription_info', {
       p_user_id: user.id
     });
+
+    if (subscriptionError && !isAdminUser) {
+      console.error("Erro ao buscar quota do usuário:", subscriptionError);
+    }
+
+    const { data: profileQuota, error: profileQuotaError } = await supabaseAdmin
+      .from("profiles")
+      .select("buscas_saldo")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileQuotaError) {
+      logError(searchRunId, "Erro ao buscar saldo do profile", profileQuotaError);
+    }
     
-    const userQuota = subscriptionData?.[0]?.leads_remaining ?? body.quantidade;
-    const isUnlimited = subscriptionData?.[0]?.leads_limit === -1;
+    const subscriptionInfo = subscriptionData?.[0];
+    const planQuota = subscriptionInfo?.leads_remaining ?? body.quantidade;
+    const bonusQuota = Math.max(0, profileQuota?.buscas_saldo ?? 0);
+    const isUnlimited = isAdminUser || subscriptionInfo?.leads_limit === -1;
+    const userQuota = isUnlimited ? body.quantidade : Math.max(0, planQuota) + bonusQuota;
     
     // Calcula quantos leads podem ser processados
     const leadsAfterFilter = leads.length;
     const maxLeadsToProcess = isUnlimited ? body.quantidade : Math.min(body.quantidade, Math.max(0, userQuota));
     const limitedByQuota = !isUnlimited && (leadsAfterFilter > userQuota || userQuota <= 0);
     
-    console.log(`Quota do usuário: ${isUnlimited ? 'ilimitado' : userQuota} | Leads após filtro: ${leadsAfterFilter} | Será processado: ${Math.min(leadsAfterFilter, maxLeadsToProcess)}`);
+    logStep(searchRunId, "Quota calculada", {
+      isUnlimited,
+      isAdminUser,
+      planQuota,
+      bonusQuota,
+      userQuota: isUnlimited ? "ilimitado" : userQuota,
+      leadsAfterFilter,
+      maxLeadsToProcess,
+      limitedByQuota,
+    });
     
     // Separa leads desbloqueados e bloqueados (para mostrar preview com blur)
     const unlockedLeads = leads.slice(0, maxLeadsToProcess);
@@ -718,6 +845,13 @@ serve(async (req) => {
           const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,geometry&key=${GOOGLE_API_KEY}`;
           const detailsResponse = await fetch(detailsUrl);
           detailsData = await detailsResponse.json();
+          logStep(searchRunId, "Resposta Google Place Details", {
+            httpStatus: detailsResponse.status,
+            googleStatus: detailsData.status,
+            hasResult: !!detailsData.result,
+            hasErrorMessage: !!detailsData.error_message,
+            errorMessage: detailsData.error_message ?? null,
+          });
         } else {
           detailsData = {
             status: "OK",
@@ -1005,13 +1139,13 @@ serve(async (req) => {
       }
     );
   } catch (error: any) {
-    console.error("Erro na busca de leads:", error);
-    return new Response(
-      JSON.stringify({ error: error.message || "Erro ao buscar leads" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+    logError(searchRunId, "Erro geral na busca de leads", error);
+    return errorResponse(
+      corsHeaders,
+      500,
+      "Erro ao buscar leads",
+      error?.message || "Erro interno na Edge Function buscar-leads.",
+      "buscar_leads_internal_error",
     );
   }
 });

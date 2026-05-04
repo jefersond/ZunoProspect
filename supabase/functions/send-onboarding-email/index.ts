@@ -17,6 +17,9 @@ const generateTrackingPixel = (userId: string, emailType: string, testId?: strin
   return `<img src="${trackingUrl}" width="1" height="1" style="display:none;" alt="" />`;
 };
 
+const generateUnsubscribeLink = (userId: string, emailType: string): string =>
+  `${SUPABASE_URL}/functions/v1/unsubscribe-email?uid=${encodeURIComponent(userId)}&source=${encodeURIComponent(emailType)}`;
+
 // Generate trackable CTA link
 const generateTrackableLink = (userId: string, emailType: string, destinationUrl: string, testId?: string): string => {
   let trackingUrl = `${SUPABASE_URL}/functions/v1/track-email-click?uid=${encodeURIComponent(userId)}&type=${encodeURIComponent(emailType)}&redirect=${encodeURIComponent(destinationUrl)}`;
@@ -51,7 +54,7 @@ interface UserToOnboard {
 
 // ============= EMAIL TEMPLATES =============
 const generateFirstEmailHtml = (nome: string, userId: string, testId?: string) => {
-  const ctaUrl = generateTrackableLink(userId, 'first_24h', 'https://zunoprospect.com.br/prospeccao', testId);
+  const ctaUrl = generateTrackableLink(userId, 'first_24h', 'https://www.zunopropect.com.br/prospeccao', testId);
   return `
 <!DOCTYPE html>
 <html>
@@ -67,7 +70,7 @@ const generateFirstEmailHtml = (nome: string, userId: string, testId?: string) =
           <h2 style="color: #1f2937; margin: 0 0 20px;">${nome ? `${nome.split(' ')[0]}, enquanto você lê isso...` : 'Enquanto você lê isso...'} ⏰</h2>
           <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
             <strong>Seus concorrentes estão fechando negócios</strong> com leads que você poderia ter encontrado primeiro.
-            Você tem <strong>30 leads gratuitos</strong> parados.
+            Você tem <strong>10 leads gratuitos</strong> parados.
           </p>
           <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
             <tr><td align="center">
@@ -81,6 +84,7 @@ const generateFirstEmailHtml = (nome: string, userId: string, testId?: string) =
         <tr><td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
           <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
             Você recebeu este email porque se cadastrou no Zuno Prospect.
+            <br><a href="${generateUnsubscribeLink(userId, 'first_24h')}" style="color:#6b7280;text-decoration:underline;">Descadastrar deste tipo de comunicação</a>
           </p>
           ${generateTrackingPixel(userId, 'first_24h', testId)}
         </td></tr>
@@ -92,7 +96,7 @@ const generateFirstEmailHtml = (nome: string, userId: string, testId?: string) =
 };
 
 const generateSaveLeadsEmailHtml = (nome: string, leadsUsed: number, userId: string, testId?: string) => {
-  const ctaUrl = generateTrackableLink(userId, 'used_not_saved', 'https://zunoprospect.com.br/prospeccao', testId);
+  const ctaUrl = generateTrackableLink(userId, 'used_not_saved', 'https://www.zunopropect.com.br/prospeccao', testId);
   return `
 <!DOCTYPE html>
 <html>
@@ -119,6 +123,10 @@ const generateSaveLeadsEmailHtml = (nome: string, leadsUsed: number, userId: str
           ${generateCouponBanner()}
         </td></tr>
         <tr><td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
+          <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
+            Você recebeu este email porque se cadastrou no Zuno Prospect.
+            <br><a href="${generateUnsubscribeLink(userId, 'used_not_saved')}" style="color:#6b7280;text-decoration:underline;">Descadastrar deste tipo de comunicação</a>
+          </p>
           ${generateTrackingPixel(userId, 'used_not_saved', testId)}
         </td></tr>
       </table>
@@ -166,6 +174,21 @@ async function queueEmail(
   }
 }
 
+async function isUnsubscribed(supabase: any, userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('email_unsubscribes')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(`[Unsubscribe] Could not verify user=${userId}: ${error.message}`);
+    return false;
+  }
+
+  return !!data;
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -198,6 +221,7 @@ const handler = async (req: Request): Promise<Response> => {
     for (const subscription of usersNoLeads || []) {
       const authUser = authUsers.users.find(u => u.id === subscription.user_id);
       if (!authUser?.email) continue;
+      if (await isUnsubscribed(supabase, subscription.user_id)) continue;
       
       const hoursSinceRegistration = (Date.now() - new Date(authUser.created_at).getTime()) / (1000 * 60 * 60);
       if (hoursSinceRegistration < 24) continue;
@@ -249,6 +273,7 @@ const handler = async (req: Request): Promise<Response> => {
     for (const subscription of usersWithLeads || []) {
       const authUser = authUsers.users.find(u => u.id === subscription.user_id);
       if (!authUser?.email) continue;
+      if (await isUnsubscribed(supabase, subscription.user_id)) continue;
       
       const hoursSinceRegistration = (Date.now() - new Date(authUser.created_at).getTime()) / (1000 * 60 * 60);
       if (hoursSinceRegistration < 48) continue;

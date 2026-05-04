@@ -10,8 +10,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const generateUnsubscribeLink = (userId: string): string =>
+  `${SUPABASE_URL}/functions/v1/unsubscribe-email?uid=${encodeURIComponent(userId)}&source=welcome`;
+
 // ============= EMAIL TEMPLATE =============
-const generateWelcomeEmailHtml = (nome: string, ctaUrl: string) => `
+const generateWelcomeEmailHtml = (nome: string, ctaUrl: string, userId: string) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -46,7 +49,7 @@ const generateWelcomeEmailHtml = (nome: string, ctaUrl: string) => `
               </p>
               <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 8px; padding: 20px; margin: 25px 0; border-left: 4px solid #22c55e;">
                 <p style="color: #166534; font-size: 18px; margin: 0; font-weight: 600;">
-                  🎁 Você tem <strong>30 leads gratuitos</strong> para começar!
+                  🎁 Você tem <strong>10 leads gratuitos</strong> para começar!
                 </p>
               </div>
               <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 25px 0;">
@@ -94,7 +97,7 @@ const generateWelcomeEmailHtml = (nome: string, ctaUrl: string) => `
             <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
               <p style="color: #6b7280; font-size: 13px; margin: 0; text-align: center;">
                 Você recebeu este email porque se cadastrou no Zuno Prospect.<br>
-                Caso não queira receber mais emails, responda com "Cancelar".
+                <a href="${generateUnsubscribeLink(userId)}" style="color:#6b7280;text-decoration:underline;">Descadastrar deste tipo de comunicação</a>
               </p>
               <p style="color: #9ca3af; font-size: 12px; margin: 15px 0 0; text-align: center;">
                 © 2024 Zuno Prospect. Todos os direitos reservados.
@@ -147,6 +150,21 @@ async function queueEmail(
     console.error("[Queue] Exception:", err);
     return { success: false, error: err.message };
   }
+}
+
+async function isUnsubscribed(supabase: any, userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('email_unsubscribes')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(`[Unsubscribe] Could not verify user=${userId}: ${error.message}`);
+    return false;
+  }
+
+  return !!data;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -208,16 +226,24 @@ const handler = async (req: Request): Promise<Response> => {
           const userEmail = userData.user.email;
           const userName = userData.user.user_metadata?.full_name || userData.user.user_metadata?.name || null;
 
+          if (await isUnsubscribed(supabaseAdmin, record.user_id)) {
+            await supabaseAdmin
+              .from('welcome_emails_sent')
+              .update({ status: 'failed', error_message: 'User unsubscribed' })
+              .eq('id', record.id);
+            continue;
+          }
+
           console.log(`[Batch] Queueing for: ${userEmail.substring(0, 5)}***`);
 
-          const ctaUrl = "https://zunoprospect.com.br/prospeccao";
-          const emailHtml = generateWelcomeEmailHtml(userName, ctaUrl);
+          const ctaUrl = "https://www.zunopropect.com.br/prospeccao";
+          const emailHtml = generateWelcomeEmailHtml(userName, ctaUrl, record.user_id);
 
           const queueResult = await queueEmail(
             supabaseAdmin,
             userEmail,
             userName,
-            "🎉 Bem-vindo ao Zuno Prospect! Seus 30 leads gratuitos estão esperando",
+            "🎉 Bem-vindo ao Zuno Prospect! Seus 10 leads gratuitos estão esperando",
             emailHtml,
             "welcome",
             { source: "batch", welcome_record_id: record.id },
@@ -274,14 +300,21 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`[Single] Queueing for: ${userEmail.substring(0, 5)}***`);
 
-    const ctaUrl = "https://zunoprospect.com.br/prospeccao";
-    const emailHtml = generateWelcomeEmailHtml(userName, ctaUrl);
+    if (await isUnsubscribed(supabaseAdmin, userId)) {
+      return new Response(
+        JSON.stringify({ success: false, error: "User unsubscribed" }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const ctaUrl = "https://www.zunopropect.com.br/prospeccao";
+    const emailHtml = generateWelcomeEmailHtml(userName, ctaUrl, userId);
 
     const queueResult = await queueEmail(
       supabaseAdmin,
       userEmail,
       userName,
-      "🎉 Bem-vindo ao Zuno Prospect! Seus 30 leads gratuitos estão esperando",
+      "🎉 Bem-vindo ao Zuno Prospect! Seus 10 leads gratuitos estão esperando",
       emailHtml,
       "welcome",
       { source: "single", user_id: userId },

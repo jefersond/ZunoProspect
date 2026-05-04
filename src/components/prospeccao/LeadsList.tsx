@@ -165,18 +165,50 @@ export const LeadsList = () => {
 
   const loadLeads = async (searchRunId?: string) => {
     try {
+      const functionName = 'get-leads-secure';
+      const payload = {
+        action: 'list',
+        salvo: false,
+        limit: 300,
+        ...(searchRunId ? { searchRunId } : {}),
+      };
+      console.info(`[${functionName}] payload`, {
+        ...payload,
+        searchRunId: searchRunId ? 'presente' : null,
+      });
+
       // Usa edge function segura com rate limiting e auditoria
       // Se temos um searchRunId, busca apenas leads dessa busca
       const { data, error } = await supabase.functions.invoke('get-leads-secure', {
-        body: {
-          action: 'list',
-          salvo: false,
-          limit: 300,
-          ...(searchRunId ? { searchRunId } : {}),
-        },
+        body: payload,
       });
 
-      if (error) throw error;
+      if (error) {
+        let responsePayload: any = null;
+        const contextResponse = (error as any)?.context;
+
+        if (contextResponse instanceof Response) {
+          try {
+            const text = await contextResponse.clone().text();
+            responsePayload = text ? JSON.parse(text) : null;
+          } catch (parseError) {
+            console.error(`[${functionName}] erro ao ler payload de erro`, parseError);
+          }
+        }
+
+        console.error(`[${functionName}] erro ao chamar Edge Function`, {
+          functionName,
+          payload: {
+            ...payload,
+            searchRunId: searchRunId ? 'presente' : null,
+          },
+          status: contextResponse?.status ?? null,
+          message: error.message,
+          response: responsePayload,
+        });
+
+        throw new Error(responsePayload?.details || responsePayload?.error || error.message);
+      }
       
       if (data.error) {
         // Handle rate limit

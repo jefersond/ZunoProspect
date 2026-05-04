@@ -24,19 +24,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!pendingReferral) return;
 
       try {
-        const { data: referrerData } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("referral_code", pendingReferral)
-          .single();
-
-        if (referrerData && referrerData.id !== userId) {
-          await supabase
-            .from("profiles")
-            .update({ referred_by: referrerData.id })
-            .eq("id", userId)
-            .is("referred_by", null);
-        }
+        await supabase.rpc("apply_referral_code", {
+          p_user_id: userId,
+          p_referral_code: pendingReferral,
+        });
       } catch (error) {
         console.error("Erro ao processar indicação:", error);
       } finally {

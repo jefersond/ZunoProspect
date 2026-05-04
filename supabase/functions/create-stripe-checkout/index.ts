@@ -31,6 +31,7 @@ serve(async (req) => {
     if (authError || !user) throw new Error("Usuário não autenticado");
 
     const { planKey, leadsQty, isAnual } = await req.json();
+    const leadsLimit = planKey === "agencia" ? -1 : Number(leadsQty || 100);
 
     // Mapeamento simplificado - Você deve ajustar os IDs de preço no seu painel Stripe
     // Se não tiver IDs, a função vai falhar até você criá-los
@@ -66,12 +67,15 @@ serve(async (req) => {
         },
       ],
       mode: "subscription",
-      success_url: `${req.headers.get("origin")}/dashboard?success=true`,
-      cancel_url: `${req.headers.get("origin")}/dashboard?canceled=true`,
+      success_url: `${req.headers.get("origin")}/prospeccao?checkout=success`,
+      cancel_url: `${req.headers.get("origin")}/checkout?plano=${planKey}&anual=${isAnual}&checkout=canceled`,
       metadata: {
+        supabase_user_id: user.id,
         user_id: user.id,
         plan_key: planKey,
         leads_qty: leadsQty.toString(),
+        leads_limit: String(leadsLimit),
+        is_annual: String(!!isAnual),
       },
     });
 

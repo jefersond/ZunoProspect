@@ -30,7 +30,7 @@ const EMAIL_TYPE_LABELS: Record<string, { label: string; color: string; descript
     label: "Primeira busca",
     color: "#8B5CF6",
     description: "Usuários que não fizeram busca em 24h",
-    subject: "🚀 Seus 30 leads gratuitos estão esperando!",
+    subject: "🚀 Seus 10 leads gratuitos estão esperando!",
   },
   used_not_saved: {
     label: "Salvar leads",
@@ -97,7 +97,7 @@ const EMAIL_TEMPLATES: Record<string, (nome: string, param?: number) => string> 
               <h2 style="color: #1f2937; margin: 0 0 20px; font-size: 24px;">Olá${nome ? `, ${nome}` : ''}! 👋</h2>
               <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
                 Notamos que você criou sua conta no <strong>Zuno Prospect</strong>, mas ainda não fez sua primeira busca de leads. 
-                Você tem <strong>30 leads gratuitos</strong> esperando por você!
+                Você tem <strong>10 leads gratuitos</strong> esperando por você!
               </p>
               <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 25px 0;">
                 <h3 style="color: #1f2937; margin: 0 0 15px; font-size: 18px;">✨ O que você pode fazer agora:</h3>
@@ -111,7 +111,7 @@ const EMAIL_TEMPLATES: Record<string, (nome: string, param?: number) => string> 
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center">
-                    <a href="https://zunoprospect.com.br/prospeccao" style="display: inline-block; background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                      <a href="https://www.zunopropect.com.br/prospeccao" style="display: inline-block; background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
                       🔍 Fazer Minha Primeira Busca
                     </a>
                   </td>
@@ -170,7 +170,7 @@ const EMAIL_TEMPLATES: Record<string, (nome: string, param?: number) => string> 
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center">
-                    <a href="https://zunoprospect.com.br/leads-salvos" style="display: inline-block; background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                    <a href="https://www.zunopropect.com.br/leads-salvos" style="display: inline-block; background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
                       📂 Ver Meus Leads Salvos
                     </a>
                   </td>
@@ -229,7 +229,7 @@ const EMAIL_TEMPLATES: Record<string, (nome: string, param?: number) => string> 
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center">
-                    <a href="https://zunoprospect.com.br/leads-salvos" style="display: inline-block; background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                    <a href="https://www.zunopropect.com.br/leads-salvos" style="display: inline-block; background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
                       🧠 Analisar Meus Leads com IA
                     </a>
                   </td>
@@ -288,7 +288,7 @@ const EMAIL_TEMPLATES: Record<string, (nome: string, param?: number) => string> 
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center">
-                    <a href="https://zunoprospect.com.br/prospeccao" style="display: inline-block; background: linear-gradient(135deg, #EC4899 0%, #BE185D 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                    <a href="https://www.zunopropect.com.br/prospeccao" style="display: inline-block; background: linear-gradient(135deg, #EC4899 0%, #BE185D 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">
                       🔍 Buscar Novos Leads
                     </a>
                   </td>
@@ -327,9 +327,9 @@ const EMAIL_TEMPLATES: Record<string, (nome: string, param?: number) => string> 
               <h2 style="color: #1f2937; margin: 0 0 20px; font-size: 24px;">${nome ? `${nome}, você está` : 'Você está'} limitado. Seus concorrentes não. 📊</h2>
               <div style="background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-radius: 8px; padding: 20px; margin: 0 0 25px; border-left: 4px solid #ef4444;">
                 <p style="color: #991b1b; font-size: 16px; margin: 0; font-weight: 600;">📉 A matemática é simples:</p>
-                <p style="color: #b91c1c; font-size: 14px; margin: 10px 0 0;">Com 30 leads/mês, você precisa fechar 1 a cada 10 contatos. <strong>Com 200 leads, você tem 6x mais chances.</strong></p>
+                <p style="color: #b91c1c; font-size: 14px; margin: 10px 0 0;">Com 10 leads/mês, você precisa fechar melhor cada contato. <strong>Com 200 leads, você tem muito mais volume para testar.</strong></p>
               </div>
-              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">Você já usou <strong>${leadsUsed || 25}/30 leads</strong>. Quando acabar, fica parado — enquanto <strong>seus concorrentes continuam fechando</strong>.</p>
+              <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">Você já usou <strong>${leadsUsed || 8}/10 leads</strong>. Quando acabar, fica parado enquanto seus concorrentes continuam prospectando.</p>
               <div style="background-color: #eff6ff; border-radius: 8px; padding: 20px; margin: 25px 0; border-left: 4px solid #3B82F6;">
                 <h3 style="color: #1e40af; margin: 0 0 15px; font-size: 18px;">🚀 O que você ganha com o PRO:</h3>
                 <ul style="color: #1d4ed8; font-size: 15px; line-height: 1.8; margin: 0; padding-left: 20px;">
@@ -343,7 +343,7 @@ const EMAIL_TEMPLATES: Record<string, (nome: string, param?: number) => string> 
                 <p style="color: #15803d; font-size: 14px; margin: 10px 0 0;">R$ 97/mês = menos de <strong>R$ 3,30 por dia</strong></p>
               </div>
               <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
-                    <a href="https://zunoprospect.com.br/precos" style="display: inline-block; background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">🚀 Desbloquear 200 Leads/Mês</a>
+                    <a href="https://www.zunopropect.com.br/precos" style="display: inline-block; background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">🚀 Desbloquear 200 Leads/Mês</a>
               </td></tr></table>
               ${generateCouponBanner()}
           </td></tr>

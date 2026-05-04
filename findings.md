@@ -1,14 +1,4 @@
-# Findings - Zuno Prospect
-
-## Descobertas Técnicas
-- **Erro 404 no Vercel**: Ocorrendo na rota `/auth`. Confirmado que é um erro de roteamento de SPA (Single Page Application). O Vercel não possui um `vercel.json` configurado para redirecionar todas as requisições para o `index.html`.
-- **Estrutura de Rotas**: O `src/App.tsx` define `/auth` e `/auth/callback`, mas o servidor Vercel tenta buscar arquivos físicos para esses caminhos.
-- **Supabase Auth**: O fluxo de autenticação redireciona para `/auth#access_token=...`, o que dispara o 404 se o roteamento do servidor não estiver configurado.
-
-## Restrições
-- O projeto deve seguir o protocolo V.L.A.E.G.
-- Todas as rotas do frontend devem ser servidas pelo `index.html`.
-
-## Dependências Relevantes
-- `react-router-dom`: v6.30.1
-- `@supabase/supabase-js`: v2.83.0
+# VLAEG - Findings
+- O Supabase remoto (ihtltqxxlvbsxbiacbpr) já possui as tabelas (`leads`) criadas, o que está causando erro no `supabase db push` da migration `20260502133000_email_remarketing_safety.sql`. 
+- As Edge Functions de e-mail agora dependem diretamente das variáveis de ambiente setadas no Supabase dashboard (`RESEND_API_KEY`, etc).
+- O diagnóstico do Painel Admin em `/admin/email` faz a invocação do `test-email-config` e já está implementado no componente `EmailTestCard.tsx`.

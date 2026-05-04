@@ -132,7 +132,7 @@ export const ABTestEditor = ({ open, onOpenChange, editingTest, onSave }: ABTest
   const [nlForm, setNlForm] = useState({
     body: "",
     ctaText: "🔍 Encontrar Meus Leads Agora",
-    ctaUrl: "https://zunoprospect.com.br/prospeccao",
+    ctaUrl: "https://www.zunopropect.com.br/prospeccao",
   });
   
   const [previewTab, setPreviewTab] = useState<"code" | "preview">("preview");
@@ -162,7 +162,7 @@ export const ABTestEditor = ({ open, onOpenChange, editingTest, onSave }: ABTest
       setNlForm({
         body: "",
         ctaText: "🔍 Encontrar Meus Leads Agora",
-        ctaUrl: "https://zunoprospect.com.br/prospeccao",
+        ctaUrl: "https://www.zunopropect.com.br/prospeccao",
       });
       setEditorMode("natural");
     }
@@ -390,7 +390,7 @@ export const ABTestEditor = ({ open, onOpenChange, editingTest, onSave }: ABTest
                     <Label>Corpo do Email</Label>
                     <Textarea
                       className="min-h-[120px]"
-                      placeholder="Escreva o texto do email aqui...&#10;&#10;Ex: Você criou sua conta mas ainda não prospectou nenhum lead.&#10;&#10;Seus 30 leads gratuitos estão esperando por você!"
+                      placeholder="Escreva o texto do email aqui...&#10;&#10;Ex: Você criou sua conta mas ainda não prospectou nenhum lead.&#10;&#10;Seus 10 leads gratuitos estão esperando por você!"
                       value={nlForm.body}
                       onChange={(e) => setNlForm({ ...nlForm, body: e.target.value })}
                     />

@@ -15,7 +15,7 @@ interface TestResult {
 
 export const EmailTestCard = () => {
   const { toast } = useToast();
-  const [testEmail, setTestEmail] = useState("");
+  const [testEmail, setTestEmail] = useState("jeferson.zanotell@gmail.com");
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<TestResult | null>(null);
 

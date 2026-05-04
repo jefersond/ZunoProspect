@@ -45,6 +45,30 @@ const isInstagramUrl = (url: string | null): boolean => {
   return /instagram\.com/i.test(url);
 };
 
+const readEdgeFunctionError = async (functionName: string, error: any, payload: Record<string, unknown>) => {
+  let responsePayload: any = null;
+  const contextResponse = error?.context;
+
+  if (contextResponse instanceof Response) {
+    try {
+      const text = await contextResponse.clone().text();
+      responsePayload = text ? JSON.parse(text) : null;
+    } catch (parseError) {
+      console.error(`[${functionName}] erro ao ler payload de erro`, parseError);
+    }
+  }
+
+  console.error(`[${functionName}] erro ao chamar Edge Function`, {
+    functionName,
+    payload,
+    status: contextResponse?.status ?? null,
+    message: error?.message,
+    response: responsePayload,
+  });
+
+  return responsePayload?.details || responsePayload?.error || error?.message;
+};
+
 // Transform raw lead data to LeadProspeccao type
 const transformLead = (lead: any): LeadProspeccao => {
   const websiteIsInstagram = isInstagramUrl(lead.website);
@@ -106,16 +130,21 @@ export const useSecureLeads = (options: UseSecureLeadsOptions = {}) => {
     setError(null);
 
     try {
+      const functionName = 'get-leads-secure';
+      const payload = {
+        action: 'list',
+        salvo: salvoFilter ?? options.salvo ?? null,
+        noPagination: options.noPagination ?? false,
+      };
+      console.info(`[${functionName}] payload`, payload);
+
       const { data, error: invokeError } = await supabase.functions.invoke('get-leads-secure', {
-        body: {
-          action: 'list',
-          salvo: salvoFilter ?? options.salvo ?? null,
-          noPagination: options.noPagination ?? false,
-        },
+        body: payload,
       });
 
       if (invokeError) {
-        throw invokeError;
+        const message = await readEdgeFunctionError(functionName, invokeError, payload);
+        throw new Error(message || 'Erro ao carregar leads');
       }
 
       if (data.error) {

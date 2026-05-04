@@ -61,7 +61,7 @@ export function PrecosSection() {
     
     // Se não estiver logado, vai para o cadastro
     if (!session) {
-      navigate("/auth?tab=signup");
+      navigate(`/auth?tab=signup&plan=${encodeURIComponent(plano.planKey)}&leadsQty=${encodeURIComponent(String(leadsQty))}&anual=${encodeURIComponent(String(isAnual))}`);
       return;
     }
 

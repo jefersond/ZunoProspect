@@ -1,9 +1,10 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -15,7 +16,22 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    const authParams = new URLSearchParams();
+    authParams.set("tab", "signup");
+    authParams.set("returnTo", `${location.pathname}${location.search}`);
+
+    if (location.pathname === "/checkout") {
+      const currentParams = new URLSearchParams(location.search);
+      const plano = currentParams.get("plano") || currentParams.get("plan");
+      const anual = currentParams.get("anual") || currentParams.get("isAnual");
+      const leadsQty = currentParams.get("leadsQty") || currentParams.get("leads");
+
+      if (plano) authParams.set("plan", plano);
+      if (anual) authParams.set("anual", anual);
+      if (leadsQty) authParams.set("leadsQty", leadsQty);
+    }
+
+    return <Navigate to={`/auth?${authParams.toString()}`} replace />;
   }
 
   return <>{children}</>;

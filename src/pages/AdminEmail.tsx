@@ -72,6 +72,7 @@ const AdminEmail = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [sending, setSending] = useState<string | null>(null);
+  const [testingCampaign, setTestingCampaign] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   
   // New campaign form
@@ -186,9 +187,28 @@ const AdminEmail = () => {
     setSending(campaignId);
     try {
       console.log("Iniciando envio da campanha:", campaignId);
+
+      const { data: previewData, error: previewError } = await supabase.functions.invoke("send-email-campaign", {
+        body: { campaignId, dryRun: true },
+      });
+
+      if (previewError) throw previewError;
+      if (previewData?.error) throw new Error(previewData.error);
+
+      const confirmed = window.confirm(
+        `Enviar campanha para ${previewData?.cappedTo || 0} destinatários elegíveis?\n\n` +
+        `Limite por disparo: ${previewData?.limit || 50}\n` +
+        `Elegíveis no segmento: ${previewData?.eligible || 0}\n` +
+        `Descadastrados ignorados: ${previewData?.skipped?.unsubscribed || 0}\n` +
+        `Cooldown de 7 dias ignorado: ${previewData?.skipped?.cooldown || 0}`,
+      );
+
+      if (!confirmed) {
+        return;
+      }
       
       const { data, error } = await supabase.functions.invoke("send-email-campaign", {
-        body: { campaignId },
+        body: { campaignId, confirmed: true },
       });
 
       console.log("Resposta da função:", { data, error });
@@ -208,7 +228,7 @@ const AdminEmail = () => {
 
       toast({
         title: "Campanha enviada!",
-        description: `${data.sent || 0} emails enviados com sucesso.${data.errors > 0 ? ` ${data.errors} erros.` : ""}`,
+        description: `${data.sent || 0} emails enviados com sucesso.${data.errors > 0 ? ` ${data.errors} erros.` : ""}${data.capped ? " Envio limitado ao lote seguro." : ""}`,
       });
 
       // Show error details if any
@@ -234,13 +254,43 @@ const AdminEmail = () => {
     }
   };
 
+  const handleSendTestCampaign = async (campaignId: string) => {
+    setTestingCampaign(campaignId);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-email-campaign", {
+        body: { campaignId, testMode: true, confirmed: true },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({
+        title: "Teste enviado",
+        description: `${data.sent || 0} email de teste enviado para o admin.`,
+      });
+
+      if (data?.errorDetails?.length) {
+        toast({
+          variant: "destructive",
+          title: "Falha no teste",
+          description: data.errorDetails[0],
+        });
+      }
+    } catch (error: any) {
+      console.error("Erro ao enviar teste:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao enviar teste",
+        description: error.message || "Verifique a configuração de e-mail.",
+      });
+    } finally {
+      setTestingCampaign(null);
+    }
+  };
+
   const handleDeleteCampaign = async (campaignId: string) => {
     setDeleting(campaignId);
     try {
-      // Delete logs first
-      await supabase.from("email_logs").delete().eq("campaign_id", campaignId);
-      
-      // Delete campaign
       const { error } = await supabase.from("email_campaigns").delete().eq("id", campaignId);
 
       if (error) throw error;
@@ -271,6 +321,14 @@ const AdminEmail = () => {
       inativos: "Usuários Inativos (0 leads)",
       starter_inativos: "Starter Inativos (nunca usaram)",
       nao_pagantes: "Não Pagantes (todos Starter)",
+      never_searched: "Criaram conta e nunca buscaram",
+      searched_not_returned: "Buscaram leads e não voltaram",
+      free_active: "Free ativos",
+      inactive_old: "Antigos inativos",
+      clicked_pricing: "Clicaram em preço/upgrade",
+      signup_not_paid: "Criaram conta e não assinaram",
+      paying: "Pagantes",
+      internal_admins: "Admins/testes internos",
     };
     return labels[seg] || seg;
   };
@@ -281,6 +339,12 @@ const AdminEmail = () => {
     }
     if (status === "enviada") {
       return <Badge className="bg-green-500 hover:bg-green-600">Enviada</Badge>;
+    }
+    if (status === "enviando") {
+      return <Badge variant="outline">Enviando</Badge>;
+    }
+    if (status === "erro") {
+      return <Badge variant="destructive">Erro</Badge>;
     }
     return <Badge variant="outline">{status}</Badge>;
   };
@@ -443,11 +507,26 @@ const AdminEmail = () => {
                                 <Eye className="h-4 w-4" />
                               </Button>
                               {campaign.status === "rascunho" && (
+                                <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleSendTestCampaign(campaign.id)}
+                                  disabled={testingCampaign === campaign.id || sending === campaign.id}
+                                  title="Enviar teste"
+                                >
+                                  {testingCampaign === campaign.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <FlaskConical className="h-4 w-4" />
+                                  )}
+                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   onClick={() => handleSendCampaign(campaign.id)}
                                   disabled={sending === campaign.id}
+                                  title="Enviar campanha"
                                 >
                                   {sending === campaign.id ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -455,6 +534,7 @@ const AdminEmail = () => {
                                     <Send className="h-4 w-4" />
                                   )}
                                 </Button>
+                                </>
                               )}
                               <Button
                                 variant="ghost"
@@ -534,6 +614,13 @@ const AdminEmail = () => {
                   <SelectItem value="inativos">🔴 Inativos (0 leads este mês)</SelectItem>
                   <SelectItem value="starter_inativos">🎯 Starter Inativos (nunca usaram)</SelectItem>
                   <SelectItem value="nao_pagantes">💰 Não Pagantes (todos Starter)</SelectItem>
+                  <SelectItem value="never_searched">Criaram conta e nunca buscaram</SelectItem>
+                  <SelectItem value="searched_not_returned">Buscaram leads e não voltaram</SelectItem>
+                  <SelectItem value="free_active">Free ativos</SelectItem>
+                  <SelectItem value="inactive_old">Antigos inativos</SelectItem>
+                  <SelectItem value="signup_not_paid">Criaram conta e não assinaram</SelectItem>
+                  <SelectItem value="paying">Pagantes</SelectItem>
+                  <SelectItem value="internal_admins">Admins/testes internos</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -568,7 +655,7 @@ const AdminEmail = () => {
               <Textarea
                 id="conteudo"
                 placeholder={newCampaign.formato === "texto" 
-                  ? "Olá!\n\nVocê criou sua conta mas ainda não prospectou nenhum lead.\n\nSeus 10 leads gratuitos estão esperando por você!\n\nAcesse agora: https://zunopropect.lovable.app/prospeccao\n\nAbraços,\nEquipe Zuno Propect"
+                  ? "Olá!\n\nVocê criou sua conta mas ainda não prospectou nenhum lead.\n\nSeus 10 leads gratuitos estão esperando por você!\n\nAcesse agora: https://www.zunopropect.com.br/prospeccao\n\nAbraços,\nEquipe Zuno Prospect"
                   : "<h1>Olá!</h1><p>Este é o conteúdo do seu email...</p>"
                 }
                 rows={12}

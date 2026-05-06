@@ -14,6 +14,7 @@ import { StatusSelector, PIPELINE_STATUSES } from "@/components/pipeline/StatusS
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useUsage } from "@/hooks/useUsage";
 import { Textarea } from "@/components/ui/textarea";
 import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe, StickyNote, Loader2, Lock } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
@@ -58,10 +59,11 @@ export const LeadPlanDialog = ({
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const { toast } = useToast();
   const { subscription, loading: subscriptionLoading } = useSubscription();
+  const { canAnalyzeAI, refetch: refetchUsage } = useUsage();
   
   // Planos que têm acesso às anotações
   const hasNotesAccess = subscription && 
-    ['iniciante', 'pro', 'agencia'].includes(subscription.plan_name);
+    ['starter', 'iniciante', 'pro', 'agencia'].includes(subscription.plan_name);
 
   // Sempre que o lead mudar ou o dialog for reaberto, sincroniza o estado interno
   useEffect(() => {
@@ -154,6 +156,14 @@ export const LeadPlanDialog = ({
 
   const handleReanalyze = async () => {
     if (!lead) return;
+    if (!canAnalyzeAI) {
+      toast({
+        title: "Limite de IA atingido",
+        description: "Você atingiu seu limite de análises com IA.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsReanalyzing(true);
     try {
@@ -181,7 +191,20 @@ export const LeadPlanDialog = ({
         }
       );
 
-      if (functionError) throw functionError;
+      if (functionError) {
+        let message = functionError.message;
+        const contextResponse = (functionError as any)?.context;
+        if (contextResponse instanceof Response) {
+          try {
+            const text = await contextResponse.clone().text();
+            const payload = text ? JSON.parse(text) : null;
+            message = payload?.error || payload?.details || message;
+          } catch {
+            // keep original message
+          }
+        }
+        throw new Error(message);
+      }
 
       // Buscar lead atualizado do banco
       const { data: updatedLead, error: fetchError } = await supabase
@@ -202,6 +225,7 @@ export const LeadPlanDialog = ({
       };
 
       setCurrentLead(transformedLead);
+      await refetchUsage();
       onLeadUpdate?.();
 
       toast({
@@ -344,6 +368,7 @@ export const LeadPlanDialog = ({
               geradoEm={displayLead.ai_analise_gerada_em}
               onReanalyze={handleReanalyze}
               isReanalyzing={isReanalyzing}
+              canAnalyzeAI={canAnalyzeAI}
             />
           </TabsContent>
 

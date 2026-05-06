@@ -1,13 +1,14 @@
 # VLAEG - Progress
-- Tentativa de aplicar migration `20260502133000_email_remarketing_safety.sql` via Supabase CLI.
-- Erro no push: Conflito com tabela `leads` pré-existente (`relation "leads" already exists`), o histórico de migrações remoto está dessincronizado.
-- Todas as funções foram publicadas com sucesso no projeto ihtltqxxlvbsxbiacbpr:
-  - `send-email-campaign`
-  - `test-email-config`
-  - `track-email-open`
-  - `track-email-click`
-  - `unsubscribe-email`
-- As secrets (RESEND_API_KEY, RESEND_FROM_EMAIL, etc.) serão adicionadas pelo usuário.
-- O código atualizado foi enviado para a Vercel com sucesso, permitindo o teste de envio real em produção.
-- Card de indicação (`ReferralCard.tsx`) aprimorado para exibir 3 métricas distintas: Indicações Feitas, Buscas Extras Disponíveis e Leads Disponíveis Totais.
-- Integração do `useSubscription` no `ReferralCard.tsx` para garantir que o saldo total seja o mesmo exibido nos demais badges da aplicação.
+- Funcoes de e-mail publicadas anteriormente no projeto `ihtltqxxlvbsxbiacbpr`: `send-email-campaign`, `test-email-config`, `track-email-open`, `track-email-click` e `unsubscribe-email`.
+- Card de indicacao (`ReferralCard.tsx`) aprimorado para exibir Indicacoes Feitas, Buscas Extras Disponiveis e Leads Disponiveis Totais.
+- Integracao do `useSubscription` no `ReferralCard.tsx` para manter o saldo total consistente com os demais badges da aplicacao.
+- Modal de upgrade de plano (`UpgradePlanDialog.tsx`) refatorado:
+  - Bug do "R$ NaN /mes" corrigido no plano Iniciante.
+  - Layout dos planos agora segue um grid consistente, incluindo o plano Agencia no mesmo loop.
+  - Cards usam `flex-col` para manter os botoes alinhados no rodape.
+  - Distintivo "Mais popular" alinhado na borda superior do plano em destaque.
+- Banco remoto corrigido sem `db push` completo, pois o historico remoto de migrations esta dessincronizado.
+- Criada e aplicada a migration `20260505083000_bootstrap_remote_email_remarketing.sql` para provisionar as tabelas de e-mail ausentes.
+- Aplicadas com sucesso as migrations `20260502133000_email_remarketing_safety.sql` e `20260505090000_usage_limits_leads_ai.sql`.
+- Validadas no remoto as tabelas `email_campaigns`, `email_queue`, `email_events`, `email_unsubscribes`, `onboarding_emails_sent` e as funcoes `ensure_user_usage`/`increment_ai_usage`.
+- Publicadas no Supabase as funcoes `buscar-leads`, `analisar-lead-ia`, `create-stripe-checkout`, `stripe-webhook` e `kiwify-webhook`.

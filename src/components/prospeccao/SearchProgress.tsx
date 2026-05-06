@@ -26,9 +26,9 @@ const defaultSteps: SearchProgressStep[] = [
   { id: 1, label: "Iniciando busca..." },
   { id: 2, label: "Buscando empresas no Google Maps..." },
   { id: 3, label: "Coletando informações de contato..." },
-  { id: 4, label: "Analisando presença digital..." },
-  { id: 5, label: "Processando com IA..." },
-  { id: 6, label: "Gerando planos de prospecção..." },
+  { id: 4, label: "Enriquecendo contatos..." },
+  { id: 5, label: "Salvando leads..." },
+  { id: 6, label: "Atualizando lista..." },
   { id: 7, label: "Finalizando..." },
 ];
 
@@ -68,13 +68,12 @@ export const SearchProgress = ({
         sublabel: leadsFound > 0 ? `${leadsFound}${targetQuantity > 0 ? `/${targetQuantity}` : ''} encontradas` : undefined
       },
       { id: 3, label: "Coletando informações de contato..." },
-      { id: 4, label: "Analisando presença digital..." },
+      { id: 4, label: "Enriquecendo contatos..." },
       { 
         id: 5, 
-        label: "Processando com IA...",
-        sublabel: leadsAnalyzed > 0 ? `${leadsAnalyzed}${leadsFound > 0 ? `/${leadsFound}` : ''} analisados` : undefined
+        label: "Salvando leads...",
       },
-      { id: 6, label: "Gerando planos de prospecção..." },
+      { id: 6, label: "Atualizando lista..." },
       { id: 7, label: "Finalizando...", sublabel: leadsFound > 0 ? `${leadsFound} leads prontos!` : undefined },
     ];
   };
@@ -131,12 +130,6 @@ export const SearchProgress = ({
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                 {leadsFound} empresas encontradas
-              </span>
-            )}
-            {leadsAnalyzed > 0 && (
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                {leadsAnalyzed} análises concluídas
               </span>
             )}
           </div>

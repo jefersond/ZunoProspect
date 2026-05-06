@@ -894,6 +894,8 @@ export type Database = {
           billing_period_start: string
           created_at: string
           id: string
+          ai_limit: number
+          ai_used_this_month: number
           is_annual: boolean
           leads_limit: number
           leads_package: number | null
@@ -909,6 +911,8 @@ export type Database = {
           billing_period_start?: string
           created_at?: string
           id?: string
+          ai_limit?: number
+          ai_used_this_month?: number
           is_annual?: boolean
           leads_limit?: number
           leads_package?: number | null
@@ -924,6 +928,8 @@ export type Database = {
           billing_period_start?: string
           created_at?: string
           id?: string
+          ai_limit?: number
+          ai_used_this_month?: number
           is_annual?: boolean
           leads_limit?: number
           leads_package?: number | null
@@ -1362,10 +1368,32 @@ export type Database = {
               whatsapp_on_site: boolean
             }[]
           }
+      ensure_user_usage: {
+        Args: { p_user_id: string }
+        Returns: {
+          ai_limit: number
+          ai_remaining: number
+          ai_used: number
+          billing_period_end: string
+          is_admin: boolean
+          leads_available_total: number
+          leads_bonus_balance: number
+          leads_limit: number
+          leads_remaining: number
+          leads_used: number
+          plan_name: string
+        }[]
+      }
       get_subscription_info: {
         Args: { p_user_id: string }
         Returns: {
+          ai_limit: number
+          ai_remaining: number
+          ai_used: number
           billing_period_end: string
+          is_admin: boolean
+          leads_available_total: number
+          leads_bonus_balance: number
           leads_limit: number
           leads_remaining: number
           leads_used: number
@@ -1377,6 +1405,14 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      increment_ai_usage: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
+      increment_leads_usage: {
+        Args: { p_amount: number; p_user_id: string }
         Returns: boolean
       }
       increment_leads_used: {

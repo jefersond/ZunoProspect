@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
 import { trackInitiateCheckout, trackAddPaymentInfo } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
+import { createStripeCheckout } from "@/services/stripeCheckout";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -36,16 +37,34 @@ const GoogleIcon = () => (
 
 // Dados dos planos
 const PLANOS = {
+  starter: {
+    nome: "Começar",
+    precoMensal: 141,
+    precoAnual: 1410,
+    leadsLimit: 300,
+    aiLimit: 30,
+    gratuito: false,
+    icon: Sparkles,
+    popular: false,
+    features: [
+      "300 leads/mês",
+      "30 análises com IA/mês",
+      "CRM: salvar + status + anotações",
+      "Templates de mensagem",
+    ],
+  },
   pro: {
     nome: "Pro",
-    precoMensal: 97,
-    precoAnual: 970,
+    precoMensal: 426,
+    precoAnual: 4260,
+    leadsLimit: 800,
+    aiLimit: 100,
     gratuito: false,
     icon: Sparkles,
     popular: true,
     features: [
-      "100 leads/mês",
-      "Análise IA completa",
+      "800 leads/mês",
+      "100 análises com IA/mês",
       "Plano 7 dias por lead",
       "Detecção de sinais digitais",
       "Exportar para Excel",
@@ -53,13 +72,16 @@ const PLANOS = {
   },
   agencia: {
     nome: "Agência",
-    precoMensal: 247,
-    precoAnual: 2470,
+    precoMensal: 1040,
+    precoAnual: 10400,
+    leadsLimit: 2000,
+    aiLimit: 300,
     gratuito: false,
     icon: Building2,
     popular: false,
     features: [
-      "Leads ilimitados",
+      "2.000 leads/mês",
+      "300 análises com IA/mês",
       "Tudo do Pro +",
       "API de integração",
       "Relatórios avançados",
@@ -68,7 +90,7 @@ const PLANOS = {
   },
 };
 
-type PlanoKey = "pro" | "agencia";
+type PlanoKey = "starter" | "pro" | "agencia";
 
 export default function Checkout() {
   const [searchParams] = useSearchParams();
@@ -76,7 +98,7 @@ export default function Checkout() {
   // Get params from URL
   const planoParam = searchParams.get("plano")?.toLowerCase() as PlanoKey | null;
   const anualParam = searchParams.get("anual");
-  const leadsQtyParam = Number(searchParams.get("leadsQty") || "100");
+  const leadsQtyParam = Number(searchParams.get("leadsQty") || "0");
   const googleAuth = searchParams.get("google_auth");
   const referralCode = searchParams.get("ref");
   
@@ -88,7 +110,7 @@ export default function Checkout() {
   const plano = PLANOS[selectedPlano];
   
   const [isAnual, setIsAnual] = useState(anualParam === "true");
-  const selectedLeadsQty = Number.isFinite(leadsQtyParam) && leadsQtyParam > 0 ? leadsQtyParam : 100;
+  const selectedLeadsQty = plano.leadsLimit;
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -258,19 +280,14 @@ export default function Checkout() {
       toast.loading(hasSession ? "Gerando link de pagamento seguro..." : "Conta criada! Gerando link de pagamento seguro...");
 
       // Chamar Edge Function do Stripe
-      const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
-        body: {
-          planKey: selectedPlano,
-          leadsQty: selectedLeadsQty,
-          isAnual
-        }
+      const data = await createStripeCheckout({
+        selectedPlan: { nome: plano.nome, planKey: selectedPlano },
+        leadsQuantity: selectedLeadsQty,
+        billingCycle: isAnual ? "annual" : "monthly",
+        price: preco,
       });
 
       toast.dismiss();
-
-      if (error || !data?.url) {
-        throw new Error("Falha ao gerar link de pagamento. Tente novamente.");
-      }
       
       toast.success("Redirecionando para o pagamento seguro...");
       window.location.href = data.url;

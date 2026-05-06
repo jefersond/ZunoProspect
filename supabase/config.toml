@@ -15,6 +15,12 @@ verify_jwt = true
 [functions.check-pix-payment]
 verify_jwt = true
 
+[functions.create-stripe-checkout]
+verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = false
+
 [functions.api-keys-manage]
 verify_jwt = true
 

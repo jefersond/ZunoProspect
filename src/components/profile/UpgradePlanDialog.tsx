@@ -12,10 +12,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2, CheckCircle2, Crown, ExternalLink, Sparkles } from "lucide-react";
+import { Loader2, CheckCircle2, Crown, ExternalLink } from "lucide-react";
 import { PLANOS, PLANO_AGENCIA, LEAD_QUANTITIES, type Plano } from "@/components/landing/data";
 import { useLeadPricing } from "@/hooks/useLeadPricing";
+import { createStripeCheckout } from "@/services/stripeCheckout";
 
 interface UpgradePlanDialogProps {
   open: boolean;
@@ -26,9 +26,9 @@ interface UpgradePlanDialogProps {
 export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: UpgradePlanDialogProps) => {
   const [isAnual, setIsAnual] = useState(false);
   const [selectedLeads, setSelectedLeads] = useState<Record<string, number>>({
-    starter: 100,
-    pro: 100,
-    agencia: 100,
+    starter: 300,
+    pro: 800,
+    agencia: 2000,
   });
   const { calculatePrice, getDisplayPrice } = useLeadPricing();
 
@@ -50,7 +50,12 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
   });
 
   // Verifica se deve mostrar o card Agência (só se o plano atual for menor que agência)
-  const showAgenciaCard = currentPlanLevel < 2;
+  const showAgenciaCard = currentPlanLevel < 3;
+
+  const planosExibicao = [...PLANOS_UPGRADE];
+  if (showAgenciaCard) {
+    planosExibicao.push(PLANO_AGENCIA);
+  }
 
   const handleLeadsChange = (planKey: string, value: string) => {
     setSelectedLeads(prev => ({ ...prev, [planKey]: parseInt(value) }));
@@ -61,21 +66,21 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
   const handleSelectPlano = async (plano: Plano, leadsQty: number) => {
     setIsProcessing(true);
     try {
+      const price = calculatePrice(plano.planKey, leadsQty, isAnual);
+      if (!plano || !Number.isFinite(price) || Number.isNaN(price)) {
+        throw new Error("Preço inválido para o plano selecionado.");
+      }
+
       toast.loading("Gerando link de pagamento seguro...");
 
-      const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
-        body: {
-          planKey: plano.planKey,
-          leadsQty: leadsQty,
-          isAnual
-        }
+      const data = await createStripeCheckout({
+        selectedPlan: plano,
+        leadsQuantity: leadsQty,
+        billingCycle: isAnual ? "annual" : "monthly",
+        price,
       });
 
       toast.dismiss();
-
-      if (error || !data?.url) {
-        throw new Error("Falha ao gerar link de pagamento.");
-      }
       
       toast.success("Redirecionando para o pagamento...");
       window.location.href = data.url;
@@ -88,10 +93,6 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
       setIsProcessing(false);
     }
   };
-
-  const agenciaLeads = selectedLeads.agencia;
-  const agenciaPrecoMensal = getDisplayPrice('agencia', agenciaLeads, isAnual);
-  const agenciaPrecoTotal = calculatePrice('agencia', agenciaLeads, isAnual);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -126,80 +127,79 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
           )}
         </div>
 
-        {/* Grid de Planos (Iniciante + Pro) - só mostra se houver planos disponíveis */}
-        {PLANOS_UPGRADE.length > 0 && (
-          <div className={`grid ${PLANOS_UPGRADE.length === 1 ? 'md:grid-cols-1 max-w-md mx-auto' : 'md:grid-cols-2'} gap-4 py-4`}>
-            {PLANOS_UPGRADE.map((plano, index) => {
-              const leadsQty = selectedLeads[plano.planKey];
+        {/* Grid de Planos Dinâmico */}
+        {planosExibicao.length > 0 && (
+          <div className={`grid ${planosExibicao.length === 1 ? 'md:grid-cols-1 max-w-md mx-auto' : planosExibicao.length === 2 ? 'md:grid-cols-2 max-w-3xl mx-auto' : 'lg:grid-cols-3 md:grid-cols-2'} gap-6 py-4 items-stretch`}>
+            {planosExibicao.map((plano, index) => {
+              const leadsQty = plano.leadsLimit;
               const precoMensal = getDisplayPrice(plano.planKey, leadsQty, isAnual);
               const precoTotal = calculatePrice(plano.planKey, leadsQty, isAnual);
 
               return (
                 <Card
                   key={index}
-                  className={`relative p-6 flex flex-col transition-all ${
+                  className={`relative p-6 flex flex-col transition-all h-full ${
                     plano.destaque
-                      ? "border-2 border-primary shadow-md"
-                      : "border border-border/50"
+                      ? "border-2 border-primary shadow-xl ring-1 ring-primary/20 bg-card"
+                      : plano.planKey === 'agencia'
+                      ? "border border-primary/40 bg-gradient-to-b from-primary/5 to-transparent"
+                      : "border border-border/50 bg-background/60"
                   }`}
                 >
                   {plano.destaque && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <Badge className="px-3 py-0.5 text-xs shadow bg-primary text-primary-foreground">
+                    <div className="absolute -top-3 left-0 right-0 flex justify-center">
+                      <Badge className="px-3 py-1 text-[10px] sm:text-xs shadow-md bg-primary text-primary-foreground font-semibold tracking-wider uppercase">
                         Mais popular
                       </Badge>
                     </div>
                   )}
 
-                  <div className="text-center mb-4">
-                    <h3 className="text-lg font-bold mb-1">{plano.nome}</h3>
-                    <p className="text-sm text-muted-foreground mb-3">{plano.descricao}</p>
-                    
-                    {/* Lead Quantity Selector */}
-                    <div className="mb-3">
-                      <Select 
-                        value={String(leadsQty ?? 100)} 
-                        onValueChange={(v) => handleLeadsChange(plano.planKey, v)}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LEAD_QUANTITIES.map((qty) => (
-                            <SelectItem key={qty} value={String(qty ?? 100)}>
-                              {qty.toLocaleString('pt-BR')} leads/mês
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  <div className="flex-1 flex flex-col">
+                    <div className="text-center mb-6">
+                      <h3 className="text-xl font-bold mb-1">{plano.nome}</h3>
+                      <p className="text-sm text-muted-foreground mb-4 h-10">{plano.descricao}</p>
+                      
+                      {/* Lead Quantity Selector */}
+                      <div className="mb-4">
+                        <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm font-medium">
+                          {plano.leadsLimit.toLocaleString('pt-BR')} leads/mês + {plano.aiLimit} análises com IA
+                        </div>
+                      </div>
+
+                      <div className="flex items-baseline justify-center gap-1 mb-1">
+                        <span className="text-3xl font-bold tracking-tight">R$ {precoMensal}</span>
+                        <span className="text-sm text-muted-foreground">/mês</span>
+                      </div>
+                      {isAnual ? (
+                        <p className="text-xs text-muted-foreground h-4">
+                          cobrado R$ {precoTotal.toLocaleString('pt-BR')} por ano
+                        </p>
+                      ) : (
+                        <p className="text-xs text-transparent h-4 select-none">-</p>
+                      )}
                     </div>
 
-                    <div className="flex items-baseline justify-center gap-1">
-                      <span className="text-3xl font-bold">R$ {precoMensal}</span>
-                      <span className="text-muted-foreground">/mês</span>
-                    </div>
-                    {isAnual && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        cobrado R$ {precoTotal.toLocaleString('pt-BR')} por ano
-                      </p>
-                    )}
+                    <ul className="space-y-3 mb-6 flex-1">
+                      {plano.features.map((feature, i) => (
+                        <li key={i} className="flex items-start gap-3">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                          <span className="text-muted-foreground text-sm leading-tight">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
 
-                  <ul className="space-y-2 mb-6 flex-1">
-                    {plano.features.map((feature, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                        <span className="text-muted-foreground text-sm">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-
                   <Button
-                    className={`w-full ${plano.destaque ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
-                    variant={plano.destaque ? "default" : "outline"}
+                    className={`w-full mt-auto ${plano.destaque || plano.planKey === 'agencia' ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md" : ""}`}
+                    variant={plano.destaque || plano.planKey === 'agencia' ? "default" : "outline"}
                     onClick={() => handleSelectPlano(plano, leadsQty)}
+                    disabled={isProcessing}
                   >
-                    <ExternalLink className="h-4 w-4 mr-2" />
+                    {isProcessing ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                    )}
                     {plano.cta}
                   </Button>
                 </Card>
@@ -208,81 +208,13 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
           </div>
         )}
 
-        {/* Card Especial Agência - só mostra se o plano atual for menor que agência */}
-        {showAgenciaCard && (
-        <Card className="relative p-6 border-2 border-primary/30 bg-gradient-to-br from-primary/5 via-background to-primary/10">
-          <div className="absolute -top-3 left-4">
-            <Badge className="px-3 py-0.5 text-xs shadow bg-primary/90 text-primary-foreground">
-              <Sparkles className="h-3 w-3 mr-1" />
-              Para Agências
-            </Badge>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6 mt-2">
-            <div>
-              <h3 className="text-xl font-bold mb-1">{PLANO_AGENCIA.nome}</h3>
-              <p className="text-sm text-muted-foreground mb-4">{PLANO_AGENCIA.descricao}</p>
-
-              {/* Lead Quantity Selector */}
-              <div className="mb-4">
-                <Select 
-                  value={String(agenciaLeads ?? 100)} 
-                  onValueChange={(v) => handleLeadsChange('agencia', v)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LEAD_QUANTITIES.map((qty) => (
-                      <SelectItem key={qty} value={String(qty ?? 100)}>
-                        {qty.toLocaleString('pt-BR')} leads/mês
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-baseline gap-1 mb-2">
-                <span className="text-3xl font-bold">R$ {agenciaPrecoMensal}</span>
-                <span className="text-muted-foreground">/mês</span>
-              </div>
-              {isAnual && (
-                <p className="text-xs text-muted-foreground">
-                  cobrado R$ {agenciaPrecoTotal.toLocaleString('pt-BR')} por ano
-                </p>
-              )}
-
-              <Button
-                className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => handleSelectPlano(PLANO_AGENCIA, agenciaLeads)}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                )}
-                {PLANO_AGENCIA.cta}
-              </Button>
-            </div>
-
-            <ul className="grid grid-cols-1 gap-2">
-              {PLANO_AGENCIA.features.map((feature, i) => (
-                <li key={i} className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-muted-foreground text-sm">{feature}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Card>
-        )}
-
-        <p className="text-xs text-center text-muted-foreground pt-2 border-t">
-          Você será redirecionado para a página de pagamento segura.
-          <br />
-          Aceita PIX e cartão de crédito.
-        </p>
+        <div className="mt-4 pt-4 border-t">
+          <p className="text-xs text-center text-muted-foreground">
+            Você será redirecionado para a página de pagamento segura.
+            <br />
+            Aceita PIX e cartão de crédito.
+          </p>
+        </div>
       </DialogContent>
     </Dialog>
   );

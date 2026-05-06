@@ -7,6 +7,7 @@ import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { useSubscription } from "@/hooks/useSubscription";
 import { toast } from "sonner";
+import { createStripeCheckout } from "@/services/stripeCheckout";
 
 import { AppHeader } from "@/components/AppHeader";
 
@@ -35,13 +36,13 @@ const Prospeccao = () => {
         toast.info("Checkout cancelado. Você pode tentar novamente quando quiser.");
         setSearchParams({});
       } else if (checkoutStatus === "google_success") {
-        // User logged in via Google from checkout - redirect to Kiwify
+        // User logged in via Google from checkout - create Stripe Checkout
         const plano = searchParams.get("plano") || sessionStorage.getItem("checkout_plano");
         const isAnualParam = searchParams.get("isAnual") || sessionStorage.getItem("checkout_isAnual");
         const isAnual = isAnualParam === "true";
         
         if (plano) {
-          // Get user info for Kiwify checkout
+          // Get user info for Stripe checkout
           const { data: { user: currentUser } } = await supabase.auth.getUser();
           
           if (!currentUser?.email) {
@@ -57,18 +58,19 @@ const Prospeccao = () => {
           sessionStorage.removeItem("checkout_plano");
           sessionStorage.removeItem("checkout_isAnual");
           
-          // Chamar Edge Function do Stripe
-          const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
-            body: { planKey: plano.toLowerCase(), leadsQty: 100, isAnual }
-          });
-          
-          if (error || !data?.url) {
+          try {
+            const data = await createStripeCheckout({
+              selectedPlan: { planKey: plano.toLowerCase() },
+              leadsQuantity: plano.toLowerCase() === "agencia" ? 2000 : plano.toLowerCase() === "pro" ? 800 : 300,
+              billingCycle: isAnual ? "annual" : "monthly",
+            });
+            window.location.href = data.url;
+          } catch (error) {
+            console.error("Erro ao gerar checkout apos Google:", error);
             toast.error("Erro ao gerar link de pagamento. Tente pelo checkout.");
             navigate(`/checkout?plano=${plano}&anual=${isAnual}`);
             return;
           }
-          
-          window.location.href = data.url;
         }
         setSearchParams({});
       }

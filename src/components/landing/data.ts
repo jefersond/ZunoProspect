@@ -115,6 +115,8 @@ export interface Plano {
   nome: string;
   planKey: string; // Key used in database (starter, pro, agencia)
   precoBase: number; // Base price for 100 leads
+  leadsLimit: number;
+  aiLimit: number;
   descricao: string;
   destaque: boolean;
   features: string[];
@@ -124,9 +126,11 @@ export interface Plano {
 
 export const PLANOS: Plano[] = [
   {
-    nome: "Iniciante",
-    planKey: "iniciante",
+    nome: "Começar",
+    planKey: "starter",
     precoBase: 47,
+    leadsLimit: 300,
+    aiLimit: 30,
     descricao: "Para quem está começando",
     destaque: false,
     features: [
@@ -142,6 +146,8 @@ export const PLANOS: Plano[] = [
     nome: "Pro",
     planKey: "pro",
     precoBase: 97,
+    leadsLimit: 800,
+    aiLimit: 100,
     descricao: "Para profissionais",
     destaque: true,
     features: [
@@ -160,6 +166,8 @@ export const PLANO_AGENCIA: Plano = {
   nome: "Agência",
   planKey: "agencia",
   precoBase: 147,
+  leadsLimit: 2000,
+  aiLimit: 300,
   descricao: "Para agências e times",
   destaque: false,
   features: [
@@ -184,9 +192,7 @@ export const LEAD_PRICING_CONFIG = {
 
 // Available lead quantities for selector
 export const LEAD_QUANTITIES = [
-  100, 150, 200, 250, 300, 350, 400, 450, 500, 
-  600, 700, 800, 900, 1000, 
-  1500, 2000
+  300, 800, 2000
 ];
 
 export const FAQ_ITEMS = [

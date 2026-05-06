@@ -15,6 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useUsage } from "@/hooks/useUsage";
 import { Loader2, Search, Mail, MessageCircle, Instagram, Globe, Sparkles } from "lucide-react";
 import { SearchProgress } from "./SearchProgress";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
@@ -44,12 +45,20 @@ export const ProspeccaoForm = () => {
     subscription,
     loading: subscriptionLoading,
     error: subscriptionError,
-    isAdmin,
-    canUseLeads,
-    incrementLeadsUsed,
-    refetch,
+    isAdmin: subscriptionIsAdmin,
+    refetch: refetchSubscription,
     canUseUsaProspecting,
   } = useSubscription();
+  const {
+    usage,
+    loading: usageLoading,
+    error: usageError,
+    canSearchLeads,
+    leadsAvailableTotal,
+    isAdmin: usageIsAdmin,
+    refetch: refetchUsage,
+  } = useUsage();
+  const isAdmin = subscriptionIsAdmin || usageIsAdmin;
   const [loading, setLoading] = useState(false);
   const [proximidadeAtiva, setProximidadeAtiva] = useState(false);
   const [raioKm, setRaioKm] = useState([5]);
@@ -113,10 +122,14 @@ export const ProspeccaoForm = () => {
     fetchUser();
   }, []);
 
+  const refreshUsage = async () => {
+    await Promise.all([refetchUsage(), refetchSubscription()]);
+  };
+
   // Ajusta quantidade padrão baseado no plano do usuário
   useEffect(() => {
-    if (subscription && subscription.leads_remaining !== undefined) {
-      const maxAllowed = subscription.leads_limit === -1 ? 100 : subscription.leads_remaining;
+    if (usage) {
+      const maxAllowed = isAdmin ? 100 : leadsAvailableTotal;
       const currentQuantidade = watch("quantidade");
       
       // Se quantidade atual é maior que o permitido, ajusta
@@ -124,27 +137,27 @@ export const ProspeccaoForm = () => {
         setValue("quantidade", Math.min(20, maxAllowed));
       }
     }
-  }, [subscription, setValue, watch]);
+  }, [usage, isAdmin, leadsAvailableTotal, setValue, watch]);
 
   const foco = watch("foco");
   const canaisProspeccao = watch("canaisProspeccao");
   const quantidade = watch("quantidade");
 
-  const isAtLimit = !subscriptionLoading && !isAdmin && subscription && subscription.leads_limit !== -1 && subscription.leads_remaining <= 0;
-  const availableLeads = subscription?.leads_limit === -1 || isAdmin
+  const isAtLimit = !usageLoading && !isAdmin && !canSearchLeads;
+  const availableLeads = isAdmin
     ? 100
-    : Math.max(1, Math.min(100, subscription?.leads_remaining ?? 100));
-  const quantityAvailabilityText = subscription
-    ? (subscription.leads_limit === -1 || isAdmin
+    : Math.max(1, Math.min(100, leadsAvailableTotal || 0));
+  const quantityAvailabilityText = usage
+    ? (isAdmin
         ? "Leads ilimitados"
-        : (Math.max(0, subscription.leads_remaining) === 0
+        : (Math.max(0, leadsAvailableTotal) === 0
             ? "nenhum disponível"
-            : `${Math.max(0, subscription.leads_remaining)} ${Math.max(0, subscription.leads_remaining) === 1 ? "disponível" : "disponíveis"}`))
+            : `${Math.max(0, leadsAvailableTotal)} ${Math.max(0, leadsAvailableTotal) === 1 ? "disponível" : "disponíveis"}`))
     : null;
 
   // Calcula tempo estimado baseado na quantidade de leads
   const calculateEstimatedTime = (qty: number): number => {
-    // Base: ~3 segundos por lead (busca + análise)
+    // Base: ~3 segundos por lead (busca + enriquecimento)
     return Math.ceil(qty * 3);
   };
 
@@ -159,19 +172,10 @@ export const ProspeccaoForm = () => {
           .eq('user_id', userId)
           .gte('created_at', startTime.toISOString());
 
-        // Conta leads com análise IA concluída
-        const { count: analyzedCount } = await supabase
-          .from('leads')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .gte('created_at', startTime.toISOString())
-          .not('ai_analise_gerada_em', 'is', null);
-
         const found = foundCount || 0;
-        const analyzed = analyzedCount || 0;
 
         setLeadsFound(found);
-        setLeadsAnalyzed(analyzed);
+        setLeadsAnalyzed(0);
 
         // Atualiza tempo estimado restante
         const elapsed = (Date.now() - startTime.getTime()) / 1000;
@@ -183,18 +187,15 @@ export const ProspeccaoForm = () => {
         if (found === 0) {
           setCurrentStep(2);
           setProgressMessage("Buscando empresas no Google Maps...");
-        } else if (found > 0 && analyzed === 0) {
+        } else if (found > 0 && found < targetQty) {
           setCurrentStep(4);
-          setProgressMessage(`Analisando presença digital... (${found} encontradas)`);
-        } else if (analyzed > 0 && analyzed < found) {
+          setProgressMessage(`Enriquecendo contatos... (${found} encontradas)`);
+        } else if (found >= targetQty) {
           setCurrentStep(5);
-          setProgressMessage(`Processando com IA... (${analyzed}/${found})`);
-        } else if (analyzed >= found && found >= targetQty) {
-          setCurrentStep(6);
-          setProgressMessage("Gerando planos de prospecção...");
+          setProgressMessage("Finalizando busca...");
         }
 
-        console.log(`[Progresso] Encontrados: ${found}/${targetQty}, Analisados: ${analyzed}, Tempo restante: ~${remaining}s`);
+        console.log(`[Progresso] Encontrados: ${found}/${targetQty}, Tempo restante: ~${remaining}s`);
 
       } catch (error) {
         console.error("[Polling] Erro ao verificar progresso:", error);
@@ -205,7 +206,7 @@ export const ProspeccaoForm = () => {
   };
 
   const runSearch = async (data: FormData, isIncrementalSearch: boolean) => {
-    if (subscriptionLoading) {
+    if (subscriptionLoading || usageLoading) {
       toast({
         title: "Carregando informações do plano...",
         description: "Aguarde alguns instantes enquanto preparamos sua conta.",
@@ -218,12 +219,12 @@ export const ProspeccaoForm = () => {
         title: "Preparando sua conta...",
         description: "Estamos criando seu perfil e saldo inicial. Tente novamente em instantes.",
       });
-      await refetch();
+      await refreshUsage();
       return;
     }
 
     // Verifica se tem pelo menos 1 lead disponível
-    if (!canUseLeads(1)) {
+    if (!canSearchLeads) {
       toast({
         variant: "destructive",
         title: "Limite de leads atingido",
@@ -231,6 +232,10 @@ export const ProspeccaoForm = () => {
       });
       return;
     }
+
+    const effectiveQuantidade = isAdmin
+      ? data.quantidade
+      : Math.max(1, Math.min(data.quantidade, leadsAvailableTotal));
 
     // Salva os parâmetros da pesquisa
     setLastSearchParams(data);
@@ -243,14 +248,14 @@ export const ProspeccaoForm = () => {
     setProgressMessage("Iniciando busca...");
     setLeadsFound(0);
     setLeadsAnalyzed(0);
-    setTargetQuantity(data.quantidade);
-    setEstimatedTimeSeconds(calculateEstimatedTime(data.quantidade));
+    setTargetQuantity(effectiveQuantidade);
+    setEstimatedTimeSeconds(calculateEstimatedTime(effectiveQuantidade));
     setSearchError(null);
     
     const startTime = new Date();
     setSearchStartTime(startTime);
     
-    console.log(`[Busca] Iniciando busca de ${data.quantidade} leads em ${data.cidade}/${data.estado} - ${data.nicho}`);
+    console.log(`[Busca] Iniciando busca de ${effectiveQuantidade} leads em ${data.cidade}/${data.estado} - ${data.nicho}`);
 
     let pollInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -273,7 +278,7 @@ export const ProspeccaoForm = () => {
       }
 
       // Inicia polling de progresso
-      pollInterval = await startProgressPolling(user.id, startTime, data.quantidade);
+      pollInterval = await startProgressPolling(user.id, startTime, effectiveQuantidade);
       
       // Buscar google_place_ids já existentes para evitar duplicatas
       let existingPlaceIds: string[] = [];
@@ -309,7 +314,7 @@ export const ProspeccaoForm = () => {
           cidade: data.cidade,
           estado: data.estado,
           nicho: data.nicho,
-          quantidade: data.quantidade,
+          quantidade: effectiveQuantidade,
           foco: data.foco,
           proximidadeAtiva: data.proximidadeAtiva,
           raioKm: data.raioKm,
@@ -360,24 +365,13 @@ export const ProspeccaoForm = () => {
       const leadsCount = responseData?.leadsCount || 0;
       const newLeadsCount = responseData?.newLeadsCount ?? leadsCount;
       const updatedLeadsCount = responseData?.updatedLeadsCount || 0;
-      const analysisQueued = responseData?.analysisQueued || false;
-      const analysisCount = responseData?.analysisCount || 0;
-      
       setLeadsFound(leadsCount);
-      // NÃO define leadsAnalyzed como completo - deixa o polling atualizar com dados reais
-      // Isso corrige o bug onde mostrava "analisados" antes da IA terminar
-      if (!analysisQueued) {
-        setLeadsAnalyzed(leadsCount);
-      }
+      setLeadsAnalyzed(0);
       setEstimatedTimeSeconds(0);
 
-      console.log(`[Busca] Concluída! ${leadsCount} leads processados (${newLeadsCount} novos, ${updatedLeadsCount} atualizados)${analysisQueued ? ` - ${analysisCount} análises IA em background` : ''}`);
+      console.log(`[Busca] Concluída! ${leadsCount} leads processados (${newLeadsCount} novos, ${updatedLeadsCount} atualizados)`);
 
-      // Incrementa o contador de leads usados apenas para leads NOVOS
-      if (newLeadsCount > 0) {
-        await incrementLeadsUsed(newLeadsCount);
-        refetch();
-      }
+      await refreshUsage();
 
       // Toast com informação clara sobre leads novos vs atualizados
       let toastDescription = '';
@@ -387,15 +381,12 @@ export const ProspeccaoForm = () => {
       
       if (newLeadsCount > 0) {
         toastDescription = `${newLeadsCount} leads novos${updatedLeadsCount > 0 ? ` + ${updatedLeadsCount} atualizados` : ''}`;
-        if (analysisQueued) {
-          toastDescription += ` (análise IA em andamento...)`;
-        }
         // Informa sobre expansão de raio se usou multi-rodada
         if (searchMeta?.roundsUsed > 1) {
           toastDescription += ` (raio expandido para ${searchMeta.finalRadiusKm?.toFixed(1)}km)`;
         }
         // Se não atingiu a meta, adiciona sugestão
-        if (exhaustedSource && newLeadsCount < data.quantidade) {
+        if (exhaustedSource && newLeadsCount < effectiveQuantidade) {
           toastDescription += `. ${suggestion || 'Tente múltiplos nichos ou outra cidade.'}`;
         }
       } else if (updatedLeadsCount > 0) {
@@ -406,7 +397,7 @@ export const ProspeccaoForm = () => {
       
       toast({
         title: newLeadsCount > 0 
-          ? (exhaustedSource && newLeadsCount < data.quantidade ? `${newLeadsCount} leads encontrados` : "Busca concluída!") 
+          ? (exhaustedSource && newLeadsCount < effectiveQuantidade ? `${newLeadsCount} leads encontrados` : "Busca concluída!") 
           : (updatedLeadsCount > 0 ? "Leads atualizados" : "Nenhum lead novo"),
         description: toastDescription,
         variant: newLeadsCount > 0 ? "default" : (updatedLeadsCount > 0 ? "default" : "destructive"),
@@ -556,20 +547,20 @@ export const ProspeccaoForm = () => {
         </div>
       </CardHeader>
       <CardContent>
-        {subscriptionLoading && (
+        {(subscriptionLoading || usageLoading) && (
           <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground flex items-center gap-3">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
             <span>Carregando informações do plano...</span>
           </div>
         )}
 
-        {!subscriptionLoading && !subscription && (
+        {!subscriptionLoading && !usageLoading && !subscription && (
           <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
             Preparando sua conta...
           </div>
         )}
 
-        {!subscriptionLoading && subscriptionError && (
+        {!subscriptionLoading && !usageLoading && (subscriptionError || usageError) && (
           <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
             Não foi possível atualizar os dados do plano agora. Você ainda pode tentar buscar leads.
           </div>
@@ -924,7 +915,7 @@ export const ProspeccaoForm = () => {
               <Button
                 type="submit"
                 className="min-h-11 w-full max-w-sm shadow-primary"
-                disabled={loading || subscriptionLoading}
+                disabled={loading || subscriptionLoading || usageLoading || isAtLimit}
               >
                 {loading ? (
                   <>

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ADMIN_LEADS_LIMIT, isAdminEmail } from "@/config/admin";
 
-const FREE_PLAN_LIMIT = 10;
+const FREE_PLAN_LIMIT = 20;
 
 interface SubscriptionInfo {
   plan_name: string;
@@ -49,7 +49,7 @@ const starterFallback = (isAdmin: boolean, saldo = 0): SubscriptionInfo => {
   }
 
   return {
-    plan_name: "starter",
+    plan_name: "free",
     leads_limit: FREE_PLAN_LIMIT,
     leads_used: 0,
     leads_remaining: FREE_PLAN_LIMIT + Math.max(0, saldo),
@@ -225,8 +225,9 @@ export const useSubscription = (): UseSubscriptionReturn => {
     }
 
     const names: Record<string, string> = {
-      starter: "Starter (Gratuito)",
+      free: "Free",
       iniciante: "Iniciante",
+      starter: "Começar",
       pro: "Pro",
       agencia: "Agencia",
       admin: "Admin (Ilimitado)",

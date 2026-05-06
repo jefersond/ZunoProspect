@@ -176,6 +176,7 @@ serve(async (req) => {
     const isAdminUser = ADMIN_EMAILS.has(normalizedEmail) || adminCheck === true;
 
     const body: ProspeccaoRequest = await req.json();
+    const requestedQuantity = Math.max(1, Math.min(100, Number(body.quantidade) || 10));
     logStep(searchRunId, "Payload recebido", {
       cidade: body.cidade,
       estado: body.estado,
@@ -187,6 +188,54 @@ serve(async (req) => {
       canaisProspeccao: body.canaisProspeccao ?? null,
       excludePlaceIdsCount: body.excludePlaceIds?.length ?? 0,
       pais: body.pais ?? "BR",
+    });
+
+    const { data: usageData, error: usageError } = await supabaseAdmin.rpc("ensure_user_usage", {
+      p_user_id: user.id,
+    });
+
+    if (usageError) {
+      logError(searchRunId, "Erro ao garantir usage mensal", usageError);
+      return errorResponse(
+        corsHeaders,
+        500,
+        "Erro ao validar limite do plano",
+        usageError.message,
+        "usage_validation_error",
+      );
+    }
+
+    const usageInfo = usageData?.[0];
+    const isUnlimited = isAdminUser || usageInfo?.is_admin === true || (usageInfo?.leads_limit ?? 0) >= 999999;
+    const leadsAvailableTotal = isUnlimited
+      ? 999999
+      : Math.max(0, Number(usageInfo?.leads_available_total ?? 0));
+
+    if (!isUnlimited && leadsAvailableTotal <= 0) {
+      return errorResponse(
+        corsHeaders,
+        402,
+        "Você atingiu seu limite de leads este mês.",
+        "Faça upgrade do plano ou aguarde a renovação mensal para buscar novos leads.",
+        "leads_limit_reached",
+      );
+    }
+
+    const allowedQuantity = isUnlimited
+      ? requestedQuantity
+      : Math.min(requestedQuantity, leadsAvailableTotal);
+    body.quantidade = allowedQuantity;
+
+    logStep(searchRunId, "Usage validado antes do Google Places", {
+      planName: usageInfo?.plan_name ?? null,
+      isUnlimited,
+      requestedQuantity,
+      allowedQuantity,
+      leadsLimit: usageInfo?.leads_limit ?? null,
+      leadsUsed: usageInfo?.leads_used ?? null,
+      leadsRemaining: usageInfo?.leads_remaining ?? null,
+      leadsBonusBalance: usageInfo?.leads_bonus_balance ?? null,
+      leadsAvailableTotal,
     });
 
     let leads: any[] = [];
@@ -573,42 +622,15 @@ serve(async (req) => {
       }
     }
     
-    // Verificar quota do usuário ANTES de processar
-    const { data: subscriptionData, error: subscriptionError } = await supabaseAdmin.rpc('get_subscription_info', {
-      p_user_id: user.id
-    });
-
-    if (subscriptionError && !isAdminUser) {
-      console.error("Erro ao buscar quota do usuário:", subscriptionError);
-    }
-
-    const { data: profileQuota, error: profileQuotaError } = await supabaseAdmin
-      .from("profiles")
-      .select("buscas_saldo")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileQuotaError) {
-      logError(searchRunId, "Erro ao buscar saldo do profile", profileQuotaError);
-    }
-    
-    const subscriptionInfo = subscriptionData?.[0];
-    const planQuota = subscriptionInfo?.leads_remaining ?? body.quantidade;
-    const bonusQuota = Math.max(0, profileQuota?.buscas_saldo ?? 0);
-    const isUnlimited = isAdminUser || subscriptionInfo?.leads_limit === -1;
-    const userQuota = isUnlimited ? body.quantidade : Math.max(0, planQuota) + bonusQuota;
-    
-    // Calcula quantos leads podem ser processados
+    // Calcula quantos leads podem ser processados com o saldo ja validado antes do Google Places
     const leadsAfterFilter = leads.length;
-    const maxLeadsToProcess = isUnlimited ? body.quantidade : Math.min(body.quantidade, Math.max(0, userQuota));
-    const limitedByQuota = !isUnlimited && (leadsAfterFilter > userQuota || userQuota <= 0);
+    const maxLeadsToProcess = Math.min(leadsAfterFilter, body.quantidade);
+    const limitedByQuota = !isUnlimited && requestedQuantity > allowedQuantity;
     
     logStep(searchRunId, "Quota calculada", {
       isUnlimited,
       isAdminUser,
-      planQuota,
-      bonusQuota,
-      userQuota: isUnlimited ? "ilimitado" : userQuota,
+      leadsAvailableTotal: isUnlimited ? "ilimitado" : leadsAvailableTotal,
       leadsAfterFilter,
       maxLeadsToProcess,
       limitedByQuota,
@@ -622,7 +644,7 @@ serve(async (req) => {
     leads = unlockedLeads;
     
     // Calcula leads adicionais disponíveis (incentivo para upgrade)
-    const additionalLeadsAvailable = limitedByQuota ? Math.max(0, leadsAfterFilter - unlockedLeads.length) : 0;
+    const additionalLeadsAvailable = limitedByQuota ? Math.max(0, requestedQuantity - allowedQuantity) : 0;
     const lockedLeadsCount = lockedLeadsPreview.length;
     
     if (additionalLeadsAvailable > 0) {
@@ -835,8 +857,8 @@ serve(async (req) => {
     }
 
     // Função para processar um lead
-    // Retorna { leadResult, scheduleAnalysis, isNew } onde isNew indica se foi INSERT ou UPDATE
-    async function processLead(place: any): Promise<{ leadResult: any; scheduleAnalysis: () => Promise<void>; isNew: boolean } | null> {
+    // Retorna { leadResult, isNew } onde isNew indica se foi INSERT ou UPDATE
+    async function processLead(place: any): Promise<{ leadResult: any; isNew: boolean } | null> {
       try {
         let detailsData: any;
 
@@ -933,82 +955,12 @@ serve(async (req) => {
           const leadData = { id: leadId };
           console.log(`✅ Lead ${isNewLead ? 'INSERIDO (novo)' : 'ATUALIZADO (existente)'} com ID: ${leadId}`);
 
-          // Agenda análise de IA em background com retry e rate limiting
-          const scheduleAnalysisWithRetry = async (retries = 3) => {
-            for (let attempt = 1; attempt <= retries; attempt++) {
-              try {
-                console.log(`🤖 Agendando análise IA (tentativa ${attempt}/${retries}) para: ${details.name}`);
-                
-                const response = await fetch(
-                  `${Deno.env.get("SUPABASE_URL")}/functions/v1/analisar-lead-ia`,
-                  {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: req.headers.get("Authorization")!,
-                    },
-                    body: JSON.stringify({
-                      lead_id: leadData?.id,
-                      user_id: user.id, // Passa user_id para RPC funcionar com service role
-                      nome: details.name,
-                      nicho: body.nicho,
-                      cidade: body.cidade,
-                      website: details.website || null,
-                      foco: body.foco,
-                      whatsapp_on_site: siteSignals.whatsapp_on_site,
-                      has_meta_pixel: siteSignals.has_meta_pixel,
-                      has_gtag: siteSignals.has_gtag,
-                      has_gtm: siteSignals.has_gtm,
-                      instagram_url: siteSignals.instagram_url,
-                      instagram_context: null,
-                      canaisProspeccao: body.canaisProspeccao || "ambos",
-                      pais: body.pais || "BR",
-                    }),
-                  }
-                );
-
-                if (response.ok) {
-                  console.log(`✅ Análise IA agendada com sucesso para: ${details.name}`);
-                  return;
-                }
-
-                const errorText = await response.text();
-                console.error(`❌ Erro na análise IA (tentativa ${attempt}):`, response.status, errorText);
-                
-                // Rate limit detectado - aguardar tempo maior
-                if (response.status === 429) {
-                  const retryAfter = parseInt(response.headers.get('Retry-After') || '30');
-                  const waitTime = Math.max(retryAfter, 10) * 1000; // Mínimo 10s para rate limit
-                  console.log(`⏳ Rate limit atingido, aguardando ${waitTime/1000}s antes de retry...`);
-                  await new Promise(resolve => setTimeout(resolve, waitTime));
-                  continue;
-                }
-                
-                // Outros erros - backoff exponencial padrão
-                if (attempt < retries) {
-                  const backoffMs = Math.min(2000 * Math.pow(2, attempt - 1), 30000); // Max 30s
-                  console.log(`⏳ Aguardando ${backoffMs/1000}s antes de retry...`);
-                  await new Promise(resolve => setTimeout(resolve, backoffMs));
-                }
-              } catch (err: any) {
-                console.error(`❌ Erro ao chamar análise IA (tentativa ${attempt}):`, err.message);
-                if (attempt < retries) {
-                  const backoffMs = Math.min(2000 * Math.pow(2, attempt - 1), 30000);
-                  await new Promise(resolve => setTimeout(resolve, backoffMs));
-                }
-              }
-            }
-            console.error(`❌ Falha após ${retries} tentativas de análise IA para: ${details.name}`);
-          };
-
-          // Retorna a função para ser executada com delay
           return { 
             leadResult: {
               nome: details.name,
               endereco: details.formatted_address,
               sinais: siteSignals,
             },
-            scheduleAnalysis: scheduleAnalysisWithRetry,
             isNew: isNewLead
           };
         }
@@ -1019,7 +971,7 @@ serve(async (req) => {
     }
 
     // Processa leads em paralelo (máximo 5 por vez para não sobrecarregar)
-    const leadsWithAnalysis: { leadResult: any; scheduleAnalysis: () => Promise<void>; isNew: boolean }[] = [];
+    const leadsWithAnalysis: { leadResult: any; isNew: boolean }[] = [];
     const batchSize = 5;
     
     for (let i = 0; i < leads.length; i += batchSize) {
@@ -1036,58 +988,28 @@ serve(async (req) => {
     // Extrai apenas os resultados dos leads para retorno
     const leadsDetails = leadsWithAnalysis.map(item => item.leadResult);
 
-    // ============================================
-    // ANÁLISE IA EM BACKGROUND (NÃO BLOQUEIA RESPOSTA)
-    // ============================================
-    // Usa EdgeRuntime.waitUntil para rodar análises após retornar resposta
-    // Isso evita timeout e garante que o usuário veja os leads imediatamente
-    
-    const runAIAnalysisInBackground = async () => {
-      const AI_BATCH_SIZE = 5;
-      const DELAY_BETWEEN_BATCHES_MS = 500;
-      
-      console.log(`🤖 [BACKGROUND] Iniciando análise IA de ${leadsWithAnalysis.length} leads...`);
-      
-      for (let i = 0; i < leadsWithAnalysis.length; i += AI_BATCH_SIZE) {
-        const batch = leadsWithAnalysis.slice(i, i + AI_BATCH_SIZE);
-        const batchNumber = Math.floor(i / AI_BATCH_SIZE) + 1;
-        const totalBatches = Math.ceil(leadsWithAnalysis.length / AI_BATCH_SIZE);
-        
-        console.log(`🔄 [BACKGROUND] Lote ${batchNumber}/${totalBatches} (${batch.length} análises)...`);
-        
-        const batchPromises = batch.map(async (item, idx) => {
-          if (item.scheduleAnalysis) {
-            try {
-              await item.scheduleAnalysis();
-              console.log(`✅ [BACKGROUND] Análise ${i + idx + 1}/${leadsWithAnalysis.length} ok.`);
-            } catch (err) {
-              console.error(`❌ [BACKGROUND] Análise ${i + idx + 1} falhou:`, err);
-            }
-          }
-        });
-        
-        await Promise.all(batchPromises);
-        
-        if (i + AI_BATCH_SIZE < leadsWithAnalysis.length) {
-          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
-        }
-      }
-      
-      console.log(`✅ [BACKGROUND] Todas as ${leadsWithAnalysis.length} análises IA concluídas!`);
-    };
+    if (leadsDetails.length > 0) {
+      const { data: incrementOk, error: incrementError } = await supabaseAdmin.rpc("increment_leads_usage", {
+        p_user_id: user.id,
+        p_amount: leadsDetails.length,
+      });
 
-    // Agenda análise em background - NÃO AGUARDA (resposta retorna imediatamente)
-    // @ts-ignore - EdgeRuntime disponível no Deno Edge Functions
-    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
-      // @ts-ignore
-      EdgeRuntime.waitUntil(runAIAnalysisInBackground());
-      console.log(`🚀 Análise IA agendada em background para ${leadsWithAnalysis.length} leads`);
-    } else {
-      // Fallback: se EdgeRuntime não disponível, dispara sem await (fire and forget)
-      runAIAnalysisInBackground().catch(err => 
-        console.error("❌ Erro na análise IA em background:", err)
-      );
-      console.log(`🚀 Análise IA disparada (fire-and-forget) para ${leadsWithAnalysis.length} leads`);
+      if (incrementError || incrementOk !== true) {
+        logError(searchRunId, "Falha ao descontar uso real de leads", incrementError ?? new Error("increment_leads_usage returned false"), {
+          amount: leadsDetails.length,
+        });
+        return errorResponse(
+          corsHeaders,
+          402,
+          "Você atingiu seu limite de leads este mês.",
+          "A busca encontrou leads, mas seu saldo acabou antes da confirmação de uso.",
+          "leads_limit_reached",
+        );
+      }
+
+      logStep(searchRunId, "Uso de leads incrementado apos processamento", {
+        amount: leadsDetails.length,
+      });
     }
 
     // Prepara preview dos leads bloqueados (dados básicos apenas, sem processar)
@@ -1116,9 +1038,8 @@ serve(async (req) => {
         limitedByQuota,
         additionalLeadsAvailable,
         lockedLeadsCount: additionalLeadsAvailable,
-        // Indica que análise IA está rodando em background
-        analysisQueued: leadsWithAnalysis.length > 0,
-        analysisCount: leadsWithAnalysis.length,
+        analysisQueued: false,
+        analysisCount: 0,
         // NOVO: search_run_id para identificar esta busca
         searchRunId: searchRunId,
         // Metadados da busca multi-rodada

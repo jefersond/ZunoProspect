@@ -8,6 +8,20 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
 
 const endpointSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
 
+const PLAN_LIMITS: Record<string, { plan: string; leadsLimit: number; aiLimit: number }> = {
+  free: { plan: "free", leadsLimit: 20, aiLimit: 3 },
+  iniciante: { plan: "starter", leadsLimit: 300, aiLimit: 30 },
+  starter: { plan: "starter", leadsLimit: 300, aiLimit: 30 },
+  pro: { plan: "pro", leadsLimit: 800, aiLimit: 100 },
+  agency: { plan: "agencia", leadsLimit: 2000, aiLimit: 300 },
+  agencia: { plan: "agencia", leadsLimit: 2000, aiLimit: 300 },
+};
+
+function getPlanLimits(planKey: string | undefined) {
+  const normalized = (planKey || "pro").trim().toLowerCase();
+  return PLAN_LIMITS[normalized] ?? PLAN_LIMITS.pro;
+}
+
 serve(async (req) => {
   const signature = req.headers.get("stripe-signature");
 
@@ -36,8 +50,10 @@ serve(async (req) => {
     }
 
     const userId = metadata.supabase_user_id;
-    const planName = metadata.plan_key || "pro"; // starter, pro, agencia
-    const leadsLimit = parseInt(metadata.leads_limit || "100", 10);
+    const planLimits = getPlanLimits(metadata.plan_key);
+    const planName = planLimits.plan;
+    const leadsLimit = planLimits.leadsLimit;
+    const aiLimit = planLimits.aiLimit;
     const isAnnual = metadata.is_annual === "true";
 
     const supabaseAdmin = createClient(
@@ -68,8 +84,10 @@ serve(async (req) => {
         .update({
           plan_name: planName,
           leads_limit: leadsLimit,
+          ai_limit: aiLimit,
           is_annual: isAnnual,
           leads_used_this_month: 0,
+          ai_used_this_month: 0,
           billing_period_start: now.toISOString(),
           billing_period_end: billingPeriodEnd.toISOString(),
           updated_at: now.toISOString(),
@@ -83,8 +101,10 @@ serve(async (req) => {
           user_id: userId,
           plan_name: planName,
           leads_limit: leadsLimit,
+          ai_limit: aiLimit,
           is_annual: isAnnual,
           leads_used_this_month: 0,
+          ai_used_this_month: 0,
           billing_period_start: now.toISOString(),
           billing_period_end: billingPeriodEnd.toISOString(),
         });

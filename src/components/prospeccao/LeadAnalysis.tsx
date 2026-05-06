@@ -6,6 +6,7 @@ import { Brain, TrendingUp, MessageSquare, Mail, RefreshCw, Instagram, Copy, Che
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { copyToClipboard } from "@/utils/templateUtils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PlanoProspeccaoDia {
   dia: number;
@@ -24,9 +25,10 @@ interface LeadAnalysisProps {
   geradoEm: string | null;
   onReanalyze?: () => void;
   isReanalyzing?: boolean;
+  canAnalyzeAI?: boolean;
 }
 
-export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onReanalyze, isReanalyzing }: LeadAnalysisProps) => {
+export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onReanalyze, isReanalyzing, canAnalyzeAI = true }: LeadAnalysisProps) => {
   const [copiedDia, setCopiedDia] = useState<number | null>(null);
   const { toast } = useToast();
 
@@ -48,15 +50,28 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
         <CardContent className="py-6 text-center space-y-3">
           <p className="text-muted-foreground">Análise de IA ainda não gerada para este lead</p>
           {onReanalyze && (
-            <Button
-              onClick={onReanalyze}
-              disabled={isReanalyzing}
-              variant="outline"
-              size="sm"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? 'animate-spin' : ''}`} />
-              {isReanalyzing ? 'Analisando...' : 'Gerar Análise'}
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      onClick={onReanalyze}
+                      disabled={isReanalyzing || !canAnalyzeAI}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? 'animate-spin' : ''}`} />
+                      {isReanalyzing ? 'Analisando...' : 'Analisar com IA'}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {!canAnalyzeAI && (
+                  <TooltipContent>
+                    <p>Você atingiu seu limite de análises com IA.</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           )}
         </CardContent>
       </Card>
@@ -88,15 +103,28 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
                 )}
               </div>
               {onReanalyze && (
-                <Button
-                  onClick={onReanalyze}
-                  disabled={isReanalyzing}
-                  variant="outline"
-                  size="sm"
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? 'animate-spin' : ''}`} />
-                  {isReanalyzing ? 'Analisando...' : 'Reanalisar'}
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button
+                          onClick={onReanalyze}
+                          disabled={isReanalyzing || !canAnalyzeAI}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? 'animate-spin' : ''}`} />
+                          {isReanalyzing ? 'Analisando...' : 'Reanalisar'}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {!canAnalyzeAI && (
+                      <TooltipContent>
+                        <p>Você atingiu seu limite de análises com IA.</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </div>
           </CardHeader>

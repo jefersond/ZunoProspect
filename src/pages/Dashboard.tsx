@@ -7,6 +7,8 @@ import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { AppHeader } from "@/components/AppHeader";
 import { ReferralCard } from "@/components/ReferralCard";
+import { UsageStats } from "@/components/UsageStats";
+import { useUsage } from "@/hooks/useUsage";
 
 interface DashboardMetrics {
   totalLeads: number;
@@ -24,6 +26,7 @@ const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accen
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { usage, loading: usageLoading, isAdmin: usageIsAdmin } = useUsage();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [metrics, setMetrics] = useState<DashboardMetrics>({
@@ -193,6 +196,17 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        <UsageStats
+          leadsUsed={usage.leads_used}
+          leadsLimit={usage.leads_limit}
+          aiUsed={usage.ai_used}
+          aiLimit={usage.ai_limit}
+          isAdmin={usageIsAdmin || isAdmin}
+          loading={usageLoading}
+          leadsBonusBalance={usage.leads_bonus_balance}
+          leadsAvailableTotal={usage.leads_available_total}
+        />
 
         {/* Motor de Viralidade — Indique e Ganhe */}
         <ReferralCard />

@@ -440,18 +440,48 @@ serve(async (req) => {
     
     console.log("🔍 Iniciando análise:", { leadId, userId, hasNome: !!requestData.nome });
 
-    const GOOGLE_GEMINI_API_KEY = Deno.env.get("Gemini_API") || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_GEMINI_API_KEY");
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("Gemini_API");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+      ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      : null;
+
+    if (!supabaseAdmin) {
+      throw new Error("Configuração Supabase incompleta");
+    }
+
+    const { data: usageData, error: usageError } = await supabaseAdmin.rpc("ensure_user_usage", {
+      p_user_id: userId,
+    });
+
+    if (usageError) {
+      console.error("❌ Erro ao validar uso de IA:", usageError.message);
+      throw new Error("Erro ao validar limite de análises com IA.");
+    }
+
+    const usageInfo = usageData?.[0];
+    const aiRemaining = Number(usageInfo?.ai_remaining ?? 0);
+    const isUnlimited = usageInfo?.is_admin === true || Number(usageInfo?.ai_limit ?? 0) >= 999999;
+
+    if (!isUnlimited && aiRemaining <= 0) {
+      return new Response(JSON.stringify({ error: "Você atingiu seu limite de análises com IA." }), {
+        status: 402,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!GOOGLE_GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY não configurada.");
+    }
 
     let leadData: LeadData;
     
-    if (leadId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+    if (leadId) {
       console.log("📥 Buscando lead via RPC...");
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       
       // Passa user_id para RPC funcionar com service role (auth.uid() não funciona)
-      const { data: decryptedLeads, error: rpcError } = await supabase
+      const { data: decryptedLeads, error: rpcError } = await supabaseAdmin
         .rpc("get_lead_decrypted_by_id", { p_lead_id: leadId, p_user_id: userId });
         
       if (rpcError || !decryptedLeads?.length) {
@@ -513,7 +543,7 @@ serve(async (req) => {
         }
         
         // Update signals in DB
-        await supabase.from("leads").update({
+        await supabaseAdmin.from("leads").update({
           whatsapp_on_site: leadData.whatsapp_on_site,
           has_meta_pixel: leadData.has_meta_pixel,
           has_gtag: leadData.has_gtag,
@@ -553,33 +583,36 @@ serve(async (req) => {
     console.log("🤖 Analisando:", leadData.nome, "| Canais detectados:", 
       [leadData.whatsapp_number && "WhatsApp", leadData.email && "Email", leadData.instagram_url && "Instagram"].filter(Boolean).join(", ") || "Nenhum");
 
-    let analise: AnaliseResult;
-
-    // Prioriza Gemini → Lovable AI → Mock
-    if (GOOGLE_GEMINI_API_KEY) {
-      console.log("🚀 Usando Gemini 2.0 Flash (principal)...");
-      try {
-        analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
-      } catch (geminiError: any) {
-        console.log(`⚠️ Gemini falhou: ${geminiError.message}`);
-        console.log("🔄 Fallback para Lovable AI...");
-        analise = await analyzeWithLovableAI(leadData);
-      }
-    } else {
-      console.log("🔄 Usando Lovable AI (sem API keys externas)...");
-      analise = await analyzeWithLovableAI(leadData);
-    }
+    console.log("🚀 Usando Gemini 2.0 Flash para análise manual...");
+    const analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
 
     // Save analysis to DB
-    if (leadId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      await supabase.from("leads").update({
+    if (leadId) {
+      const { error: updateError } = await supabaseAdmin.from("leads").update({
         diagnostico_bullets: analise.diagnostico_bullets,
         probabilidade_conversao: analise.probabilidade_conversao,
         plano_prospeccao: analise.plano_prospeccao_7dias,
         ai_analise_gerada_em: new Date().toISOString(),
       }).eq("id", leadId);
+
+      if (updateError) {
+        console.error("❌ Erro ao salvar análise:", updateError.message);
+        throw new Error("Erro ao salvar análise do lead.");
+      }
+
       console.log("✅ Análise salva no banco");
+    }
+
+    const { data: incrementOk, error: incrementError } = await supabaseAdmin.rpc("increment_ai_usage", {
+      p_user_id: userId,
+    });
+
+    if (incrementError || incrementOk !== true) {
+      console.error("❌ Erro ao incrementar uso de IA:", incrementError?.message || "increment_ai_usage returned false");
+      return new Response(JSON.stringify({ error: "Você atingiu seu limite de análises com IA." }), {
+        status: 402,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(JSON.stringify(analise), {

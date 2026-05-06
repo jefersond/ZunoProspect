@@ -1,10 +1,14 @@
 # VLAEG - Task Plan
-- [x] Compreender requisitos e variáveis de e-mail (Resend)
-- [ ] Confirmar aplicação da migration `20260502133000_email_remarketing_safety.sql` (Falhou via CLI, requer execução manual)
-- [x] Deploy da função `send-email-campaign`
-- [x] Deploy da função `test-email-config`
-- [x] Deploy da função `track-email-open`
-- [x] Deploy da função `track-email-click`
-- [x] Deploy da função `unsubscribe-email`
-- [x] Validar Rota do Painel Admin `/admin/email`
-- [x] Melhorar card de indicação (ReferralCard) adicionando saldo total de leads
+- [x] Compreender requisitos e variaveis de e-mail (Resend)
+- [x] Confirmar aplicacao da migration `20260502133000_email_remarketing_safety.sql`
+- [x] Deploy da funcao `send-email-campaign`
+- [x] Deploy da funcao `test-email-config`
+- [x] Deploy da funcao `track-email-open`
+- [x] Deploy da funcao `track-email-click`
+- [x] Deploy da funcao `unsubscribe-email`
+- [x] Validar rota do painel admin `/admin/email`
+- [x] Melhorar card de indicacao (`ReferralCard`) adicionando saldo total de leads
+- [x] Refatorar visual do modal de upgrade de planos (`UpgradePlanDialog`)
+- [x] Aplicar bootstrap remoto de tabelas de e-mail (`20260505083000_bootstrap_remote_email_remarketing.sql`)
+- [x] Aplicar limites mensais de leads e IA (`20260505090000_usage_limits_leads_ai.sql`)
+- [x] Deploy das funcoes `buscar-leads`, `analisar-lead-ia`, `create-stripe-checkout`, `stripe-webhook` e `kiwify-webhook`

@@ -4,13 +4,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Copy, CheckCircle2, Gift, Users, Sparkles, Database } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useSubscription } from "@/hooks/useSubscription";
+import { useUsage } from "@/hooks/useUsage";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const supabaseAny = supabase as any;
 
 export function ReferralCard() {
-  const { subscription, isAdmin } = useSubscription();
+  const { usage, isAdmin } = useUsage();
   const [copied, setCopied] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [indicacoesAtuais, setIndicacoesAtuais] = useState(0);
@@ -47,7 +47,7 @@ export function ReferralCard() {
   }, []);
 
   const buscasExtrasDisponiveis = indicacoesAtuais > 0 ? bonusIndicacaoSaldo : 0;
-  const leadsTotais = isAdmin ? "Ilimitado" : (subscription?.leads_remaining ?? 0);
+  const leadsTotais = isAdmin ? "Ilimitado" : usage.leads_available_total;
 
   const referralLink = referralCode
     ? `https://zunopropect.com.br/auth?ref=${referralCode}`

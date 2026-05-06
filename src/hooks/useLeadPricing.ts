@@ -32,9 +32,7 @@ export const LEAD_PRICING_CONFIG: LeadPricingConfig = {
 
 // Available lead quantities
 export const LEAD_QUANTITIES = [
-  100, 150, 200, 250, 300, 350, 400, 450, 500, 
-  600, 700, 800, 900, 1000, 
-  1500, 2000
+  300, 800, 2000
 ];
 
 export function useLeadPricing() {
@@ -67,15 +65,25 @@ export function useLeadPricing() {
 
   // Calculate price for a specific plan and quantity
   const calculatePrice = useCallback((planName: string, leadsQuantity: number, isAnnual: boolean = false): number => {
+    const normalizedPlanName = planName === "iniciante" ? "starter" : planName;
+    const safeLeadsQuantity = Number(leadsQuantity);
+
+    if (!Number.isFinite(safeLeadsQuantity) || safeLeadsQuantity <= 0) {
+      return Number.NaN;
+    }
+
     // Try to find in cached tiers first
-    const tier = tiers.find(t => t.plan_name === planName && t.leads_quantity === leadsQuantity);
+    const tier = tiers.find(t => {
+      const tierPlanName = t.plan_name === "iniciante" ? "starter" : t.plan_name;
+      return tierPlanName === normalizedPlanName && t.leads_quantity === safeLeadsQuantity;
+    });
     if (tier) {
       return isAnnual ? tier.price_annual : tier.price_monthly;
     }
 
-    // Fallback to formula calculation
-    const basePrice = LEAD_PRICING_CONFIG.basePrice[planName] || LEAD_PRICING_CONFIG.basePrice.starter;
-    const leadsAboveBase = Math.max(0, leadsQuantity - LEAD_PRICING_CONFIG.minLeads);
+    // Fallback to formula calculation used by lead_pricing_tiers.
+    const basePrice = LEAD_PRICING_CONFIG.basePrice[normalizedPlanName] || LEAD_PRICING_CONFIG.basePrice.starter;
+    const leadsAboveBase = Math.max(0, safeLeadsQuantity - LEAD_PRICING_CONFIG.minLeads);
     const increments = leadsAboveBase / LEAD_PRICING_CONFIG.incrementLeads;
     const monthlyPrice = basePrice + (increments * LEAD_PRICING_CONFIG.incrementPrice);
     

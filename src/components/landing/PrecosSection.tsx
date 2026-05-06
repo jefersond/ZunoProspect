@@ -14,6 +14,7 @@ import { useLeadPricing } from "@/hooks/useLeadPricing";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { createStripeCheckout } from "@/services/stripeCheckout";
 
 export function PrecosSection() {
   const navigate = useNavigate();
@@ -21,9 +22,9 @@ export function PrecosSection() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedPlano, setSelectedPlano] = useState<Plano | null>(null);
   const [selectedLeads, setSelectedLeads] = useState<Record<string, number>>({
-    iniciante: 100,
-    pro: 100,
-    agencia: 100,
+    starter: 300,
+    pro: 800,
+    agencia: 2000,
   });
   const [usaDialogOpen, setUsaDialogOpen] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
@@ -66,6 +67,11 @@ export function PrecosSection() {
     }
 
     const preco = calculatePrice(plano.planKey, leadsQty, isAnual);
+    if (!plano || !Number.isFinite(preco) || Number.isNaN(preco)) {
+      toast.error("Preço inválido para o plano selecionado.");
+      return;
+    }
+
     trackLead({
       content_name: `${plano.nome} - ${leadsQty} leads`,
       content_category: 'Paid Plan',
@@ -77,19 +83,14 @@ export function PrecosSection() {
     try {
       toast.loading("Gerando link de pagamento seguro...");
 
-      const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
-        body: {
-          planKey: plano.planKey,
-          leadsQty: leadsQty,
-          isAnual
-        }
+      const data = await createStripeCheckout({
+        selectedPlan: plano,
+        leadsQuantity: leadsQty,
+        billingCycle: isAnual ? "annual" : "monthly",
+        price: preco,
       });
 
       toast.dismiss();
-
-      if (error || !data?.url) {
-        throw new Error("Falha ao gerar link de pagamento.");
-      }
       
       window.location.href = data.url;
       
@@ -106,7 +107,7 @@ export function PrecosSection() {
   };
 
   // Calculate Agência price
-  const agenciaLeads = selectedLeads.agencia;
+  const agenciaLeads = PLANO_AGENCIA.leadsLimit;
   const agenciaPrecoMensal = getDisplayPrice('agencia', agenciaLeads, isAnual);
   const agenciaPrecoTotal = calculatePrice('agencia', agenciaLeads, isAnual);
 
@@ -141,7 +142,7 @@ export function PrecosSection() {
         {/* Grid for Iniciante, Pro */}
         <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
           {PLANOS.map((plano, index) => {
-            const leadsQty = selectedLeads[plano.planKey];
+            const leadsQty = plano.leadsLimit;
             const precoMensal = getDisplayPrice(plano.planKey, leadsQty, isAnual);
             const precoTotal = calculatePrice(plano.planKey, leadsQty, isAnual);
             
@@ -166,22 +167,9 @@ export function PrecosSection() {
                   
                   {/* Lead Quantity Selector */}
                   <div className="mb-4">
-                    <label className="text-xs text-muted-foreground block mb-2">Leads por mês</label>
-                    <Select 
-                      value={String(leadsQty ?? 100)} 
-                      onValueChange={(v) => handleLeadsChange(plano.planKey, v)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {LEAD_QUANTITIES.map((qty) => (
-                          <SelectItem key={qty} value={String(qty ?? 100)}>
-                            {qty.toLocaleString('pt-BR')} leads
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm font-medium">
+                      {plano.leadsLimit.toLocaleString('pt-BR')} leads/mês + {plano.aiLimit} análises com IA
+                    </div>
                   </div>
 
                   <div className="flex items-baseline justify-center gap-1">
@@ -248,22 +236,9 @@ export function PrecosSection() {
                   
                   {/* Lead Quantity Selector for Agência */}
                   <div className="mb-6">
-                    <label className="text-xs text-muted-foreground block mb-2">Leads por mês</label>
-                    <Select 
-                      value={String(agenciaLeads ?? 100)} 
-                      onValueChange={(v) => handleLeadsChange('agencia', v)}
-                    >
-                      <SelectTrigger className="w-full max-w-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {LEAD_QUANTITIES.map((qty) => (
-                          <SelectItem key={qty} value={String(qty ?? 100)}>
-                            {qty.toLocaleString('pt-BR')} leads
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-sm font-medium">
+                      {PLANO_AGENCIA.leadsLimit.toLocaleString('pt-BR')} leads/mês + {PLANO_AGENCIA.aiLimit} análises com IA
+                    </div>
                   </div>
                   
                   <div className="flex items-baseline gap-2 mb-2">

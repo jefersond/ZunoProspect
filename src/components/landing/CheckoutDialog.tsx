@@ -8,9 +8,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plano } from "./data";
 import { trackInitiateCheckout, trackAddPaymentInfo } from "@/lib/metaPixel";
-import { getKiwifyCheckoutUrl } from "@/config/kiwifyLinks";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { useLeadPricing } from "@/hooks/useLeadPricing";
+import { createStripeCheckout } from "@/services/stripeCheckout";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -57,11 +57,12 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
   useEffect(() => {
     if (open && plano && !hasTrackedCheckout.current) {
       hasTrackedCheckout.current = true;
-      const preco = calculatePrice(plano.planKey, selectedLeads, isAnual);
+      const packageLeads = plano.leadsLimit || selectedLeads;
+      const preco = calculatePrice(plano.planKey, packageLeads, isAnual);
       trackInitiateCheckout({
         value: preco,
         currency: 'BRL',
-        content_name: `${plano.nome} - ${selectedLeads} leads`,
+        content_name: `${plano.nome} - ${packageLeads} leads`,
         content_category: isAnual ? 'Annual' : 'Monthly',
         num_items: 1
       });
@@ -73,8 +74,9 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
 
   if (!plano) return null;
 
-  const preco = calculatePrice(plano.planKey, selectedLeads, isAnual);
-  const precoMensal = getDisplayPrice(plano.planKey, selectedLeads, isAnual);
+  const packageLeads = plano.leadsLimit || selectedLeads;
+  const preco = calculatePrice(plano.planKey, packageLeads, isAnual);
+  const precoMensal = getDisplayPrice(plano.planKey, packageLeads, isAnual);
   const periodo = isAnual ? "/ano" : "/mês";
   const economia = isAnual ? 17 : 0; // Fixed 17% discount on annual
 
@@ -106,7 +108,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
       localStorage.setItem('checkout_pending', JSON.stringify({
         plano: plano.nome,
         planKey: plano.planKey,
-        selectedLeads,
+        selectedLeads: packageLeads,
         isAnual
       }));
       if (referralCode) {
@@ -199,19 +201,14 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
       toast.loading("Conta criada! Gerando link de pagamento...");
 
       // Gerar URL do checkout via Stripe Edge Function
-      const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
-        body: {
-          planKey: plano.planKey,
-          leadsQty: selectedLeads,
-          isAnual
-        }
+      const data = await createStripeCheckout({
+        selectedPlan: plano,
+        leadsQuantity: packageLeads,
+        billingCycle: isAnual ? "annual" : "monthly",
+        price: preco,
       });
 
       toast.dismiss();
-
-      if (error || !data?.url) {
-        throw new Error("Falha ao gerar link de pagamento");
-      }
       
       toast.success("Redirecionando para o pagamento seguro...");
       

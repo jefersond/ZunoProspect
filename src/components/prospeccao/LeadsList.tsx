@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, AlertCircle, UserCheck } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
@@ -22,10 +22,12 @@ import { exportLeadsToExcel } from "@/utils/exportToExcel";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { UpsellCard } from "./UpsellCard";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useUsage } from "@/hooks/useUsage";
 
 export const LeadsList = () => {
   const { toast } = useToast();
   const { subscription } = useSubscription();
+  const { canAnalyzeAI, refetch: refetchUsage } = useUsage();
   const [leads, setLeads] = useState<LeadProspeccao[]>([]);
   const [lockedLeads, setLockedLeads] = useState<LeadProspeccao[]>([]);
   const [totalLocked, setTotalLocked] = useState(0);
@@ -481,17 +483,32 @@ export const LeadsList = () => {
     }
   };
 
-  // Detectar se lead está com erro de análise (criado há mais de 3 minutos sem análise)
-  const isAnalysisFailed = (lead: LeadProspeccao): boolean => {
-    if (lead.ai_analise_gerada_em) return false;
-    const createdAt = new Date(lead.created_at).getTime();
-    const now = Date.now();
-    const threeMinutesMs = 3 * 60 * 1000;
-    return (now - createdAt) > threeMinutesMs;
+  const getFunctionErrorMessage = async (error: any) => {
+    const contextResponse = error?.context;
+    if (contextResponse instanceof Response) {
+      try {
+        const text = await contextResponse.clone().text();
+        const payload = text ? JSON.parse(text) : null;
+        return payload?.error || payload?.details || error.message;
+      } catch {
+        return error.message;
+      }
+    }
+    return error?.message || "Não foi possível analisar o lead";
   };
 
-  // Reanalisar lead com erro
+  // Analisar ou reanalisar lead manualmente
   const reanalyzeLead = async (lead: LeadProspeccao) => {
+    if (!canAnalyzeAI) {
+      toast({
+        variant: "destructive",
+        title: "Limite de IA atingido",
+        description: "Você atingiu seu limite de análises com IA.",
+      });
+      setShowUpgradeDialog(true);
+      return;
+    }
+
     setReanalyzingLeads(prev => new Set(prev).add(lead.id));
     
     try {
@@ -506,20 +523,21 @@ export const LeadsList = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await getFunctionErrorMessage(error));
 
       toast({
-        title: "Reanálise concluída",
-        description: `Lead "${lead.nome}" foi reanalisado com sucesso`,
+        title: "Análise concluída",
+        description: `Lead "${lead.nome}" foi analisado com sucesso`,
       });
 
+      await refetchUsage();
       loadLeads();
     } catch (error: any) {
       console.error("Erro ao reanalisar:", error);
       toast({
         variant: "destructive",
-        title: "Erro na reanálise",
-        description: error.message || "Não foi possível reanalisar o lead",
+        title: "Erro na análise",
+        description: error.message || "Não foi possível analisar o lead",
       });
     } finally {
       setReanalyzingLeads(prev => {
@@ -747,32 +765,34 @@ export const LeadsList = () => {
                               className="h-2 w-full"
                             />
                           </>
-                        ) : isAnalysisFailed(lead) ? (
-                          <div className="flex flex-col items-center gap-1">
-                            <div className="flex items-center gap-1 text-destructive">
-                              <AlertCircle className="h-4 w-4" />
-                              <span className="text-sm font-medium">Erro</span>
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => reanalyzeLead(lead)}
-                              disabled={reanalyzingLeads.has(lead.id)}
-                              className="h-7 text-xs"
-                            >
-                              {reanalyzingLeads.has(lead.id) ? (
-                                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                              ) : (
-                                <RefreshCw className="h-3 w-3 mr-1" />
-                              )}
-                              Reanalisar
-                            </Button>
-                          </div>
                         ) : (
-                          <div className="flex items-center gap-2">
-                            <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">Analisando...</span>
-                          </div>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => reanalyzeLead(lead)}
+                                    disabled={reanalyzingLeads.has(lead.id) || !canAnalyzeAI}
+                                    className="h-8 text-xs"
+                                  >
+                                    {reanalyzingLeads.has(lead.id) ? (
+                                      <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                                    ) : (
+                                      <Zap className="h-3 w-3 mr-1" />
+                                    )}
+                                    Analisar com IA
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              {!canAnalyzeAI && (
+                                <TooltipContent>
+                                  <p>Você atingiu seu limite de análises com IA.</p>
+                                </TooltipContent>
+                              )}
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
                       </div>
                     </TableCell>
@@ -801,13 +821,10 @@ export const LeadsList = () => {
                               {lead.plano_prospecao_7dias[0].mensagem}
                             </p>
                           </div>
-                        ) : isAnalysisFailed(lead) ? (
-                          <span className="text-xs text-destructive">Falha na geração do plano</span>
                         ) : (
-                          <div className="flex items-center gap-1">
-                            <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">Gerando plano...</span>
-                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            Clique em Analisar com IA para gerar o plano.
+                          </span>
                         )}
                       </div>
                     </TableCell>

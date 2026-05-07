@@ -14,6 +14,8 @@ interface SubscriptionInfo {
   usa_addon?: boolean;
   usa_addon_active_until?: string | null;
   buscas_saldo?: number;
+  leads_bonus_balance?: number;
+  leads_available_total?: number;
 }
 
 interface UseSubscriptionReturn {
@@ -67,35 +69,6 @@ export const useSubscription = (): UseSubscriptionReturn => {
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const ensureProfile = useCallback(async (user: any, admin: boolean) => {
-    const { data: profileData, error: profileError } = await supabase
-      .from("profiles")
-      .select("buscas_saldo")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (!profileData && !profileError) {
-      await supabase.from("profiles").insert({
-        id: user.id,
-        nome_completo: user.user_metadata?.full_name || user.user_metadata?.name || null,
-        avatar_url: user.user_metadata?.avatar_url || null,
-        buscas_saldo: admin ? ADMIN_LEADS_LIMIT : 0,
-      });
-
-      return admin ? ADMIN_LEADS_LIMIT : 0;
-    }
-
-    if (admin && (profileData?.buscas_saldo ?? 0) < ADMIN_LEADS_LIMIT) {
-      await supabase
-        .from("profiles")
-        .update({ buscas_saldo: ADMIN_LEADS_LIMIT })
-        .eq("id", user.id);
-      return ADMIN_LEADS_LIMIT;
-    }
-
-    return profileData?.buscas_saldo ?? (admin ? ADMIN_LEADS_LIMIT : 0);
-  }, []);
-
   const fetchSubscription = useCallback(async () => {
     try {
       setLoading(true);
@@ -119,8 +92,6 @@ export const useSubscription = (): UseSubscriptionReturn => {
         console.warn("Erro ao verificar admin:", adminError.message);
       }
 
-      const saldo = await ensureProfile(user, admin);
-
       const { data, error: fetchError } = await supabase
         .rpc("get_subscription_info", { p_user_id: user.id });
 
@@ -133,7 +104,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
       if (fetchError) {
         console.error("Erro ao buscar assinatura via RPC:", fetchError);
         setError(fetchError.message);
-        setSubscription(starterFallback(admin, saldo));
+        setSubscription(starterFallback(admin));
         return;
       }
 
@@ -160,8 +131,8 @@ export const useSubscription = (): UseSubscriptionReturn => {
       const planRemaining = subInfo.leads_limit === -1
         ? ADMIN_LEADS_LIMIT
         : Math.max(0, subInfo.leads_remaining ?? 0);
-      const bonusSaldo = Math.max(0, saldo ?? 0);
-      const effectiveRemaining = planRemaining + bonusSaldo;
+      const bonusSaldo = Math.max(0, subInfo.leads_bonus_balance ?? 0);
+      const effectiveRemaining = Math.max(0, subInfo.leads_available_total ?? planRemaining + bonusSaldo);
 
       setSubscription({
         ...subInfo,
@@ -179,7 +150,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
     } finally {
       setLoading(false);
     }
-  }, [ensureProfile]);
+  }, []);
 
   useEffect(() => {
     fetchSubscription();
@@ -227,9 +198,9 @@ export const useSubscription = (): UseSubscriptionReturn => {
     const names: Record<string, string> = {
       free: "Free",
       iniciante: "Iniciante",
-      starter: "Começar",
+      starter: "Iniciante",
       pro: "Pro",
-      agencia: "Agencia",
+      agencia: "Agência",
       admin: "Admin (Ilimitado)",
     };
     return names[subscription.plan_name] || subscription.plan_name;

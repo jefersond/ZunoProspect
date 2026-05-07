@@ -7,6 +7,7 @@ import avatar5 from "@/assets/avatars/avatar-5.jpg";
 import avatar6 from "@/assets/avatars/avatar-6.jpg";
 
 import { Building2, TrendingUp, LineChart, Megaphone, Palette, Code, LucideIcon } from "lucide-react";
+import { PLAN_LIST, PLANS } from "@/config/plans";
 
 export const HERO_AVATARS = [avatar1, avatar2, avatar3, avatar4, avatar5, avatar6];
 
@@ -125,61 +126,46 @@ export interface Plano {
 }
 
 export const PLANOS: Plano[] = [
-  {
-    nome: "Começar",
-    planKey: "starter",
-    precoBase: 47,
-    leadsLimit: 300,
-    aiLimit: 30,
-    descricao: "Para quem está começando",
-    destaque: false,
-    features: [
-      "Análise de leads com diagnóstico",
-      "Plano de prospecção de 7 dias",
-      "CRM: salvar + status + anotações",
-      "Templates de mensagem"
-    ],
-    cta: "Assinar Iniciante",
-    gratuito: false
-  },
-  {
-    nome: "Pro",
-    planKey: "pro",
-    precoBase: 97,
-    leadsLimit: 800,
-    aiLimit: 100,
-    descricao: "Para profissionais",
-    destaque: true,
-    features: [
-      "Tudo do Iniciante +",
-      "Análise completa + score de conversão",
-      "Plano de 7 dias (WhatsApp/Insta/E-mail)",
-      "Exportação para Excel",
-      "Suporte prioritário"
-    ],
-    cta: "Assinar Pro",
-    gratuito: false
-  }
-];
+  PLANS.starter,
+  PLANS.pro,
+].map((plan) => ({
+  nome: plan.displayName,
+  planKey: plan.legacyPlanKey,
+  precoBase: plan.monthlyPrice,
+  leadsLimit: plan.leadsLimit,
+  aiLimit: plan.aiLimit,
+  descricao: plan.subtitle,
+  destaque: plan.highlighted,
+  features: [...plan.features],
+  cta: plan.cta,
+  gratuito: false,
+}));
 
 export const PLANO_AGENCIA: Plano = {
-  nome: "Agência",
-  planKey: "agencia",
-  precoBase: 247,
-  leadsLimit: 2000,
-  aiLimit: 300,
-  descricao: "Para agências e times",
-  destaque: false,
-  features: [
-    "Tudo do plano Pro",
-    "Pipeline Kanban visual (drag-and-drop)",
-    "Relatórios e dashboards completos",
-    "Acesso à API (integração)",
-    "Suporte prioritário + canal direto"
-  ],
-  cta: "Assinar Agência",
-  gratuito: false
+  nome: PLANS.agency.displayName,
+  planKey: PLANS.agency.legacyPlanKey,
+  precoBase: PLANS.agency.monthlyPrice,
+  leadsLimit: PLANS.agency.leadsLimit,
+  aiLimit: PLANS.agency.aiLimit,
+  descricao: PLANS.agency.subtitle,
+  destaque: PLANS.agency.highlighted,
+  features: [...PLANS.agency.features],
+  cta: PLANS.agency.cta,
+  gratuito: false,
 };
+
+export const PLANOS_OFICIAIS: Plano[] = PLAN_LIST.map((plan) => ({
+  nome: plan.displayName,
+  planKey: plan.legacyPlanKey,
+  precoBase: plan.monthlyPrice,
+  leadsLimit: plan.leadsLimit,
+  aiLimit: plan.aiLimit,
+  descricao: plan.subtitle,
+  destaque: plan.highlighted,
+  features: [...plan.features],
+  cta: plan.cta,
+  gratuito: false,
+}));
 
 // Pricing configuration
 export const LEAD_PRICING_CONFIG = {

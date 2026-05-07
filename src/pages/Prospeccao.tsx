@@ -29,7 +29,7 @@ const Prospeccao = () => {
         sessionStorage.removeItem("checkout_isAnual");
         toast.success("Pagamento realizado com sucesso! Seu plano foi ativado.");
         setSearchParams({});
-      } else if (checkoutStatus === "canceled") {
+      } else if (checkoutStatus === "canceled" || checkoutStatus === "cancelled") {
         sessionStorage.removeItem("checkout_in_progress");
         sessionStorage.removeItem("checkout_plano");
         sessionStorage.removeItem("checkout_isAnual");

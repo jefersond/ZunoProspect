@@ -1,8 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { PLANS, normalizePlanId, type BillingCycle } from "@/config/plans";
 
 export const STRIPE_CHECKOUT_FUNCTION = "create-stripe-checkout";
-
-type PlanId = "starter" | "pro" | "agency";
 
 type CheckoutPlan = {
   nome?: string;
@@ -12,48 +11,13 @@ type CheckoutPlan = {
 type CreateStripeCheckoutArgs = {
   selectedPlan: CheckoutPlan;
   leadsQuantity?: number;
-  billingCycle?: "monthly" | "annual";
+  billingCycle?: BillingCycle;
   price?: number;
 };
 
-const PLANS: Record<PlanId, {
-  price: number;
-  unitAmount: number;
-  leadsLimit: number;
-  aiLimit: number;
-}> = {
-  starter: {
-    price: 47,
-    unitAmount: 4700,
-    leadsLimit: 300,
-    aiLimit: 30,
-  },
-  pro: {
-    price: 97,
-    unitAmount: 9700,
-    leadsLimit: 800,
-    aiLimit: 100,
-  },
-  agency: {
-    price: 247,
-    unitAmount: 24700,
-    leadsLimit: 2000,
-    aiLimit: 300,
-  },
-};
-
-function normalizePlanId(planKey: string | undefined): PlanId | null {
-  const key = String(planKey || "").trim().toLowerCase();
-
-  if (key === "iniciante") return "starter";
-  if (key === "agencia") return "agency";
-  if (key === "starter" || key === "pro" || key === "agency") return key;
-
-  return null;
-}
-
 export async function createStripeCheckout({
   selectedPlan,
+  billingCycle = "monthly",
 }: CreateStripeCheckoutArgs) {
   const functionName = STRIPE_CHECKOUT_FUNCTION;
   const planId = normalizePlanId(selectedPlan?.planKey);
@@ -63,36 +27,49 @@ export async function createStripeCheckout({
   }
 
   const plan = PLANS[planId];
-  const billingCycle = "monthly" as const;
+  const price = billingCycle === "annual" ? plan.annualPrice : plan.monthlyPrice;
+  const unitAmount = price * 100;
+
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const session = sessionData.session;
+
+  console.log("Checkout debug:", {
+    functionName,
+    userId: session?.user?.id,
+    hasSession: Boolean(session),
+    planId,
+    billingCycle,
+    sessionError: sessionError?.message,
+  });
+
+  if (sessionError || !session?.access_token) {
+    const checkoutError = new Error("Faça login para continuar com o pagamento.");
+    (checkoutError as Error & { status?: number }).status = 401;
+    throw checkoutError;
+  }
+
   const payload = {
     planId,
     billingCycle,
-    price: plan.price,
-    unitAmount: plan.unitAmount,
+    price,
+    unitAmount,
     leadsLimit: plan.leadsLimit,
     aiLimit: plan.aiLimit,
   };
 
-  console.info("Iniciando checkout Stripe:", {
-    functionName,
-    planId,
-    billingCycle,
-    price: plan.price,
-    unitAmount: plan.unitAmount,
-    payload,
-  });
-
   const { data, error } = await supabase.functions.invoke(functionName, {
     body: payload,
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+    },
   });
 
   if (error || !data?.url) {
     console.error("Erro ao processar upgrade:", {
       functionName,
+      userId: session.user.id,
       planId,
       billingCycle,
-      price: plan.price,
-      unitAmount: plan.unitAmount,
       error,
       data,
     });

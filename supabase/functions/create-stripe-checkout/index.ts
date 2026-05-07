@@ -1,36 +1,39 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@12.18.0?target=deno";
+import Stripe from "https://esm.sh/stripe@14.25.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
-
-const DEFAULT_SITE_URL = "https://zunopropect.com.br";
-const publicSiteUrlConfigured = Boolean(Deno.env.get("PUBLIC_SITE_URL"));
-const PUBLIC_SITE_URL = (Deno.env.get("PUBLIC_SITE_URL") || DEFAULT_SITE_URL).replace(/\/$/, "");
 
 const PLANS = {
   starter: {
     name: "Starter",
     monthlyPrice: 47,
+    annualPrice: 470,
     monthlyUnitAmount: 4700,
+    annualUnitAmount: 47000,
     leadsLimit: 300,
     aiLimit: 30,
   },
   pro: {
     name: "Pro",
     monthlyPrice: 97,
+    annualPrice: 970,
     monthlyUnitAmount: 9700,
+    annualUnitAmount: 97000,
     leadsLimit: 800,
     aiLimit: 100,
   },
   agency: {
     name: "Agency",
     monthlyPrice: 247,
+    annualPrice: 2470,
     monthlyUnitAmount: 24700,
+    annualUnitAmount: 247000,
     leadsLimit: 2000,
     aiLimit: 300,
   },
 } as const;
 
 type PlanId = keyof typeof PLANS;
+type BillingCycle = "monthly" | "annual";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,9 +54,15 @@ function normalizePlanId(value: unknown): PlanId | null {
   const planId = String(value || "").trim().toLowerCase();
 
   if (planId === "iniciante") return "starter";
-  if (planId === "agencia") return "agency";
+  if (planId === "agencia" || planId === "agência") return "agency";
   if (planId === "starter" || planId === "pro" || planId === "agency") return planId;
 
+  return null;
+}
+
+function normalizeBillingCycle(value: unknown): BillingCycle | null {
+  const billingCycle = String(value || "").trim().toLowerCase();
+  if (billingCycle === "monthly" || billingCycle === "annual") return billingCycle;
   return null;
 }
 
@@ -70,65 +79,74 @@ serve(async (req) => {
 
   const functionName = "create-stripe-checkout";
   const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+  const publicSiteUrl = Deno.env.get("PUBLIC_SITE_URL")?.replace(/\/$/, "");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const authHeader = req.headers.get("Authorization") || "";
 
   if (!stripeSecretKey) {
-    console.error("Checkout configuration error", {
-      functionName,
-      hasStripeSecretKey: false,
-      hasPublicSiteUrl: publicSiteUrlConfigured,
-    });
+    return jsonResponse({ error: "STRIPE_SECRET_KEY ausente" }, 500);
+  }
 
-    return jsonResponse({ error: "STRIPE_SECRET_KEY não configurada" }, 500);
+  if (!publicSiteUrl) {
+    return jsonResponse({ error: "PUBLIC_SITE_URL ausente" }, 500);
+  }
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return jsonResponse({ error: "SUPABASE_URL ou SUPABASE_ANON_KEY ausente" }, 500);
   }
 
   try {
     const body = await req.json().catch(() => ({}));
     const planId = normalizePlanId(body.planId ?? body.planKey);
-    const billingCycle = String(body.billingCycle || (body.isAnual ? "annual" : "monthly")).toLowerCase();
+    const billingCycle = normalizeBillingCycle(body.billingCycle);
 
-    console.log("Checkout request received", {
+    console.log("Checkout request:", {
       functionName,
+      hasAuthHeader: Boolean(authHeader),
       planId,
-      rawPlan: body.planId ?? body.planKey ?? null,
       billingCycle,
-      receivedPrice: body.price ?? null,
-      receivedUnitAmount: body.unitAmount ?? null,
-      hasStripeSecretKey: true,
-      hasPublicSiteUrl: publicSiteUrlConfigured,
-      siteUrl: PUBLIC_SITE_URL,
+      userId: null,
       stripeMode: getStripeMode(stripeSecretKey),
     });
 
-    if (!planId || !PLANS[planId]) {
-      return jsonResponse({ error: "Plano inválido" }, 400);
+    if (!planId) {
+      return jsonResponse({ error: "planId inválido" }, 400);
     }
 
-    if (billingCycle !== "monthly") {
-      return jsonResponse({ error: "Ciclo de cobrança inválido. Use monthly." }, 400);
+    if (!billingCycle) {
+      return jsonResponse({ error: "billingCycle inválido. Use monthly ou annual." }, 400);
     }
 
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") || "",
-      Deno.env.get("SUPABASE_ANON_KEY") || "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization") || "" },
-        },
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: { Authorization: authHeader },
       },
-    );
+    });
 
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     if (authError || !user) {
       console.warn("Checkout unauthenticated", {
         functionName,
+        hasAuthHeader: Boolean(authHeader),
         planId,
+        billingCycle,
         authError: authError?.message,
       });
 
       return jsonResponse({ error: "Usuário não autenticado" }, 401);
     }
 
+    console.log("Checkout authenticated:", {
+      functionName,
+      hasAuthHeader: Boolean(authHeader),
+      planId,
+      billingCycle,
+      userId: user.id,
+    });
+
     const plan = PLANS[planId];
+    const unitAmount = billingCycle === "annual" ? plan.annualUnitAmount : plan.monthlyUnitAmount;
     const stripe = new Stripe(stripeSecretKey, {
       apiVersion: "2023-10-16",
     });
@@ -140,8 +158,8 @@ serve(async (req) => {
       plan_key: planId,
       leads_limit: String(plan.leadsLimit),
       ai_limit: String(plan.aiLimit),
-      billing_cycle: "monthly",
-      is_annual: "false",
+      billing_cycle: billingCycle,
+      is_annual: String(billingCycle === "annual"),
     };
 
     const session = await stripe.checkout.sessions.create({
@@ -153,9 +171,9 @@ serve(async (req) => {
           quantity: 1,
           price_data: {
             currency: "brl",
-            unit_amount: plan.monthlyUnitAmount,
+            unit_amount: unitAmount,
             recurring: {
-              interval: "month",
+              interval: billingCycle === "annual" ? "year" : "month",
             },
             product_data: {
               name: `Zuno Propect ${plan.name}`,
@@ -164,8 +182,8 @@ serve(async (req) => {
           },
         },
       ],
-      success_url: `${PUBLIC_SITE_URL}/prospeccao?checkout=success`,
-      cancel_url: `${PUBLIC_SITE_URL}/precos?checkout=cancelled`,
+      success_url: `${publicSiteUrl}/prospeccao?checkout=success`,
+      cancel_url: `${publicSiteUrl}/precos?checkout=cancelled`,
       metadata,
       subscription_data: {
         metadata,
@@ -176,8 +194,9 @@ serve(async (req) => {
       functionName,
       sessionId: session.id,
       planId,
-      billingCycle: "monthly",
-      unitAmount: plan.monthlyUnitAmount,
+      billingCycle,
+      unitAmount,
+      userId: user.id,
       hasUrl: Boolean(session.url),
     });
 

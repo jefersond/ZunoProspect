@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { PLANS, normalizePlanId, type BillingCycle } from "@/config/plans";
 
 export interface LeadPricingTier {
   id: string;
@@ -31,29 +32,21 @@ export const LEAD_PRICING_CONFIG: LeadPricingConfig = {
 
 export const LEAD_QUANTITIES = [300, 800, 2000];
 
-const FIXED_PLAN_PRICES: Record<string, number> = {
-  iniciante: 47,
-  starter: 47,
-  pro: 97,
-  agencia: 247,
-  agency: 247,
-};
+function getPrice(planName: string, isAnnual?: boolean) {
+  const planId = normalizePlanId(planName);
+  if (!planId) return Number.NaN;
 
-function normalizePlanName(planName: string) {
-  const normalized = String(planName || "").trim().toLowerCase();
-  if (normalized === "iniciante") return "starter";
-  if (normalized === "agency") return "agencia";
-  return normalized;
+  const billingCycle: BillingCycle = isAnnual ? "annual" : "monthly";
+  return billingCycle === "annual" ? PLANS[planId].annualPrice : PLANS[planId].monthlyPrice;
 }
 
 export function useLeadPricing() {
-  const calculatePrice = useCallback((planName: string, _leadsQuantity?: number, _isAnnual?: boolean): number => {
-    const normalizedPlanName = normalizePlanName(planName);
-    return FIXED_PLAN_PRICES[normalizedPlanName] ?? Number.NaN;
+  const calculatePrice = useCallback((planName: string, _leadsQuantity?: number, isAnnual?: boolean): number => {
+    return getPrice(planName, isAnnual);
   }, []);
 
-  const getDisplayPrice = useCallback((planName: string, _leadsQuantity?: number, _isAnnual?: boolean): number => {
-    return calculatePrice(planName);
+  const getDisplayPrice = useCallback((planName: string, _leadsQuantity?: number, isAnnual?: boolean): number => {
+    return calculatePrice(planName, _leadsQuantity, isAnnual);
   }, [calculatePrice]);
 
   const getTiersForPlan = useCallback((_planName: string): LeadPricingTier[] => {

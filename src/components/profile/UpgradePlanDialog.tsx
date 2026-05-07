@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Dialog,
   DialogContent,
@@ -11,189 +11,180 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, Crown, ExternalLink } from "lucide-react";
-import { PLANOS, PLANO_AGENCIA, LEAD_QUANTITIES, type Plano } from "@/components/landing/data";
-import { useLeadPricing } from "@/hooks/useLeadPricing";
+import { Loader2, CheckCircle2, Crown, ExternalLink, Sparkles } from "lucide-react";
+import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, normalizePlanId, type BillingCycle, type PlanConfig } from "@/config/plans";
 import { createStripeCheckout } from "@/services/stripeCheckout";
+import { cn } from "@/lib/utils";
 
 interface UpgradePlanDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentPlanName?: string; // Nome do plano atual do usuário
+  currentPlanName?: string;
+}
+
+const PLAN_ORDER = {
+  free: -1,
+  starter: 0,
+  pro: 1,
+  agency: 2,
+} as const;
+
+function getCurrentPlanLevel(currentPlanName?: string) {
+  const normalized = currentPlanName === "agencia" ? "agency" : normalizePlanId(currentPlanName) ?? "free";
+  return PLAN_ORDER[normalized as keyof typeof PLAN_ORDER] ?? -1;
 }
 
 export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: UpgradePlanDialogProps) => {
-  const isAnual = false;
-  const [selectedLeads, setSelectedLeads] = useState<Record<string, number>>({
-    starter: 300,
-    pro: 800,
-    agencia: 2000,
-  });
-  const { calculatePrice, getDisplayPrice } = useLeadPricing();
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
+  const [processingPlan, setProcessingPlan] = useState<string | null>(null);
 
-  // Define a ordem dos planos para comparação
-  const planOrder: Record<string, number> = {
-    starter: 0,
-    iniciante: 1,
-    pro: 2,
-    agencia: 3,
-  };
+  const planosExibicao = useMemo(() => {
+    const currentPlanLevel = getCurrentPlanLevel(currentPlanName);
+    return PLAN_LIST.filter((plan) => PLAN_ORDER[plan.id] > currentPlanLevel);
+  }, [currentPlanName]);
 
-  const currentPlanLevel = planOrder[currentPlanName || 'starter'] ?? 0;
-  
-  // Filtra planos pagos que são superiores ao plano atual
-  const PLANOS_UPGRADE = PLANOS.filter((p) => {
-    if (p.gratuito) return false;
-    const planLevel = planOrder[p.planKey] ?? 0;
-    return planLevel > currentPlanLevel;
-  });
-
-  // Verifica se deve mostrar o card Agência (só se o plano atual for menor que agência)
-  const showAgenciaCard = currentPlanLevel < 3;
-
-  const planosExibicao = [...PLANOS_UPGRADE];
-  if (showAgenciaCard) {
-    planosExibicao.push(PLANO_AGENCIA);
-  }
-
-  const handleLeadsChange = (planKey: string, value: string) => {
-    setSelectedLeads(prev => ({ ...prev, [planKey]: parseInt(value) }));
-  };
-
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const handleSelectPlano = async (plano: Plano, leadsQty: number) => {
-    setIsProcessing(true);
+  const handleSelectPlano = async (plan: PlanConfig) => {
+    setProcessingPlan(plan.id);
     try {
-      const price = calculatePrice(plano.planKey, leadsQty, isAnual);
-      if (!plano || !Number.isFinite(price) || Number.isNaN(price)) {
-        throw new Error("Preço inválido para o plano selecionado.");
-      }
-
       toast.loading("Gerando link de pagamento seguro...");
 
       const data = await createStripeCheckout({
-        selectedPlan: plano,
-        billingCycle: "monthly",
+        selectedPlan: { planKey: plan.id },
+        billingCycle,
       });
 
       toast.dismiss();
-      
       toast.success("Redirecionando para o pagamento...");
       window.location.href = data.url;
       onOpenChange(false);
-      
     } catch (error: any) {
       toast.dismiss();
       toast.error("Não foi possível iniciar o pagamento", { description: error.message });
     } finally {
-      setIsProcessing(false);
+      setProcessingPlan(null);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto border-border/70 bg-zinc-950 text-foreground">
+        <DialogHeader className="space-y-3">
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Crown className="h-5 w-5 text-primary" />
-            Fazer Upgrade do Plano
+            Fazer upgrade do plano
           </DialogTitle>
           <DialogDescription>
-            Escolha o plano e a quantidade de leads ideal para escalar sua prospecção.
+            Escolha um plano com limites fixos, cobrança previsível e checkout seguro.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center justify-center gap-2 py-4">
-          <Badge variant="secondary">Cobrança mensal</Badge>
+        <div className="flex flex-col items-center gap-2 py-3">
+          <ToggleGroup
+            type="single"
+            value={billingCycle}
+            onValueChange={(value) => value && setBillingCycle(value as BillingCycle)}
+            className="rounded-lg border border-border/70 bg-zinc-900/80 p-1"
+          >
+            <ToggleGroupItem value="monthly" className="h-9 rounded-md px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+              Mensal
+            </ToggleGroupItem>
+            <ToggleGroupItem value="annual" className="h-9 rounded-md px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+              Anual
+            </ToggleGroupItem>
+          </ToggleGroup>
+          {billingCycle === "annual" && (
+            <p className="text-xs text-muted-foreground">
+              Cobrança anual ativa no checkout, com dois meses de desconto.
+            </p>
+          )}
         </div>
 
-        {/* Grid de Planos Dinâmico */}
-        {planosExibicao.length > 0 && (
-          <div className={`grid ${planosExibicao.length === 1 ? 'md:grid-cols-1 max-w-md mx-auto' : planosExibicao.length === 2 ? 'md:grid-cols-2 max-w-3xl mx-auto' : 'lg:grid-cols-3 md:grid-cols-2'} gap-6 py-4 items-stretch`}>
-            {planosExibicao.map((plano, index) => {
-              const leadsQty = plano.leadsLimit;
-              const precoMensal = getDisplayPrice(plano.planKey, leadsQty, isAnual);
-              const precoTotal = calculatePrice(plano.planKey, leadsQty, isAnual);
+        <div className="grid gap-5 py-4 md:grid-cols-3">
+          {planosExibicao.map((plan) => {
+            const price = getPlanPrice(plan.id, billingCycle);
+            const periodLabel = getPlanPeriodLabel(billingCycle);
+            const isProcessing = processingPlan === plan.id;
 
-              return (
-                <Card
-                  key={index}
-                  className={`relative p-6 flex flex-col transition-all h-full ${
-                    plano.destaque
-                      ? "border-2 border-primary shadow-xl ring-1 ring-primary/20 bg-card"
-                      : plano.planKey === 'agencia'
-                      ? "border border-primary/40 bg-gradient-to-b from-primary/5 to-transparent"
-                      : "border border-border/50 bg-background/60"
-                  }`}
-                >
-                  {plano.destaque && (
-                    <div className="absolute -top-3 left-0 right-0 flex justify-center">
-                      <Badge className="px-3 py-1 text-[10px] sm:text-xs shadow-md bg-primary text-primary-foreground font-semibold tracking-wider uppercase">
-                        Mais popular
-                      </Badge>
+            return (
+              <Card
+                key={plan.id}
+                className={cn(
+                  "relative flex h-full min-h-[520px] flex-col overflow-hidden rounded-lg border bg-zinc-900/80 p-6 shadow-lg",
+                  plan.highlighted
+                    ? "border-emerald-400/70 shadow-emerald-950/50"
+                    : "border-border/70",
+                )}
+              >
+                {plan.highlighted && (
+                  <div className="absolute inset-x-0 top-0 h-1 bg-emerald-400" />
+                )}
+
+                <div className="flex min-h-[132px] flex-col items-center text-center">
+                  {plan.badge ? (
+                    <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/50 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-200">
+                      <Sparkles className="h-3 w-3" />
+                      {plan.badge}
                     </div>
+                  ) : (
+                    <div className="mb-4 h-7" />
                   )}
 
-                  <div className="flex-1 flex flex-col">
-                    <div className="text-center mb-6">
-                      <h3 className="text-xl font-bold mb-1">{plano.nome}</h3>
-                      <p className="text-sm text-muted-foreground mb-4 h-10">{plano.descricao}</p>
-                      
-                      {/* Lead Quantity Selector */}
-                      <div className="mb-4">
-                        <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm font-medium">
-                          {plano.leadsLimit.toLocaleString('pt-BR')} leads/mês + {plano.aiLimit} análises com IA
-                        </div>
-                      </div>
+                  <h3 className="text-2xl font-semibold tracking-tight">{plan.displayName}</h3>
+                  <p className="mt-2 min-h-10 text-sm leading-5 text-muted-foreground">{plan.subtitle}</p>
+                </div>
 
-                      <div className="flex items-baseline justify-center gap-1 mb-1">
-                        <span className="text-3xl font-bold tracking-tight">R$ {precoMensal}</span>
-                        <span className="text-sm text-muted-foreground">/mês</span>
-                      </div>
-                      {isAnual ? (
-                        <p className="text-xs text-muted-foreground h-4">
-                          cobrado R$ {precoTotal.toLocaleString('pt-BR')} por ano
-                        </p>
-                      ) : (
-                        <p className="text-xs text-transparent h-4 select-none">-</p>
-                      )}
-                    </div>
-
-                    <ul className="space-y-3 mb-6 flex-1">
-                      {plano.features.map((feature, i) => (
-                        <li key={i} className="flex items-start gap-3">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                          <span className="text-muted-foreground text-sm leading-tight">{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-border/60 bg-background/30 p-3 text-center">
+                    <p className="text-lg font-semibold">{plan.leadsLimit.toLocaleString("pt-BR")}</p>
+                    <p className="text-xs text-muted-foreground">leads/mês</p>
                   </div>
+                  <div className="rounded-lg border border-border/60 bg-background/30 p-3 text-center">
+                    <p className="text-lg font-semibold">{plan.aiLimit.toLocaleString("pt-BR")}</p>
+                    <p className="text-xs text-muted-foreground">roteiros IA/mês</p>
+                  </div>
+                </div>
 
-                  <Button
-                    className={`w-full mt-auto ${plano.destaque || plano.planKey === 'agencia' ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md" : ""}`}
-                    variant={plano.destaque || plano.planKey === 'agencia' ? "default" : "outline"}
-                    onClick={() => handleSelectPlano(plano, leadsQty)}
-                    disabled={isProcessing}
-                  >
-                    {isProcessing ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                    )}
-                    {plano.cta}
-                  </Button>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+                <div className="mt-6 text-center">
+                  <div className="flex items-baseline justify-center gap-1">
+                    <span className="text-4xl font-bold tracking-tight">R$ {price.toLocaleString("pt-BR")}</span>
+                    <span className="text-sm text-muted-foreground">{periodLabel}</span>
+                  </div>
+                  <p className="mt-2 h-5 text-xs text-muted-foreground">
+                    {billingCycle === "annual" ? `equivale a R$ ${plan.monthlyPrice}/mês` : "cobrança mensal recorrente"}
+                  </p>
+                </div>
 
-        <div className="mt-4 pt-4 border-t">
-          <p className="text-xs text-center text-muted-foreground">
-            Você será redirecionado para a página de pagamento segura.
-            <br />
-            Aceita PIX e cartão de crédito.
+                <ul className="mt-7 flex-1 space-y-3">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-3 text-sm leading-5 text-muted-foreground">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <Button
+                  className={cn(
+                    "mt-7 h-11 w-full",
+                    plan.highlighted
+                      ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                      : "border-border/70",
+                  )}
+                  variant={plan.highlighted ? "default" : "outline"}
+                  onClick={() => handleSelectPlano(plan)}
+                  disabled={Boolean(processingPlan)}
+                >
+                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                  {plan.cta}
+                </Button>
+              </Card>
+            );
+          })}
+        </div>
+
+        <div className="border-t border-border/70 pt-4">
+          <p className="text-center text-xs text-muted-foreground">
+            Você será redirecionado para a página de pagamento segura. Aceita cartão de crédito.
           </p>
         </div>
       </DialogContent>

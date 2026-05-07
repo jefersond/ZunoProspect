@@ -11,6 +11,7 @@ import { Logo } from "@/components/Logo";
 import { trackInitiateCheckout, trackAddPaymentInfo } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { createStripeCheckout } from "@/services/stripeCheckout";
+import { PLANS, normalizePlanId } from "@/config/plans";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -37,11 +38,11 @@ const GoogleIcon = () => (
 // Dados dos planos
 const PLANOS = {
   starter: {
-    nome: "Começar",
-    precoMensal: 47,
-    precoAnual: 564,
-    leadsLimit: 300,
-    aiLimit: 30,
+    nome: PLANS.starter.displayName,
+    precoMensal: PLANS.starter.monthlyPrice,
+    precoAnual: PLANS.starter.annualPrice,
+    leadsLimit: PLANS.starter.leadsLimit,
+    aiLimit: PLANS.starter.aiLimit,
     gratuito: false,
     icon: Sparkles,
     popular: false,
@@ -53,11 +54,11 @@ const PLANOS = {
     ],
   },
   pro: {
-    nome: "Pro",
-    precoMensal: 97,
-    precoAnual: 1164,
-    leadsLimit: 800,
-    aiLimit: 100,
+    nome: PLANS.pro.displayName,
+    precoMensal: PLANS.pro.monthlyPrice,
+    precoAnual: PLANS.pro.annualPrice,
+    leadsLimit: PLANS.pro.leadsLimit,
+    aiLimit: PLANS.pro.aiLimit,
     gratuito: false,
     icon: Sparkles,
     popular: true,
@@ -70,11 +71,11 @@ const PLANOS = {
     ],
   },
   agencia: {
-    nome: "Agência",
-    precoMensal: 247,
-    precoAnual: 2964,
-    leadsLimit: 2000,
-    aiLimit: 300,
+    nome: PLANS.agency.displayName,
+    precoMensal: PLANS.agency.monthlyPrice,
+    precoAnual: PLANS.agency.annualPrice,
+    leadsLimit: PLANS.agency.leadsLimit,
+    aiLimit: PLANS.agency.aiLimit,
     gratuito: false,
     icon: Building2,
     popular: false,
@@ -95,8 +96,9 @@ export default function Checkout() {
   const [searchParams] = useSearchParams();
   
   // Get params from URL
-  const planoParam = searchParams.get("plano")?.toLowerCase() as PlanoKey | null;
-  const anualParam = "false";
+  const normalizedPlanParam = normalizePlanId(searchParams.get("plano"));
+  const planoParam = (normalizedPlanParam === "agency" ? "agencia" : normalizedPlanParam) as PlanoKey | null;
+  const anualParam = searchParams.get("anual") || "false";
   const leadsQtyParam = Number(searchParams.get("leadsQty") || "0");
   const googleAuth = searchParams.get("google_auth");
   const referralCode = searchParams.get("ref");
@@ -281,7 +283,7 @@ export default function Checkout() {
       // Chamar Edge Function do Stripe
       const data = await createStripeCheckout({
         selectedPlan: { nome: plano.nome, planKey: selectedPlano },
-        billingCycle: "monthly",
+        billingCycle: isAnual ? "annual" : "monthly",
       });
 
       toast.dismiss();
@@ -301,7 +303,7 @@ export default function Checkout() {
 
   // Plan selector component
   const PlanSelector = () => (
-    <div className="grid grid-cols-2 gap-3 mb-6">
+    <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-3">
       {(Object.entries(PLANOS) as [PlanoKey, typeof PLANOS.pro][]).map(([key, plan]) => {
         const isSelected = selectedPlano === key;
         const Icon = plan.icon;
@@ -382,7 +384,7 @@ export default function Checkout() {
               <PlanSelector />
               
               <div className="flex items-center justify-center gap-3 p-3 bg-muted/50 rounded-lg">
-                <span className="text-sm font-semibold">Cobrança mensal</span>
+                <span className="text-sm font-semibold">{isAnual ? "Cobrança anual" : "Cobrança mensal"}</span>
               </div>
 
               {/* Resumo do plano */}

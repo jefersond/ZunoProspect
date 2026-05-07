@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -24,7 +23,7 @@ interface UpgradePlanDialogProps {
 }
 
 export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: UpgradePlanDialogProps) => {
-  const [isAnual, setIsAnual] = useState(false);
+  const isAnual = false;
   const [selectedLeads, setSelectedLeads] = useState<Record<string, number>>({
     starter: 300,
     pro: 800,
@@ -75,9 +74,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
 
       const data = await createStripeCheckout({
         selectedPlan: plano,
-        leadsQuantity: leadsQty,
-        billingCycle: isAnual ? "annual" : "monthly",
-        price,
+        billingCycle: "monthly",
       });
 
       toast.dismiss();
@@ -88,7 +85,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
       
     } catch (error: any) {
       toast.dismiss();
-      toast.error("Erro ao processar upgrade", { description: error.message });
+      toast.error("Não foi possível iniciar o pagamento", { description: error.message });
     } finally {
       setIsProcessing(false);
     }
@@ -107,24 +104,8 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
           </DialogDescription>
         </DialogHeader>
 
-        {/* Toggle Mensal/Anual */}
-        <div className="flex items-center justify-center gap-4 py-4">
-          <span className={`text-sm font-medium ${!isAnual ? "text-foreground" : "text-muted-foreground"}`}>
-            Mensal
-          </span>
-          <Switch
-            checked={isAnual}
-            onCheckedChange={setIsAnual}
-            className="data-[state=checked]:bg-primary"
-          />
-          <span className={`text-sm font-medium ${isAnual ? "text-foreground" : "text-muted-foreground"}`}>
-            Anual
-          </span>
-          {isAnual && (
-            <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
-              Economize 17%
-            </Badge>
-          )}
+        <div className="flex items-center justify-center gap-2 py-4">
+          <Badge variant="secondary">Cobrança mensal</Badge>
         </div>
 
         {/* Grid de Planos Dinâmico */}

@@ -2,44 +2,65 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@12.18.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 
-const PUBLIC_SITE_URL = (Deno.env.get("PUBLIC_SITE_URL") || "https://zunopropect.com.br").replace(/\/$/, "");
-const VALID_PLANS = new Set(["iniciante", "starter", "pro", "agencia"]);
-const BASE_PRICE: Record<string, number> = {
-  starter: 47,
-  pro: 97,
-  agencia: 147,
-};
-const PLAN_LIMITS: Record<string, { planKey: string; leadsLimit: number; aiLimit: number }> = {
-  iniciante: { planKey: "starter", leadsLimit: 300, aiLimit: 30 },
-  starter: { planKey: "starter", leadsLimit: 300, aiLimit: 30 },
-  pro: { planKey: "pro", leadsLimit: 800, aiLimit: 100 },
-  agencia: { planKey: "agencia", leadsLimit: 2000, aiLimit: 300 },
-};
-const INCREMENT_LEADS = 50;
-const INCREMENT_PRICE = 23.5;
-const MIN_LEADS = 100;
+const DEFAULT_SITE_URL = "https://zunopropect.com.br";
+const publicSiteUrlConfigured = Boolean(Deno.env.get("PUBLIC_SITE_URL"));
+const PUBLIC_SITE_URL = (Deno.env.get("PUBLIC_SITE_URL") || DEFAULT_SITE_URL).replace(/\/$/, "");
+
+const PLANS = {
+  starter: {
+    name: "Starter",
+    monthlyPrice: 47,
+    monthlyUnitAmount: 4700,
+    leadsLimit: 300,
+    aiLimit: 30,
+  },
+  pro: {
+    name: "Pro",
+    monthlyPrice: 97,
+    monthlyUnitAmount: 9700,
+    leadsLimit: 800,
+    aiLimit: 100,
+  },
+  agency: {
+    name: "Agency",
+    monthlyPrice: 247,
+    monthlyUnitAmount: 24700,
+    leadsLimit: 2000,
+    aiLimit: 300,
+  },
+} as const;
+
+type PlanId = keyof typeof PLANS;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function normalizePlanKey(planKey: unknown) {
-  const key = String(planKey || "").trim().toLowerCase();
-  if (key === "iniciante") return "starter";
-  if (key === "agency") return "agencia";
-  return key;
+function jsonResponse(body: Record<string, unknown>, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+    },
+  });
 }
 
-function calculatePrice(planKey: string, leadsQty: number, isAnual: boolean) {
-  const basePrice = BASE_PRICE[planKey];
-  if (!basePrice) return Number.NaN;
+function normalizePlanId(value: unknown): PlanId | null {
+  const planId = String(value || "").trim().toLowerCase();
 
-  const leadsAboveBase = Math.max(0, leadsQty - MIN_LEADS);
-  const increments = leadsAboveBase / INCREMENT_LEADS;
-  const monthlyPrice = basePrice + (increments * INCREMENT_PRICE);
+  if (planId === "iniciante") return "starter";
+  if (planId === "agencia") return "agency";
+  if (planId === "starter" || planId === "pro" || planId === "agency") return planId;
 
-  return isAnual ? Math.round(monthlyPrice * 10) : Math.round(monthlyPrice * 100) / 100;
+  return null;
+}
+
+function getStripeMode(secretKey: string) {
+  if (secretKey.startsWith("sk_live_")) return "live";
+  if (secretKey.startsWith("sk_test_")) return "test";
+  return "unknown";
 }
 
 serve(async (req) => {
@@ -47,140 +68,123 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const functionName = "create-stripe-checkout";
+  const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+
+  if (!stripeSecretKey) {
+    console.error("Checkout configuration error", {
+      functionName,
+      hasStripeSecretKey: false,
+      hasPublicSiteUrl: publicSiteUrlConfigured,
+    });
+
+    return jsonResponse({ error: "STRIPE_SECRET_KEY não configurada" }, 500);
+  }
+
   try {
-    const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeSecretKey) {
-      throw new Error("STRIPE_SECRET_KEY is not set");
+    const body = await req.json().catch(() => ({}));
+    const planId = normalizePlanId(body.planId ?? body.planKey);
+    const billingCycle = String(body.billingCycle || (body.isAnual ? "annual" : "monthly")).toLowerCase();
+
+    console.log("Checkout request received", {
+      functionName,
+      planId,
+      rawPlan: body.planId ?? body.planKey ?? null,
+      billingCycle,
+      receivedPrice: body.price ?? null,
+      receivedUnitAmount: body.unitAmount ?? null,
+      hasStripeSecretKey: true,
+      hasPublicSiteUrl: publicSiteUrlConfigured,
+      siteUrl: PUBLIC_SITE_URL,
+      stripeMode: getStripeMode(stripeSecretKey),
+    });
+
+    if (!planId || !PLANS[planId]) {
+      return jsonResponse({ error: "Plano inválido" }, 400);
     }
 
-    const stripe = new Stripe(stripeSecretKey, {
-      apiVersion: "2023-10-16",
-    });
+    if (billingCycle !== "monthly") {
+      return jsonResponse({ error: "Ciclo de cobrança inválido. Use monthly." }, 400);
+    }
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") || "",
       Deno.env.get("SUPABASE_ANON_KEY") || "",
       {
         global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
+          headers: { Authorization: req.headers.get("Authorization") || "" },
         },
-      }
+      },
     );
 
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) throw new Error("Usuario nao autenticado");
+    if (authError || !user) {
+      console.warn("Checkout unauthenticated", {
+        functionName,
+        planId,
+        authError: authError?.message,
+      });
 
-    const body = await req.json();
-    const planKey = normalizePlanKey(body.planKey);
-    const planLimits = PLAN_LIMITS[planKey];
-    const requestedLeadsQty = Number(body.leadsQty || planLimits?.leadsLimit || 300);
-    const leadsQty = planLimits?.leadsLimit ?? requestedLeadsQty;
-    const isAnual = Boolean(body.isAnual);
-    const billingCycle = isAnual ? "annual" : "monthly";
+      return jsonResponse({ error: "Usuário não autenticado" }, 401);
+    }
 
-    console.log("Checkout request", {
-      planKey,
-      requestedLeadsQty,
-      leadsQty,
-      billingCycle,
-      userId: user.id,
-      publicSiteUrl: PUBLIC_SITE_URL,
-      priceId: null,
+    const plan = PLANS[planId];
+    const stripe = new Stripe(stripeSecretKey, {
+      apiVersion: "2023-10-16",
     });
 
-    if (!VALID_PLANS.has(planKey)) {
-      throw new Error("Plano invalido para checkout");
-    }
-
-    if (!Number.isFinite(leadsQty) || leadsQty <= 0 || !planLimits) {
-      throw new Error("Quantidade de leads invalida para checkout");
-    }
-
-    const { data: pricingTier, error: pricingError } = await supabaseClient
-      .from("lead_pricing_tiers")
-      .select("price_monthly, price_annual")
-      .eq("plan_name", planKey)
-      .eq("leads_quantity", leadsQty)
-      .eq("active", true)
-      .maybeSingle();
-
-    if (pricingError) {
-      console.warn("Erro ao buscar preco em lead_pricing_tiers; usando fallback", {
-        message: pricingError.message,
-        planKey,
-        leadsQty,
-      });
-    }
-
-    const dbPrice = pricingTier
-      ? Number(isAnual ? pricingTier.price_annual : pricingTier.price_monthly)
-      : Number.NaN;
-    const price = Number.isFinite(dbPrice) ? dbPrice : calculatePrice(planKey, leadsQty, isAnual);
-    if (!Number.isFinite(price) || Number.isNaN(price)) {
-      throw new Error("Preco invalido para o plano selecionado.");
-    }
-
-    const leadsLimit = leadsQty;
-    const aiLimit = planLimits.aiLimit;
-    const unitAmount = Math.round(price * 100);
+    const metadata = {
+      supabase_user_id: user.id,
+      user_id: user.id,
+      plan_id: planId,
+      plan_key: planId,
+      leads_limit: String(plan.leadsLimit),
+      ai_limit: String(plan.aiLimit),
+      billing_cycle: "monthly",
+      is_annual: "false",
+    };
 
     const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      payment_method_types: ["card"],
       customer_email: user.email,
       line_items: [
         {
+          quantity: 1,
           price_data: {
             currency: "brl",
-            product_data: {
-              name: `Zuno Prospect - Plano ${planKey.toUpperCase()} (${leadsQty} leads)`,
-              description: `${leadsLimit} leads e ${aiLimit} analises com IA por mes - ${isAnual ? "Anual" : "Mensal"}`,
-            },
-            unit_amount: unitAmount,
+            unit_amount: plan.monthlyUnitAmount,
             recurring: {
-              interval: isAnual ? "year" : "month",
+              interval: "month",
+            },
+            product_data: {
+              name: `Zuno Propect ${plan.name}`,
+              description: `${plan.leadsLimit} leads/mês + ${plan.aiLimit} roteiros IA/mês`,
             },
           },
-          quantity: 1,
         },
       ],
-      mode: "subscription",
       success_url: `${PUBLIC_SITE_URL}/prospeccao?checkout=success`,
       cancel_url: `${PUBLIC_SITE_URL}/precos?checkout=cancelled`,
-      metadata: {
-        supabase_user_id: user.id,
-        user_id: user.id,
-        plan_key: planKey,
-        leads_qty: String(leadsQty),
-        leads_limit: String(leadsLimit),
-        ai_limit: String(aiLimit),
-        is_annual: String(!!isAnual),
-      },
+      metadata,
       subscription_data: {
-        metadata: {
-          supabase_user_id: user.id,
-          user_id: user.id,
-          plan_key: planKey,
-          leads_limit: String(leadsLimit),
-          ai_limit: String(aiLimit),
-          is_annual: String(!!isAnual),
-        },
+        metadata,
       },
     });
 
     console.log("Checkout session created", {
+      functionName,
       sessionId: session.id,
-      planKey,
-      leadsQty,
-      billingCycle,
-      unitAmount,
+      planId,
+      billingCycle: "monthly",
+      unitAmount: plan.monthlyUnitAmount,
       hasUrl: Boolean(session.url),
     });
 
-    return new Response(JSON.stringify({ url: session.url }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return jsonResponse({ url: session.url }, 200);
   } catch (error: any) {
     console.error("Checkout error", {
+      functionName,
       message: error?.message,
       type: error?.type,
       code: error?.code,
@@ -188,18 +192,9 @@ serve(async (req) => {
       requestId: error?.requestId,
     });
 
-    return new Response(
-      JSON.stringify({
-        error: "Falha ao criar checkout",
-        details: error.message,
-        status: error?.statusCode,
-        stripeCode: error?.code,
-        stripeType: error?.type,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: error?.statusCode || 500,
-      }
-    );
+    return jsonResponse({
+      error: "Não foi possível iniciar o pagamento. Verifique sua conta ou tente novamente.",
+      details: error?.message,
+    }, error?.statusCode || 500);
   }
 });

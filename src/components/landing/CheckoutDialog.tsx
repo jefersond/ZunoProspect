@@ -203,9 +203,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
       // Gerar URL do checkout via Stripe Edge Function
       const data = await createStripeCheckout({
         selectedPlan: plano,
-        leadsQuantity: packageLeads,
-        billingCycle: isAnual ? "annual" : "monthly",
-        price: preco,
+        billingCycle: "monthly",
       });
 
       toast.dismiss();

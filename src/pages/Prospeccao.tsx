@@ -61,8 +61,7 @@ const Prospeccao = () => {
           try {
             const data = await createStripeCheckout({
               selectedPlan: { planKey: plano.toLowerCase() },
-              leadsQuantity: plano.toLowerCase() === "agencia" ? 2000 : plano.toLowerCase() === "pro" ? 800 : 300,
-              billingCycle: isAnual ? "annual" : "monthly",
+              billingCycle: "monthly",
             });
             window.location.href = data.url;
           } catch (error) {

@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { CheckCircle2, Loader2, Eye, EyeOff, ArrowLeft, Check, Sparkles, Building2, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -39,8 +38,8 @@ const GoogleIcon = () => (
 const PLANOS = {
   starter: {
     nome: "Começar",
-    precoMensal: 141,
-    precoAnual: 1410,
+    precoMensal: 47,
+    precoAnual: 564,
     leadsLimit: 300,
     aiLimit: 30,
     gratuito: false,
@@ -55,8 +54,8 @@ const PLANOS = {
   },
   pro: {
     nome: "Pro",
-    precoMensal: 426,
-    precoAnual: 4260,
+    precoMensal: 97,
+    precoAnual: 1164,
     leadsLimit: 800,
     aiLimit: 100,
     gratuito: false,
@@ -72,8 +71,8 @@ const PLANOS = {
   },
   agencia: {
     nome: "Agência",
-    precoMensal: 1040,
-    precoAnual: 10400,
+    precoMensal: 247,
+    precoAnual: 2964,
     leadsLimit: 2000,
     aiLimit: 300,
     gratuito: false,
@@ -97,7 +96,7 @@ export default function Checkout() {
   
   // Get params from URL
   const planoParam = searchParams.get("plano")?.toLowerCase() as PlanoKey | null;
-  const anualParam = searchParams.get("anual");
+  const anualParam = "false";
   const leadsQtyParam = Number(searchParams.get("leadsQty") || "0");
   const googleAuth = searchParams.get("google_auth");
   const referralCode = searchParams.get("ref");
@@ -109,7 +108,7 @@ export default function Checkout() {
   
   const plano = PLANOS[selectedPlano];
   
-  const [isAnual, setIsAnual] = useState(anualParam === "true");
+  const [isAnual] = useState(anualParam === "true");
   const selectedLeadsQty = plano.leadsLimit;
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
@@ -282,9 +281,7 @@ export default function Checkout() {
       // Chamar Edge Function do Stripe
       const data = await createStripeCheckout({
         selectedPlan: { nome: plano.nome, planKey: selectedPlano },
-        leadsQuantity: selectedLeadsQty,
-        billingCycle: isAnual ? "annual" : "monthly",
-        price: preco,
+        billingCycle: "monthly",
       });
 
       toast.dismiss();
@@ -384,13 +381,8 @@ export default function Checkout() {
               {/* Plan Selector */}
               <PlanSelector />
               
-              {/* Toggle Mensal/Anual */}
               <div className="flex items-center justify-center gap-3 p-3 bg-muted/50 rounded-lg">
-                <span className={`text-sm ${!isAnual ? "font-semibold" : "text-muted-foreground"}`}>Mensal</span>
-                <Switch checked={isAnual} onCheckedChange={setIsAnual} disabled={isAnyProcessing} />
-                <span className={`text-sm ${isAnual ? "font-semibold" : "text-muted-foreground"}`}>
-                  Anual <span className="text-emerald-500 text-xs">({economia}% OFF)</span>
-                </span>
+                <span className="text-sm font-semibold">Cobrança mensal</span>
               </div>
 
               {/* Resumo do plano */}

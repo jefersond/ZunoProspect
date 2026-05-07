@@ -114,7 +114,7 @@ export const PERFIS_ALVO: PerfilAlvo[] = [
 export interface Plano {
   nome: string;
   planKey: string; // Key used in database (starter, pro, agencia)
-  precoBase: number; // Base price for 100 leads
+  precoBase: number; // Fixed monthly price
   leadsLimit: number;
   aiLimit: number;
   descricao: string;
@@ -165,7 +165,7 @@ export const PLANOS: Plano[] = [
 export const PLANO_AGENCIA: Plano = {
   nome: "Agência",
   planKey: "agencia",
-  precoBase: 147,
+  precoBase: 247,
   leadsLimit: 2000,
   aiLimit: 300,
   descricao: "Para agências e times",
@@ -183,11 +183,11 @@ export const PLANO_AGENCIA: Plano = {
 
 // Pricing configuration
 export const LEAD_PRICING_CONFIG = {
-  baseLeads: 100,
-  incrementLeads: 50,
-  incrementPrice: 23.50,
+  baseLeads: 300,
+  incrementLeads: 0,
+  incrementPrice: 0,
   maxLeads: 2000,
-  annualDiscountMonths: 2, // 2 months free on annual
+  annualDiscountMonths: 0,
 };
 
 // Available lead quantities for selector

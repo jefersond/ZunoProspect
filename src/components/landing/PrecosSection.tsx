@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, Building2, Kanban, BarChart3, Code2, Headphones, Globe, MapPin, Sparkles, MessageCircle, Target } from "lucide-react";
 import { PLANOS, PLANO_AGENCIA, LEAD_QUANTITIES, LEAD_PRICING_CONFIG, Plano } from "./data";
@@ -18,7 +17,7 @@ import { createStripeCheckout } from "@/services/stripeCheckout";
 
 export function PrecosSection() {
   const navigate = useNavigate();
-  const [isAnual, setIsAnual] = useState(false);
+  const isAnual = false;
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedPlano, setSelectedPlano] = useState<Plano | null>(null);
   const [selectedLeads, setSelectedLeads] = useState<Record<string, number>>({
@@ -62,7 +61,7 @@ export function PrecosSection() {
     
     // Se não estiver logado, vai para o cadastro
     if (!session) {
-      navigate(`/auth?tab=signup&plan=${encodeURIComponent(plano.planKey)}&leadsQty=${encodeURIComponent(String(leadsQty))}&anual=${encodeURIComponent(String(isAnual))}`);
+      navigate(`/auth?tab=signup&plan=${encodeURIComponent(plano.planKey)}&leadsQty=${encodeURIComponent(String(leadsQty))}&anual=false`);
       return;
     }
 
@@ -85,9 +84,7 @@ export function PrecosSection() {
 
       const data = await createStripeCheckout({
         selectedPlan: plano,
-        leadsQuantity: leadsQty,
-        billingCycle: isAnual ? "annual" : "monthly",
-        price: preco,
+        billingCycle: "monthly",
       });
 
       toast.dismiss();
@@ -96,7 +93,11 @@ export function PrecosSection() {
       
     } catch (error: any) {
       toast.dismiss();
-      toast.error("Erro ao processar", { description: error.message });
+      if (error?.status === 401) {
+        navigate(`/auth?tab=login&plan=${encodeURIComponent(plano.planKey)}&leadsQty=${encodeURIComponent(String(leadsQty))}&anual=false`);
+        return;
+      }
+      toast.error("Não foi possível iniciar o pagamento", { description: error.message });
     } finally {
       setIsProcessing(null);
     }
@@ -123,20 +124,6 @@ export function PrecosSection() {
             Escolha o plano e a quantidade de leads que você precisa. Cancele quando quiser.
           </p>
 
-          <div className="flex items-center justify-center gap-4">
-            <span className={`text-sm font-medium ${!isAnual ? "text-foreground" : "text-muted-foreground"}`}>
-              Mensal
-            </span>
-            <Switch checked={isAnual} onCheckedChange={setIsAnual} className="data-[state=checked]:bg-primary" />
-            <span className={`text-sm font-medium ${isAnual ? "text-foreground" : "text-muted-foreground"}`}>
-              Anual
-            </span>
-            {isAnual && (
-              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
-                Economize 17%
-              </Badge>
-            )}
-          </div>
         </div>
 
         {/* Grid for Iniciante, Pro */}

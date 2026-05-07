@@ -174,7 +174,7 @@ function buildNicheVariations(nicho: string): string[] {
     ]);
   }
 
-  return variations.slice(0, 5);
+  return variations.slice(0, 6);
 }
 
 function buildNoLeadsPayload(

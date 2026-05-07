@@ -378,27 +378,44 @@ export const ProspeccaoForm = () => {
       const exhaustedSource = responseData?.exhaustedSource || false;
       const suggestion = responseData?.suggestion;
       const searchMeta = responseData?.searchMetadata;
+      const noLeadsReason = responseData?.noLeadsReason;
+      const noLeadsMessages: Record<string, { title: string; description: string }> = {
+        google_zero: {
+          title: "Nenhuma empresa encontrada",
+          description: "Nao encontramos empresas com esse termo. Tente uma variacao como concessionaria, revenda de veiculos ou carros usados.",
+        },
+        all_duplicates: {
+          title: "Nenhum lead novo",
+          description: "Encontramos empresas, mas nenhuma nova para sua conta. Tente outro nicho ou remova filtros.",
+        },
+        filtered_out: {
+          title: "Resultados ocultados",
+          description: "Encontramos empresas, mas os filtros atuais ocultaram os resultados.",
+        },
+      };
       
       if (newLeadsCount > 0) {
-        toastDescription = `${newLeadsCount} leads novos${updatedLeadsCount > 0 ? ` + ${updatedLeadsCount} atualizados` : ''}`;
-        // Informa sobre expansão de raio se usou multi-rodada
+        toastDescription = `${newLeadsCount} leads novos${updatedLeadsCount > 0 ? ` + ${updatedLeadsCount} atualizados` : ""}`;
+        // Informa sobre expansao de raio se usou multi-rodada
         if (searchMeta?.roundsUsed > 1) {
           toastDescription += ` (raio expandido para ${searchMeta.finalRadiusKm?.toFixed(1)}km)`;
         }
-        // Se não atingiu a meta, adiciona sugestão
+        // Se nao atingiu a meta, adiciona sugestao
         if (exhaustedSource && newLeadsCount < effectiveQuantidade) {
-          toastDescription += `. ${suggestion || 'Tente múltiplos nichos ou outra cidade.'}`;
+          toastDescription += `. ${suggestion || "Tente multiplos nichos ou outra cidade."}`;
         }
       } else if (updatedLeadsCount > 0) {
         toastDescription = `${updatedLeadsCount} leads atualizados (nenhum novo encontrado)`;
+      } else if (noLeadsReason && noLeadsMessages[noLeadsReason]) {
+        toastDescription = responseData?.error || suggestion || noLeadsMessages[noLeadsReason].description;
       } else {
-        toastDescription = responseData?.error || suggestion || "Nenhum lead novo encontrado nesta região. Tente aumentar o raio de busca ou usar múltiplos nichos.";
+        toastDescription = responseData?.error || suggestion || "Nenhum lead novo encontrado nesta regiao. Tente aumentar o raio de busca ou usar multiplos nichos.";
       }
       
       toast({
         title: newLeadsCount > 0 
           ? (exhaustedSource && newLeadsCount < effectiveQuantidade ? `${newLeadsCount} leads encontrados` : "Busca concluída!") 
-          : (updatedLeadsCount > 0 ? "Leads atualizados" : "Nenhum lead novo"),
+          : (updatedLeadsCount > 0 ? "Leads atualizados" : (noLeadsReason && noLeadsMessages[noLeadsReason] ? noLeadsMessages[noLeadsReason].title : "Nenhum lead novo")),
         description: toastDescription,
         variant: newLeadsCount > 0 ? "default" : (updatedLeadsCount > 0 ? "default" : "destructive"),
         duration: exhaustedSource ? 8000 : 5000, // Mostra mais tempo se tiver sugestão

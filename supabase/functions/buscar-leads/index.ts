@@ -51,10 +51,164 @@ interface ProspeccaoRequest {
   pais?: "BR" | "US";
 }
 
+type NoLeadsReason = "google_zero" | "all_duplicates" | "filtered_out";
+
+interface SearchAttemptLog {
+  query: string;
+  location: { lat: number; lng: number } | null;
+  radiusKm: number | null;
+  type: string | null;
+  rawResults: number;
+  returnedResults: number;
+  duplicateResults: number;
+  excludedResults: number;
+  googleStatus?: string;
+}
+
+interface SearchDiagnostics {
+  received: {
+    cidade: string;
+    estado: string;
+    nicho: string;
+    foco: string;
+    quantidade: number;
+  };
+  normalized: {
+    cidade: string;
+    estado: string;
+    locationText: string;
+  };
+  attempts: SearchAttemptLog[];
+  rawResultsTotal: number;
+  afterGoogleDedupTotal: number;
+  afterDuplicateFilterTotal: number;
+  discarded: Record<string, number>;
+  fallbackNiches: string[];
+}
+
 const ADMIN_EMAILS = new Set([
   "jeferson.zanotell@gmail.com",
   "jefeson.zanotell@gmail.com",
 ]);
+
+const BRAZILIAN_STATE_NAMES: Record<string, string> = {
+  "acre": "AC",
+  "alagoas": "AL",
+  "amapa": "AP",
+  "amazonas": "AM",
+  "bahia": "BA",
+  "ceara": "CE",
+  "distrito federal": "DF",
+  "espirito santo": "ES",
+  "goias": "GO",
+  "maranhao": "MA",
+  "mato grosso": "MT",
+  "mato grosso do sul": "MS",
+  "minas gerais": "MG",
+  "para": "PA",
+  "paraiba": "PB",
+  "parana": "PR",
+  "pernambuco": "PE",
+  "piaui": "PI",
+  "rio de janeiro": "RJ",
+  "rio grande do norte": "RN",
+  "rio grande do sul": "RS",
+  "rondonia": "RO",
+  "roraima": "RR",
+  "santa catarina": "SC",
+  "sao paulo": "SP",
+  "sergipe": "SE",
+  "tocantins": "TO",
+};
+
+function removeDiacritics(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function toTitleCase(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((part) => part ? part.charAt(0).toUpperCase() + part.slice(1) : part)
+    .join(" ");
+}
+
+function normalizeState(input: string, pais: "BR" | "US" = "BR"): string {
+  const value = (input || "").trim();
+  const ufMatch = value.match(/\(([A-Za-z]{2})\)/);
+  if (ufMatch) return ufMatch[1].toUpperCase();
+
+  if (/^[A-Za-z]{2}$/.test(value)) return value.toUpperCase();
+  if (pais === "US") return value;
+
+  const key = removeDiacritics(value).toLowerCase();
+  return BRAZILIAN_STATE_NAMES[key] || value;
+}
+
+function buildLocationText(cidade: string, estado: string, pais: "BR" | "US" = "BR"): string {
+  const countryName = pais === "US" ? "USA" : "Brasil";
+  return `${cidade}, ${estado}, ${countryName}`;
+}
+
+function buildNicheVariations(nicho: string): string[] {
+  const normalized = removeDiacritics(nicho).toLowerCase().trim();
+  const variations = [nicho.trim()];
+
+  const add = (items: string[]) => {
+    for (const item of items) {
+      if (!variations.some((existing) => removeDiacritics(existing).toLowerCase() === removeDiacritics(item).toLowerCase())) {
+        variations.push(item);
+      }
+    }
+  };
+
+  if (/(loja|revenda|concessionaria|carro|carros|veiculo|veiculos|automovel|automoveis|usado|usados)/i.test(normalized)) {
+    add([
+      "loja de carros",
+      "concessionaria",
+      "revenda de veiculos",
+      "loja de veiculos",
+      "carros usados",
+      "automoveis",
+    ]);
+  }
+
+  return variations.slice(0, 5);
+}
+
+function buildNoLeadsPayload(
+  reason: NoLeadsReason,
+  diagnostics: SearchDiagnostics,
+  extra?: Record<string, unknown>,
+) {
+  const messages: Record<NoLeadsReason, string> = {
+    google_zero: "Nenhuma empresa encontrada para essa busca.",
+    all_duplicates: "Encontramos empresas, mas todas ja estavam no seu historico.",
+    filtered_out: "Encontramos empresas, mas nenhuma passou nos filtros atuais.",
+  };
+
+  const suggestions: Record<NoLeadsReason, string> = {
+    google_zero: "Nao encontramos empresas com esse termo. Tente uma variacao como concessionaria, revenda de veiculos ou carros usados.",
+    all_duplicates: "Encontramos empresas, mas nenhuma nova para sua conta. Tente outro nicho ou remova filtros.",
+    filtered_out: "Encontramos empresas, mas os filtros atuais ocultaram os resultados.",
+  };
+
+  return {
+    success: true,
+    error: messages[reason],
+    noLeadsReason: reason,
+    suggestion: suggestions[reason],
+    leadsCount: 0,
+    newLeadsCount: 0,
+    updatedLeadsCount: 0,
+    totalAvailable: diagnostics.afterDuplicateFilterTotal,
+    limitedByQuota: false,
+    additionalLeadsAvailable: 0,
+    searchDiagnostics: diagnostics,
+    ...(extra ?? {}),
+  };
+}
 
 function logStep(searchRunId: string, step: string, data?: Record<string, unknown>) {
   console.log(`[buscar-leads:${searchRunId}] ${step}`, data ?? {});
@@ -177,10 +331,46 @@ serve(async (req) => {
 
     const body: ProspeccaoRequest = await req.json();
     const requestedQuantity = Math.max(1, Math.min(100, Number(body.quantidade) || 10));
+    const receivedCidade = body.cidade || "";
+    const receivedEstado = body.estado || "";
+    const normalizedCidade = toTitleCase(receivedCidade);
+    const normalizedEstado = normalizeState(receivedEstado, body.pais || "BR");
+    const normalizedLocationText = buildLocationText(normalizedCidade, normalizedEstado, body.pais || "BR");
+    body.cidade = normalizedCidade;
+    body.estado = normalizedEstado;
+
+    const diagnostics: SearchDiagnostics = {
+      received: {
+        cidade: receivedCidade,
+        estado: receivedEstado,
+        nicho: body.nicho,
+        foco: body.foco,
+        quantidade: requestedQuantity,
+      },
+      normalized: {
+        cidade: normalizedCidade,
+        estado: normalizedEstado,
+        locationText: normalizedLocationText,
+      },
+      attempts: [],
+      rawResultsTotal: 0,
+      afterGoogleDedupTotal: 0,
+      afterDuplicateFilterTotal: 0,
+      discarded: {
+        duplicateWithinGoogle: 0,
+        excludedExistingPlaceId: 0,
+        missingName: 0,
+        missingAddressOrCity: 0,
+        detailsError: 0,
+        insertError: 0,
+      },
+      fallbackNiches: [],
+    };
+
     logStep(searchRunId, "Payload recebido", {
       cidade: body.cidade,
       estado: body.estado,
-      nichoLength: body.nicho?.length ?? 0,
+      nicho: body.nicho,
       quantidade: body.quantidade,
       foco: body.foco,
       proximidadeAtiva: body.proximidadeAtiva,
@@ -188,6 +378,16 @@ serve(async (req) => {
       canaisProspeccao: body.canaisProspeccao ?? null,
       excludePlaceIdsCount: body.excludePlaceIds?.length ?? 0,
       pais: body.pais ?? "BR",
+      normalizedLocationText,
+    });
+    logStep(searchRunId, "Filtros de descarte ativos", {
+      requiresWebsite: false,
+      requiresPhone: false,
+      requiresRating: false,
+      requiresReviews: false,
+      requiresFullAddress: false,
+      minimumRequiredFields: "name",
+      focoUsedInGoogleQuery: false,
     });
 
     const { data: usageData, error: usageError } = await supabaseAdmin.rpc("ensure_user_usage", {
@@ -251,13 +451,23 @@ serve(async (req) => {
       initialUrl: string,
       targetQuantity: number,
       maxPages: number = 3,
-      existingPlaceIds: Set<string> = new Set()
-    ): Promise<{ results: any[]; totalFound: number; hasMorePages: boolean }> {
+      existingPlaceIds: Set<string> = new Set(),
+      attemptContext?: {
+        query: string;
+        location: { lat: number; lng: number } | null;
+        radiusKm: number | null;
+        type: string | null;
+      }
+    ): Promise<{ results: any[]; totalFound: number; hasMorePages: boolean; rawResults: number; duplicateResults: number; excludedResults: number; googleStatus?: string }> {
       const allResults: any[] = [];
       const seenPlaceIds = new Set<string>(existingPlaceIds);
       let pageToken: string | null = null;
       let currentPage = 0;
       let hasMorePages = false;
+      let rawResults = 0;
+      let duplicateResults = 0;
+      let excludedResults = 0;
+      let googleStatus: string | undefined;
 
       while (allResults.length < targetQuantity && currentPage < maxPages) {
         let url = initialUrl;
@@ -273,6 +483,7 @@ serve(async (req) => {
         console.log(`📄 Buscando página ${currentPage + 1}/${maxPages}...`);
         const response = await fetch(url);
         const data = await response.json();
+        googleStatus = data.status;
         logStep(searchRunId, "Resposta Google Places Search", {
           page: currentPage + 1,
           httpStatus: response.status,
@@ -285,10 +496,17 @@ serve(async (req) => {
         if (data.status === "OK" && data.results?.length > 0) {
           // Deduplica por place_id
           for (const result of data.results) {
-            if (!seenPlaceIds.has(result.place_id)) {
-              seenPlaceIds.add(result.place_id);
-              allResults.push(result);
+            rawResults++;
+            if (existingPlaceIds.has(result.place_id)) {
+              excludedResults++;
+              continue;
             }
+            if (seenPlaceIds.has(result.place_id)) {
+              duplicateResults++;
+              continue;
+            }
+            seenPlaceIds.add(result.place_id);
+            allResults.push(result);
           }
           
           console.log(`✅ Página ${currentPage + 1}: ${data.results.length} resultados (total acumulado: ${allResults.length})`);
@@ -315,7 +533,34 @@ serve(async (req) => {
       }
 
       console.log(`📊 Paginação completa: ${allResults.length} leads únicos em ${currentPage} página(s)`);
-      return { results: allResults, totalFound: allResults.length, hasMorePages };
+      diagnostics.rawResultsTotal += rawResults;
+      diagnostics.afterGoogleDedupTotal += allResults.length;
+      diagnostics.discarded.duplicateWithinGoogle += duplicateResults;
+      diagnostics.discarded.excludedExistingPlaceId += excludedResults;
+
+      if (attemptContext) {
+        diagnostics.attempts.push({
+          ...attemptContext,
+          rawResults,
+          returnedResults: allResults.length,
+          duplicateResults,
+          excludedResults,
+          googleStatus,
+        });
+      }
+
+      logStep(searchRunId, "Paginacao Google Places concluida", {
+        query: attemptContext?.query ?? "nao-informada",
+        location: attemptContext?.location ?? null,
+        radiusKm: attemptContext?.radiusKm ?? null,
+        type: attemptContext?.type ?? null,
+        rawResults,
+        returnedResults: allResults.length,
+        duplicateResults,
+        excludedResults,
+        pagesUsed: currentPage,
+      });
+      return { results: allResults, totalFound: allResults.length, hasMorePages, rawResults, duplicateResults, excludedResults, googleStatus };
     }
 
     // ============================================
@@ -333,8 +578,8 @@ serve(async (req) => {
       const seenPlaceIds = new Set<string>(excludePlaceIds);
       
       // Configuração de rodadas
-      const MAX_ROUNDS = 5;
-      const RADIUS_MULTIPLIERS = [1, 1.5, 2, 2.5, 3]; // Expande progressivamente
+      const MAX_ROUNDS = 3;
+      const RADIUS_MULTIPLIERS = [1, 2, 4]; // 5km -> 10km -> 20km quando o raio inicial for 5km
       const MAX_RADIUS_KM = body.pais === "US" ? 50 : 30; // Limite máximo
       
       let currentRadius = initialRadius;
@@ -350,15 +595,26 @@ serve(async (req) => {
 
         console.log(`\n🔄 RODADA ${round + 1}/${MAX_ROUNDS}: raio=${currentRadius.toFixed(1)}km, encontrados até agora=${allResults.length}`);
 
+        const query = `${nicho} em ${normalizedLocationText}`;
         const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${
           Math.round(currentRadius * 1000)
         }&keyword=${encodeURIComponent(nicho)}&key=${GOOGLE_API_KEY}`;
+
+        logStep(searchRunId, "Query enviada ao Google Places", {
+          query,
+          keyword: nicho,
+          location,
+          radiusKm: currentRadius,
+          type: null,
+          searchMode: "nearbysearch",
+        });
 
         const { results: roundResults } = await fetchAllPagesFromGoogle(
           nearbyUrl,
           targetQuantity - allResults.length + 20, // Busca um pouco mais para compensar duplicatas
           3,
-          seenPlaceIds
+          seenPlaceIds,
+          { query, location, radiusKm: currentRadius, type: null }
         );
 
         // Conta novos resultados únicos
@@ -430,11 +686,25 @@ serve(async (req) => {
         return await multiRoundSearch(nicho, targetQuantity, location, defaultRadius, excludePlaceIds);
       } else {
         // Text Search puro (sem localização conhecida) - limitado a ~60 resultados
+        const query = `${nicho} em ${normalizedLocationText}`;
         const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
-          `${nicho} ${body.cidade} ${body.estado}`
+          query
         )}&key=${GOOGLE_API_KEY}`;
 
-        const { results, totalFound } = await fetchAllPagesFromGoogle(textSearchUrl, targetQuantity, 3);
+        logStep(searchRunId, "Query enviada ao Google Places", {
+          query,
+          location: null,
+          radiusKm: null,
+          type: null,
+          searchMode: "textsearch",
+        });
+        const { results, totalFound } = await fetchAllPagesFromGoogle(
+          textSearchUrl,
+          targetQuantity,
+          3,
+          new Set(excludePlaceIds),
+          { query, location: null, radiusKm: null, type: null },
+        );
         return { results, totalFound, exhaustedSource: totalFound < targetQuantity };
       }
     }
@@ -478,14 +748,14 @@ serve(async (req) => {
       let searchRadius = body.raioKm || 5;
 
       // Geocodifica a cidade + estado para obter lat/lng do centro
-      const countryName = body.pais === "US" ? "USA" : "Brasil";
       const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-        `${body.cidade}, ${body.estado}, ${countryName}`
+        normalizedLocationText
       )}&key=${GOOGLE_API_KEY}`;
 
       const geocodeResponse = await fetch(geocodeUrl);
       const geocodeData = await geocodeResponse.json();
       logStep(searchRunId, "Resposta Google Geocoding", {
+        locationText: normalizedLocationText,
         httpStatus: geocodeResponse.status,
         googleStatus: geocodeData.status,
         resultsCount: geocodeData.results?.length ?? 0,
@@ -557,39 +827,88 @@ serve(async (req) => {
         console.log(`🎯 Total disponível: ${totalAvailable}, entregando: ${leads.length}`);
 
         if (allResults.length === 0) {
-          throw new Error(`Nenhum resultado encontrado para "${nichos.join(', ')}" em ${body.cidade}`);
+          const noLeadsReason: NoLeadsReason = diagnostics.rawResultsTotal === 0 ? "google_zero" : "all_duplicates";
+          return new Response(
+            JSON.stringify(buildNoLeadsPayload(noLeadsReason, diagnostics, { searchRunId })),
+            {
+              status: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
         }
       } else {
         // NICHO ÚNICO: Busca com multi-rodada
         const singleNicho = nichos[0] || body.nicho;
+        const nicheVariations = buildNicheVariations(singleNicho);
+        diagnostics.fallbackNiches = nicheVariations;
         
-        console.log(`🔍 Iniciando busca para nicho "${singleNicho}" (proximidade=${body.proximidadeAtiva}, location=${!!location})`);
+        const seenPlaceIds = new Set<string>();
+        const allVariationResults: any[] = [];
+        let maxRoundsUsed = 1;
+        let finalRadiusUsed = searchRadius;
+        let anyExhausted = false;
 
-        const searchResult = await searchSingleNiche(
-          singleNicho,
-          body.quantidade,
-          location,
-          body.proximidadeAtiva ? searchRadius : undefined,
-          body.excludePlaceIds || []
-        );
+        logStep(searchRunId, "Iniciando busca por variacoes de nicho", {
+          nichoOriginal: singleNicho,
+          fallbackNiches: nicheVariations,
+          focoIgnoradoNaBusca: body.foco,
+          location: location ?? null,
+          initialRadiusKm: searchRadius,
+        });
 
-        if (searchResult.results.length > 0) {
-          totalAvailable = searchResult.totalFound;
-          exhaustedSource = searchResult.exhaustedSource || false;
-          searchMetadata = {
-            roundsUsed: searchResult.roundsUsed || 1,
-            finalRadius: searchResult.finalRadius || searchRadius
-          };
-          
-          // Marca o nicho em cada resultado
-          leads = (body.excludePlaceIds && body.excludePlaceIds.length > 0
-            ? searchResult.results
-            : searchResult.results.slice(0, body.quantidade))
-            .map((r: any) => ({ ...r, _nicho: singleNicho }));
-          
-          console.log(`🎯 Total disponível: ${totalAvailable}, entregando: ${leads.length}, esgotado: ${exhaustedSource}`);
-        } else {
-          throw new Error(`Nenhum resultado encontrado para "${singleNicho}" em ${body.cidade}`);
+        for (const variation of nicheVariations) {
+          const searchResult = await searchSingleNiche(
+            variation,
+            Math.max(body.quantidade - allVariationResults.length, body.quantidade),
+            location,
+            body.proximidadeAtiva ? searchRadius : undefined,
+            [...(body.excludePlaceIds || []), ...Array.from(seenPlaceIds)]
+          );
+
+          maxRoundsUsed = Math.max(maxRoundsUsed, searchResult.roundsUsed || 1);
+          finalRadiusUsed = Math.max(finalRadiusUsed, searchResult.finalRadius || searchRadius);
+          anyExhausted = anyExhausted || !!searchResult.exhaustedSource;
+
+          for (const result of searchResult.results) {
+            if (!seenPlaceIds.has(result.place_id)) {
+              seenPlaceIds.add(result.place_id);
+              allVariationResults.push({ ...result, _nicho: variation });
+            }
+          }
+
+          logStep(searchRunId, "Resultado da variacao de nicho", {
+            variation,
+            resultsCount: searchResult.results.length,
+            totalAcumulado: allVariationResults.length,
+          });
+
+          if (allVariationResults.length >= body.quantidade) {
+            break;
+          }
+        }
+
+        totalAvailable = allVariationResults.length;
+        exhaustedSource = anyExhausted || allVariationResults.length < body.quantidade;
+        searchMetadata = {
+          roundsUsed: maxRoundsUsed,
+          finalRadius: finalRadiusUsed,
+        };
+
+        leads = body.excludePlaceIds && body.excludePlaceIds.length > 0
+          ? allVariationResults
+          : allVariationResults.slice(0, body.quantidade);
+
+        console.log(`Total disponivel: ${totalAvailable}, entregando: ${leads.length}, esgotado: ${exhaustedSource}`);
+
+        if (allVariationResults.length === 0) {
+          const noLeadsReason: NoLeadsReason = diagnostics.rawResultsTotal === 0 ? "google_zero" : "all_duplicates";
+          return new Response(
+            JSON.stringify(buildNoLeadsPayload(noLeadsReason, diagnostics, { searchRunId })),
+            {
+              status: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
         }
       }
     }
@@ -600,26 +919,22 @@ serve(async (req) => {
     const excludePlaceIds = body.excludePlaceIds || [];
     const originalLeadsCount = leads.length;
     if (excludePlaceIds.length > 0) {
-      console.log(`Filtrando ${excludePlaceIds.length} place_ids já existentes...`);
+      console.log(`Filtrando ${excludePlaceIds.length} place_ids ja existentes...`);
       leads = leads.filter((lead: any) => !excludePlaceIds.includes(lead.place_id));
-      console.log(`Leads após filtro: ${leads.length} (removidos: ${originalLeadsCount - leads.length})`);
-      
-      // Se não houver novos leads após filtrar, informa ao usuário
+      diagnostics.afterDuplicateFilterTotal = leads.length;
+      console.log(`Leads apos filtro: ${leads.length} (removidos: ${originalLeadsCount - leads.length})`);
+
       if (leads.length === 0) {
         return new Response(
-          JSON.stringify({ 
-            error: "Nenhum lead novo encontrado. O Google retornou os mesmos resultados da busca anterior. Tente aumentar o raio de busca ou modificar os termos.",
-            leadsCount: 0,
-            totalAvailable: 0,
-            limitedByQuota: false,
-            additionalLeadsAvailable: 0,
-          }),
+          JSON.stringify(buildNoLeadsPayload("all_duplicates", diagnostics, { searchRunId })),
           {
             status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
       }
+    } else {
+      diagnostics.afterDuplicateFilterTotal = leads.length;
     }
     
     // Calcula quantos leads podem ser processados com o saldo ja validado antes do Google Places
@@ -883,6 +1198,14 @@ serve(async (req) => {
         
         if (detailsData.status === "OK") {
           const details = detailsData.result;
+          if (!details?.name) {
+            diagnostics.discarded.missingName++;
+            logStep(searchRunId, "Lead descartado", {
+              reason: "missingName",
+              placeId: place.place_id,
+            });
+            return null;
+          }
           
           // Analisa o site se houver website (com timeout)
           let siteSignals = {
@@ -945,6 +1268,7 @@ serve(async (req) => {
           });
 
           if (insertError) {
+            diagnostics.discarded.insertError++;
             console.error("Erro ao inserir lead:", insertError);
             return null;
           }
@@ -963,6 +1287,14 @@ serve(async (req) => {
             },
             isNew: isNewLead
           };
+        } else {
+          diagnostics.discarded.detailsError++;
+          logStep(searchRunId, "Lead descartado", {
+            reason: "detailsError",
+            placeId: place.place_id,
+            googleStatus: detailsData.status,
+            hasErrorMessage: !!detailsData.error_message,
+          });
         }
       } catch (error) {
         console.error("Erro ao processar lead:", error);
@@ -987,6 +1319,16 @@ serve(async (req) => {
 
     // Extrai apenas os resultados dos leads para retorno
     const leadsDetails = leadsWithAnalysis.map(item => item.leadResult);
+
+    if (leads.length > 0 && leadsDetails.length === 0) {
+      return new Response(
+        JSON.stringify(buildNoLeadsPayload("filtered_out", diagnostics, { searchRunId })),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
     if (leadsDetails.length > 0) {
       const { data: incrementOk, error: incrementError } = await supabaseAdmin.rpc("increment_leads_usage", {
@@ -1054,6 +1396,7 @@ serve(async (req) => {
         suggestion: exhaustedSource && leadsDetails.length < body.quantidade
           ? `Encontramos ${leadsDetails.length} de ${body.quantidade} leads. Tente: aumentar o raio, usar múltiplos nichos (ex: "restaurante, pizzaria"), ou testar outra cidade próxima.`
           : null,
+        searchDiagnostics: diagnostics,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

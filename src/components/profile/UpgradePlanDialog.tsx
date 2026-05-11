@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,7 @@ import { toast } from "sonner";
 import { Loader2, CheckCircle2, Crown, ExternalLink, Sparkles } from "lucide-react";
 import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, normalizePlanId, type BillingCycle, type PlanConfig } from "@/config/plans";
 import { createStripeCheckout } from "@/services/stripeCheckout";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 interface UpgradePlanDialogProps {
@@ -35,6 +37,8 @@ function getCurrentPlanLevel(currentPlanName?: string) {
 }
 
 export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: UpgradePlanDialogProps) => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
 
@@ -51,6 +55,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
       const data = await createStripeCheckout({
         selectedPlan: { planKey: plan.id },
         billingCycle,
+        authUserFromHook: user,
       });
 
       toast.dismiss();
@@ -59,7 +64,17 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
       onOpenChange(false);
     } catch (error: any) {
       toast.dismiss();
-      toast.error("Não foi possível iniciar o pagamento", { description: error.message });
+      if (error?.status === 401) {
+        toast.error(error?.title || "Sessão expirada", {
+          description: error.message || "Entre novamente para continuar com o pagamento.",
+        });
+        navigate("/auth?tab=login");
+        return;
+      }
+
+      toast.error("Não foi possível iniciar o pagamento", {
+        description: "Tente novamente.",
+      });
     } finally {
       setProcessingPlan(null);
     }
@@ -67,7 +82,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto border-border/70 bg-zinc-950 text-foreground">
+      <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto scrollbar-zuno border-border/70 bg-zinc-950 text-foreground">
         <DialogHeader className="space-y-3">
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Crown className="h-5 w-5 text-primary" />

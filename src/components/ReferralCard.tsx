@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Copy, CheckCircle2, Gift, Users, Sparkles, Database } from "lucide-react";
+import { CheckCircle2, Clock3, Copy, Gift, Info, Sparkles, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUsage } from "@/hooks/useUsage";
 
@@ -10,11 +10,12 @@ import { useUsage } from "@/hooks/useUsage";
 const supabaseAny = supabase as any;
 
 export function ReferralCard() {
-  const { usage, isAdmin } = useUsage();
+  const { isAdmin } = useUsage();
   const [copied, setCopied] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
-  const [indicacoesAtuais, setIndicacoesAtuais] = useState(0);
-  const [bonusIndicacaoSaldo, setBonusIndicacaoSaldo] = useState(0);
+  const [indicacoesPendentes, setIndicacoesPendentes] = useState(0);
+  const [indicacoesConvertidas, setIndicacoesConvertidas] = useState(0);
+  const [leadsExtrasGanhos, setLeadsExtrasGanhos] = useState(0);
 
   useEffect(() => {
     async function loadReferralData() {
@@ -22,35 +23,30 @@ export function ReferralCard() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        const { data } = await supabaseAny
-          .from("profiles")
-          .select("referral_code, buscas_saldo")
-          .eq("id", user.id)
-          .single();
+        const { data, error } = await supabaseAny.rpc("get_referral_summary", {
+          p_user_id: user.id,
+        });
 
-        if (data) {
-          setReferralCode(data.referral_code ?? null);
-          setBonusIndicacaoSaldo(data.buscas_saldo ?? 0);
+        if (error) throw error;
+
+        const summary = data?.[0];
+        if (summary) {
+          setReferralCode(summary.referral_code ?? null);
+          setIndicacoesPendentes(summary.referral_pending_count ?? 0);
+          setIndicacoesConvertidas(summary.referral_rewarded_count ?? summary.referral_count ?? 0);
+          setLeadsExtrasGanhos(summary.referral_bonus_earned ?? summary.referral_bonus_available ?? 0);
         }
-
-        const { count } = await supabaseAny
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .eq("referred_by", user.id);
-
-        setIndicacoesAtuais(count ?? 0);
       } catch {
-        // Colunas ainda não migradas: o card renderiza com valores padrão.
+        // Colunas ou RPCs ainda nao migradas: o card renderiza com valores padrao.
       }
     }
     loadReferralData();
   }, []);
 
-  const buscasExtrasDisponiveis = indicacoesAtuais > 0 ? bonusIndicacaoSaldo : 0;
-  const leadsTotais = isAdmin ? "Ilimitado" : usage.leads_available_total;
+  const leadsExtrasDisplay = isAdmin ? "Ilimitado" : leadsExtrasGanhos;
 
   const referralLink = referralCode
-    ? `https://zunopropect.com.br/auth?ref=${referralCode}`
+    ? `https://zunopropect.com.br/?ref=${referralCode}`
     : "Gerando seu link...";
 
   const handleCopyLink = () => {
@@ -80,27 +76,38 @@ export function ReferralCard() {
                   </span>
                 </div>
                 <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Convide parceiros para usar o Zuno Prospect e receba buscas extras quando eles entrarem.
+                  Convide parceiros para conhecer o Zuno Propect. Voce ganha bonus quando eles assinarem um plano.
                 </p>
               </div>
             </div>
 
             <div className="rounded-lg border border-border/50 bg-background/40 p-4">
-              <p className="text-sm text-muted-foreground">
-                Cada indicação válida adiciona{" "}
-                <span className="font-medium text-foreground">100 buscas extras</span>{" "}
-                ao seu saldo bônus. Seu saldo total de leads é atualizado separadamente.
+              <p className="text-sm font-medium text-foreground">
+                Ganhe 100 leads extras quando uma pessoa indicada assinar qualquer plano pago.
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Cadastros gratuitos ficam como indicacoes pendentes e nao liberam bonus automaticamente.
               </p>
             </div>
 
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/40 p-4">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted/50">
+                  <Clock3 className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold leading-none text-foreground">{indicacoesPendentes}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">indicacoes pendentes</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/40 p-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted/50">
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-2xl font-semibold leading-none text-foreground">{indicacoesAtuais}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">indicações feitas</p>
+                  <p className="text-2xl font-semibold leading-none text-foreground">{indicacoesConvertidas}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">indicacoes convertidas</p>
                 </div>
               </div>
 
@@ -109,18 +116,13 @@ export function ReferralCard() {
                   <Sparkles className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-2xl font-semibold leading-none text-foreground">{buscasExtrasDisponiveis}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">buscas extras disponíveis</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/40 p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted/50">
-                  <Database className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold leading-none text-foreground">{leadsTotais}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">leads disponíveis totais</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-2xl font-semibold leading-none text-foreground">{leadsExtrasDisplay}</p>
+                    <span title="Voce so recebe o bonus depois que a pessoa indicada assinar Starter, Pro ou Agency.">
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">leads extras ganhos</p>
                 </div>
               </div>
             </div>
@@ -129,9 +131,9 @@ export function ReferralCard() {
           <div className="rounded-lg border border-border/50 bg-background/40 p-4">
             <div className="space-y-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Link de indicação</p>
+                <p className="text-sm font-medium text-foreground">Link de indicacao</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Compartilhe este link com quem pode aproveitar o Zuno Prospect.
+                  Compartilhe este link com quem pode aproveitar o Zuno Propect. O bonus so e liberado apos assinatura paga.
                 </p>
               </div>
 
@@ -140,7 +142,7 @@ export function ReferralCard() {
                   value={referralLink}
                   readOnly
                   className="h-10 flex-1 truncate font-mono text-xs text-muted-foreground"
-                  aria-label="Link de indicação"
+                  aria-label="Link de indicacao"
                 />
                 <Button
                   onClick={handleCopyLink}
@@ -156,7 +158,7 @@ export function ReferralCard() {
                   ) : (
                     <>
                       <Copy className="h-4 w-4" />
-                      Copiar link de indicação
+                      Copiar link de indicacao
                     </>
                   )}
                 </Button>

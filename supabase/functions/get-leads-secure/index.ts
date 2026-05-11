@@ -38,6 +38,10 @@ function handleCorsRequest(req: Request): Response | null {
 // Rate limit configuration
 const RATE_LIMIT_MAX_REQUESTS = 30; // Max requests per window
 const RATE_LIMIT_WINDOW_MINUTES = 1; // Window in minutes
+const ADMIN_EMAILS = new Set([
+  "jeferson.zanotell@gmail.com",
+  "jefeson.zanotell@gmail.com",
+]);
 
 interface GetLeadsRequest {
   action: 'list' | 'view_detail' | 'export';
@@ -92,6 +96,14 @@ serve(async (req) => {
       });
     }
 
+    const normalizedEmail = (user.email || "").trim().toLowerCase();
+    const { data: adminCheck, error: adminCheckError } = await supabaseAdmin
+      .rpc("is_admin", { _user_id: user.id });
+    if (adminCheckError) {
+      console.warn("Erro ao verificar admin em get-leads-secure:", adminCheckError.message);
+    }
+    const isAdminUser = ADMIN_EMAILS.has(normalizedEmail) || adminCheck === true;
+
     // Parse request
     const body: GetLeadsRequest = await req.json();
     const { action = 'list', salvo, leadId, page = 1, limit = 200, noPagination = false, searchRunId } = body;
@@ -119,7 +131,7 @@ serve(async (req) => {
     console.log(`📊 [${action}] User: ${user.id} | IP: ${ipAddress} | salvo: ${salvo} → normalized: ${salvoValue} | searchRunId: ${searchRunId || 'none'}`);
 
     // Check rate limit for list/export actions
-    if (action === 'list' || action === 'export') {
+    if (!isAdminUser && (action === 'list' || action === 'export')) {
       const { data: rateLimitData, error: rateLimitError } = await supabaseAdmin
         .rpc('check_leads_rate_limit', {
           p_user_id: user.id,
@@ -203,11 +215,13 @@ serve(async (req) => {
       // Apply pagination for list (not export)
       // When searchRunId is provided, skip pagination (return all from that search)
       const skipPagination = noPagination || !!searchRunId;
-      const safeLimit = Math.min(Math.max(1, limit), action === 'export' ? 500 : 300);
+      const safeLimit = isAdminUser
+        ? Math.max(1, limit)
+        : Math.min(Math.max(1, limit), action === 'export' ? 500 : 300);
       const offset = (Math.max(1, page) - 1) * safeLimit;
       
       const paginatedLeads = action === 'export' 
-        ? userLeads.slice(0, 500) // Export limit
+        ? (isAdminUser ? userLeads : userLeads.slice(0, 500)) // Export limit
         : skipPagination 
           ? userLeads // Return all leads when searchRunId is provided or noPagination is true
           : userLeads.slice(offset, offset + safeLimit);
@@ -240,11 +254,13 @@ serve(async (req) => {
     });
 
     // Get rate limit info for response headers
-    const { data: rateLimitInfo } = await supabaseAdmin.rpc('check_leads_rate_limit', {
-      p_user_id: user.id,
-      p_max_requests: RATE_LIMIT_MAX_REQUESTS,
-      p_window_minutes: RATE_LIMIT_WINDOW_MINUTES
-    });
+    const { data: rateLimitInfo } = isAdminUser
+      ? { data: { remaining: RATE_LIMIT_MAX_REQUESTS, limit: RATE_LIMIT_MAX_REQUESTS } }
+      : await supabaseAdmin.rpc('check_leads_rate_limit', {
+          p_user_id: user.id,
+          p_max_requests: RATE_LIMIT_MAX_REQUESTS,
+          p_window_minutes: RATE_LIMIT_WINDOW_MINUTES
+        });
 
     console.log(`✅ [${action}] Returned ${leadsCount} leads for user ${user.id}`);
 

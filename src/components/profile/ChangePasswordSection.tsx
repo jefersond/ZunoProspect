@@ -184,7 +184,11 @@ const ChangePasswordSection = () => {
             )}
           </div>
 
-          <Button type="submit" className="w-full" disabled={saving || !isFormValid}>
+          <Button
+            type="submit"
+            className="w-full bg-emerald-600 text-white shadow-sm shadow-emerald-950/20 hover:bg-emerald-500"
+            disabled={saving || !isFormValid}
+          >
             {saving ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -12,7 +12,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeadProspeccao } from "@/types/lead";
@@ -26,8 +25,9 @@ import { useUsage } from "@/hooks/useUsage";
 
 export const LeadsList = () => {
   const { toast } = useToast();
-  const { subscription } = useSubscription();
-  const { canAnalyzeAI, refetch: refetchUsage } = useUsage();
+  const { subscription, isAdmin: subscriptionIsAdmin } = useSubscription();
+  const { canAnalyzeAI, refetch: refetchUsage, isAdmin: usageIsAdmin } = useUsage();
+  const isAdmin = subscriptionIsAdmin || usageIsAdmin;
   const [leads, setLeads] = useState<LeadProspeccao[]>([]);
   const [lockedLeads, setLockedLeads] = useState<LeadProspeccao[]>([]);
   const [totalLocked, setTotalLocked] = useState(0);
@@ -514,6 +514,9 @@ export const LeadsList = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Sessão expirada. Faça login novamente.");
 
       const { error } = await supabase.functions.invoke("analisar-lead-ia", {
         body: {
@@ -521,6 +524,7 @@ export const LeadsList = () => {
           user_id: user.id,
           canaisProspeccao: ["email", "whatsapp", "instagram"],
         },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (error) throw new Error(await getFunctionErrorMessage(error));
@@ -572,17 +576,17 @@ export const LeadsList = () => {
 
   return (
     <>
-      <Card className="shadow-lg">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Leads Encontrados ({leads.length})</CardTitle>
+      <Card className="w-full overflow-hidden shadow-lg">
+        <CardHeader className="border-b bg-muted/20">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-xl">Leads Encontrados ({leads.length})</CardTitle>
             {leads.length > 0 && (
-              <div className="flex gap-2">
-                <Button onClick={handleSaveLeads} variant="default" size="sm">
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <Button onClick={handleSaveLeads} variant="default" size="sm" className="h-9">
                   <Save className="h-4 w-4 mr-2" />
                   Salvar Leads
                 </Button>
-                <Button onClick={handleExportExcel} variant="outline" size="sm">
+                <Button onClick={handleExportExcel} variant="outline" size="sm" className="h-9">
                   <Download className="h-4 w-4 mr-2" />
                   Exportar Excel
                 </Button>
@@ -591,28 +595,36 @@ export const LeadsList = () => {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="w-full">
-            <div className="p-6">
-              <Table>
+          <div className="w-full overflow-x-auto">
+            <div className="min-w-[1120px] p-4">
+              <Table className="table-fixed overflow-hidden rounded-md border">
+                <colgroup>
+                  <col className="w-[27%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[12%]" />
+                </colgroup>
                 <TableHeader>
-                <TableRow>
-                  <TableHead>Empresa</TableHead>
-                  <TableHead>Contato</TableHead>
-                  <TableHead>Sinais Digitais</TableHead>
-                  <TableHead className="text-center">Prob. Conversão</TableHead>
-                  <TableHead>Preview Plano</TableHead>
-                  <TableHead className="text-center">Ações</TableHead>
+                <TableRow className="bg-muted/40 hover:bg-muted/40">
+                  <TableHead className="px-3 text-xs font-semibold uppercase tracking-wide">Empresa</TableHead>
+                  <TableHead className="px-3 text-xs font-semibold uppercase tracking-wide">Contato</TableHead>
+                  <TableHead className="px-3 text-xs font-semibold uppercase tracking-wide">Sinais Digitais</TableHead>
+                  <TableHead className="px-3 text-center text-xs font-semibold uppercase tracking-wide">Prob. Conversão</TableHead>
+                  <TableHead className="px-3 text-xs font-semibold uppercase tracking-wide">Preview Plano</TableHead>
+                  <TableHead className="px-3 text-center text-xs font-semibold uppercase tracking-wide">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {leads.map((lead) => (
-                  <TableRow key={lead.id}>
-                    <TableCell>
-                      <div className="space-y-1 min-w-[200px]">
+                  <TableRow key={lead.id} className="align-top">
+                    <TableCell className="px-3 py-3 align-top">
+                      <div className="min-w-0 space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium">{lead.nome}</p>
+                          <p className="min-w-0 truncate font-medium" title={lead.nome}>{lead.nome}</p>
                           {lead.salvo && (
-                            <Badge variant="secondary" className="text-xs">
+                            <Badge variant="secondary" className="shrink-0 text-xs">
                               <Archive className="h-3 w-3 mr-1" />
                               Salvo
                             </Badge>
@@ -622,8 +634,8 @@ export const LeadsList = () => {
                               variant="outline" 
                               className={
                                 lead.situacao_cadastral === "ATIVA"
-                                  ? "text-xs bg-green-500/10 text-green-700 border-green-500/20"
-                                  : "text-xs bg-red-500/10 text-red-700 border-red-500/20"
+                                  ? "shrink-0 text-xs bg-green-500/10 text-green-700 border-green-500/20"
+                                  : "shrink-0 text-xs bg-red-500/10 text-red-700 border-red-500/20"
                               }
                               title={`CNPJ: ${lead.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}${lead.razao_social ? ` - ${lead.razao_social}` : ""}`}
                             >
@@ -637,7 +649,7 @@ export const LeadsList = () => {
                                 <TooltipTrigger asChild>
                                   <Badge 
                                     variant="outline" 
-                                    className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/20 cursor-help"
+                                    className="shrink-0 text-xs bg-amber-500/10 text-amber-700 border-amber-500/20 cursor-help"
                                   >
                                     <UserCheck className="h-3 w-3 mr-1" />
                                     {lead.nome_responsavel.split(' ')[0]}
@@ -652,7 +664,7 @@ export const LeadsList = () => {
                           )}
                         </div>
                         {lead.endereco && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <div className="flex min-w-0 items-start gap-1 text-xs text-muted-foreground">
                             <MapPin className="h-3 w-3 flex-shrink-0" />
                             <span className="line-clamp-2">{lead.endereco}</span>
                           </div>
@@ -669,12 +681,12 @@ export const LeadsList = () => {
                       </div>
                     </TableCell>
                     
-                    <TableCell>
-                      <div className="space-y-1 min-w-[150px]">
+                    <TableCell className="px-3 py-3 align-top">
+                      <div className="min-w-0 space-y-1.5">
                         {lead.telefone && (
-                          <div className="flex items-center gap-1 text-sm">
+                          <div className="flex min-w-0 items-center gap-1 text-sm">
                             <Phone className="h-3 w-3 flex-shrink-0" />
-                            <span>{lead.telefone}</span>
+                            <span className="truncate">{lead.telefone}</span>
                           </div>
                         )}
                         {lead.whatsapp_link && (
@@ -691,10 +703,10 @@ export const LeadsList = () => {
                         {lead.email && (
                           <a
                             href={`mailto:${lead.email}`}
-                            className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
+                            className="flex min-w-0 items-center gap-1 text-sm text-blue-600 hover:underline"
                           >
                             <Mail className="h-3 w-3 flex-shrink-0" />
-                            <span>Email</span>
+                            <span className="truncate">Email</span>
                           </a>
                         )}
                         {lead.website && (
@@ -702,10 +714,10 @@ export const LeadsList = () => {
                             href={lead.website}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-sm text-primary hover:underline"
+                            className="flex min-w-0 items-center gap-1 text-sm text-primary hover:underline"
                           >
                             <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate max-w-[120px]">Site</span>
+                            <span className="truncate">Site</span>
                           </a>
                         )}
                         {lead.instagram_url && (
@@ -722,25 +734,25 @@ export const LeadsList = () => {
                       </div>
                     </TableCell>
                     
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1 min-w-[180px]">
+                    <TableCell className="px-3 py-3 align-top">
+                      <div className="flex min-w-0 flex-wrap gap-1.5">
                         {lead.sinais.has_whatsapp_on_site && (
-                          <Badge variant="outline" className="text-xs bg-green-500/10 text-green-700 border-green-500/20">
+                          <Badge variant="outline" className="px-2 py-0 text-xs bg-green-500/10 text-green-700 border-green-500/20">
                             WhatsApp
                           </Badge>
                         )}
                         {lead.sinais.has_meta_pixel && (
-                          <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-500/20">
+                          <Badge variant="outline" className="px-2 py-0 text-xs bg-blue-500/10 text-blue-700 border-blue-500/20">
                             Pixel
                           </Badge>
                         )}
                         {lead.sinais.has_gtag && (
-                          <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-700 border-orange-500/20">
+                          <Badge variant="outline" className="px-2 py-0 text-xs bg-orange-500/10 text-orange-700 border-orange-500/20">
                             GA
                           </Badge>
                         )}
                         {lead.sinais.has_gtm && (
-                          <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-700 border-purple-500/20">
+                          <Badge variant="outline" className="px-2 py-0 text-xs bg-purple-500/10 text-purple-700 border-purple-500/20">
                             GTM
                           </Badge>
                         )}
@@ -753,16 +765,16 @@ export const LeadsList = () => {
                       </div>
                     </TableCell>
                     
-                    <TableCell>
-                      <div className="flex flex-col items-center gap-2 min-w-[120px]">
+                    <TableCell className="px-3 py-3 align-top">
+                      <div className="flex min-w-0 flex-col items-center gap-2">
                         {lead.probabilidade_conversao > 0 ? (
                           <>
-                            <div className={`text-2xl font-bold ${getProbabilidadeColor(lead.probabilidade_conversao)}`}>
+                            <div className={`text-xl font-bold ${getProbabilidadeColor(lead.probabilidade_conversao)}`}>
                               {lead.probabilidade_conversao}%
                             </div>
                             <Progress 
                               value={lead.probabilidade_conversao} 
-                              className="h-2 w-full"
+                              className="h-2 w-24"
                             />
                           </>
                         ) : (
@@ -775,7 +787,7 @@ export const LeadsList = () => {
                                     size="sm"
                                     onClick={() => reanalyzeLead(lead)}
                                     disabled={reanalyzingLeads.has(lead.id) || !canAnalyzeAI}
-                                    className="h-8 text-xs"
+                                    className="h-8 whitespace-nowrap text-xs"
                                   >
                                     {reanalyzingLeads.has(lead.id) ? (
                                       <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
@@ -797,17 +809,17 @@ export const LeadsList = () => {
                       </div>
                     </TableCell>
                     
-                    <TableCell>
-                      <div className="min-w-[250px] max-w-[300px]">
+                    <TableCell className="px-3 py-3 align-top">
+                      <div className="min-w-0 max-w-full">
                         {lead.plano_prospecao_7dias.length > 0 ? (
                           <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="outline" className="shrink-0 text-xs">
                                 Dia 1
                               </Badge>
                               <Badge 
                                 variant={lead.plano_prospecao_7dias[0].canal === "whatsapp" ? "default" : "secondary"}
-                                className="text-xs"
+                                className="shrink-0 text-xs"
                               >
                                 {lead.plano_prospecao_7dias[0].canal === "whatsapp" ? (
                                   <MessageSquare className="h-3 w-3 mr-1" />
@@ -822,20 +834,21 @@ export const LeadsList = () => {
                             </p>
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground">
+                          <span className="line-clamp-2 text-xs text-muted-foreground">
                             Clique em Analisar com IA para gerar o plano.
                           </span>
                         )}
                       </div>
                     </TableCell>
                     
-                    <TableCell>
-                      <div className="flex gap-2 justify-center">
+                    <TableCell className="px-3 py-3 align-top">
+                      <div className="flex items-center justify-center gap-1.5">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => openPlanDialog(lead)}
                           disabled={lead.plano_prospecao_7dias.length === 0}
+                          className="h-8 whitespace-nowrap px-2.5"
                         >
                           <Eye className="h-4 w-4 mr-1" />
                           Ver Plano
@@ -845,6 +858,7 @@ export const LeadsList = () => {
                           size="sm"
                           onClick={() => toggleSaveLead(lead.id, lead.salvo)}
                           title={lead.salvo ? "Desmarcar lead" : "Salvar lead"}
+                          className="h-8 w-8 p-0"
                         >
                           {lead.salvo ? (
                             <Archive className="h-4 w-4" />
@@ -856,6 +870,7 @@ export const LeadsList = () => {
                           variant="ghost"
                           size="sm"
                           onClick={() => deleteLead(lead.id)}
+                          className="h-8 w-8 p-0"
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
@@ -865,7 +880,7 @@ export const LeadsList = () => {
                 ))}
                 
                 {/* Leads bloqueados com blur */}
-                {lockedLeads.length > 0 && (
+                {!isAdmin && lockedLeads.length > 0 && (
                   <>
                     {/* Linha separadora */}
                     <TableRow>
@@ -964,16 +979,17 @@ export const LeadsList = () => {
                 </TableBody>
               </Table>
             </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+          </div>
         </CardContent>
       </Card>
 
       {/* Card de Upsell por Quantidade Real */}
-      <UpsellCard 
-        leadsOcultos={totalLocked} 
-        onUpgrade={() => setShowUpgradeDialog(true)} 
-      />
+      {!isAdmin && (
+        <UpsellCard 
+          leadsOcultos={totalLocked} 
+          onUpgrade={() => setShowUpgradeDialog(true)} 
+        />
+      )}
 
       <LeadPlanDialog
         lead={selectedLead}

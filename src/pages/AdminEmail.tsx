@@ -19,6 +19,8 @@ import { ABTestingDashboard } from "@/components/admin/ABTestingDashboard";
 import { WelcomeEmailsDashboard } from "@/components/admin/WelcomeEmailsDashboard";
 import { EmailTestCard } from "@/components/admin/EmailTestCard";
 import { UsersDashboard } from "@/components/admin/UsersDashboard";
+import { isAdminEmail } from "@/config/admin";
+import { createFounderAccessCampaignTemplate } from "../../supabase/functions/_shared/emailTemplates";
 
 // Sanitize HTML for safe rendering - allows common email tags
 const sanitizeHtml = (dirty: string): string => {
@@ -105,7 +107,7 @@ const AdminEmail = () => {
       // Check if user is admin
       const { data: adminCheck } = await supabase.rpc("is_admin", { _user_id: user.id });
       
-      if (!adminCheck) {
+      if (!adminCheck && !isAdminEmail(user.email)) {
         toast({
           variant: "destructive",
           title: "Acesso negado",
@@ -183,6 +185,19 @@ const AdminEmail = () => {
     }
   };
 
+  const applyFounderCampaignTemplate = () => {
+    const template = createFounderAccessCampaignTemplate();
+
+    setNewCampaign((current) => ({
+      ...current,
+      nome: "Reativacao - Parceiro Fundador Zuno",
+      assunto: template.subject,
+      conteudo: template.html,
+      segmento: "nao_pagantes",
+      formato: "html",
+    }));
+  };
+
   const handleSendCampaign = async (campaignId: string) => {
     setSending(campaignId);
     try {
@@ -257,16 +272,47 @@ const AdminEmail = () => {
   const handleSendTestCampaign = async (campaignId: string) => {
     setTestingCampaign(campaignId);
     try {
+      const recipientEmail = "jeferson.zanotell@gmail.com";
       const { data, error } = await supabase.functions.invoke("send-email-campaign", {
-        body: { campaignId, testMode: true, confirmed: true },
+        body: {
+          mode: "test",
+          campaignId,
+          recipientEmail,
+        },
       });
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        let message = error.message;
+        const contextResponse = (error as any)?.context;
+        if (contextResponse instanceof Response) {
+          try {
+            const text = await contextResponse.clone().text();
+            const payload = text ? JSON.parse(text) : null;
+            message = payload?.details || payload?.error || message;
+            console.error("Erro detalhado ao enviar teste de campanha:", {
+              campaignId,
+              recipientEmail,
+              payload,
+              error,
+            });
+          } catch {
+            console.error("Erro ao ler resposta do teste de campanha:", error);
+          }
+        } else {
+          console.error("Erro ao enviar teste de campanha:", {
+            campaignId,
+            recipientEmail,
+            error,
+            data,
+          });
+        }
+        throw new Error(message);
+      }
+      if (data?.error) throw new Error(data.details || data.error);
 
       toast({
         title: "Teste enviado",
-        description: `${data.sent || 0} email de teste enviado para o admin.`,
+        description: `${data.sent || 0} email de teste enviado para ${recipientEmail}.`,
       });
 
       if (data?.errorDetails?.length) {
@@ -383,7 +429,7 @@ const AdminEmail = () => {
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-8">
+      <main className="container mx-auto px-6 py-8 pb-24">
         <Tabs defaultValue="campanhas" className="w-full">
           <TabsList className="mb-6">
             <TabsTrigger value="campanhas" className="gap-2">
@@ -580,14 +626,25 @@ const AdminEmail = () => {
 
       {/* New Campaign Dialog */}
       <Dialog open={showNewCampaign} onOpenChange={setShowNewCampaign}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="border-b border-border/80 px-6 py-5">
             <DialogTitle>Nova Campanha de Email</DialogTitle>
             <DialogDescription>
               Crie uma nova campanha para enviar aos usuários
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5 pr-5">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-950">Template Parceiro Fundador</p>
+                  <p className="text-xs text-emerald-700">Preenche assunto, segmento e HTML premium da campanha VIP.</p>
+                </div>
+                <Button type="button" variant="outline" className="border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100" onClick={applyFounderCampaignTemplate}>
+                  Usar template
+                </Button>
+              </div>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="nome">Nome da Campanha</Label>
               <Input
@@ -661,6 +718,7 @@ const AdminEmail = () => {
                 rows={12}
                 value={newCampaign.conteudo}
                 onChange={(e) => setNewCampaign({ ...newCampaign, conteudo: e.target.value })}
+                className="min-h-[220px] max-h-[420px] resize-y"
               />
               <p className="text-xs text-muted-foreground">
                 {newCampaign.formato === "texto" 
@@ -670,18 +728,18 @@ const AdminEmail = () => {
               </p>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewCampaign(false)}>
+          <DialogFooter className="sticky bottom-0 border-t border-border/80 bg-background/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+            <Button variant="outline" onClick={() => setShowNewCampaign(false)} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button onClick={handleCreateCampaign} disabled={creating}>
+            <Button onClick={handleCreateCampaign} disabled={creating} className="w-full sm:w-auto">
               {creating ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Criando...
                 </>
               ) : (
-                "Criar Campanha"
+                "Salvar campanha"
               )}
             </Button>
           </DialogFooter>

@@ -280,3 +280,34 @@ All colors MUST be HSL.
 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, oklch(0.6 0 0 / 0.7), oklch(0.5 0 0 / 0.7));
 }
+
+/* Scrollbar Zuno Premium Dark */
+.scrollbar-zuno {
+  scrollbar-width: thin;
+  scrollbar-color: #2a313c transparent;
+  scrollbar-gutter: stable;
+}
+
+.scrollbar-zuno::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-zuno::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.scrollbar-zuno::-webkit-scrollbar-thumb {
+  background: #2a313c;
+  border-radius: 999px;
+  border: 2px solid #09090b; /* zinc-950 color to match the modal background */
+}
+
+.scrollbar-zuno::-webkit-scrollbar-thumb:hover {
+  background: hsl(162, 72%, 48%); /* Using the primary Zuno color */
+}
+
+.scrollbar-zuno::-webkit-scrollbar-corner {
+  background: transparent;
+}

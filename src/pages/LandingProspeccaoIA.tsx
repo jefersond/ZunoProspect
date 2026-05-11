@@ -1,9 +1,10 @@
 import { useState, useEffect, lazy, Suspense } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { LandingPageSkeleton } from "@/components/landing/LandingPageSkeleton";
+import { getReferralFromSearch, persistReferralFromSearch } from "@/lib/referral";
 
 // Critical components - loaded immediately
 import { LPHeader } from "@/components/landing/LPHeader";
@@ -120,7 +121,9 @@ const features = [
 
 export default function LandingProspeccaoIA() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const hasReferralInvite = Boolean(getReferralFromSearch(searchParams));
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -134,6 +137,7 @@ export default function LandingProspeccaoIA() {
       if (session?.user) {
         navigate("/prospeccao", { replace: true });
       } else {
+        persistReferralFromSearch(searchParams);
         setIsCheckingAuth(false);
       }
     };
@@ -149,7 +153,7 @@ export default function LandingProspeccaoIA() {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   if (isCheckingAuth) {
     return <LandingPageSkeleton />;
@@ -158,6 +162,11 @@ export default function LandingProspeccaoIA() {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
       <LPHeader />
+      {hasReferralInvite && (
+        <div className="border-b border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-center text-sm text-foreground">
+          Voce foi convidado para conhecer o Zuno Propect.
+        </div>
+      )}
       <HeroSection />
       <BeneficiosSection />
       <PainPointsSection />

@@ -12,6 +12,8 @@ import { trackInitiateCheckout, trackAddPaymentInfo } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { createStripeCheckout } from "@/services/stripeCheckout";
 import { PLANS, normalizePlanId } from "@/config/plans";
+import { useAuth } from "@/hooks/useAuth";
+import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -94,6 +96,7 @@ type PlanoKey = "starter" | "pro" | "agencia";
 
 export default function Checkout() {
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   
   // Get params from URL
   const normalizedPlanParam = normalizePlanId(searchParams.get("plano"));
@@ -101,7 +104,7 @@ export default function Checkout() {
   const anualParam = searchParams.get("anual") || "false";
   const leadsQtyParam = Number(searchParams.get("leadsQty") || "0");
   const googleAuth = searchParams.get("google_auth");
-  const referralCode = searchParams.get("ref");
+  const referralCode = getCurrentReferralCode(searchParams);
   
   // State for selected plan - default to URL param or "pro"
   const [selectedPlano, setSelectedPlano] = useState<PlanoKey>(
@@ -180,11 +183,10 @@ export default function Checkout() {
       localStorage.setItem('checkout_pending', JSON.stringify({
         plano: selectedPlano,
         isAnual,
-        leadsQty: selectedLeadsQty
+        leadsQty: selectedLeadsQty,
+        referralCode,
       }));
-      if (referralCode) {
-        localStorage.setItem("pending_referral", referralCode);
-      }
+      saveReferralCode(referralCode);
 
       const redirectBase = getAuthRedirectBaseUrl();
       
@@ -284,6 +286,7 @@ export default function Checkout() {
       const data = await createStripeCheckout({
         selectedPlan: { nome: plano.nome, planKey: selectedPlano },
         billingCycle: isAnual ? "annual" : "monthly",
+        authUserFromHook: user,
       });
 
       toast.dismiss();
@@ -293,7 +296,10 @@ export default function Checkout() {
       
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      toast.error("Erro ao processar", { description: errorMessage });
+      const status = typeof error === "object" && error !== null && "status" in error ? (error as { status?: number }).status : undefined;
+      toast.error(status === 401 ? "Sessão expirada. Faça login novamente." : "Não foi possível iniciar o pagamento", {
+        description: status === 401 ? errorMessage : "Tente novamente.",
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -432,6 +438,12 @@ export default function Checkout() {
 
               {/* Form Fields */}
               <form onSubmit={handleSubmit} className="space-y-4">
+                {referralCode && !hasSession && (
+                  <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3 text-sm leading-5 text-muted-foreground">
+                    <span className="font-medium text-foreground">Voce esta entrando por um convite.</span>{" "}
+                    A indicacao sera registrada, mas o bonus do indicador so sera liberado se voce assinar um plano.
+                  </div>
+                )}
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="nome">Nome completo *</Label>

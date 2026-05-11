@@ -36,6 +36,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { AppHeader } from "@/components/AppHeader";
+import { isAdminUser } from "@/config/admin";
 
 const LeadsSalvos = () => {
   const navigate = useNavigate();
@@ -147,7 +148,7 @@ const LeadsSalvos = () => {
         loadSavedLeads(user.id);
         // Check if admin
         const { data: adminData } = await supabase.rpc('is_admin', { _user_id: user.id });
-        setIsAdmin(!!adminData);
+        setIsAdmin(isAdminUser(user, { is_admin: adminData === true }));
       }
     };
     checkUser();
@@ -288,11 +289,19 @@ const LeadsSalvos = () => {
         description: "Aguarde enquanto a IA reanalisa este lead...",
       });
 
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Sessão expirada. Faça login novamente.");
+
       const { error } = await supabase.functions.invoke("analisar-lead-ia", {
         body: { leadId },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erro analisar-lead-ia:", error);
+        throw error;
+      }
 
       // Recarrega os leads para obter a análise atualizada
       if (user) {

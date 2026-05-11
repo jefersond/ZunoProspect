@@ -6,3 +6,23 @@ export const isAdminEmail = (email?: string | null): boolean => {
   const normalized = email?.trim().toLowerCase();
   return normalized === ADMIN_EMAIL || normalized === LEGACY_ADMIN_EMAIL;
 };
+
+type AdminUserLike = {
+  email?: string | null;
+} | null | undefined;
+
+type AdminProfileLike = {
+  role?: string | null;
+  is_admin?: boolean | null;
+} | null | undefined;
+
+export const isAdminUser = (
+  user?: AdminUserLike,
+  profile?: AdminProfileLike,
+): boolean => {
+  return Boolean(
+    profile?.role === "admin" ||
+    profile?.is_admin === true ||
+    isAdminEmail(user?.email),
+  );
+};

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthRedirectBaseUrl, isOnCanonicalDomain } from '@/lib/authRedirect';
+import { appendReferralToPath, getCurrentReferralCode } from '@/lib/referral';
 
 /**
  * Hook to handle OAuth callback tokens in URL hash.
@@ -110,7 +111,8 @@ export const useOAuthCallback = () => {
             const pendingData = JSON.parse(localStorage.getItem("checkout_pending") || "{}");
             const plano = pendingData.plano?.toLowerCase() || "pro";
             const isAnual = pendingData.isAnual || false;
-            navigate(`/checkout?plano=${plano}&anual=${isAnual}&google_auth=true`, { replace: true });
+            const leadsQty = pendingData.leadsQty || pendingData.selectedLeads || "";
+            navigate(appendReferralToPath(`/checkout?plano=${plano}&anual=${isAnual}&google_auth=true${leadsQty ? `&leadsQty=${encodeURIComponent(String(leadsQty))}` : ""}`, pendingData.referralCode || getCurrentReferralCode()), { replace: true });
             return;
           }
 

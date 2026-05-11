@@ -1,40 +1,48 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-// ============= CORS HELPER =============
-// Configure a env var ALLOWED_ORIGINS com os domínios permitidos separados por vírgula
-// Exemplo: "https://meuapp.lovable.app,https://meudominio.com.br,http://localhost:5173"
-function getCorsHeaders(requestOrigin: string | null): Record<string, string> {
-  const allowedOriginsEnv = Deno.env.get("ALLOWED_ORIGINS") || "";
-  const allowedOrigins = allowedOriginsEnv.split(",").map((o) => o.trim()).filter(Boolean);
-  
-  const origin = (allowedOrigins.length === 0 || (requestOrigin && allowedOrigins.includes(requestOrigin)))
-    ? (requestOrigin || "*")
-    : "";
-    
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  };
+const globalCorsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const ADMIN_EMAILS = new Set([
+  "jeferson.zanotell@gmail.com",
+  "jefeson.zanotell@gmail.com",
+]);
+
+function jsonResponse(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...globalCorsHeaders,
+      "Content-Type": "application/json",
+    },
+  });
 }
 
-function handleCorsRequest(req: Request): Response | null {
-  const origin = req.headers.get("Origin");
-  const corsHeaders = getCorsHeaders(origin);
-  
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-  
-  if (origin && corsHeaders["Access-Control-Allow-Origin"] === "") {
-    return new Response(JSON.stringify({ error: "Origem não autorizada" }), { 
-      status: 403, 
-      headers: { "Content-Type": "application/json" } 
+async function logAppEvent(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  params: {
+    userId: string;
+    eventType: string;
+    eventData?: Record<string, unknown>;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  },
+) {
+  try {
+    await supabaseAdmin.rpc("log_app_event", {
+      p_user_id: params.userId,
+      p_event_type: params.eventType,
+      p_event_data: params.eventData || {},
+      p_ip_address: params.ipAddress || null,
+      p_user_agent: params.userAgent || null,
     });
+  } catch (eventError) {
+    console.warn("[analisar-lead-ia] Falha ao registrar app_event", eventError);
   }
-  
-  return null;
 }
 
 // =============================================================================
@@ -394,21 +402,33 @@ async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
 }
 
 serve(async (req) => {
-  const corsCheck = handleCorsRequest(req);
-  if (corsCheck) return corsCheck;
+  if (req.method === "OPTIONS") {
+    return new Response("ok", {
+      status: 200,
+      headers: globalCorsHeaders,
+    });
+  }
 
-  const origin = req.headers.get("Origin");
-  const corsHeaders = getCorsHeaders(origin);
+  if (req.method !== "POST") {
+    return jsonResponse({
+      error: "Método não permitido",
+      details: "Use POST para analisar leads.",
+    }, 405);
+  }
+
+  let supabaseAdminForCatch: ReturnType<typeof createClient> | null = null;
+  let userIdForCatch: string | null = null;
+  let leadIdForCatch: string | null = null;
 
   try {
     // ============= AUTHENTICATION VALIDATION =============
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       console.error("❌ Requisição sem Authorization header");
-      return new Response(JSON.stringify({ error: 'Não autorizado' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({
+        error: "Usuario nao autenticado",
+        details: "Authorization header ausente",
+      }, 401);
     }
 
     // Create authenticated Supabase client to validate user
@@ -419,13 +439,19 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     });
 
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
+    console.log("analisar-lead-ia auth:", {
+      hasAuthHeader: !!authHeader,
+      userId: user?.id ?? null,
+      email: user?.email ?? null,
+    });
     if (authError || !user) {
       console.error("❌ Token inválido ou usuário não autenticado:", authError?.message);
-      return new Response(JSON.stringify({ error: 'Usuário não autenticado' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({
+        error: "Usuario nao autenticado",
+        details: authError?.message || "Token invalido",
+      }, 401);
     }
 
     // Use authenticated user.id instead of request body
@@ -433,12 +459,30 @@ serve(async (req) => {
     console.log("✅ Usuário autenticado:", authenticatedUserId);
     // ============= END AUTHENTICATION =============
 
-    const requestData = await req.json();
-    const leadId = requestData.leadId || requestData.lead_id;
+    const requestData = await req.json().catch(() => null);
+    if (!requestData || typeof requestData !== "object") {
+      return jsonResponse({
+        error: "Payload invalido",
+        details: "Envie um JSON com leadId/lead_id ou com o objeto lead.",
+      }, 400);
+    }
+
+    const payloadLead = requestData.lead && typeof requestData.lead === "object"
+      ? requestData.lead
+      : requestData;
+    const context = requestData.context && typeof requestData.context === "object"
+      ? requestData.context
+      : {};
+    const leadId = requestData.leadId || requestData.lead_id || payloadLead.id;
+    leadIdForCatch = leadId || null;
     // Use authenticated user ID, ignore any user_id from request body for security
     const userId = authenticatedUserId;
     
-    console.log("🔍 Iniciando análise:", { leadId, userId, hasNome: !!requestData.nome });
+    console.log("🔍 Iniciando análise:", {
+      leadId,
+      userId,
+      hasNome: !!(payloadLead.nome || payloadLead.name),
+    });
 
     const GOOGLE_GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("Gemini_API");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -446,14 +490,23 @@ serve(async (req) => {
     const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
       ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
       : null;
+    supabaseAdminForCatch = supabaseAdmin;
 
     if (!supabaseAdmin) {
       throw new Error("Configuração Supabase incompleta");
     }
 
-    const { data: usageData, error: usageError } = await supabaseAdmin.rpc("ensure_user_usage", {
-      p_user_id: userId,
+    userIdForCatch = userId;
+
+    await logAppEvent(supabaseAdmin, {
+      userId,
+      eventType: "ai_analysis_started",
+      eventData: { leadId },
+      ipAddress: req.headers.get("x-forwarded-for"),
+      userAgent: req.headers.get("user-agent"),
     });
+
+    const { data: usageData, error: usageError } = await supabaseAuth.rpc("get_current_user_usage");
 
     if (usageError) {
       console.error("❌ Erro ao validar uso de IA:", usageError.message);
@@ -461,18 +514,22 @@ serve(async (req) => {
     }
 
     const usageInfo = usageData?.[0];
-    const aiRemaining = Number(usageInfo?.ai_remaining ?? 0);
-    const isUnlimited = usageInfo?.is_admin === true || Number(usageInfo?.ai_limit ?? 0) >= 999999;
+    const aiRemaining = Number(usageInfo?.ai_available_total ?? usageInfo?.ai_remaining ?? 0);
+    const isEmailAdmin = ADMIN_EMAILS.has((user.email || "").trim().toLowerCase());
+    const isUnlimited = isEmailAdmin || usageInfo?.is_admin === true || Number(usageInfo?.ai_limit ?? 0) >= 999999;
 
     if (!isUnlimited && aiRemaining <= 0) {
-      return new Response(JSON.stringify({ error: "Você atingiu seu limite de análises com IA." }), {
-        status: 402,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({
+        error: "Limite de IA atingido",
+        details: "Voce atingiu seu limite de analises com IA.",
+      }, 402);
     }
 
     if (!GOOGLE_GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY não configurada.");
+      return jsonResponse({
+        error: "GEMINI_API_KEY nao configurada",
+        details: "Cadastre o secret GEMINI_API_KEY no projeto Supabase.",
+      }, 500);
     }
 
     let leadData: LeadData;
@@ -559,22 +616,30 @@ serve(async (req) => {
         }).eq("id", leadId);
       }
     } else {
+      const nome = payloadLead.nome || payloadLead.name || payloadLead.empresa || payloadLead.company_name;
+      if (!nome) {
+        return jsonResponse({
+          error: "Payload invalido",
+          details: "Informe lead.nome ou lead.name para analisar sem leadId.",
+        }, 400);
+      }
+
       leadData = {
-        nome: requestData.nome,
-        nicho: requestData.nicho,
-        cidade: requestData.cidade,
-        website: requestData.website,
-        foco: requestData.foco,
-        whatsapp_on_site: requestData.whatsapp_on_site || false,
-        whatsapp_number: requestData.whatsapp_number,
-        email: requestData.email,
-        has_meta_pixel: requestData.has_meta_pixel || false,
-        has_gtag: requestData.has_gtag || false,
-        has_gtm: requestData.has_gtm || false,
-        instagram_url: requestData.instagram_url,
-        instagram_context: requestData.instagram_context,
-        canaisProspeccao: requestData.canaisProspeccao,
-        pais: requestData.pais || "BR", // Read country from request
+        nome,
+        nicho: payloadLead.nicho || payloadLead.categoria || payloadLead.category || context.focus || "Nao informado",
+        cidade: payloadLead.cidade || payloadLead.city || context.city || "Nao informada",
+        website: payloadLead.website || payloadLead.site || null,
+        foco: payloadLead.foco || payloadLead.focus || context.focus || "Full Service",
+        whatsapp_on_site: payloadLead.whatsapp_on_site || payloadLead.has_whatsapp_on_site || false,
+        whatsapp_number: payloadLead.whatsapp_number || payloadLead.telefone || payloadLead.phone || null,
+        email: payloadLead.email || null,
+        has_meta_pixel: payloadLead.has_meta_pixel || false,
+        has_gtag: payloadLead.has_gtag || false,
+        has_gtm: payloadLead.has_gtm || false,
+        instagram_url: payloadLead.instagram_url || payloadLead.instagram || null,
+        instagram_context: payloadLead.instagram_context,
+        canaisProspeccao: requestData.canaisProspeccao || payloadLead.canaisProspeccao,
+        pais: payloadLead.pais || payloadLead.country || context.country || "BR", // Read country from request
       };
       
       console.log(`🌍 Lead country (from request): ${leadData.pais} | isUS: ${isUSLead(leadData)}`);
@@ -609,21 +674,44 @@ serve(async (req) => {
 
     if (incrementError || incrementOk !== true) {
       console.error("❌ Erro ao incrementar uso de IA:", incrementError?.message || "increment_ai_usage returned false");
-      return new Response(JSON.stringify({ error: "Você atingiu seu limite de análises com IA." }), {
-        status: 402,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({
+        error: "Limite de IA atingido",
+        details: "Voce atingiu seu limite de analises com IA.",
+      }, 402);
     }
 
-    return new Response(JSON.stringify(analise), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    await logAppEvent(supabaseAdmin, {
+      userId,
+      eventType: "ai_analysis_completed",
+      eventData: {
+        leadId,
+        leadName: leadData.nome,
+        model: "Gemini Flash",
+        score: analise.probabilidade_conversao,
+      },
+      ipAddress: req.headers.get("x-forwarded-for"),
+      userAgent: req.headers.get("user-agent"),
     });
+
+    return jsonResponse(analise as unknown as Record<string, unknown>);
   } catch (error: any) {
-    console.error("❌ Erro:", error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("Erro analisar-lead-ia:", error);
+    if (supabaseAdminForCatch && userIdForCatch) {
+      await logAppEvent(supabaseAdminForCatch, {
+        userId: userIdForCatch,
+        eventType: "ai_analysis_failed",
+        eventData: {
+          leadId: leadIdForCatch,
+          error: error?.message || String(error),
+        },
+        ipAddress: req.headers.get("x-forwarded-for"),
+        userAgent: req.headers.get("user-agent"),
+      });
+    }
+    return jsonResponse({
+      error: "Erro ao analisar lead",
+      details: error instanceof Error ? error.message : String(error),
+    }, 500);
   }
 });
 

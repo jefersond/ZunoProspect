@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { SocialProofBar } from "./SocialProofBar";
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
+import { appendReferralToPath } from "@/lib/referral";
 
 export function HeroSection() {
   const scrollToSection = (id: string) => {
@@ -47,7 +48,7 @@ export function HeroSection() {
                     className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-[0_0_32px_hsl(162_72%_41%/0.5)] border-2 border-primary/50 text-lg px-10 py-7 rounded-xl transition-all hover:scale-105 hover:shadow-[0_0_48px_hsl(162_72%_41%/0.7)]"
                     asChild
                   >
-                    <Link to="/auth?tab=signup">
+                    <Link to={appendReferralToPath("/auth?tab=signup")}>
                       Começar Plano Grátis
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>

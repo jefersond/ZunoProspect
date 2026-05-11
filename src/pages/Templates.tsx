@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AppHeader } from "@/components/AppHeader";
 import { FileText, Sparkles } from "lucide-react";
+import { isAdminUser } from "@/config/admin";
 
 const Templates = () => {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ const Templates = () => {
       } else {
         setUser(user);
         const { data: adminData } = await supabase.rpc('is_admin', { _user_id: user.id });
-        setIsAdmin(!!adminData);
+        setIsAdmin(isAdminUser(user, { is_admin: adminData === true }));
       }
     };
     checkUser();

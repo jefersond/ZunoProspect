@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { clearReferralCode, getStoredReferralCode, shouldApplyReferralForUser } from "@/lib/referral";
 
 type AuthContextType = {
   session: Session | null;
@@ -19,19 +20,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    const processPendingReferral = async (userId: string) => {
-      const pendingReferral = localStorage.getItem("pending_referral");
+    const processPendingReferral = async (user: User) => {
+      const pendingReferral = getStoredReferralCode();
       if (!pendingReferral) return;
 
+      if (!shouldApplyReferralForUser(user.created_at)) {
+        clearReferralCode();
+        return;
+      }
+
       try {
-        await supabase.rpc("apply_referral_code", {
-          p_user_id: userId,
+        const { error } = await supabase.rpc("apply_referral_code", {
+          p_user_id: user.id,
           p_referral_code: pendingReferral,
         });
+        if (error) throw error;
+        clearReferralCode();
       } catch (error) {
         console.error("Erro ao processar indicação:", error);
-      } finally {
-        localStorage.removeItem("pending_referral");
       }
     };
 
@@ -49,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.session?.user ?? null);
 
         if (data.session?.user) {
-          await processPendingReferral(data.session.user.id);
+          await processPendingReferral(data.session.user);
         }
       } catch (err) {
         console.error("Exceção ao carregar sessão:", err);
@@ -66,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
 
       if (newSession?.user) {
-        await processPendingReferral(newSession.user.id);
+        await processPendingReferral(newSession.user);
       }
     });
 

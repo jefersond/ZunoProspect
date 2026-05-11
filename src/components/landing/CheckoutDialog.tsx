@@ -11,6 +11,7 @@ import { trackInitiateCheckout, trackAddPaymentInfo } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { useLeadPricing } from "@/hooks/useLeadPricing";
 import { createStripeCheckout } from "@/services/stripeCheckout";
+import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -51,7 +52,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
   const [isGoogleProcessing, setIsGoogleProcessing] = useState(false);
   const hasTrackedCheckout = useRef(false);
   const { calculatePrice, getDisplayPrice } = useLeadPricing();
-  const referralCode = new URLSearchParams(window.location.search).get("ref");
+  const referralCode = getCurrentReferralCode(window.location.search);
 
   // Track InitiateCheckout when dialog opens
   useEffect(() => {
@@ -109,11 +110,10 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
         plano: plano.nome,
         planKey: plano.planKey,
         selectedLeads: packageLeads,
-        isAnual
+        isAnual,
+        referralCode,
       }));
-      if (referralCode) {
-        localStorage.setItem("pending_referral", referralCode);
-      }
+      saveReferralCode(referralCode);
 
       const redirectBase = getAuthRedirectBaseUrl();
       
@@ -235,7 +235,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto scrollbar-zuno">
         <DialogHeader>
           <DialogTitle>Checkout - Plano {plano.nome}</DialogTitle>
           <DialogDescription>
@@ -281,6 +281,12 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
 
           {/* Email/Password Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
+            {referralCode && (
+              <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3 text-sm leading-5 text-muted-foreground">
+                <span className="font-medium text-foreground">Voce esta entrando por um convite.</span>{" "}
+                A indicacao sera registrada, mas o bonus do indicador so sera liberado se voce assinar um plano.
+              </div>
+            )}
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="nome">Nome completo *</Label>

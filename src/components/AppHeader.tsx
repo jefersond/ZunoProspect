@@ -1,4 +1,4 @@
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -10,6 +10,12 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   LogOut,
   User,
@@ -23,8 +29,8 @@ import {
   Menu,
   TrendingUp,
   Zap,
-  Crown,
   RefreshCw,
+  MoreHorizontal,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -82,29 +88,32 @@ export function AppHeader({
       ? [{ to: "/admin/email", icon: Mail, label: "Email", isAdmin: true }]
       : []),
   ];
+  const primaryNavItems = navItems.slice(0, 4);
+  const secondaryNavItems = navItems.slice(4);
 
   const isActive = (path: string) => location.pathname === path;
+  const hasSecondaryActive = secondaryNavItems.some((item) => isActive(item.to));
 
   return (
-    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/50 shadow-sm">
-      <div className="container mx-auto px-4 md:px-6 py-3 md:py-4">
-        <div className="flex items-center justify-between gap-2 md:gap-4">
+    <header className="sticky top-0 z-50 border-b border-border/50 bg-background/95 shadow-sm backdrop-blur-md">
+      <div className="container mx-auto flex h-14 items-center px-3 sm:px-4">
+        <div className="flex w-full items-center justify-between gap-2">
           {/* Logo */}
-          <Logo />
+          <Logo className="shrink-0 gap-1.5 [&_svg]:h-7 [&_svg]:w-7 [&_span:first-of-type]:text-base [&_span:last-of-type]:text-base" />
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-1 mr-2 pr-2 border-r border-border/50">
-            {navItems.map((item) => (
+          <nav className="hidden min-w-0 items-center gap-1 border-r border-border/50 pr-2 lg:flex">
+            {primaryNavItems.map((item) => (
               <Button
                 key={item.to}
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate(item.to)}
-                className={`gap-2 text-muted-foreground hover:text-foreground ${
+                className={`h-8 gap-1.5 px-2 text-sm text-muted-foreground hover:text-foreground ${
                   item.isAdmin
                     ? "text-amber-500 hover:text-amber-400"
                     : isActive(item.to)
-                    ? "bg-accent text-foreground"
+                    ? "bg-muted/80 text-foreground"
                     : ""
                 }`}
               >
@@ -112,10 +121,64 @@ export function AppHeader({
                 <span className="hidden xl:inline">{item.label}</span>
               </Button>
             ))}
+
+            <div className="hidden items-center gap-1 2xl:flex">
+              {secondaryNavItems.map((item) => (
+                <Button
+                  key={item.to}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate(item.to)}
+                  className={`h-8 gap-1.5 px-2 text-sm text-muted-foreground hover:text-foreground ${
+                    item.isAdmin
+                      ? "text-amber-500 hover:text-amber-400"
+                      : isActive(item.to)
+                      ? "bg-muted/80 text-foreground"
+                      : ""
+                  }`}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </Button>
+              ))}
+            </div>
+
+            {secondaryNavItems.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant={hasSecondaryActive ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-8 gap-1.5 px-2 text-sm 2xl:hidden"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                    <span className="hidden xl:inline">Mais</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  {secondaryNavItems.map((item) => (
+                    <DropdownMenuItem
+                      key={item.to}
+                      onClick={() => navigate(item.to)}
+                      className={`gap-2 ${
+                        item.isAdmin
+                          ? "text-amber-500 focus:text-amber-400"
+                          : isActive(item.to)
+                          ? "bg-muted text-foreground"
+                          : ""
+                      }`}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </nav>
 
           {/* Desktop Right Actions */}
-          <div className="hidden lg:flex items-center gap-1">
+          <div className="hidden items-center gap-1 lg:flex">
             {/* Upgrade Button */}
             {showUpgradeButton &&
               subscription?.plan_name !== "agencia" &&
@@ -124,7 +187,7 @@ export function AppHeader({
                   variant="default"
                   size="sm"
                   onClick={onUpgradeClick}
-                  className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/30 ring-2 ring-emerald-500/20 mr-2"
+                  className="mr-1 h-8 gap-1.5 bg-emerald-600 px-2.5 text-sm text-white shadow-sm shadow-emerald-500/20 ring-1 ring-emerald-500/20 hover:bg-emerald-500"
                 >
                   <Zap className="h-4 w-4" />
                   <span>Upgrade</span>
@@ -137,18 +200,18 @@ export function AppHeader({
                 variant="ghost"
                 size="icon"
                 onClick={onRefreshClick}
-                className="text-muted-foreground hover:text-foreground"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
             )}
 
-            <ThemeToggle />
+            <ThemeToggle triggerClassName="h-8 w-8" />
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate("/profile")}
-              className="gap-2 text-muted-foreground hover:text-foreground"
+              className="h-8 gap-1.5 px-2 text-sm text-muted-foreground hover:text-foreground"
             >
               <User className="h-4 w-4" />
               <span className="hidden xl:inline">Perfil</span>
@@ -157,7 +220,7 @@ export function AppHeader({
               variant="outline"
               size="sm"
               onClick={handleLogout}
-              className="gap-2 ml-1"
+              className="ml-1 h-8 gap-1.5 px-2 text-sm"
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden xl:inline">Sair</span>
@@ -165,7 +228,7 @@ export function AppHeader({
           </div>
 
           {/* Mobile Actions */}
-          <div className="flex lg:hidden items-center gap-1">
+          <div className="flex items-center gap-1 lg:hidden">
             {/* Upgrade Button Mobile */}
             {showUpgradeButton &&
               subscription?.plan_name !== "agencia" &&
@@ -174,7 +237,7 @@ export function AppHeader({
                   variant="default"
                   size="sm"
                   onClick={onUpgradeClick}
-                  className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/30"
+                  className="h-8 gap-1 bg-emerald-600 px-2 text-white shadow-sm shadow-emerald-500/20 hover:bg-emerald-500"
                 >
                   <Zap className="h-4 w-4" />
                 </Button>
@@ -186,7 +249,7 @@ export function AppHeader({
                 variant="ghost"
                 size="icon"
                 onClick={onRefreshClick}
-                className="text-muted-foreground hover:text-foreground"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
@@ -195,8 +258,8 @@ export function AppHeader({
             {/* Mobile Menu */}
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Menu className="h-5 w-5" />
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Menu className="h-4 w-4" />
                   <span className="sr-only">Menu</span>
                 </Button>
               </SheetTrigger>
@@ -226,7 +289,7 @@ export function AppHeader({
                   {/* Theme Toggle */}
                   <div className="flex items-center justify-between px-3 py-2">
                     <span className="text-sm text-muted-foreground">Tema</span>
-                    <ThemeToggle />
+                    <ThemeToggle triggerClassName="h-8 w-8" />
                   </div>
 
                   {/* Divider */}

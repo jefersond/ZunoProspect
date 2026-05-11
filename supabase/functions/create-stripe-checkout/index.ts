@@ -72,6 +72,40 @@ function getStripeMode(secretKey: string) {
   return "unknown";
 }
 
+async function logAppEvent(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  params: {
+    userId: string;
+    eventType: string;
+    eventData?: Record<string, unknown>;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  },
+) {
+  try {
+    await supabaseAdmin.rpc("log_app_event", {
+      p_user_id: params.userId,
+      p_event_type: params.eventType,
+      p_event_data: params.eventData || {},
+      p_ip_address: params.ipAddress || null,
+      p_user_agent: params.userAgent || null,
+    });
+  } catch (eventError) {
+    console.warn("[create-stripe-checkout] Falha ao registrar app_event", eventError);
+  }
+}
+
+async function logPaymentEvent(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  values: Record<string, unknown>,
+) {
+  try {
+    await supabaseAdmin.from("payment_events").insert(values);
+  } catch (eventError) {
+    console.warn("[create-stripe-checkout] Falha ao registrar payment_event", eventError);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -82,7 +116,9 @@ serve(async (req) => {
   const publicSiteUrl = Deno.env.get("PUBLIC_SITE_URL")?.replace(/\/$/, "");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const authHeader = req.headers.get("Authorization") || "";
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const authHeader = req.headers.get("Authorization");
+  const token = authHeader?.replace(/^Bearer\s+/i, "").trim() || "";
 
   if (!stripeSecretKey) {
     return jsonResponse({ error: "STRIPE_SECRET_KEY ausente" }, 500);
@@ -92,8 +128,8 @@ serve(async (req) => {
     return jsonResponse({ error: "PUBLIC_SITE_URL ausente" }, 500);
   }
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return jsonResponse({ error: "SUPABASE_URL ou SUPABASE_ANON_KEY ausente" }, 500);
+  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
+    return jsonResponse({ error: "SUPABASE_URL, SUPABASE_ANON_KEY ou SUPABASE_SERVICE_ROLE_KEY ausente" }, 500);
   }
 
   try {
@@ -104,6 +140,7 @@ serve(async (req) => {
     console.log("Checkout request:", {
       functionName,
       hasAuthHeader: Boolean(authHeader),
+      hasToken: Boolean(token),
       planId,
       billingCycle,
       userId: null,
@@ -118,31 +155,82 @@ serve(async (req) => {
       return jsonResponse({ error: "billingCycle inválido. Use monthly ou annual." }, 400);
     }
 
+    if (!authHeader) {
+      console.warn("Checkout auth:", {
+        hasAuthHeader: false,
+        hasToken: false,
+        userId: null,
+        userEmail: null,
+      });
+
+      return jsonResponse({
+        error: "Usuário não autenticado",
+        details: "Authorization header ausente",
+      }, 401);
+    }
+
+    if (!token) {
+      console.warn("Checkout auth:", {
+        hasAuthHeader: true,
+        hasToken: false,
+        userId: null,
+        userEmail: null,
+      });
+
+      return jsonResponse({
+        error: "Usuário não autenticado",
+        details: "Token ausente",
+      }, 401);
+    }
+
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: { Authorization: authHeader },
       },
     });
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
+
+    console.log("Checkout auth:", {
+      hasAuthHeader: Boolean(authHeader),
+      hasToken: Boolean(token),
+      userId: user?.id ?? null,
+      userEmail: user?.email ?? null,
+    });
+
+    if (userError || !user) {
       console.warn("Checkout unauthenticated", {
-        functionName,
         hasAuthHeader: Boolean(authHeader),
+        hasToken: Boolean(token),
         planId,
         billingCycle,
-        authError: authError?.message,
+        details: userError?.message || "Token inválido",
       });
 
-      return jsonResponse({ error: "Usuário não autenticado" }, 401);
+      return jsonResponse({
+        error: "Usuário não autenticado",
+        details: userError?.message || "Token inválido",
+      }, 401);
     }
 
     console.log("Checkout authenticated:", {
       functionName,
       hasAuthHeader: Boolean(authHeader),
+      hasToken: Boolean(token),
       planId,
       billingCycle,
       userId: user.id,
+      userEmail: user.email ?? null,
+    });
+    await logAppEvent(supabaseAdmin, {
+      userId: user.id,
+      eventType: "checkout_started",
+      eventData: { planId, billingCycle, stripeMode: getStripeMode(stripeSecretKey) },
+      ipAddress: req.headers.get("x-forwarded-for"),
+      userAgent: req.headers.get("user-agent"),
     });
 
     const plan = PLANS[planId];
@@ -164,6 +252,7 @@ serve(async (req) => {
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
+      allow_promotion_codes: planId === "pro",
       payment_method_types: ["card"],
       customer_email: user.email,
       line_items: [
@@ -199,6 +288,21 @@ serve(async (req) => {
       userId: user.id,
       hasUrl: Boolean(session.url),
     });
+    await logPaymentEvent(supabaseAdmin, {
+      user_id: user.id,
+      event_type: "checkout_started",
+      provider: "stripe",
+      stripe_checkout_session_id: session.id,
+      plan_name: planId,
+      amount: unitAmount,
+      currency: "brl",
+      status: session.status || "created",
+      event_data: {
+        billingCycle,
+        checkoutUrlCreated: Boolean(session.url),
+        stripeMode: getStripeMode(stripeSecretKey),
+      },
+    });
 
     return jsonResponse({ url: session.url }, 200);
   } catch (error: any) {
@@ -212,7 +316,7 @@ serve(async (req) => {
     });
 
     return jsonResponse({
-      error: "Não foi possível iniciar o pagamento. Verifique sua conta ou tente novamente.",
+      error: "Não foi possível iniciar o pagamento. Tente novamente.",
       details: error?.message,
     }, error?.statusCode || 500);
   }

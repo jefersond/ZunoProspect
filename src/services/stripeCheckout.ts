@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { PLANS, normalizePlanId, type BillingCycle } from "@/config/plans";
+import type { User } from "@supabase/supabase-js";
 
 export const STRIPE_CHECKOUT_FUNCTION = "create-stripe-checkout";
 
@@ -13,11 +14,13 @@ type CreateStripeCheckoutArgs = {
   leadsQuantity?: number;
   billingCycle?: BillingCycle;
   price?: number;
+  authUserFromHook?: User | null;
 };
 
 export async function createStripeCheckout({
   selectedPlan,
   billingCycle = "monthly",
+  authUserFromHook,
 }: CreateStripeCheckoutArgs) {
   const functionName = STRIPE_CHECKOUT_FUNCTION;
   const planId = normalizePlanId(selectedPlan?.planKey);
@@ -31,20 +34,33 @@ export async function createStripeCheckout({
   const unitAmount = price * 100;
 
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-  const session = sessionData.session;
+  const session = sessionData?.session;
 
-  console.log("Checkout debug:", {
-    functionName,
-    userId: session?.user?.id,
-    hasSession: Boolean(session),
+  console.log("Checkout auth debug:", {
+    authUserFromHook: Boolean(authUserFromHook),
+    authUserIdFromHook: authUserFromHook?.id,
+    sessionExists: Boolean(session),
+    sessionUserId: session?.user?.id,
+    accessTokenExists: Boolean(session?.access_token),
     planId,
     billingCycle,
-    sessionError: sessionError?.message,
   });
 
-  if (sessionError || !session?.access_token) {
-    const checkoutError = new Error("Faça login para continuar com o pagamento.");
+  if (sessionError) {
+    console.error("Erro ao obter sessão:", sessionError);
+  }
+
+  if (!session?.user || !session?.access_token) {
+    console.error("Checkout sem sessão válida:", {
+      hasSession: Boolean(session),
+      hasUser: Boolean(session?.user),
+      hasAccessToken: Boolean(session?.access_token),
+      sessionError: sessionError?.message,
+    });
+
+    const checkoutError = new Error("Entre novamente para continuar com o pagamento.");
     (checkoutError as Error & { status?: number }).status = 401;
+    (checkoutError as Error & { title?: string }).title = "Sessão expirada";
     throw checkoutError;
   }
 
@@ -65,7 +81,7 @@ export async function createStripeCheckout({
   });
 
   if (error || !data?.url) {
-    console.error("Erro ao processar upgrade:", {
+    console.error("Erro create-stripe-checkout:", {
       functionName,
       userId: session.user.id,
       planId,
@@ -77,8 +93,8 @@ export async function createStripeCheckout({
     const status = error?.context?.status;
     const details = data?.details || data?.error || error?.message;
     const message = status === 401
-      ? "Faça login para continuar com o pagamento."
-      : details || "Não foi possível iniciar o pagamento. Verifique sua conta ou tente novamente.";
+      ? "Sessão expirada. Faça login novamente."
+      : details || "Não foi possível iniciar o pagamento. Tente novamente.";
     const checkoutError = new Error(message);
     (checkoutError as Error & { status?: number }).status = status;
     throw checkoutError;

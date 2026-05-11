@@ -69,6 +69,7 @@ const AppContent = () => {
           <Route path="/leads-salvos" element={<ProtectedRoute><LeadsSalvos /></ProtectedRoute>} />
           <Route path="/pipeline" element={<ProtectedRoute><Pipeline /></ProtectedRoute>} />
           <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
+          <Route path="/admin" element={<Navigate to="/admin/email" replace />} />
           <Route path="/admin/email" element={<ProtectedRoute><AdminEmail /></ProtectedRoute>} />
           <Route path="/api-docs" element={<ProtectedRoute><ApiDocs /></ProtectedRoute>} />
           <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />

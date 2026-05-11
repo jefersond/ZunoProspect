@@ -7,7 +7,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.analisar-lead-ia]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-pix-asaas]
 verify_jwt = true
@@ -16,6 +16,9 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.create-stripe-checkout]
+verify_jwt = true
+
+[functions.create-stripe-addon-checkout]
 verify_jwt = true
 
 [functions.stripe-webhook]
@@ -49,7 +52,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.test-email-config]
-verify_jwt = true
+verify_jwt = false
 
 [functions.n8n-email-webhook]
 verify_jwt = false

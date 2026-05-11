@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
+import { appendReferralToPath } from "@/lib/referral";
 
 export function LPHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -41,10 +42,10 @@ export function LPHeader() {
           <div className="hidden lg:flex items-center gap-3">
             <ThemeToggle />
             <Button variant="ghost" className="text-sm font-medium hover:text-primary hover:bg-primary/5 transition-colors" asChild>
-              <Link to="/auth">Entrar</Link>
+              <Link to={appendReferralToPath("/auth")}>Entrar</Link>
             </Button>
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 px-6" asChild>
-              <Link to="/auth?tab=signup">Começar Grátis</Link>
+              <Link to={appendReferralToPath("/auth?tab=signup")}>Começar Grátis</Link>
             </Button>
           </div>
 
@@ -75,7 +76,7 @@ export function LPHeader() {
                   ))}
                   <div className="border-t pt-4 mt-2 space-y-3">
                     <Button variant="outline" className="w-full" asChild>
-                      <Link to="/auth?tab=login">Entrar</Link>
+                      <Link to={appendReferralToPath("/auth?tab=login")}>Entrar</Link>
                     </Button>
                   </div>
                 </nav>

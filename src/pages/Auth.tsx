@@ -14,6 +14,16 @@ import { z } from "zod";
 import { trackLead, trackCompleteRegistration } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { Logo } from "@/components/Logo";
+import { appendReferralToPath, getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
+
+const authInputClass =
+  "h-11 rounded-lg border-border/80 bg-card/70 shadow-sm transition-colors placeholder:text-muted-foreground/70 hover:border-muted-foreground/40 focus-visible:border-emerald-500/60 focus-visible:ring-2 focus-visible:ring-emerald-500/25 focus-visible:ring-offset-0";
+const authPrimaryButtonClass =
+  "h-11 rounded-lg bg-emerald-600 text-white shadow-sm shadow-emerald-950/20 hover:bg-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/35 focus-visible:ring-offset-0";
+const authSecondaryButtonClass =
+  "h-11 rounded-lg border border-border/80 bg-card/70 shadow-sm hover:border-muted-foreground/40 hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-emerald-500/25 focus-visible:ring-offset-0";
+const authIconButtonClass =
+  "absolute inset-y-1 right-1 flex w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/25";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -65,10 +75,10 @@ const Auth = () => {
   const selectedPlan = searchParams.get("plan") || searchParams.get("plano");
   const selectedLeads = searchParams.get("leadsQty") || searchParams.get("leads") || "100";
   const isAnualParam = searchParams.get("anual") || searchParams.get("isAnual") || "false";
-  const referralCode = searchParams.get("ref");
+  const referralCode = getCurrentReferralCode(searchParams);
 
   const checkoutTarget = selectedPlan
-    ? `/checkout?plano=${encodeURIComponent(selectedPlan)}&anual=${encodeURIComponent(isAnualParam)}&leadsQty=${encodeURIComponent(selectedLeads)}`
+    ? appendReferralToPath(`/checkout?plano=${encodeURIComponent(selectedPlan)}&anual=${encodeURIComponent(isAnualParam)}&leadsQty=${encodeURIComponent(selectedLeads)}`, referralCode)
     : null;
 
   const storePendingCheckout = () => {
@@ -77,6 +87,7 @@ const Auth = () => {
       plano: selectedPlan,
       isAnual: isAnualParam === "true",
       leadsQty: Number(selectedLeads) || 100,
+      referralCode,
     }));
   };
 
@@ -86,7 +97,7 @@ const Auth = () => {
       try {
         const pending = JSON.parse(pendingCheckout);
         localStorage.removeItem("checkout_pending");
-        navigate(`/checkout?plano=${encodeURIComponent(pending.plano || "pro")}&anual=${encodeURIComponent(String(!!pending.isAnual))}&leadsQty=${encodeURIComponent(String(pending.leadsQty || selectedLeads))}`, { replace: true });
+        navigate(appendReferralToPath(`/checkout?plano=${encodeURIComponent(pending.plano || "pro")}&anual=${encodeURIComponent(String(!!pending.isAnual))}&leadsQty=${encodeURIComponent(String(pending.leadsQty || selectedLeads))}`, pending.referralCode || referralCode), { replace: true });
         return;
       } catch {
         localStorage.removeItem("checkout_pending");
@@ -115,9 +126,7 @@ const Auth = () => {
     
     try {
       const referralCode = searchParams.get("ref");
-      if (referralCode) {
-        localStorage.setItem("pending_referral", referralCode);
-      }
+      saveReferralCode(referralCode || getCurrentReferralCode(searchParams));
       storePendingCheckout();
 
       const { error } = await supabase.auth.signInWithOAuth({
@@ -443,8 +452,8 @@ const Auth = () => {
         <ThemeToggle />
       </div>
       
-      <Card className="w-full max-w-md shadow-lg border-primary/20 bg-background/50 backdrop-blur-sm">
-        <CardHeader className="space-y-4">
+      <Card className="w-full max-w-md rounded-2xl border border-border/80 bg-card/85 shadow-2xl shadow-black/20 backdrop-blur-md">
+        <CardHeader className="space-y-4 pb-5">
           <div className="flex justify-center mb-2">
             <Logo className="scale-125" />
           </div>
@@ -452,18 +461,18 @@ const Auth = () => {
             Sistema profissional de geração de leads
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-6 pb-6">
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6 bg-muted/50 p-1">
+            <TabsList className="grid h-12 w-full grid-cols-2 rounded-xl border border-border/80 bg-muted/25 p-1 shadow-inner shadow-black/10 mb-6">
               <TabsTrigger 
                 value="login" 
-                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm transition-all"
+                className="h-10 rounded-lg border border-transparent text-muted-foreground transition-all hover:bg-muted/40 hover:text-foreground data-[state=active]:border-border/80 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"
               >
                 Login
               </TabsTrigger>
               <TabsTrigger 
                 value="signup" 
-                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm transition-all"
+                className="h-10 rounded-lg border border-transparent text-muted-foreground transition-all hover:bg-muted/40 hover:text-foreground data-[state=active]:border-border/80 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"
               >
                 Cadastrar
               </TabsTrigger>
@@ -479,7 +488,7 @@ const Auth = () => {
                       setResetEmailSent(false);
                       setForgotEmail("");
                     }}
-                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-3 text-sm text-muted-foreground transition-colors hover:border-muted-foreground/40 hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/25"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     Voltar ao login
@@ -516,9 +525,10 @@ const Auth = () => {
                           value={forgotEmail}
                           onChange={(e) => setForgotEmail(e.target.value)}
                           required
+                          className={authInputClass}
                         />
                       </div>
-                      <Button type="submit" className="w-full" disabled={loading}>
+                      <Button type="submit" className={`w-full ${authPrimaryButtonClass}`} disabled={loading}>
                         {loading ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -536,7 +546,7 @@ const Auth = () => {
                   <form onSubmit={handleSignIn} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="login-email">Email</Label>
-                      <Input id="login-email" name="email" type="email" placeholder="seu@email.com" required />
+                      <Input id="login-email" name="email" type="email" placeholder="seu@email.com" required className={authInputClass} />
                     </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -544,7 +554,7 @@ const Auth = () => {
                       <button
                         type="button"
                         onClick={() => setShowForgotPassword(true)}
-                        className="text-sm text-primary hover:underline"
+                        className="rounded-md px-1.5 py-1 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-500/10 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/25"
                       >
                         Esqueci minha senha
                       </button>
@@ -556,12 +566,12 @@ const Auth = () => {
                         type={showLoginPassword ? "text" : "password"} 
                         placeholder="••••••••" 
                         required 
-                        className="pr-10"
+                        className={`${authInputClass} pr-12`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowLoginPassword(!showLoginPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                        className={authIconButtonClass}
                       >
                         {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -573,13 +583,13 @@ const Auth = () => {
                       id="remember-me"
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
-                      className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                      className="h-4 w-4 rounded border-border bg-card text-emerald-600 focus:ring-2 focus:ring-emerald-500/30 focus:ring-offset-0"
                     />
                     <Label htmlFor="remember-me" className="text-sm font-normal cursor-pointer">
                       Lembrar-me neste dispositivo
                     </Label>
                   </div>
-                    <Button type="submit" className="w-full" disabled={loading}>
+                    <Button type="submit" className={`w-full ${authPrimaryButtonClass}`} disabled={loading}>
                       {loading ? <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Entrando...
@@ -590,10 +600,10 @@ const Auth = () => {
                   {/* Separador */}
                   <div className="relative my-4">
                     <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
+                      <span className="w-full border-t border-border/80" />
                     </div>
                     <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-card px-2 text-muted-foreground">
+                      <span className="bg-card px-3 text-muted-foreground">
                         ou continue com
                       </span>
                     </div>
@@ -603,7 +613,7 @@ const Auth = () => {
                   <Button 
                     type="button" 
                     variant="outline" 
-                    className="w-full" 
+                    className={`w-full ${authSecondaryButtonClass}`} 
                     onClick={handleGoogleLogin}
                     disabled={googleLoading}
                   >
@@ -620,14 +630,20 @@ const Auth = () => {
             
             <TabsContent value="signup">
               <div className="space-y-4">
+                {referralCode && (
+                  <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3 text-sm leading-5 text-muted-foreground">
+                    <span className="font-medium text-foreground">Voce esta entrando por um convite.</span>{" "}
+                    A indicacao sera registrada, mas o bonus do indicador so sera liberado se voce assinar um plano.
+                  </div>
+                )}
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signup-fullname">Nome Completo</Label>
-                    <Input id="signup-fullname" name="fullName" type="text" placeholder="Seu nome completo" required minLength={3} />
+                    <Input id="signup-fullname" name="fullName" type="text" placeholder="Seu nome completo" required minLength={3} className={authInputClass} />
                   </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>
-                  <Input id="signup-email" name="email" type="email" placeholder="seu@email.com" required />
+                  <Input id="signup-email" name="email" type="email" placeholder="seu@email.com" required className={authInputClass} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Senha</Label>
@@ -643,12 +659,12 @@ const Auth = () => {
                         setSignupPassword(e.target.value);
                         validatePasswordStrength(e.target.value);
                       }}
-                      className="pr-10"
+                      className={`${authInputClass} pr-12`}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                      className={authIconButtonClass}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -693,7 +709,7 @@ const Auth = () => {
                       </div>
                     </div>}
                 </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
+                  <Button type="submit" className={`w-full ${authPrimaryButtonClass}`} disabled={loading}>
                     {loading ? <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Criando conta...
@@ -704,10 +720,10 @@ const Auth = () => {
                 {/* Separador */}
                 <div className="relative my-4">
                   <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
+                    <span className="w-full border-t border-border/80" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">
+                    <span className="bg-card px-3 text-muted-foreground">
                       ou continue com
                     </span>
                   </div>
@@ -717,7 +733,7 @@ const Auth = () => {
                 <Button 
                   type="button" 
                   variant="outline" 
-                  className="w-full" 
+                  className={`w-full ${authSecondaryButtonClass}`} 
                   onClick={handleGoogleLogin}
                   disabled={googleLoading}
                 >

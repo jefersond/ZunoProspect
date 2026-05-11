@@ -1,19 +1,24 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ADMIN_LEADS_LIMIT, isAdminEmail } from "@/config/admin";
+import { ADMIN_LEADS_LIMIT, isAdminEmail, isAdminUser } from "@/config/admin";
 
 const FREE_PLAN_LIMIT = 20;
 
 interface SubscriptionInfo {
+  plan?: string;
   plan_name: string;
   leads_limit: number;
   leads_used: number;
   leads_remaining: number;
   billing_period_end: string;
+  ai_limit?: number;
+  ai_used?: number;
+  ai_remaining?: number;
+  ai_available_total?: number;
   is_admin?: boolean;
   usa_addon?: boolean;
   usa_addon_active_until?: string | null;
-  buscas_saldo?: number;
+  us_prospecting_addon_status?: string | null;
   leads_bonus_balance?: number;
   leads_available_total?: number;
 }
@@ -35,18 +40,24 @@ interface UseSubscriptionReturn {
 const defaultPeriodEnd = () =>
   new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-const starterFallback = (isAdmin: boolean, saldo = 0): SubscriptionInfo => {
+const starterFallback = (isAdmin: boolean): SubscriptionInfo => {
   if (isAdmin) {
     return {
       plan_name: "admin",
       leads_limit: -1,
       leads_used: 0,
       leads_remaining: ADMIN_LEADS_LIMIT,
+      ai_limit: ADMIN_LEADS_LIMIT,
+      ai_used: 0,
+      ai_remaining: ADMIN_LEADS_LIMIT,
+      ai_available_total: ADMIN_LEADS_LIMIT,
       billing_period_end: defaultPeriodEnd(),
       is_admin: true,
       usa_addon: true,
       usa_addon_active_until: null,
-      buscas_saldo: ADMIN_LEADS_LIMIT,
+      us_prospecting_addon_status: "active",
+      leads_bonus_balance: ADMIN_LEADS_LIMIT,
+      leads_available_total: ADMIN_LEADS_LIMIT,
     };
   }
 
@@ -54,12 +65,18 @@ const starterFallback = (isAdmin: boolean, saldo = 0): SubscriptionInfo => {
     plan_name: "free",
     leads_limit: FREE_PLAN_LIMIT,
     leads_used: 0,
-    leads_remaining: FREE_PLAN_LIMIT + Math.max(0, saldo),
+    leads_remaining: FREE_PLAN_LIMIT,
+    ai_limit: 3,
+    ai_used: 0,
+    ai_remaining: 3,
+    ai_available_total: 3,
     billing_period_end: defaultPeriodEnd(),
     is_admin: false,
     usa_addon: false,
     usa_addon_active_until: null,
-    buscas_saldo: Math.max(0, saldo),
+    us_prospecting_addon_status: null,
+    leads_bonus_balance: 0,
+    leads_available_total: FREE_PLAN_LIMIT,
   };
 };
 
@@ -81,25 +98,34 @@ export const useSubscription = (): UseSubscriptionReturn => {
         return;
       }
 
-      const emailAdmin = isAdminEmail(user.email);
       const { data: adminCheck, error: adminError } = await supabase
         .rpc("is_admin", { _user_id: user.id });
 
-      const admin = emailAdmin || adminCheck === true;
+      const admin = isAdminUser(user, { is_admin: adminCheck === true });
       setIsAdmin(admin);
 
-      if (adminError && !emailAdmin) {
+      if (adminError && !isAdminEmail(user.email)) {
         console.warn("Erro ao verificar admin:", adminError.message);
       }
 
-      const { data, error: fetchError } = await supabase
-        .rpc("get_subscription_info", { p_user_id: user.id });
+      const { data, error: fetchError } = await supabase.rpc("get_current_user_usage", {});
 
       const { data: subData } = await supabase
         .from("user_subscriptions")
         .select("usa_addon, usa_addon_active_until")
         .eq("user_id", user.id)
         .maybeSingle();
+
+      const { data: addonData, error: addonError } = await supabase
+        .from("user_addons")
+        .select("status")
+        .eq("user_id", user.id)
+        .eq("addon_id", "us_prospecting")
+        .maybeSingle();
+
+      if (addonError) {
+        console.warn("Erro ao buscar add-on EUA:", addonError.message);
+      }
 
       if (fetchError) {
         console.error("Erro ao buscar assinatura via RPC:", fetchError);
@@ -110,7 +136,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
 
       const subInfo = data?.[0];
       if (!subInfo) {
-        setSubscription(starterFallback(admin, saldo));
+        setSubscription(starterFallback(admin));
         return;
       }
 
@@ -123,25 +149,35 @@ export const useSubscription = (): UseSubscriptionReturn => {
           is_admin: true,
           usa_addon: true,
           usa_addon_active_until: subData?.usa_addon_active_until ?? null,
-          buscas_saldo: ADMIN_LEADS_LIMIT,
+          us_prospecting_addon_status: "active",
+          ai_limit: ADMIN_LEADS_LIMIT,
+          ai_used: 0,
+          ai_remaining: ADMIN_LEADS_LIMIT,
+          ai_available_total: ADMIN_LEADS_LIMIT,
+          leads_bonus_balance: ADMIN_LEADS_LIMIT,
+          leads_available_total: ADMIN_LEADS_LIMIT,
         });
         return;
       }
 
       const planRemaining = subInfo.leads_limit === -1
         ? ADMIN_LEADS_LIMIT
-        : Math.max(0, subInfo.leads_remaining ?? 0);
+        : Math.max(0, (subInfo.leads_limit ?? FREE_PLAN_LIMIT) - (subInfo.leads_used ?? 0));
       const bonusSaldo = Math.max(0, subInfo.leads_bonus_balance ?? 0);
       const effectiveRemaining = Math.max(0, subInfo.leads_available_total ?? planRemaining + bonusSaldo);
 
       setSubscription({
         ...subInfo,
+        plan_name: subInfo.plan ?? subInfo.plan_name ?? "free",
         leads_limit: subInfo.leads_limit === 0 ? FREE_PLAN_LIMIT : subInfo.leads_limit,
         leads_remaining: effectiveRemaining,
+        ai_remaining: Math.max(0, subInfo.ai_available_total ?? subInfo.ai_remaining ?? 0),
         is_admin: false,
-        usa_addon: subData?.usa_addon ?? false,
+        usa_addon: addonData?.status === "active" || subData?.usa_addon === true,
         usa_addon_active_until: subData?.usa_addon_active_until ?? null,
-        buscas_saldo: bonusSaldo,
+        us_prospecting_addon_status: addonData?.status ?? null,
+        leads_bonus_balance: bonusSaldo,
+        leads_available_total: effectiveRemaining,
       });
     } catch (err: any) {
       console.error("Erro ao buscar assinatura:", err);
@@ -161,7 +197,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
     if (isAdmin) return true;
     if (!subscription) return true;
     if (subscription.leads_limit === -1) return true;
-    return subscription.leads_remaining >= Math.max(1, count);
+    return (subscription.leads_available_total ?? subscription.leads_remaining) >= Math.max(1, count);
   }, [subscription, isAdmin, loading]);
 
   const incrementLeadsUsed = useCallback(async (count: number): Promise<boolean> => {
@@ -171,7 +207,11 @@ export const useSubscription = (): UseSubscriptionReturn => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
 
-      const admin = isAdmin || isAdminEmail(user.email);
+      const admin = isAdmin || isAdminUser(user);
+      if (admin) {
+        await fetchSubscription();
+        return true;
+      }
 
       const { error: incrementError } = await supabase
         .rpc("increment_leads_used", { p_user_id: user.id, p_count: count });
@@ -216,17 +256,15 @@ export const useSubscription = (): UseSubscriptionReturn => {
 
   const hasUsaAddon = useCallback((): boolean => {
     if (!subscription) return false;
+    if (subscription.us_prospecting_addon_status === "active") return true;
     if (!subscription.usa_addon) return false;
-    if (!subscription.usa_addon_active_until) return false;
+    if (!subscription.usa_addon_active_until) return true;
     return new Date(subscription.usa_addon_active_until) > new Date();
   }, [subscription])();
 
   const canUseUsaProspecting = useCallback((): boolean => {
     if (isAdmin) return true;
-    if (!subscription) return false;
-    if (subscription.plan_name === "agencia") return true;
-    if (subscription.plan_name !== "starter") return hasUsaAddon;
-    return false;
+    return hasUsaAddon;
   }, [subscription, isAdmin, hasUsaAddon]);
 
   return {

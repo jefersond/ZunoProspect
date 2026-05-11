@@ -59,6 +59,8 @@ export const ProspeccaoForm = () => {
     refetch: refetchUsage,
   } = useUsage();
   const isAdmin = subscriptionIsAdmin || usageIsAdmin;
+  const normalizedPlanName = String(subscription?.plan_name || "free").toLowerCase();
+  const hasPaidPlan = isAdmin || ["starter", "iniciante", "pro", "agency", "agencia"].includes(normalizedPlanName);
   const [loading, setLoading] = useState(false);
   const [proximidadeAtiva, setProximidadeAtiva] = useState(false);
   const [raioKm, setRaioKm] = useState([5]);
@@ -220,6 +222,18 @@ export const ProspeccaoForm = () => {
         description: "Estamos criando seu perfil e saldo inicial. Tente novamente em instantes.",
       });
       await refreshUsage();
+      return;
+    }
+
+    if (data.pais === "US" && !canUseUsaProspecting()) {
+      toast({
+        variant: "destructive",
+        title: "Prospecção nos EUA é um complemento opcional.",
+        description: hasPaidPlan
+          ? "Ative o complemento para buscar leads nos Estados Unidos."
+          : "Escolha um plano ativo para liberar a compra do complemento.",
+      });
+      setShowUsaInlinePromo(true);
       return;
     }
 
@@ -637,7 +651,7 @@ export const ProspeccaoForm = () => {
                 País
                 {!canUseUsaProspecting() && (
                   <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-500 font-normal">
-                    EUA: Pro+ apenas
+                    EUA: complemento
                   </Badge>
                 )}
               </Label>
@@ -680,16 +694,16 @@ export const ProspeccaoForm = () => {
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <Sparkles className="h-5 w-5 text-blue-500" />
                       <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30 hover:bg-amber-500/30">
-                        Exclusivo Pro+
+                        Complemento opcional
                       </Badge>
                       <span className="text-xl">🇺🇸</span>
                     </div>
                     <h4 className="font-semibold text-lg mb-1">Prospecção nos Estados Unidos</h4>
                     <p className="text-sm text-muted-foreground mb-2">
-                      Expanda para o mercado americano com leads em todos os 50 estados + DC.
+                      Prospecção nos EUA é um complemento opcional para planos ativos.
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      <strong>Disponível para:</strong> Planos Pro e Agência (+ R$ 57/mês)
+                      <strong>Disponível para:</strong> Starter, Pro e Agency (+ R$ 57/mês)
                     </p>
                   </div>
                   
@@ -701,7 +715,7 @@ export const ProspeccaoForm = () => {
                       className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
                       <Globe className="mr-2 h-4 w-4" />
-                      Ativar Prospecção USA
+                      {hasPaidPlan ? "Ativar complemento" : "Escolher plano"}
                     </Button>
                     <Button 
                       type="button"
@@ -931,7 +945,7 @@ export const ProspeccaoForm = () => {
 
               <Button
                 type="submit"
-                className="min-h-11 w-full max-w-sm shadow-primary"
+                className="min-h-11 w-full max-w-sm bg-emerald-600 text-white shadow-sm shadow-emerald-950/20 hover:bg-emerald-500"
                 disabled={loading || subscriptionLoading || usageLoading || isAtLimit}
               >
                 {loading ? (

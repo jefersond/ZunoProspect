@@ -25,10 +25,12 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
       const plano = currentParams.get("plano") || currentParams.get("plan");
       const anual = currentParams.get("anual") || currentParams.get("isAnual");
       const leadsQty = currentParams.get("leadsQty") || currentParams.get("leads");
+      const ref = currentParams.get("ref");
 
       if (plano) authParams.set("plan", plano);
       if (anual) authParams.set("anual", anual);
       if (leadsQty) authParams.set("leadsQty", leadsQty);
+      if (ref) authParams.set("ref", ref);
     }
 
     return <Navigate to={`/auth?${authParams.toString()}`} replace />;

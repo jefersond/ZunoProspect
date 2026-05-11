@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { ArrowRight, Smartphone } from "lucide-react";
+import { appendReferralToPath } from "@/lib/referral";
 
 export function CTAFinalSection() {
   const scrollToSection = (id: string) => {
@@ -22,7 +23,7 @@ export function CTAFinalSection() {
             className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-base sm:text-lg px-6 sm:px-8 w-full sm:w-auto shadow-lg shadow-primary/20"
             asChild
           >
-            <Link to="/auth?tab=signup">
+            <Link to={appendReferralToPath("/auth?tab=signup")}>
               Começar agora
               <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
             </Link>

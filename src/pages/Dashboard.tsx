@@ -9,6 +9,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { ReferralCard } from "@/components/ReferralCard";
 import { UsageStats } from "@/components/UsageStats";
 import { useUsage } from "@/hooks/useUsage";
+import { isAdminUser } from "@/config/admin";
 
 interface DashboardMetrics {
   totalLeads: number;
@@ -54,7 +55,7 @@ const Dashboard = () => {
     }
     // Check if admin
     const { data: adminData } = await supabase.rpc('is_admin', { _user_id: user.id });
-    setIsAdmin(!!adminData);
+    setIsAdmin(isAdminUser(user, { is_admin: adminData === true }));
   };
 
   const loadMetrics = async () => {
@@ -206,6 +207,7 @@ const Dashboard = () => {
           loading={usageLoading}
           leadsBonusBalance={usage.leads_bonus_balance}
           leadsAvailableTotal={usage.leads_available_total}
+          aiAvailableTotal={usage.ai_available_total}
         />
 
         {/* Motor de Viralidade — Indique e Ganhe */}

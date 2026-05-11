@@ -10,11 +10,16 @@ import { trackViewContent, trackLead } from "@/lib/metaPixel";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { createStripeCheckout } from "@/services/stripeCheckout";
+import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, type BillingCycle, type PlanConfig } from "@/config/plans";
 import { cn } from "@/lib/utils";
+import { appendReferralToPath } from "@/lib/referral";
 
 export function PrecosSection() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { hasUsaAddon, isAdmin } = useSubscription();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [usaDialogOpen, setUsaDialogOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
@@ -46,7 +51,7 @@ export function PrecosSection() {
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
-      navigate(`/auth?tab=signup&plan=${encodeURIComponent(plan.id)}&leadsQty=${encodeURIComponent(String(plan.leadsLimit))}&anual=${billingCycle === "annual"}`);
+      navigate(appendReferralToPath(`/auth?tab=signup&plan=${encodeURIComponent(plan.id)}&leadsQty=${encodeURIComponent(String(plan.leadsLimit))}&anual=${billingCycle === "annual"}`));
       return;
     }
 
@@ -65,6 +70,7 @@ export function PrecosSection() {
       const data = await createStripeCheckout({
         selectedPlan: { planKey: plan.id },
         billingCycle,
+        authUserFromHook: user,
       });
 
       toast.dismiss();
@@ -72,10 +78,13 @@ export function PrecosSection() {
     } catch (error: any) {
       toast.dismiss();
       if (error?.status === 401) {
-        navigate(`/auth?tab=login&plan=${encodeURIComponent(plan.id)}&leadsQty=${encodeURIComponent(String(plan.leadsLimit))}&anual=${billingCycle === "annual"}`);
+        toast.error("Sessão expirada", {
+          description: "Entre novamente para continuar com o pagamento.",
+        });
+        navigate(appendReferralToPath(`/auth?tab=login&plan=${encodeURIComponent(plan.id)}&leadsQty=${encodeURIComponent(String(plan.leadsLimit))}&anual=${billingCycle === "annual"}`));
         return;
       }
-      toast.error("Não foi possível iniciar o pagamento", { description: error.message });
+      toast.error("Não foi possível iniciar o pagamento", { description: "Tente novamente." });
     } finally {
       setIsProcessing(null);
     }
@@ -204,8 +213,13 @@ export function PrecosSection() {
                 <p className="text-2xl font-bold text-blue-300">+ R$ 57</p>
                 <p className="text-xs text-muted-foreground">por mês</p>
               </div>
+              {(hasUsaAddon || isAdmin) && (
+                <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600">
+                  {isAdmin ? "Liberado para admin" : "Ativo"}
+                </Badge>
+              )}
               <Button variant="outline" onClick={() => setUsaDialogOpen(true)}>
-                Ativar complemento
+                {hasUsaAddon || isAdmin ? "Complemento ativo" : "Ativar complemento"}
               </Button>
             </div>
           </Card>

@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Search, Zap } from "lucide-react";
+import { Brain, Search } from "lucide-react";
 
 type UsageStatsProps = {
   leadsUsed: number;
@@ -11,10 +11,11 @@ type UsageStatsProps = {
   loading?: boolean;
   leadsBonusBalance?: number;
   leadsAvailableTotal?: number;
+  aiAvailableTotal?: number;
 };
 
-function safeNumber(value: number) {
-  return Number.isFinite(value) ? value : 0;
+function safeNumber(value: number | undefined) {
+  return Number.isFinite(value) ? Number(value) : 0;
 }
 
 function getPercentage(used: number, limit: number) {
@@ -36,10 +37,11 @@ export function UsageStats({
   loading = false,
   leadsBonusBalance = 0,
   leadsAvailableTotal,
+  aiAvailableTotal,
 }: UsageStatsProps) {
   if (loading) {
     return (
-      <Card className="bg-card border-border">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">Uso do plano</CardTitle>
         </CardHeader>
@@ -55,10 +57,11 @@ export function UsageStats({
   const safeAiUsed = Math.max(0, safeNumber(aiUsed));
   const safeAiLimit = Math.max(0, safeNumber(aiLimit));
   const safeBonus = Math.max(0, safeNumber(leadsBonusBalance));
-  const totalAvailable = Math.max(
+  const leadsAvailable = Math.max(
     0,
     safeNumber(leadsAvailableTotal ?? Math.max(0, safeLeadsLimit - safeLeadsUsed) + safeBonus),
   );
+  const aiAvailable = Math.max(0, safeNumber(aiAvailableTotal ?? Math.max(0, safeAiLimit - safeAiUsed)));
 
   const leadsUnlimited = isUnlimited(safeLeadsLimit, isAdmin);
   const aiUnlimited = isUnlimited(safeAiLimit, isAdmin);
@@ -66,7 +69,7 @@ export function UsageStats({
   const aiPercent = aiUnlimited ? 0 : getPercentage(safeAiUsed, safeAiLimit);
 
   return (
-    <Card className="bg-card border-border">
+    <Card className="border-border bg-card">
       <CardHeader>
         <CardTitle className="text-base">Uso do plano</CardTitle>
       </CardHeader>
@@ -88,14 +91,14 @@ export function UsageStats({
 
           <p className="text-xs text-muted-foreground">
             {leadsUnlimited
-              ? "Você tem buscas ilimitadas neste plano."
-              : `Você já buscou ${safeLeadsUsed} de ${safeLeadsLimit} leads.`}
+              ? "Voce tem buscas ilimitadas neste plano."
+              : `Voce ja buscou ${safeLeadsUsed} de ${safeLeadsLimit} leads. Disponiveis: ${leadsAvailable}.`}
           </p>
 
           {!leadsUnlimited && safeBonus > 0 && (
             <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-              Bônus de indicação: <span className="font-medium text-foreground">{safeBonus}</span> leads.
-              Disponível total: <span className="font-medium text-foreground">{totalAvailable}</span> leads.
+              Bonus de indicacao convertida: <span className="font-medium text-foreground">{safeBonus}</span> leads.
+              Disponivel total: <span className="font-medium text-foreground">{leadsAvailable}</span> leads.
             </div>
           )}
         </div>
@@ -103,12 +106,12 @@ export function UsageStats({
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">Análises com IA</span>
+              <Brain className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">Analises com IA</span>
             </div>
 
             <span className="text-xs text-muted-foreground">
-              {aiUnlimited ? "Ilimitado" : `${safeAiUsed} de ${safeAiLimit} análises`}
+              {aiUnlimited ? "Ilimitado" : `${safeAiUsed} de ${safeAiLimit} analises`}
             </span>
           </div>
 
@@ -116,8 +119,8 @@ export function UsageStats({
 
           <p className="text-xs text-muted-foreground">
             {aiUnlimited
-              ? "Você tem análises ilimitadas neste plano."
-              : `Você já usou ${safeAiUsed} de ${safeAiLimit} análises profundas.`}
+              ? "Voce tem analises ilimitadas neste plano."
+              : `Voce ja usou ${safeAiUsed} de ${safeAiLimit} analises profundas. Disponiveis: ${aiAvailable}.`}
           </p>
         </div>
       </CardContent>

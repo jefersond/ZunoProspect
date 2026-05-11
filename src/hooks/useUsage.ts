@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { isAdminEmail } from "@/config/admin";
+import { isAdminUser } from "@/config/admin";
 
 export type UsageInfo = {
   plan_name: string;
@@ -10,6 +10,7 @@ export type UsageInfo = {
   ai_limit: number;
   ai_used: number;
   ai_remaining: number;
+  ai_available_total: number;
   leads_bonus_balance: number;
   leads_available_total: number;
   billing_period_end: string;
@@ -38,6 +39,7 @@ const DEFAULT_USAGE: UsageInfo = {
   ai_limit: 3,
   ai_used: 0,
   ai_remaining: 3,
+  ai_available_total: 3,
   leads_bonus_balance: 0,
   leads_available_total: 20,
   billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
@@ -50,8 +52,7 @@ function asSafeNumber(value: unknown, fallback = 0) {
 }
 
 function normalizeUsage(raw: Partial<UsageInfo> | null | undefined, email?: string | null): UsageInfo {
-  const emailAdmin = isAdminEmail(email);
-  const isAdmin = Boolean(emailAdmin || raw?.is_admin);
+  const isAdmin = isAdminUser({ email }, { is_admin: raw?.is_admin === true });
 
   if (isAdmin) {
     return {
@@ -64,6 +65,7 @@ function normalizeUsage(raw: Partial<UsageInfo> | null | undefined, email?: stri
       ai_limit: 999999,
       ai_used: asSafeNumber(raw?.ai_used),
       ai_remaining: 999999,
+      ai_available_total: 999999,
       leads_bonus_balance: 999999,
       leads_available_total: 999999,
       billing_period_end: raw?.billing_period_end || DEFAULT_USAGE.billing_period_end,
@@ -76,7 +78,7 @@ function normalizeUsage(raw: Partial<UsageInfo> | null | undefined, email?: stri
   const leadsRemaining = Math.max(0, asSafeNumber(raw?.leads_remaining, leadsLimit - leadsUsed));
   const aiLimit = Math.max(0, asSafeNumber(raw?.ai_limit, DEFAULT_USAGE.ai_limit));
   const aiUsed = Math.max(0, asSafeNumber(raw?.ai_used));
-  const aiRemaining = Math.max(0, asSafeNumber(raw?.ai_remaining, aiLimit - aiUsed));
+  const aiRemaining = Math.max(0, asSafeNumber(raw?.ai_remaining ?? raw?.ai_available_total, aiLimit - aiUsed));
   const leadsBonusBalance = Math.max(0, asSafeNumber(raw?.leads_bonus_balance));
   const leadsAvailableTotal = Math.max(
     0,
@@ -91,6 +93,7 @@ function normalizeUsage(raw: Partial<UsageInfo> | null | undefined, email?: stri
     ai_limit: aiLimit,
     ai_used: aiUsed,
     ai_remaining: aiRemaining,
+    ai_available_total: aiRemaining,
     leads_bonus_balance: leadsBonusBalance,
     leads_available_total: leadsAvailableTotal,
     billing_period_end: raw?.billing_period_end || DEFAULT_USAGE.billing_period_end,
@@ -114,13 +117,14 @@ export function useUsage(): UseUsageReturn {
         return;
       }
 
-      const { data, error: usageError } = await supabase.rpc("ensure_user_usage", {
-        p_user_id: user.id,
-      });
+      const { data, error: usageError } = await supabase.rpc("get_current_user_usage", {});
 
       if (usageError) throw usageError;
 
-      setUsage(normalizeUsage(data?.[0], user.email));
+      const currentUsage = data?.[0]
+        ? { ...data[0], plan_name: data[0].plan, ai_remaining: data[0].ai_available_total }
+        : null;
+      setUsage(normalizeUsage(currentUsage, user.email));
     } catch (err: any) {
       console.error("Erro ao buscar uso do plano:", err);
       setError(err.message || "Erro ao buscar uso do plano");

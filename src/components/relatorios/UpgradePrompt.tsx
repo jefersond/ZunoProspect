@@ -37,14 +37,14 @@ export const UpgradePrompt = () => {
 
           <Button 
             onClick={() => navigate('/profile')} 
-            className="w-full"
+            className="w-full bg-emerald-600 text-white shadow-sm shadow-emerald-950/20 hover:bg-emerald-500"
             size="lg"
           >
             Fazer Upgrade para Agência
           </Button>
           
           <Button 
-            variant="ghost" 
+            variant="outline" 
             onClick={() => navigate('/prospeccao')} 
             className="w-full mt-2"
           >

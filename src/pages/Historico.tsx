@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Search, History } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
+import { isAdminUser } from "@/config/admin";
 
 interface Interacao {
   id: string;
@@ -41,7 +42,7 @@ export default function Historico() {
         loadInteracoes(user.id);
         // Check if admin
         const { data: adminData } = await supabase.rpc('is_admin', { _user_id: user.id });
-        setIsAdmin(!!adminData);
+        setIsAdmin(isAdminUser(user, { is_admin: adminData === true }));
       }
     };
     checkUser();

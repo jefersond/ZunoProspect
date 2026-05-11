@@ -221,6 +221,57 @@ function logError(searchRunId: string, step: string, error: unknown, data?: Reco
   console.error(`[buscar-leads:${searchRunId}] ${step}`, { error: safeError, ...(data ?? {}) });
 }
 
+async function logAppEvent(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  params: {
+    userId: string;
+    eventType: string;
+    eventData?: Record<string, unknown>;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  },
+) {
+  try {
+    await supabaseAdmin.rpc("log_app_event", {
+      p_user_id: params.userId,
+      p_event_type: params.eventType,
+      p_event_data: params.eventData || {},
+      p_ip_address: params.ipAddress || null,
+      p_user_agent: params.userAgent || null,
+    });
+  } catch (eventError) {
+    console.warn("[buscar-leads] Falha ao registrar app_event", eventError);
+  }
+}
+
+async function upsertSearchLog(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  values: Record<string, unknown>,
+) {
+  try {
+    const searchRunId = values.search_run_id;
+    if (searchRunId) {
+      const { data: existing } = await supabaseAdmin
+        .from("search_logs")
+        .select("id")
+        .eq("search_run_id", searchRunId)
+        .maybeSingle();
+
+      if (existing?.id) {
+        await supabaseAdmin
+          .from("search_logs")
+          .update(values)
+          .eq("id", existing.id);
+        return;
+      }
+    }
+
+    await supabaseAdmin.from("search_logs").insert(values);
+  } catch (logError) {
+    console.warn("[buscar-leads] Falha ao registrar search_log", logError);
+  }
+}
+
 function errorResponse(
   corsHeaders: Record<string, string>,
   status: number,
@@ -244,6 +295,10 @@ serve(async (req) => {
   const origin = req.headers.get("Origin");
   const corsHeaders = getCorsHeaders(origin);
   const searchRunId = crypto.randomUUID();
+  const startedAt = Date.now();
+  let supabaseAdminForCatch: ReturnType<typeof createClient> | null = null;
+  let authenticatedUserIdForCatch: string | null = null;
+  let searchContextForCatch: Record<string, unknown> = {};
 
   try {
     logStep(searchRunId, "Inicio da Edge Function", {
@@ -303,6 +358,7 @@ serve(async (req) => {
     
     // Admin client for secure insert operations
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    supabaseAdminForCatch = supabaseAdmin;
 
     // Verifica autenticação
     const {
@@ -316,6 +372,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    authenticatedUserIdForCatch = user.id;
 
     const normalizedEmail = user.email?.trim().toLowerCase() || "";
     logStep(searchRunId, "Usuário autenticado", {
@@ -330,14 +387,79 @@ serve(async (req) => {
     const isAdminUser = ADMIN_EMAILS.has(normalizedEmail) || adminCheck === true;
 
     const body: ProspeccaoRequest = await req.json();
+    const requestedCountry = String(body.pais || "BR").trim().toUpperCase();
     const requestedQuantity = Math.max(1, Math.min(100, Number(body.quantidade) || 10));
     const receivedCidade = body.cidade || "";
     const receivedEstado = body.estado || "";
+    const normalizedPais: "BR" | "US" = requestedCountry === "US" || requestedCountry === "ESTADOS UNIDOS" ? "US" : "BR";
     const normalizedCidade = toTitleCase(receivedCidade);
-    const normalizedEstado = normalizeState(receivedEstado, body.pais || "BR");
-    const normalizedLocationText = buildLocationText(normalizedCidade, normalizedEstado, body.pais || "BR");
+    const normalizedEstado = normalizeState(receivedEstado, normalizedPais);
+    const normalizedLocationText = buildLocationText(normalizedCidade, normalizedEstado, normalizedPais);
     body.cidade = normalizedCidade;
     body.estado = normalizedEstado;
+    body.pais = normalizedPais;
+
+    searchContextForCatch = {
+      city: normalizedCidade,
+      state: normalizedEstado,
+      country: normalizedPais,
+      niche: body.nicho,
+      focus: body.foco,
+      requested_quantity: requestedQuantity,
+    };
+
+    await upsertSearchLog(supabaseAdmin, {
+      search_run_id: searchRunId,
+      user_id: user.id,
+      city: normalizedCidade,
+      state: normalizedEstado,
+      country: normalizedPais,
+      niche: body.nicho,
+      focus: body.foco,
+      requested_quantity: requestedQuantity,
+      status: "started",
+      ip_address: req.headers.get("x-forwarded-for"),
+      user_agent: req.headers.get("user-agent"),
+      diagnostics: {},
+    });
+    await logAppEvent(supabaseAdmin, {
+      userId: user.id,
+      eventType: "search_started",
+      eventData: { searchRunId, ...searchContextForCatch },
+      ipAddress: req.headers.get("x-forwarded-for"),
+      userAgent: req.headers.get("user-agent"),
+    });
+
+    if (normalizedPais === "US" && !isAdminUser) {
+      const { data: addonData, error: addonError } = await supabaseAdmin
+        .from("user_addons")
+        .select("status")
+        .eq("user_id", user.id)
+        .eq("addon_id", "us_prospecting")
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (addonError) {
+        logError(searchRunId, "Erro ao validar add-on EUA", addonError);
+        return errorResponse(
+          corsHeaders,
+          500,
+          "Erro ao validar complemento EUA",
+          addonError.message,
+          "us_addon_validation_error",
+        );
+      }
+
+      if (!addonData) {
+        return errorResponse(
+          corsHeaders,
+          403,
+          "Complemento EUA necessário",
+          "Ative o complemento Prospecção nos Estados Unidos para buscar leads nos EUA.",
+          "us_prospecting_addon_required",
+        );
+      }
+    }
 
     const diagnostics: SearchDiagnostics = {
       received: {
@@ -390,12 +512,10 @@ serve(async (req) => {
       focoUsedInGoogleQuery: false,
     });
 
-    const { data: usageData, error: usageError } = await supabaseAdmin.rpc("ensure_user_usage", {
-      p_user_id: user.id,
-    });
+    const { data: usageData, error: usageError } = await supabaseClient.rpc("get_current_user_usage");
 
     if (usageError) {
-      logError(searchRunId, "Erro ao garantir usage mensal", usageError);
+      logError(searchRunId, "Erro ao validar usage mensal do usuario autenticado", usageError);
       return errorResponse(
         corsHeaders,
         500,
@@ -427,7 +547,7 @@ serve(async (req) => {
     body.quantidade = allowedQuantity;
 
     logStep(searchRunId, "Usage validado antes do Google Places", {
-      planName: usageInfo?.plan_name ?? null,
+      planName: usageInfo?.plan ?? usageInfo?.plan_name ?? null,
       isUnlimited,
       requestedQuantity,
       allowedQuantity,
@@ -1355,6 +1475,37 @@ serve(async (req) => {
     }
 
     // Prepara preview dos leads bloqueados (dados básicos apenas, sem processar)
+    await upsertSearchLog(supabaseAdmin, {
+      search_run_id: searchRunId,
+      user_id: user.id,
+      city: normalizedCidade,
+      state: normalizedEstado,
+      country: normalizedPais,
+      niche: body.nicho,
+      focus: body.foco,
+      requested_quantity: requestedQuantity,
+      returned_quantity: leadsDetails.length,
+      status: "success",
+      duration_ms: Date.now() - startedAt,
+      diagnostics,
+      completed_at: new Date().toISOString(),
+      ip_address: req.headers.get("x-forwarded-for"),
+      user_agent: req.headers.get("user-agent"),
+    });
+    await logAppEvent(supabaseAdmin, {
+      userId: user.id,
+      eventType: "search_completed",
+      eventData: {
+        searchRunId,
+        ...searchContextForCatch,
+        returned_quantity: leadsDetails.length,
+        newLeadsCount,
+        updatedLeadsCount,
+      },
+      ipAddress: req.headers.get("x-forwarded-for"),
+      userAgent: req.headers.get("user-agent"),
+    });
+
     const lockedLeadsData = lockedLeadsPreview.map((place: any) => ({
       id: `locked_${place.place_id}`,
       nome: place.name,
@@ -1404,6 +1555,31 @@ serve(async (req) => {
     );
   } catch (error: any) {
     logError(searchRunId, "Erro geral na busca de leads", error);
+    if (supabaseAdminForCatch && authenticatedUserIdForCatch) {
+      await upsertSearchLog(supabaseAdminForCatch, {
+        search_run_id: searchRunId,
+        user_id: authenticatedUserIdForCatch,
+        ...searchContextForCatch,
+        status: "error",
+        error_message: error?.message || "Erro interno na Edge Function buscar-leads.",
+        duration_ms: Date.now() - startedAt,
+        completed_at: new Date().toISOString(),
+        diagnostics: { error: error?.message || String(error) },
+        ip_address: req.headers.get("x-forwarded-for"),
+        user_agent: req.headers.get("user-agent"),
+      });
+      await logAppEvent(supabaseAdminForCatch, {
+        userId: authenticatedUserIdForCatch,
+        eventType: "search_failed",
+        eventData: {
+          searchRunId,
+          ...searchContextForCatch,
+          error: error?.message || String(error),
+        },
+        ipAddress: req.headers.get("x-forwarded-for"),
+        userAgent: req.headers.get("user-agent"),
+      });
+    }
     return errorResponse(
       corsHeaders,
       500,

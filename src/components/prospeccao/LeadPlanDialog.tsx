@@ -58,12 +58,14 @@ export const LeadPlanDialog = ({
   const [notes, setNotes] = useState(lead?.notas || "");
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const { toast } = useToast();
-  const { subscription, loading: subscriptionLoading } = useSubscription();
-  const { canAnalyzeAI, refetch: refetchUsage } = useUsage();
+  const { subscription, loading: subscriptionLoading, isAdmin: subscriptionIsAdmin } = useSubscription();
+  const { canAnalyzeAI, refetch: refetchUsage, isAdmin: usageIsAdmin } = useUsage();
+  const isAdmin = subscriptionIsAdmin || usageIsAdmin;
   
   // Planos que têm acesso às anotações
-  const hasNotesAccess = subscription && 
-    ['starter', 'iniciante', 'pro', 'agencia'].includes(subscription.plan_name);
+  const hasNotesAccess = isAdmin || (subscription && 
+    ['starter', 'iniciante', 'pro', 'agencia', 'admin'].includes(subscription.plan_name));
+  const canAnalyzeLead = isAdmin || canAnalyzeAI;
 
   // Sempre que o lead mudar ou o dialog for reaberto, sincroniza o estado interno
   useEffect(() => {
@@ -156,7 +158,7 @@ export const LeadPlanDialog = ({
 
   const handleReanalyze = async () => {
     if (!lead) return;
-    if (!canAnalyzeAI) {
+    if (!canAnalyzeLead) {
       toast({
         title: "Limite de IA atingido",
         description: "Você atingiu seu limite de análises com IA.",
@@ -169,6 +171,10 @@ export const LeadPlanDialog = ({
     try {
       // Obter user_id do usuário atual
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Sessão expirada. Faça login novamente.");
       
       const { data: functionData, error: functionError } = await supabase.functions.invoke(
         'analisar-lead-ia',
@@ -187,7 +193,8 @@ export const LeadPlanDialog = ({
             has_gtm: lead.sinais.has_gtm,
             instagram_url: lead.instagram_url,
             instagram_context: lead.instagram_context,
-          }
+          },
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
@@ -250,7 +257,7 @@ export const LeadPlanDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto scrollbar-zuno">
         <DialogHeader>
           <DialogTitle className="text-2xl">{displayLead.nome}</DialogTitle>
           <DialogDescription>
@@ -368,7 +375,7 @@ export const LeadPlanDialog = ({
               geradoEm={displayLead.ai_analise_gerada_em}
               onReanalyze={handleReanalyze}
               isReanalyzing={isReanalyzing}
-              canAnalyzeAI={canAnalyzeAI}
+              canAnalyzeAI={canAnalyzeLead}
             />
           </TabsContent>
 

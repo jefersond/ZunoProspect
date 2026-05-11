@@ -12,11 +12,14 @@ const RESEND_REPLY_TO_EMAIL = Deno.env.get("RESEND_REPLY_TO_EMAIL") || "";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 interface SendCampaignRequest {
-  campaignId: string;
+  mode?: "test" | "send";
+  campaignId?: string;
+  recipientEmail?: string;
+  email?: string;
   testMode?: boolean;
   dryRun?: boolean;
   confirmed?: boolean;
@@ -71,9 +74,23 @@ const addEmailShell = (
   emailType: string,
   queueId: string,
 ) => {
-  const bodyHtml = hasHtmlTags ? content : `<p style="margin:0;color:#3f3f46;font-size:16px;line-height:1.8;">${textToHtml(content)}</p>`;
   const openUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/track-email-open?uid=${encodeURIComponent(userId)}&type=${encodeURIComponent(emailType)}&qid=${encodeURIComponent(queueId)}`;
   const unsubscribeUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/unsubscribe-email?uid=${encodeURIComponent(userId)}&source=${encodeURIComponent(emailType)}`;
+  const openPixel = `<img src="${openUrl}" width="1" height="1" style="display:none;" alt="" />`;
+
+  if (/<!doctype|<html[\s>]/i.test(content)) {
+    let fullHtml = content
+      .replace(/{{UNSUBSCRIBE_URL}}/g, unsubscribeUrl)
+      .replace(/{{OPEN_PIXEL}}/g, openPixel);
+
+    if (!fullHtml.includes(openUrl)) {
+      fullHtml = fullHtml.replace(/<\/body>/i, `${openPixel}</body>`);
+    }
+
+    return fullHtml;
+  }
+
+  const bodyHtml = hasHtmlTags ? content : `<p style="margin:0;color:#3f3f46;font-size:16px;line-height:1.8;">${textToHtml(content)}</p>`;
 
   return `<!doctype html>
 <html>
@@ -138,7 +155,13 @@ const sendViaResend = async (payload: {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data?.message || data?.error || "Erro ao enviar pelo Resend");
+    const details = data?.message || data?.error || "Erro ao enviar pelo Resend";
+    console.error("[send-email-campaign] Resend error:", {
+      status: response.status,
+      details,
+      body: data,
+    });
+    throw new Error(details);
   }
   return data;
 };
@@ -281,7 +304,14 @@ const applySafetyFilters = async (supabase: any, recipients: Recipient[]) => {
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { status: 200, headers: corsHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return jsonResponse({
+      error: "Metodo nao permitido",
+      details: "Use POST para enviar ou testar campanhas.",
+    }, 405);
   }
 
   try {
@@ -292,15 +322,65 @@ serve(async (req: Request): Promise<Response> => {
     const auth = await getAuthedAdmin(req, supabase);
     if (auth.error) return auth.error;
 
-    const { campaignId, testMode = false, dryRun = false, confirmed = false }: SendCampaignRequest = await req.json();
-    if (!campaignId) return jsonResponse({ error: "ID da campanha é obrigatório" }, 400);
+    const body: SendCampaignRequest = await req.json().catch(() => ({}));
+    const campaignId = body.campaignId;
+    const testMode = body.mode === "test" || body.testMode === true;
+    const dryRun = body.dryRun === true;
+    const confirmed = body.confirmed === true;
+    const recipientEmail = normalizeEmail(body.recipientEmail || body.email || ADMIN_TEST_EMAIL);
+
+    console.log("send-email-campaign payload:", {
+      hasCampaignId: !!campaignId,
+      hasRecipientEmail: !!body.recipientEmail,
+      hasEmail: !!body.email,
+      hasSubject: false,
+      hasContent: false,
+      isTest: testMode,
+      segment: null,
+      mode: body.mode || null,
+    });
+    if (!campaignId) {
+      return jsonResponse({
+        error: "Payload invalido",
+        details: "Campo campaignId e obrigatorio.",
+      }, 400);
+    }
+
+    if (testMode && !isValidEmail(recipientEmail)) {
+      return jsonResponse({
+        error: "Payload invalido",
+        details: "Campo recipientEmail deve conter um e-mail valido.",
+      }, 400);
+    }
 
     const { data: campaign, error: campaignError } = await supabase
       .from("email_campaigns")
       .select("*")
       .eq("id", campaignId)
       .single();
-    if (campaignError || !campaign) return jsonResponse({ error: "Campanha não encontrada" }, 404);
+    if (campaignError || !campaign) {
+      return jsonResponse({
+        error: "Campanha nao encontrada",
+        details: campaignError?.message || "Verifique se campaignId existe.",
+      }, 404);
+    }
+
+    const subject = String(campaign.assunto || "").trim();
+    const content = String(campaign.conteudo || "").trim();
+    console.log("send-email-campaign campaign:", {
+      campaignId,
+      hasSubject: !!subject,
+      hasContent: !!content,
+      isTest: testMode,
+      segment: campaign.segmento || null,
+    });
+
+    if (!subject || !content) {
+      return jsonResponse({
+        error: "Campanha incompleta",
+        details: "Complete assunto e mensagem antes de enviar teste.",
+      }, 400);
+    }
 
     if (!dryRun && !testMode && !confirmed) {
       return jsonResponse({
@@ -312,6 +392,7 @@ serve(async (req: Request): Promise<Response> => {
     if (!dryRun && (!RESEND_API_KEY || !RESEND_FROM_EMAIL)) {
       return jsonResponse({
         error: "Configuração de e-mail incompleta",
+        details: !RESEND_API_KEY ? "RESEND_API_KEY nao configurada." : "RESEND_FROM_EMAIL nao configurada.",
         requiredSecrets: ["RESEND_API_KEY", "RESEND_FROM_EMAIL", "RESEND_REPLY_TO_EMAIL", "PUBLIC_SITE_URL"],
       }, 500);
     }
@@ -336,9 +417,21 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    const segment = testMode ? "internal_admins" : campaign.segmento;
-    const rawRecipients = await loadRecipients(supabase, segment);
-    const { allowed, skipped } = await applySafetyFilters(supabase, rawRecipients);
+    const segment = testMode ? "test" : campaign.segmento;
+    const rawRecipients = testMode
+      ? [{
+          userId: auth.user.id,
+          email: recipientEmail,
+          name: auth.user.user_metadata?.full_name || auth.user.user_metadata?.name || "Admin",
+          planName: "admin",
+          leadsUsed: 0,
+          createdAt: auth.user.created_at || null,
+          lastSignInAt: auth.user.last_sign_in_at || null,
+        }]
+      : await loadRecipients(supabase, segment);
+    const { allowed, skipped } = testMode
+      ? { allowed: rawRecipients, skipped: { invalid_or_duplicate: 0, unsubscribed: 0, cooldown: 0 } }
+      : await applySafetyFilters(supabase, rawRecipients);
     const recipients = allowed.slice(0, testMode ? 1 : MAX_EMAILS_PER_SEND);
 
     if (dryRun) {
@@ -356,7 +449,10 @@ serve(async (req: Request): Promise<Response> => {
 
     if (recipients.length === 0) {
       return jsonResponse({
-        error: "Nenhum destinatário elegível",
+        error: "Nenhum destinatario elegivel",
+        details: testMode
+          ? "Informe recipientEmail valido para enviar o teste da campanha."
+          : "Nenhum usuario do segmento passou nos filtros de envio.",
         segment,
         skipped,
       }, 400);

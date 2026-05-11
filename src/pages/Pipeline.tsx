@@ -15,6 +15,7 @@ import { LeadProspeccao } from '@/types/lead';
 import { useSubscription } from '@/hooks/useSubscription';
 import { FeatureUpgradePrompt } from '@/components/shared/FeatureUpgradePrompt';
 import { AppHeader } from '@/components/AppHeader';
+import { isAdminUser } from '@/config/admin';
 
 export default function Pipeline() {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ export default function Pipeline() {
       setUser(session.user);
       // Check if admin
       const { data: adminData } = await supabase.rpc('is_admin', { _user_id: session.user.id });
-      setIsAdmin(!!adminData);
+      setIsAdmin(isAdminUser(session.user, { is_admin: adminData === true }));
     };
     checkAuth();
   }, [navigate]);

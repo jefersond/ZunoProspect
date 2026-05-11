@@ -888,6 +888,51 @@ export type Database = {
         }
         Relationships: []
       }
+      user_addons: {
+        Row: {
+          activated_at: string
+          addon_id: string
+          cancelled_at: string | null
+          created_at: string
+          id: string
+          provider: string
+          status: string
+          stripe_customer_id: string | null
+          stripe_price_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          activated_at?: string
+          addon_id: string
+          cancelled_at?: string | null
+          created_at?: string
+          id?: string
+          provider?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          activated_at?: string
+          addon_id?: string
+          cancelled_at?: string | null
+          created_at?: string
+          id?: string
+          provider?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_subscriptions: {
         Row: {
           billing_period_end: string
@@ -1382,6 +1427,30 @@ export type Database = {
           leads_remaining: number
           leads_used: number
           plan_name: string
+        }[]
+      }
+      get_current_user_usage: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          ai_available_total: number
+          ai_limit: number
+          ai_used: number
+          billing_period_end: string
+          is_admin: boolean
+          leads_available_total: number
+          leads_bonus_balance: number
+          leads_limit: number
+          leads_used: number
+          plan: string
+        }[]
+      }
+      get_referral_summary: {
+        Args: { p_user_id: string }
+        Returns: {
+          leads_available_total: number
+          referral_bonus_available: number
+          referral_code: string
+          referral_count: number
         }[]
       }
       get_subscription_info: {

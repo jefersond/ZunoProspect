@@ -26,7 +26,7 @@ interface SendCampaignRequest {
 }
 
 interface Recipient {
-  userId: string;
+  userId: string | null;
   email: string;
   name: string | null;
   planName: string | null;
@@ -70,12 +70,13 @@ const textToHtml = (text: string) => {
 const addEmailShell = (
   content: string,
   hasHtmlTags: boolean,
-  userId: string,
+  userId: string | null,
   emailType: string,
   queueId: string,
 ) => {
-  const openUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/track-email-open?uid=${encodeURIComponent(userId)}&type=${encodeURIComponent(emailType)}&qid=${encodeURIComponent(queueId)}`;
-  const unsubscribeUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/unsubscribe-email?uid=${encodeURIComponent(userId)}&source=${encodeURIComponent(emailType)}`;
+  const uidParam = userId ? encodeURIComponent(userId) : "manual";
+  const openUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/track-email-open?uid=${uidParam}&type=${encodeURIComponent(emailType)}&qid=${encodeURIComponent(queueId)}`;
+  const unsubscribeUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/unsubscribe-email?uid=${uidParam}&source=${encodeURIComponent(emailType)}`;
   const openPixel = `<img src="${openUrl}" width="1" height="1" style="display:none;" alt="" />`;
 
   if (/<!doctype|<html[\s>]/i.test(content)) {
@@ -107,7 +108,7 @@ const addEmailShell = (
         </td></tr>
         <tr><td style="background:#fafafa;padding:20px 28px;border-top:1px solid #e4e4e7;text-align:center;">
           <p style="color:#71717a;font-size:12px;line-height:1.6;margin:0;">
-            Você recebeu este e-mail porque criou uma conta no Zuno Prospect.
+            Você recebeu este e-mail porque se cadastrou em nossa plataforma ou listas de interesse.
             <br />
             <a href="${unsubscribeUrl}" style="color:#71717a;text-decoration:underline;">Descadastrar deste tipo de comunicação</a>
           </p>
@@ -121,14 +122,15 @@ const addEmailShell = (
 </html>`;
 };
 
-const withTrackedLinks = (html: string, userId: string, emailType: string, queueId: string) => {
+const withTrackedLinks = (html: string, userId: string | null, emailType: string, queueId: string) => {
   const functionBase = `${Deno.env.get("SUPABASE_URL")}/functions/v1/track-email-click`;
+  const uidParam = userId ? encodeURIComponent(userId) : "manual";
   return html.replace(/href="(https?:\/\/[^"]+)"/g, (_match, rawUrl) => {
     if (rawUrl.includes("/functions/v1/track-email-click") || rawUrl.includes("/functions/v1/unsubscribe-email")) {
       return `href="${rawUrl}"`;
     }
 
-    const tracked = `${functionBase}?uid=${encodeURIComponent(userId)}&type=${encodeURIComponent(emailType)}&qid=${encodeURIComponent(queueId)}&redirect=${encodeURIComponent(rawUrl)}`;
+    const tracked = `${functionBase}?uid=${uidParam}&type=${encodeURIComponent(emailType)}&qid=${encodeURIComponent(queueId)}&redirect=${encodeURIComponent(rawUrl)}`;
     return `href="${tracked}"`;
   });
 };
@@ -252,13 +254,13 @@ const applySafetyFilters = async (supabase: any, recipients: Recipient[]) => {
     };
   }
 
-  const userIds = deduped.map((recipient) => recipient.userId);
+  const userIds = deduped.map((recipient) => recipient.userId).filter(Boolean);
   const emails = deduped.map((recipient) => recipient.email);
 
-  const { data: unsubByUser } = await supabase
+  const { data: unsubByUser } = userIds.length > 0 ? await supabase
     .from("email_unsubscribes")
     .select("user_id, email")
-    .in("user_id", userIds);
+    .in("user_id", userIds) : { data: [] };
 
   const { data: unsubByEmail } = await supabase
     .from("email_unsubscribes")
@@ -271,14 +273,22 @@ const applySafetyFilters = async (supabase: any, recipients: Recipient[]) => {
   const unsubEmails = new Set((unsubscribes || []).map((row: any) => normalizeEmail(row.email || "")).filter(Boolean));
 
   const cooldownSince = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const { data: recent } = await supabase
+  
+  const { data: recent } = userIds.length > 0 ? await supabase
     .from("email_queue")
     .select("user_id, to_email")
     .gte("created_at", cooldownSince)
-    .in("user_id", userIds);
+    .in("user_id", userIds) : { data: [] };
+
+  // Also check cooldown by email for manual recipients
+  const { data: recentByEmail } = await supabase
+    .from("email_queue")
+    .select("to_email")
+    .gte("created_at", cooldownSince)
+    .in("to_email", emails);
 
   const recentUserIds = new Set((recent || []).map((row: any) => row.user_id).filter(Boolean));
-  const recentEmails = new Set((recent || []).map((row: any) => normalizeEmail(row.to_email || "")).filter(Boolean));
+  const recentEmails = new Set([...(recent || []), ...(recentByEmail || [])].map((row: any) => normalizeEmail(row.to_email || "")).filter(Boolean));
 
   const allowed: Recipient[] = [];
   const skipped = {
@@ -288,11 +298,11 @@ const applySafetyFilters = async (supabase: any, recipients: Recipient[]) => {
   };
 
   for (const recipient of deduped) {
-    if (unsubUserIds.has(recipient.userId) || unsubEmails.has(recipient.email)) {
+    if ((recipient.userId && unsubUserIds.has(recipient.userId)) || unsubEmails.has(recipient.email)) {
       skipped.unsubscribed++;
       continue;
     }
-    if (recentUserIds.has(recipient.userId) || recentEmails.has(recipient.email)) {
+    if ((recipient.userId && recentUserIds.has(recipient.userId)) || recentEmails.has(recipient.email)) {
       skipped.cooldown++;
       continue;
     }
@@ -429,6 +439,24 @@ serve(async (req: Request): Promise<Response> => {
           lastSignInAt: auth.user.last_sign_in_at || null,
         }]
       : await loadRecipients(supabase, segment);
+
+    if (!testMode && Array.isArray(campaign.manual_recipients)) {
+      for (const mEmail of campaign.manual_recipients) {
+        const normalized = normalizeEmail(mEmail);
+        if (isValidEmail(normalized)) {
+          rawRecipients.push({
+            userId: null,
+            email: normalized,
+            name: "Manual",
+            planName: "manual",
+            leadsUsed: 0,
+            createdAt: new Date().toISOString(),
+            lastSignInAt: null,
+          });
+        }
+      }
+    }
+
     const { allowed, skipped } = testMode
       ? { allowed: rawRecipients, skipped: { invalid_or_duplicate: 0, unsubscribed: 0, cooldown: 0 } }
       : await applySafetyFilters(supabase, rawRecipients);
@@ -480,7 +508,7 @@ serve(async (req: Request): Promise<Response> => {
           email_type: emailType,
           campaign_id: campaignId,
           user_id: recipient.userId,
-          metadata: { campaign_name: campaign.nome, segment, testMode },
+          metadata: { campaign_name: campaign.nome, segment, testMode, recipient_source: recipient.userId ? 'database' : 'manual' },
           status: "pending",
           provider: "resend",
         })

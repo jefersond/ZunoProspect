@@ -85,6 +85,7 @@ const AdminEmail = () => {
     conteudo: "",
     segmento: "todos",
     formato: "texto", // "texto" ou "html"
+    manualRecipientsRaw: "",
   });
   const [creating, setCreating] = useState(false);
 
@@ -155,6 +156,19 @@ const AdminEmail = () => {
       return;
     }
 
+    const rawEmails = (newCampaign as any).manualRecipientsRaw?.split(/[\n,;]+/).map((e: string) => e.trim().toLowerCase()).filter(Boolean) || [];
+    const manual_recipients = Array.from(new Set(rawEmails.filter((e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))));
+    const invalidEmails = Array.from(new Set(rawEmails.filter((e: string) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))));
+
+    if (invalidEmails.length > 0) {
+      toast({
+        variant: "destructive",
+        title: "E-mails inválidos detectados",
+        description: `Corrija ou remova: ${invalidEmails.slice(0, 3).join(", ")}${invalidEmails.length > 3 ? "..." : ""}`,
+      });
+      return;
+    }
+
     setCreating(true);
     try {
       const { error } = await supabase.from("email_campaigns").insert({
@@ -162,6 +176,7 @@ const AdminEmail = () => {
         assunto: newCampaign.assunto,
         conteudo: newCampaign.conteudo,
         segmento: newCampaign.segmento,
+        manual_recipients,
       });
 
       if (error) throw error;
@@ -171,7 +186,7 @@ const AdminEmail = () => {
         description: "A campanha foi salva como rascunho.",
       });
 
-      setNewCampaign({ nome: "", assunto: "", conteudo: "", segmento: "todos", formato: "texto" });
+      setNewCampaign({ nome: "", assunto: "", conteudo: "", segmento: "todos", formato: "texto", manualRecipientsRaw: "" } as any);
       setShowNewCampaign(false);
       await loadCampaigns();
     } catch (error: any) {
@@ -680,6 +695,31 @@ const AdminEmail = () => {
                   <SelectItem value="internal_admins">Admins/testes internos</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="manualRecipients">Destinatários manuais (opcional)</Label>
+              <Textarea
+                id="manualRecipients"
+                placeholder="email1@gmail.com, email2@gmail.com&#10;ou um por linha"
+                value={newCampaign.manualRecipientsRaw}
+                onChange={(e) => setNewCampaign({ ...newCampaign, manualRecipientsRaw: e.target.value })}
+                className="min-h-[80px]"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <p>Adicione e-mails extras que também devem receber esta campanha.</p>
+                {(() => {
+                  const rawEmails = newCampaign.manualRecipientsRaw.split(/[\n,;]+/).map(e => e.trim()).filter(Boolean);
+                  const valid = rawEmails.filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+                  const invalid = rawEmails.filter(e => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+                  if (rawEmails.length === 0) return null;
+                  return (
+                    <span className={invalid.length > 0 ? "text-destructive font-medium" : "text-emerald-600 font-medium"}>
+                      {valid.length} válido(s) {invalid.length > 0 && `| ${invalid.length} inválido(s)`}
+                    </span>
+                  );
+                })()}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="assunto">Assunto do Email</Label>

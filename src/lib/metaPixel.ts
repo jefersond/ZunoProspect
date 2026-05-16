@@ -1,6 +1,5 @@
 // Meta Pixel IDs
-export const FB_PIXEL_ID = '3431644540310424';
-export const FB_PIXEL_ID_2 = '1395903565453591';
+export const FB_PIXEL_ID = '1395903565453591';
 
 // Declare fbq for TypeScript
 declare global {

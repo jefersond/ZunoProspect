@@ -209,5 +209,17 @@ export const FAQ_ITEMS = [
   {
     pergunta: "Tem garantia?",
     resposta: "Sim! Todos os planos têm garantia de 7 dias. Se não gostar, devolvemos seu dinheiro sem burocracia."
+  },
+  {
+    pergunta: "Quando eu recebo o bônus de indicação?",
+    resposta: "Você recebe 100 buscas extras quando uma pessoa indicada pelo seu link assina qualquer plano pago do Zuno. Cadastros gratuitos não liberam bônus automaticamente."
+  },
+  {
+    pergunta: "A pessoa indicada precisa assinar qual plano?",
+    resposta: "Qualquer plano pago: Iniciante, Pro ou Agência."
+  },
+  {
+    pergunta: "O bônus entra na hora?",
+    resposta: "O bônus é liberado automaticamente após a confirmação do pagamento."
   }
 ];

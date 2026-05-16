@@ -122,6 +122,32 @@ export function PrecosSection() {
           </div>
         </div>
 
+        <div className="mx-auto mb-10 max-w-6xl">
+          <Card className="flex flex-col gap-5 rounded-lg border-emerald-500/30 bg-emerald-500/5 p-6 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/20">
+                <Sparkles className="h-5 w-5 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold">Indique e ganhe mais buscas</h3>
+                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                  Convide alguém para conhecer o Zuno. Quando essa pessoa assinar qualquer plano pago, você recebe 100 buscas extras na sua conta.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex shrink-0">
+              <Button 
+                variant="outline" 
+                className="border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-400" 
+                onClick={() => document.getElementById("referral-section")?.scrollIntoView({ behavior: "smooth" })}
+              >
+                Ver como funciona
+              </Button>
+            </div>
+          </Card>
+        </div>
+
         <div className="mx-auto grid max-w-6xl gap-6 md:grid-cols-3">
           {PLAN_LIST.map((plan) => {
             const price = getPlanPrice(plan.id, billingCycle);

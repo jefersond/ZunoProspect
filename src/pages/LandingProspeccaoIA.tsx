@@ -40,6 +40,9 @@ const PrecosSection = lazy(() => import("@/components/landing/PrecosSection").th
 const FAQSection = lazy(() => import("@/components/landing/FAQSection").then(m => ({
   default: m.FAQSection
 })));
+const ReferralSection = lazy(() => import("@/components/landing/ReferralSection").then(m => ({
+  default: m.ReferralSection
+})));
 const CTAFinalSection = lazy(() => import("@/components/landing/CTAFinalSection").then(m => ({
   default: m.CTAFinalSection
 })));
@@ -205,6 +208,10 @@ export default function LandingProspeccaoIA() {
       </Suspense>
       
       <Suspense fallback={<SectionSkeleton />}>
+        <ReferralSection />
+      </Suspense>
+      
+      <Suspense fallback={<SectionSkeleton />}>
         <FAQSection />
       </Suspense>
       
@@ -220,3 +227,4 @@ export default function LandingProspeccaoIA() {
     </div>
   );
 }
+

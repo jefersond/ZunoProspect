@@ -26,32 +26,32 @@ export const PERFIS_ALVO: PerfilAlvo[] = [
   {
     titulo: "Gestores de tráfego",
     icone: TrendingUp,
-    bullets: ["Encontre empresas que podem precisar de anúncios e receba abordagens prontas para iniciar conversa."],
+    bullets: ["Encontre empresas que podem precisar de anúncios."],
   },
   {
     titulo: "Social medias",
     icone: Megaphone,
-    bullets: ["Identifique negócios com presença digital fraca e crie uma abordagem mais estratégica."],
+    bullets: ["Ache negócios com presença digital fraca."],
   },
   {
     titulo: "Freelancers",
     icone: Palette,
-    bullets: ["Comece a prospectar com mais clareza, sem depender só de indicação."],
+    bullets: ["Comece a prospectar sem depender só de indicação."],
   },
   {
     titulo: "Consultores",
     icone: LineChart,
-    bullets: ["Encontre empresas com sinais de oportunidade e priorize quem abordar primeiro."],
+    bullets: ["Priorize empresas com sinais de oportunidade."],
   },
   {
     titulo: "Agências pequenas",
     icone: Building2,
-    bullets: ["Gere listas de oportunidades por nicho e região para alimentar sua rotina comercial."],
+    bullets: ["Crie listas por nicho e região para alimentar o comercial."],
   },
   {
     titulo: "SDRs",
     icone: BriefcaseBusiness,
-    bullets: ["Use dados e IA para organizar a primeira abordagem."],
+    bullets: ["Organize a primeira abordagem com dados e IA."],
   },
 ];
 
@@ -122,24 +122,24 @@ export const LEAD_QUANTITIES = [300, 800, 2000];
 
 export const FAQ_ITEMS = [
   {
-    pergunta: "O que o Zuno faz?",
-    resposta: "O Zuno ajuda você a encontrar empresas por cidade e nicho, analisar oportunidades com IA e gerar abordagens prontas para iniciar conversas.",
+    pergunta: "O que é o Zuno Propect?",
+    resposta: "O Zuno é uma plataforma de prospecção com IA que ajuda você a encontrar empresas por cidade e nicho, analisar oportunidades e gerar abordagens prontas.",
   },
   {
-    pergunta: "De onde vêm os leads?",
-    resposta: "A busca usa dados públicos de empresas disponíveis em fontes como o Google Places. A disponibilidade dos contatos pode variar conforme as informações públicas de cada empresa.",
+    pergunta: "Preciso de cartão para começar?",
+    resposta: "Não. Você pode testar com 20 leads e 3 análises IA no plano grátis.",
   },
   {
-    pergunta: "A IA consome meu limite automaticamente?",
-    resposta: "Não. A IA só é usada quando você clica em \"Analisar com IA\".",
+    pergunta: "Quantos leads tenho no plano grátis?",
+    resposta: "O plano grátis inclui 20 leads por mês e 3 análises com IA.",
   },
   {
-    pergunta: "O plano grátis tem limite?",
-    resposta: "Sim. O plano grátis inclui 20 leads por mês e 3 análises com IA.",
+    pergunta: "A IA gera mensagens para quais canais?",
+    resposta: "O Zuno gera abordagens prontas para WhatsApp, Instagram e e-mail.",
   },
   {
-    pergunta: "O que acontece quando meu limite acaba?",
-    resposta: "Você pode fazer upgrade para liberar mais leads e análises.",
+    pergunta: "A IA consome meus créditos automaticamente?",
+    resposta: "Não. A IA só é usada quando você clica para analisar um lead.",
   },
   {
     pergunta: "Posso cancelar quando quiser?",
@@ -147,18 +147,6 @@ export const FAQ_ITEMS = [
   },
   {
     pergunta: "Como funciona a indicação?",
-    resposta: "Você ganha 100 buscas extras quando uma pessoa indicada pelo seu link assina qualquer plano pago. Cadastros gratuitos ficam como pendentes.",
-  },
-  {
-    pergunta: "Preciso instalar alguma coisa?",
-    resposta: "Não. O Zuno funciona direto no navegador.",
-  },
-  {
-    pergunta: "Posso exportar os leads?",
-    resposta: "Sim. Você pode exportar leads para Excel conforme os recursos disponíveis no seu plano.",
-  },
-  {
-    pergunta: "O Zuno envia mensagens automaticamente?",
-    resposta: "Não. O Zuno gera abordagens prontas para você revisar, copiar e enviar pelo canal que preferir.",
+    resposta: "Você ganha 100 buscas extras quando uma pessoa indicada assina qualquer plano pago. Cadastros gratuitos ficam como pendentes.",
   },
 ];

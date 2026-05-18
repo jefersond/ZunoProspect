@@ -1,4 +1,7 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { trackEvent } from "@/lib/tracking";
+import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import {
   Tooltip,
   TooltipContent,
@@ -28,11 +31,36 @@ const isWithinBusinessHours = (): boolean => {
   return isWeekday && isBusinessHour;
 };
 
+const HIDE_WHATSAPP_PATHS = [
+  "/",
+  "/landing",
+  "/fundador",
+  "/pricing",
+  "/precos",
+  "/auth",
+  "/login",
+  "/signup",
+  "/cadastro",
+  "/admin"
+];
+
 export const FloatingWhatsAppButton = ({ 
   message = DEFAULT_MESSAGE 
 }: FloatingWhatsAppButtonProps) => {
   const [isOnline, setIsOnline] = useState(isWithinBusinessHours());
+  const location = useLocation();
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+
+  const handleWhatsAppClick = () => {
+    trackEvent("WhatsApp_Support_Click", {
+      source: "app",
+      path: location.pathname
+    });
+    trackMetaCustomEvent("WhatsApp_Support_Click", {
+      source: "app",
+      path: location.pathname
+    });
+  };
 
   // Atualiza o status a cada minuto
   useEffect(() => {
@@ -43,6 +71,10 @@ export const FloatingWhatsAppButton = ({
     return () => clearInterval(interval);
   }, []);
 
+  if (HIDE_WHATSAPP_PATHS.includes(location.pathname)) {
+    return null;
+  }
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -50,6 +82,7 @@ export const FloatingWhatsAppButton = ({
           href={whatsappUrl}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={handleWhatsAppClick}
           className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition-all duration-300 hover:scale-105 hover:bg-[#128C7E] hover:shadow-xl"
           aria-label="Suporte via WhatsApp"
         >

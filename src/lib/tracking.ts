@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getAttributionParams } from "@/lib/metaPixel";
+import { normalizeCreativeName } from "./creativeMap";
 
 type EventMetadata = Record<string, unknown>;
 
@@ -212,11 +213,20 @@ export async function trackEvent(eventName: string, metadata: EventMetadata = {}
       data: { session },
     } = await supabase.auth.getSession();
     const userAgent = navigator.userAgent || "";
+    const rawUtmContent = attribution.utm_content || "sem_utm_content";
+    const creativeName = normalizeCreativeName(rawUtmContent);
+    const enrichedMetadata = {
+      ...metadata,
+      utm_content_original: rawUtmContent,
+      utm_content_normalized: creativeName,
+      creative_name: creativeName,
+    };
+
     const payload = {
       event_name: eventName,
       event_type: eventName,
-      metadata,
-      event_data: metadata,
+      metadata: enrichedMetadata,
+      event_data: enrichedMetadata,
       path: window.location.pathname,
       pathname: window.location.pathname,
       page_url: window.location.href,

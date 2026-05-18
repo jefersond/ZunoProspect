@@ -1,14 +1,14 @@
-# VLAEG - Progress
-- Funcoes de e-mail publicadas anteriormente no projeto `ihtltqxxlvbsxbiacbpr`: `send-email-campaign`, `test-email-config`, `track-email-open`, `track-email-click` e `unsubscribe-email`.
-- Card de indicacao (`ReferralCard.tsx`) aprimorado para exibir Indicacoes Feitas, Buscas Extras Disponiveis e Leads Disponiveis Totais.
-- Integracao do `useSubscription` no `ReferralCard.tsx` para manter o saldo total consistente com os demais badges da aplicacao.
-- Modal de upgrade de plano (`UpgradePlanDialog.tsx`) refatorado:
-  - Bug do "R$ NaN /mes" corrigido no plano Iniciante.
-  - Layout dos planos agora segue um grid consistente, incluindo o plano Agencia no mesmo loop.
-  - Cards usam `flex-col` para manter os botoes alinhados no rodape.
-  - Distintivo "Mais popular" alinhado na borda superior do plano em destaque.
-- Banco remoto corrigido sem `db push` completo, pois o historico remoto de migrations esta dessincronizado.
-- Criada e aplicada a migration `20260505083000_bootstrap_remote_email_remarketing.sql` para provisionar as tabelas de e-mail ausentes.
-- Aplicadas com sucesso as migrations `20260502133000_email_remarketing_safety.sql` e `20260505090000_usage_limits_leads_ai.sql`.
-- Validadas no remoto as tabelas `email_campaigns`, `email_queue`, `email_events`, `email_unsubscribes`, `onboarding_emails_sent` e as funcoes `ensure_user_usage`/`increment_ai_usage`.
-- Publicadas no Supabase as funcoes `buscar-leads`, `analisar-lead-ia`, `create-stripe-checkout`, `stripe-webhook` e `kiwify-webhook`.
+# Progresso
+
+- Protocolo VLAEG iniciado para a otimização da Landing Page.
+- Reestruturação concluída no arquivo principal `LandingProspeccaoIA.tsx`:
+  - Removidas as seções longas/repetitivas (`FeatureSection` array, `MetricsCarousel`, `BeneficiosSection`, `PainPointsSection`, `MetricasSection`, `ConfiancaOperacionalSection`).
+  - Nenhuma seção de "Prova Social falsa" restante, pois elas estavam encapsuladas nessas remoções.
+  - Criado o arquivo `OQueZunoFazSection.tsx` para agrupar as funcionalidades em 4 cards compactos.
+- Atualização de copys:
+  - `HeroSection.tsx`: Headline e subtítulo atualizados e focados na conversão ("Começar grátis").
+  - `ComoFuncionaSection.tsx`: Título, subtítulo e Passo 2 atualizados.
+  - `data.ts`: PERFIS_ALVO e FAQ_ITEMS reescritos para versões curtas e diretas.
+  - `CTAFinalSection.tsx`: Headline e subtítulo encurtados.
+- Teste de build `npm run build` passou sem erros.
+- Os eventos e rastreamento de cliques em CTA (`trackEvent`) permanecem nativamente nos botões dos componentes conservados (`HeroSection`, `PrecosSection`, `CTAFinalSection`, etc.).

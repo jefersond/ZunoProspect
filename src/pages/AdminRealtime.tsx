@@ -4,6 +4,7 @@ import { Activity, Clock, CreditCard, Filter, MousePointerClick, Search, Shoppin
 import { supabase } from "@/integrations/supabase/client";
 import { isAdminEmail } from "@/config/admin";
 import { AppHeader } from "@/components/AppHeader";
+import { normalizeCreativeName, CREATIVE_NAME_MAP } from "@/lib/creativeMap";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -157,7 +158,22 @@ export default function AdminRealtime() {
       if (eventType !== "all") query = query.eq("event_name", eventType);
       if (utmSource.trim()) query = query.ilike("utm_source", `%${utmSource.trim()}%`);
       if (utmCampaign.trim()) query = query.ilike("utm_campaign", `%${utmCampaign.trim()}%`);
-      if (utmContent.trim()) query = query.ilike("utm_content", `%${utmContent.trim()}%`);
+      if (utmContent.trim()) {
+        const searchVal = utmContent.trim();
+        const matchingRawIds = Object.entries(CREATIVE_NAME_MAP)
+          .filter(([raw, friendly]) => friendly.toLowerCase().includes(searchVal.toLowerCase()))
+          .map(([raw]) => raw);
+        
+        if (matchingRawIds.length > 0) {
+          const conditions = [`utm_content.ilike.%${searchVal}%`];
+          matchingRawIds.forEach(id => {
+            conditions.push(`utm_content.eq.${id}`);
+          });
+          query = query.or(conditions.join(','));
+        } else {
+          query = query.ilike("utm_content", `%${searchVal}%`);
+        }
+      }
 
       const { data, error } = await query;
       if (error) {
@@ -202,6 +218,7 @@ export default function AdminRealtime() {
         event.utm_source,
         event.utm_campaign,
         event.utm_content,
+        normalizeCreativeName(event.utm_content),
         JSON.stringify(event.metadata || event.event_data || {}),
       ]
         .filter(Boolean)
@@ -244,15 +261,24 @@ export default function AdminRealtime() {
   }, [events]);
 
   const creativeSummary = useMemo(() => {
-    const grouped = new Map<string, AppEvent[]>();
+    const grouped = new Map<string, { events: AppEvent[], originals: Set<string> }>();
 
     filteredEvents.forEach((event) => {
-      const creative = event.utm_content || "sem_utm_content";
-      grouped.set(creative, [...(grouped.get(creative) || []), event]);
+      const rawCreative = event.utm_content || "sem_utm_content";
+      const creative = normalizeCreativeName(rawCreative);
+      const group = grouped.get(creative) || { events: [], originals: new Set() };
+      group.events.push(event);
+      if (rawCreative !== "sem_utm_content" && rawCreative !== creative) {
+        group.originals.add(rawCreative);
+      } else if (rawCreative !== "sem_utm_content" && rawCreative === creative) {
+        // also add if it matches exactly, just so we know what was stored
+        group.originals.add(rawCreative);
+      }
+      grouped.set(creative, group);
     });
 
     return Array.from(grouped.entries())
-      .map(([creative, list]) => {
+      .map(([creative, { events: list, originals }]) => {
         const count = (name: string) => list.filter((event) => eventKey(event) === name).length;
         const pageViews = count("page_view");
         const ctaClicks = count("cta_clicked");
@@ -271,6 +297,7 @@ export default function AdminRealtime() {
           upgradeClicks: count("upgrade_clicked"),
           checkouts: count("checkout_started"),
           purchases: count("purchase_completed"),
+          originals: Array.from(originals).join(", ") || "-",
         };
       })
       .sort((a, b) => b.pageViews - a.pageViews);
@@ -377,7 +404,8 @@ export default function AdminRealtime() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Criativo / utm_content</TableHead>
+                  <TableHead>Criativo</TableHead>
+                  <TableHead>utm_content original</TableHead>
                   <TableHead>PageViews</TableHead>
                   <TableHead>CTA Clicks</TableHead>
                   <TableHead>PV &gt; CTA</TableHead>
@@ -394,6 +422,7 @@ export default function AdminRealtime() {
                 {creativeSummary.map((row) => (
                   <TableRow key={row.creative}>
                     <TableCell className="font-medium">{row.creative}</TableCell>
+                    <TableCell className="max-w-[150px] truncate text-xs text-muted-foreground" title={row.originals}>{row.originals}</TableCell>
                     <TableCell>{row.pageViews}</TableCell>
                     <TableCell>{row.ctaClicks}</TableCell>
                     <TableCell>{row.pageToCta}</TableCell>
@@ -444,7 +473,10 @@ export default function AdminRealtime() {
                     <TableCell className="max-w-[220px] truncate">{event.pathname || event.path || "-"}</TableCell>
                     <TableCell className="max-w-[320px] truncate">{eventDetails(event)}</TableCell>
                     <TableCell className="max-w-[280px] truncate">
-                      {[event.utm_source, event.utm_medium, event.utm_campaign, event.utm_content].filter(Boolean).join(" / ") || "-"}
+                      {[event.utm_source, event.utm_medium, event.utm_campaign, normalizeCreativeName(event.utm_content)].filter(Boolean).join(" / ") || "-"}
+                      {event.utm_content && event.utm_content !== normalizeCreativeName(event.utm_content) && (
+                        <span className="block text-[10px] text-muted-foreground">Original: {event.utm_content}</span>
+                      )}
                     </TableCell>
                     <TableCell>{[event.device_type, event.browser, event.os].filter(Boolean).join(" / ") || "-"}</TableCell>
                   </TableRow>
@@ -470,7 +502,10 @@ export default function AdminRealtime() {
                 </div>
                 <p className="mt-2 text-sm">{event.pathname || event.path || event.page_url || "-"}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {[event.utm_source, event.utm_campaign, event.utm_content].filter(Boolean).join(" / ") || "sem UTM"}
+                  {[event.utm_source, event.utm_campaign, normalizeCreativeName(event.utm_content)].filter(Boolean).join(" / ") || "sem UTM"}
+                  {event.utm_content && event.utm_content !== normalizeCreativeName(event.utm_content) && (
+                    <span className="block text-[10px] text-muted-foreground/70">Original: {event.utm_content}</span>
+                  )}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">{eventDetails(event)}</p>
               </div>

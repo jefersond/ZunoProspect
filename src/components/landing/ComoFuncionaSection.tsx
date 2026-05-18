@@ -19,8 +19,8 @@ export function ComoFuncionaSection() {
     {
       numero: "02",
       icone: Building2,
-      titulo: "Receba empresas com sinais digitais",
-      descricao: "Veja contatos, presença online e oportunidades.",
+      titulo: "Receba empresas com sinais de oportunidade",
+      descricao: "Veja contatos, presença digital e contexto antes de abordar.",
     },
     {
       numero: "03",

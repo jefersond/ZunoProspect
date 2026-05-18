@@ -8,10 +8,7 @@ import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 
 export function HeroSection() {
-  const headlineVariant = new URLSearchParams(window.location.search).get("headline");
-  const headline = headlineVariant?.toLowerCase() === "b"
-    ? "Encontre leads e receba abordagens prontas com IA."
-    : "Pare de prospectar no escuro.";
+  const headline = "Pare de prospectar no escuro.";
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -35,9 +32,7 @@ export function HeroSection() {
         <div className="grid items-center gap-10 lg:grid-cols-[1fr_0.92fr] lg:gap-12">
           <div className="relative">
             <div className="rounded-2xl border border-border/50 bg-card/70 p-5 shadow-xl backdrop-blur md:p-8">
-              <SocialProofBar />
-
-              <h1 className="mt-6 max-w-3xl text-4xl font-extrabold leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+              <h1 className="mt-2 max-w-3xl text-4xl font-extrabold leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
                 {headline}
               </h1>
 
@@ -77,9 +72,9 @@ export function HeroSection() {
                   </Button>
                 </div>
 
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <p className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
                   <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
-                  Teste com 20 leads grátis + 3 análises com IA.
+                  Teste com 20 leads grátis + 3 análises IA.
                 </p>
               </div>
             </div>

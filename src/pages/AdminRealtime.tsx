@@ -40,6 +40,8 @@ type AppEvent = {
   browser: string | null;
   os: string | null;
   event_data: Record<string, unknown> | null;
+  is_internal_event: boolean | null;
+  event_source_type: string | null;
   created_at: string;
 };
 
@@ -107,6 +109,7 @@ export default function AdminRealtime() {
   const [utmSource, setUtmSource] = useState("");
   const [utmCampaign, setUtmCampaign] = useState("");
   const [utmContent, setUtmContent] = useState("");
+  const [internalFilter, setInternalFilter] = useState("exclude");
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
 
   const sinceIso = useMemo(() => {
@@ -155,6 +158,8 @@ export default function AdminRealtime() {
         .order("created_at", { ascending: false })
         .limit(1000);
 
+      if (internalFilter === "exclude") query = query.or("is_internal_event.eq.false,is_internal_event.is.null");
+      if (internalFilter === "only") query = query.eq("is_internal_event", true);
       if (eventType !== "all") query = query.eq("event_name", eventType);
       if (utmSource.trim()) query = query.ilike("utm_source", `%${utmSource.trim()}%`);
       if (utmCampaign.trim()) query = query.ilike("utm_campaign", `%${utmCampaign.trim()}%`);
@@ -195,6 +200,8 @@ export default function AdminRealtime() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "app_events" }, (payload) => {
         const event = payload.new as AppEvent;
         if (new Date(event.created_at).toISOString() < sinceIso) return;
+        if (internalFilter === "exclude" && event.is_internal_event === true) return;
+        if (internalFilter === "only" && event.is_internal_event !== true) return;
         setEvents((current) => [event, ...current].slice(0, 1000));
       })
       .subscribe();
@@ -202,7 +209,7 @@ export default function AdminRealtime() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [eventType, isAdmin, sinceIso, toast, utmCampaign, utmContent, utmSource]);
+  }, [eventType, isAdmin, sinceIso, toast, utmCampaign, utmContent, utmSource, internalFilter]);
 
   const filteredEvents = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -327,6 +334,12 @@ export default function AdminRealtime() {
           </Badge>
         </div>
 
+        {events.some(e => e.utm_content === "sem_utm_content" || !e.utm_content) && internalFilter === "exclude" && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/20 dark:text-amber-200">
+            <strong>Aviso:</strong> Eventos sem UTM podem ser tráfego direto, orgânico, link interno ou teste. Verifique referrer, session_id e event_source_type antes de analisar campanha.
+          </div>
+        )}
+
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
           {[
             { label: "Visitantes", value: metrics.visitors, icon: Users },
@@ -387,6 +400,16 @@ export default function AdminRealtime() {
                 {eventTypes.map((type) => (
                   <SelectItem key={type} value={type}>{type}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select value={internalFilter} onValueChange={setInternalFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Eventos internos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="exclude">Excluir internos</SelectItem>
+                <SelectItem value="only">Somente internos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
               </SelectContent>
             </Select>
             <Input placeholder="Email, usuario, sessao ou evento" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
@@ -461,7 +484,12 @@ export default function AdminRealtime() {
                 {filteredEvents.map((event) => (
                   <TableRow key={event.id}>
                     <TableCell className="whitespace-nowrap text-xs"><Clock className="mr-1 inline h-3 w-3" />{formatTime(event.created_at)}</TableCell>
-                    <TableCell><Badge variant="secondary">{eventKey(event)}</Badge></TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{eventKey(event)}</Badge>
+                      {event.is_internal_event && (
+                        <Badge variant="outline" className="ml-2 border-amber-500/50 text-amber-500 text-[10px] h-5">teste</Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <button
                         className="max-w-[240px] truncate text-left text-primary underline-offset-4 hover:underline"
@@ -476,6 +504,9 @@ export default function AdminRealtime() {
                       {[event.utm_source, event.utm_medium, event.utm_campaign, normalizeCreativeName(event.utm_content)].filter(Boolean).join(" / ") || "-"}
                       {event.utm_content && event.utm_content !== normalizeCreativeName(event.utm_content) && (
                         <span className="block text-[10px] text-muted-foreground">Original: {event.utm_content}</span>
+                      )}
+                      {event.event_source_type && event.event_source_type !== "unknown" && (
+                        <span className="block text-[10px] text-muted-foreground uppercase mt-0.5">{event.event_source_type}</span>
                       )}
                     </TableCell>
                     <TableCell>{[event.device_type, event.browser, event.os].filter(Boolean).join(" / ") || "-"}</TableCell>

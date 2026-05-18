@@ -4,6 +4,18 @@ import { normalizeCreativeName } from "./creativeMap";
 
 type EventMetadata = Record<string, unknown>;
 
+export type EventSourceType =
+  | "paid"
+  | "organic"
+  | "direct"
+  | "referral"
+  | "internal_test"
+  | "unknown";
+
+export const INTERNAL_TEST_EMAILS = [
+  "jeferson.zanotell@gmail.com"
+];
+
 export type TouchAttribution = {
   utm_source: string | null;
   utm_medium: string | null;
@@ -198,6 +210,82 @@ function shouldTrackOnce(key: string) {
   }
 }
 
+export function detectInternalEvent(): boolean {
+  if (typeof window === "undefined") return false;
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const internalParam = urlParams.get("internal");
+  const testParam = urlParams.get("test");
+  const debugParam = urlParams.get("debug");
+
+  if (internalParam === "false") {
+    sessionStorage.removeItem("zuno_internal_test");
+    localStorage.removeItem("zuno_internal_test");
+    return false;
+  }
+
+  if (internalParam === "true" || testParam === "true" || debugParam === "true") {
+    sessionStorage.setItem("zuno_internal_test", "true");
+    return true;
+  }
+
+  const isInternalSession = sessionStorage.getItem("zuno_internal_test") === "true";
+  const isInternalLocal = localStorage.getItem("zuno_internal_test") === "true";
+
+  if (isInternalSession || isInternalLocal) return true;
+
+  const hostname = window.location.hostname;
+  if (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.includes("preview") ||
+    (hostname.includes("vercel.app") && !hostname.includes("zunopropect"))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export function classifyEventSource(
+  isInternal: boolean,
+  attribution: ReturnType<typeof getAttribution>,
+  referrer: string | null
+): EventSourceType {
+  if (isInternal) return "internal_test";
+
+  const isPaid =
+    attribution.utm_source === "meta" ||
+    (attribution.utm_medium && attribution.utm_medium.includes("paid")) ||
+    !!attribution.fbclid ||
+    (attribution.utm_source && ["fb", "facebook", "instagram", "ads", "google"].includes(attribution.utm_source.toLowerCase()));
+
+  if (isPaid) return "paid";
+
+  if (referrer) {
+    const rLower = referrer.toLowerCase();
+    const isSearchEngine =
+      rLower.includes("google") ||
+      rLower.includes("bing") ||
+      rLower.includes("yahoo") ||
+      rLower.includes("duckduckgo");
+    
+    if (isSearchEngine && !attribution.utm_source && !attribution.utm_medium) {
+      return "organic";
+    }
+
+    if (!rLower.includes(window.location.hostname)) {
+      return "referral";
+    }
+  }
+
+  if (!referrer && !attribution.utm_source && !attribution.utm_medium && !attribution.utm_campaign) {
+    return "direct";
+  }
+
+  return "unknown";
+}
+
 export async function trackEvent(eventName: string, metadata: EventMetadata = {}) {
   try {
     if (typeof window === "undefined") return;
@@ -213,6 +301,14 @@ export async function trackEvent(eventName: string, metadata: EventMetadata = {}
       data: { session },
     } = await supabase.auth.getSession();
     const userAgent = navigator.userAgent || "";
+    const userEmail = session?.user?.email || null;
+    let isInternal = detectInternalEvent();
+
+    if (userEmail && INTERNAL_TEST_EMAILS.includes(userEmail)) {
+      isInternal = true;
+    }
+
+    const eventSource = classifyEventSource(isInternal, attribution, document.referrer || null);
     const rawUtmContent = attribution.utm_content || "sem_utm_content";
     const creativeName = normalizeCreativeName(rawUtmContent);
     const enrichedMetadata = {
@@ -236,6 +332,9 @@ export async function trackEvent(eventName: string, metadata: EventMetadata = {}
       device_type: deviceType(userAgent),
       browser: browserName(userAgent),
       os: osName(userAgent),
+      is_internal_event: isInternal,
+      event_source_type: eventSource,
+      user_email: userEmail,
       ...attribution,
     };
 

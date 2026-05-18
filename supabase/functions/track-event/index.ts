@@ -93,6 +93,8 @@ serve(async (req) => {
     const detected = detectDevice(userAgent);
     let userId: string | null = null;
     let email: string | null = null;
+    let isInternal = Boolean(body.is_internal_event);
+    let eventSource = cleanString(body.event_source_type, 50) || "unknown";
 
     if (authHeader && token) {
       const supabaseAuthed = createClient(supabaseUrl, supabaseAnonKey, {
@@ -101,6 +103,13 @@ serve(async (req) => {
       const { data } = await supabaseAuthed.auth.getUser(token);
       userId = data.user?.id ?? null;
       email = data.user?.email ?? null;
+
+      if (email === "jeferson.zanotell@gmail.com") {
+        isInternal = true;
+        eventSource = "internal_test";
+      }
+    } else {
+      email = cleanString(body.user_email, 200) || null;
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
@@ -110,6 +119,9 @@ serve(async (req) => {
     const { error } = await supabaseAdmin.from("app_events").insert({
       user_id: userId,
       email,
+      user_email: email,
+      is_internal_event: isInternal,
+      event_source_type: eventSource,
       anonymous_id: cleanString(body.anonymous_id, 200),
       session_id: cleanString(body.session_id, 200),
       event_type: eventType || eventName,

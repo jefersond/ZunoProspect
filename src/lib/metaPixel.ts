@@ -1,4 +1,5 @@
 export const FB_PIXEL_ID = "1395903565453591";
+import { detectInternalEvent } from "./tracking";
 
 type MetaParams = Record<string, any>;
 
@@ -67,6 +68,10 @@ function isPixelLoaded() {
 
 export function trackMetaEvent(eventName: string, params?: MetaParams) {
   if (typeof window === "undefined") return;
+  if (detectInternalEvent()) {
+    if (isDev) console.log(`[MetaPixel] Ignored internal event: ${eventName}`);
+    return;
+  }
   const payload = withAttribution(params);
 
   if (!isPixelLoaded()) {
@@ -83,6 +88,10 @@ export function trackMetaEvent(eventName: string, params?: MetaParams) {
 
 export function trackMetaCustomEvent(eventName: string, params?: MetaParams) {
   if (typeof window === "undefined") return;
+  if (detectInternalEvent()) {
+    if (isDev) console.log(`[MetaPixel] Ignored internal event: ${eventName}`);
+    return;
+  }
   const payload = withAttribution(params);
 
   if (!isPixelLoaded()) {

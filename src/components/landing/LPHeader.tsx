@@ -6,50 +6,56 @@ import { Menu } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { appendReferralToPath } from "@/lib/referral";
+import { trackEvent } from "@/lib/analytics";
+
+const navItems = [
+  { id: "como-funciona", label: "Como funciona" },
+  { id: "para-quem", label: "Para quem é" },
+  { id: "funcionalidades", label: "Funcionalidades" },
+  { id: "precos", label: "Preços" },
+  { id: "faq", label: "FAQ" },
+];
 
 export function LPHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const scrollToSection = (id: string) => {
+    if (id === "precos") {
+      trackEvent("cta_clicked", { cta: "ver_planos", location: "header" });
+    }
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     setMobileMenuOpen(false);
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/50">
+    <header className="sticky top-0 z-50 border-b border-border/50 bg-background/95 backdrop-blur-md">
       <div className="container mx-auto px-3 sm:px-4">
-        <div className="flex items-center justify-between h-14 sm:h-16">
-          <Logo className="[&_svg]:w-6 [&_svg]:h-6 sm:[&_svg]:w-8 sm:[&_svg]:h-8 [&_span:first-of-type]:text-base sm:[&_span:first-of-type]:text-xl [&_span:last-of-type]:text-base sm:[&_span:last-of-type]:text-xl" />
+        <div className="flex h-14 items-center justify-between sm:h-16">
+          <Logo className="[&_svg]:h-6 [&_svg]:w-6 sm:[&_svg]:h-8 sm:[&_svg]:w-8 [&_span:first-of-type]:text-base sm:[&_span:first-of-type]:text-xl [&_span:last-of-type]:text-base sm:[&_span:last-of-type]:text-xl" />
 
-          <nav className="hidden lg:flex items-center gap-6">
-            {[
-              { id: "como-funciona", label: "Como funciona" },
-              { id: "depoimentos", label: "Depoimentos" },
-              { id: "para-quem", label: "Para quem é" },
-              { id: "precos", label: "Preços" },
-              { id: "faq", label: "FAQ" },
-            ].map((item) => (
+          <nav className="hidden items-center gap-6 lg:flex">
+            {navItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => scrollToSection(item.id)}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 {item.label}
               </button>
             ))}
           </nav>
 
-          <div className="hidden lg:flex items-center gap-3">
+          <div className="hidden items-center gap-3 lg:flex">
             <ThemeToggle />
-            <Button variant="ghost" className="text-sm font-medium hover:text-primary hover:bg-primary/5 transition-colors" asChild>
+            <Button variant="ghost" className="text-sm font-medium transition-colors hover:bg-primary/5 hover:text-primary" asChild>
               <Link to={appendReferralToPath("/auth")}>Entrar</Link>
             </Button>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 px-6" asChild>
-              <Link to={appendReferralToPath("/auth?tab=signup")}>Começar Grátis</Link>
+            <Button className="bg-primary px-6 text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90" onClick={() => trackEvent("cta_clicked", { cta: "comecar_gratis", location: "header" })} asChild>
+              <Link to={appendReferralToPath("/auth?tab=signup")}>Começar grátis</Link>
             </Button>
           </div>
 
-          <div className="flex lg:hidden items-center gap-2">
+          <div className="flex items-center gap-2 lg:hidden">
             <ThemeToggle />
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
@@ -58,23 +64,20 @@ export function LPHeader() {
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-[280px] sm:w-[320px]">
-                <nav className="flex flex-col gap-4 mt-8">
-                  {[
-                    { id: "como-funciona", label: "Como funciona" },
-                    { id: "depoimentos", label: "Depoimentos" },
-                    { id: "para-quem", label: "Para quem é" },
-                    { id: "precos", label: "Preços" },
-                    { id: "faq", label: "FAQ" },
-                  ].map((item) => (
+                <nav className="mt-8 flex flex-col gap-4">
+                  {navItems.map((item) => (
                     <button
                       key={item.id}
                       onClick={() => scrollToSection(item.id)}
-                      className="text-left py-3 px-4 rounded-lg hover:bg-secondary transition-colors"
+                      className="rounded-lg px-4 py-3 text-left transition-colors hover:bg-secondary"
                     >
                       {item.label}
                     </button>
                   ))}
-                  <div className="border-t pt-4 mt-2 space-y-3">
+                  <div className="mt-2 space-y-3 border-t pt-4">
+                    <Button className="w-full" onClick={() => trackEvent("cta_clicked", { cta: "comecar_gratis", location: "mobile_header" })} asChild>
+                      <Link to={appendReferralToPath("/auth?tab=signup")}>Começar grátis</Link>
+                    </Button>
                     <Button variant="outline" className="w-full" asChild>
                       <Link to={appendReferralToPath("/auth?tab=login")}>Entrar</Link>
                     </Button>

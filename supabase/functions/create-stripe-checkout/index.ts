@@ -225,14 +225,6 @@ serve(async (req) => {
       userId: user.id,
       userEmail: user.email ?? null,
     });
-    await logAppEvent(supabaseAdmin, {
-      userId: user.id,
-      eventType: "checkout_started",
-      eventData: { planId, billingCycle, stripeMode: getStripeMode(stripeSecretKey) },
-      ipAddress: req.headers.get("x-forwarded-for"),
-      userAgent: req.headers.get("user-agent"),
-    });
-
     const plan = PLANS[planId];
     const unitAmount = billingCycle === "annual" ? plan.annualUnitAmount : plan.monthlyUnitAmount;
     const stripe = new Stripe(stripeSecretKey, {

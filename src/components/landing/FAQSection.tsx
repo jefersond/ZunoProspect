@@ -1,10 +1,31 @@
+import { useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { FAQ_ITEMS } from "./data";
+import { trackMetaCustomEvent } from "@/lib/metaPixel";
 
 export function FAQSection() {
+  const sectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        trackMetaCustomEvent("FAQ_View", {
+          page: "landing",
+          section: "faq",
+        });
+        observer.disconnect();
+      },
+      { threshold: 0.3 },
+    );
+
+    if (sectionRef.current) observer.observe(sectionRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <section id="faq" className="py-20 bg-secondary/20 dark:bg-secondary/10">
+    <section id="faq" ref={sectionRef} className="py-20 bg-secondary/20 dark:bg-secondary/10">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <Badge variant="outline" className="mb-4">Dúvidas frequentes</Badge>

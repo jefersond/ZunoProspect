@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { ArrowRight, Smartphone } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { appendReferralToPath } from "@/lib/referral";
+import { trackEvent } from "@/lib/analytics";
 
 export function CTAFinalSection() {
   const scrollToSection = (id: string) => {
@@ -9,35 +10,36 @@ export function CTAFinalSection() {
   };
 
   return (
-    <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-br from-primary to-primary/80">
-      <div className="container mx-auto px-4">
-        <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-primary-foreground mb-4 sm:mb-6 text-center">
-          Pare de ficar horas caçando clientes manualmente
+    <section className="bg-primary py-14 md:py-20">
+      <div className="container mx-auto px-4 text-center">
+        <h2 className="mx-auto mb-4 max-w-3xl text-3xl font-bold text-primary-foreground md:text-5xl">
+          Comece sua prospecção com mais clareza hoje.
         </h2>
-        <p className="text-base sm:text-lg md:text-xl text-primary-foreground/80 max-w-2xl mx-auto mb-6 sm:mb-8 md:mb-10 text-center">
-          Comece agora a prospectar com IA e tenha leads qualificados com planos de abordagem prontos em minutos.
+        <p className="mx-auto mb-8 max-w-2xl text-base text-primary-foreground/80 md:text-xl">
+          Teste o Zuno com 20 leads grátis e 3 análises com IA.
         </p>
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center max-w-md sm:max-w-none mx-auto">
+        <div className="mx-auto flex max-w-md flex-col justify-center gap-3 sm:max-w-none sm:flex-row">
           <Button
             size="lg"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-base sm:text-lg px-6 sm:px-8 w-full sm:w-auto shadow-lg shadow-primary/20"
+            className="h-14 w-full bg-primary-foreground px-8 text-base font-bold text-primary hover:bg-primary-foreground/90 sm:w-auto"
+            onClick={() => trackEvent("cta_clicked", { cta: "comecar_gratis", location: "final_cta" })}
             asChild
           >
             <Link to={appendReferralToPath("/auth?tab=signup")}>
-              Começar agora
-              <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
+              Começar grátis
+              <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
           </Button>
           <Button
             size="lg"
             variant="outline"
-            className="text-base sm:text-lg px-6 sm:px-8 bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 w-full sm:w-auto"
-            asChild
+            className="h-14 w-full border-primary-foreground/40 bg-transparent px-8 text-base text-primary-foreground hover:bg-primary-foreground/10 sm:w-auto"
+            onClick={() => {
+              trackEvent("cta_clicked", { cta: "ver_planos", location: "final_cta" });
+              scrollToSection("precos");
+            }}
           >
-            <a href="https://wa.me/553298511685?text=Ol%C3%A1!%20Preciso%20de%20suporte%20com%20o%20Zuno%20Prospect." target="_blank" rel="noopener noreferrer">
-              <Smartphone className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-              Falar com suporte
-            </a>
+            Ver planos
           </Button>
         </div>
       </div>

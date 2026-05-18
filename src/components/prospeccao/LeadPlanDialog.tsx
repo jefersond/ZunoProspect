@@ -18,6 +18,8 @@ import { useUsage } from "@/hooks/useUsage";
 import { Textarea } from "@/components/ui/textarea";
 import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe, StickyNote, Loader2, Lock } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
+import { trackEvent } from "@/lib/analytics";
+import { trackMetaCustomEvent } from "@/lib/metaPixel";
 
 // Função para formatar número de telefone brasileiro
 const formatPhoneNumber = (phone: string): string => {
@@ -168,6 +170,12 @@ export const LeadPlanDialog = ({
     }
 
     setIsReanalyzing(true);
+    trackMetaCustomEvent("AI_Analysis_Started", {
+      lead_id: lead.id,
+      lead_name: lead.nome,
+      source: "prospection_page",
+    });
+    trackEvent("ai_analysis_clicked", { lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "lead_dialog" });
     try {
       // Obter user_id do usuário atual
       const { data: { user } } = await supabase.auth.getUser();
@@ -234,6 +242,18 @@ export const LeadPlanDialog = ({
       setCurrentLead(transformedLead);
       await refetchUsage();
       onLeadUpdate?.();
+      trackMetaCustomEvent("AI_Analysis_Completed", {
+        lead_id: lead.id,
+        lead_name: lead.nome,
+      });
+      const firstAnalysisKey = `zuno_first_ai_analysis_completed_${user.id}`;
+      if (!localStorage.getItem(firstAnalysisKey)) {
+        localStorage.setItem(firstAnalysisKey, new Date().toISOString());
+        trackMetaCustomEvent("First_AI_Analysis_Completed", {
+          lead_id: lead.id,
+        });
+      }
+      trackEvent("ai_analysis_completed", { lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "lead_dialog" });
 
       toast({
         title: "Análise concluída",
@@ -241,6 +261,11 @@ export const LeadPlanDialog = ({
       });
     } catch (error: any) {
       console.error('Erro ao reanalisar lead:', error);
+      trackMetaCustomEvent("AI_Analysis_Failed", {
+        lead_id: lead.id,
+        error_message: error.message || "ai_analysis_error",
+      });
+      trackEvent("ai_analysis_failed", { lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: error.message || "ai_analysis_error", source: "lead_dialog" });
       toast({
         title: "Erro ao reanalisar",
         description: error.message || "Não foi possível reanalisar o lead",
@@ -278,7 +303,13 @@ export const LeadPlanDialog = ({
           
           {displayLead.whatsapp_link && whatsappNumber && (
             <CopyableField value={whatsappNumber} displayValue={formatPhoneNumber(whatsappNumber)}>
-              <a href={displayLead.whatsapp_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-green-600 hover:underline">
+              <a
+                href={displayLead.whatsapp_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => trackMetaCustomEvent("WhatsApp_Message_Click", { source: "lead_card" })}
+                className="flex items-center gap-1 text-green-600 hover:underline"
+              >
                 <MessageSquare className="h-3 w-3" />
                 {formatPhoneNumber(whatsappNumber)}
               </a>

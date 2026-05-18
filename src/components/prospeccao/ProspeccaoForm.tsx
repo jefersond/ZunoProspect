@@ -22,6 +22,8 @@ import { UsageIndicator } from "@/components/subscription/UsageIndicator";
 import { UpgradeIncentive } from "@/components/subscription/UpgradeIncentive";
 import { UsaAddonUpsell } from "./UsaAddonUpsell";
 import { COUNTRIES, getStatesByCountry, getCityPlaceholder, type Country } from "@/data/locations";
+import { trackEvent } from "@/lib/analytics";
+import { trackMetaCustomEvent } from "@/lib/metaPixel";
 
 
 const formSchema = z.object({
@@ -291,6 +293,25 @@ export const ProspeccaoForm = () => {
         return;
       }
 
+      const searchEventData = {
+        country: data.pais || "BR",
+        state: data.estado,
+        city: data.cidade,
+        niche: data.nicho,
+        requested_quantity: effectiveQuantidade,
+        focus: data.foco,
+        incremental: isIncrementalSearch,
+      };
+
+      trackMetaCustomEvent("Search_Started", {
+        country: searchEventData.country,
+        state: searchEventData.state,
+        city: searchEventData.city,
+        niche: searchEventData.niche,
+        requested_quantity: searchEventData.requested_quantity,
+      });
+      trackEvent("search_started", searchEventData);
+
       // Inicia polling de progresso
       pollInterval = await startProgressPolling(user.id, startTime, effectiveQuantidade);
       
@@ -379,11 +400,45 @@ export const ProspeccaoForm = () => {
       const leadsCount = responseData?.leadsCount || 0;
       const newLeadsCount = responseData?.newLeadsCount ?? leadsCount;
       const updatedLeadsCount = responseData?.updatedLeadsCount || 0;
+      const durationMs = Date.now() - startTime.getTime();
       setLeadsFound(leadsCount);
       setLeadsAnalyzed(0);
       setEstimatedTimeSeconds(0);
 
       console.log(`[Busca] Concluída! ${leadsCount} leads processados (${newLeadsCount} novos, ${updatedLeadsCount} atualizados)`);
+
+      trackEvent("search_completed", {
+        ...searchEventData,
+        returned_quantity: leadsCount,
+        new_leads_count: newLeadsCount,
+        updated_leads_count: updatedLeadsCount,
+        duration_ms: durationMs,
+      });
+      trackMetaCustomEvent("Search_Completed", {
+        country: searchEventData.country,
+        state: searchEventData.state,
+        city: searchEventData.city,
+        niche: searchEventData.niche,
+        requested_quantity: searchEventData.requested_quantity,
+        leads_count: leadsCount,
+      });
+
+      const firstSearchKey = `zuno_first_search_completed_${user.id}`;
+      if (!localStorage.getItem(firstSearchKey)) {
+        localStorage.setItem(firstSearchKey, new Date().toISOString());
+        trackMetaCustomEvent("First_Search_Completed", {
+          city: searchEventData.city,
+          niche: searchEventData.niche,
+          leads_count: leadsCount,
+        });
+        trackEvent("first_search_completed", {
+          ...searchEventData,
+          returned_quantity: leadsCount,
+          new_leads_count: newLeadsCount,
+          updated_leads_count: updatedLeadsCount,
+          duration_ms: durationMs,
+        });
+      }
 
       await refreshUsage();
 
@@ -522,6 +577,20 @@ export const ProspeccaoForm = () => {
       }
       
       setSearchError(errorMessage);
+      trackMetaCustomEvent("Search_Failed", {
+        city: data.cidade,
+        niche: data.nicho,
+        error_message: errorMessage,
+      });
+      trackEvent("search_failed", {
+        country: data.pais || "BR",
+        state: data.estado,
+        city: data.cidade,
+        niche: data.nicho,
+        requested_quantity: effectiveQuantidade,
+        focus: data.foco,
+        error: errorMessage,
+      });
       
       toast({
         variant: "destructive",

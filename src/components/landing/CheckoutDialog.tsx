@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,11 +7,12 @@ import { CheckCircle2, Loader2, Eye, EyeOff, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plano } from "./data";
-import { trackInitiateCheckout, trackAddPaymentInfo } from "@/lib/metaPixel";
+import { trackCompleteRegistration, trackInitiateCheckout, trackAddPaymentInfo, trackMetaCustomEvent } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { useLeadPricing } from "@/hooks/useLeadPricing";
 import { createStripeCheckout } from "@/services/stripeCheckout";
 import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
+import { trackEvent } from "@/lib/analytics";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -50,28 +51,8 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
   const [showPassword, setShowPassword] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGoogleProcessing, setIsGoogleProcessing] = useState(false);
-  const hasTrackedCheckout = useRef(false);
   const { calculatePrice, getDisplayPrice } = useLeadPricing();
   const referralCode = getCurrentReferralCode(window.location.search);
-
-  // Track InitiateCheckout when dialog opens
-  useEffect(() => {
-    if (open && plano && !hasTrackedCheckout.current) {
-      hasTrackedCheckout.current = true;
-      const packageLeads = plano.leadsLimit || selectedLeads;
-      const preco = calculatePrice(plano.planKey, packageLeads, isAnual);
-      trackInitiateCheckout({
-        value: preco,
-        currency: 'BRL',
-        content_name: `${plano.nome} - ${packageLeads} leads`,
-        content_category: isAnual ? 'Annual' : 'Monthly',
-        num_items: 1
-      });
-    }
-    if (!open) {
-      hasTrackedCheckout.current = false;
-    }
-  }, [open, plano, isAnual, selectedLeads, calculatePrice]);
 
   if (!plano) return null;
 
@@ -177,6 +158,16 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
       setSenha("");
       return false;
     }
+    trackCompleteRegistration({
+      method: "email",
+      source: "checkout",
+    });
+    if (referralCode) {
+      trackMetaCustomEvent("Referral_Signup_Completed", {
+        has_ref: true,
+        ref_source: "url",
+      });
+    }
     return true;
   };
 
@@ -192,6 +183,12 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
       if (!accountCreated) { setIsProcessing(false); return; }
 
       // Track payment info
+      trackMetaCustomEvent("Plan_Selected", {
+        plan_id: plano.planKey,
+        plan_name: plano.nome,
+        value: preco,
+        currency: "BRL",
+      });
       trackAddPaymentInfo({
         content_category: 'Stripe',
         currency: 'BRL',
@@ -206,6 +203,24 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
         billingCycle: "monthly",
       });
 
+      trackEvent("checkout_started", {
+        plan_id: plano.planKey,
+        plan_name: plano.nome,
+        value: preco,
+        currency: "BRL",
+        billing_cycle: "monthly",
+        location: "checkout_dialog",
+        content_name: `Zuno Propect ${plano.nome}`,
+      });
+      trackInitiateCheckout({
+        content_name: `Zuno Propect ${plano.nome}`,
+        content_category: "subscription",
+        plan_id: plano.planKey,
+        plan_name: plano.nome,
+        value: preco,
+        currency: "BRL",
+      });
+
       toast.dismiss();
       
       toast.success("Redirecionando para o pagamento seguro...");
@@ -216,6 +231,10 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
       toast.error("Erro ao processar", { description: errorMessage });
+      trackMetaCustomEvent("Checkout_Failed", {
+        plan_id: plano.planKey,
+        error_message: errorMessage,
+      });
     } finally {
       setIsProcessing(false);
     }

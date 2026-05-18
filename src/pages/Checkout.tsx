@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,12 +8,13 @@ import { CheckCircle2, Loader2, Eye, EyeOff, ArrowLeft, Check, Sparkles, Buildin
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
-import { trackInitiateCheckout, trackAddPaymentInfo } from "@/lib/metaPixel";
+import { getAttributionParams, trackCompleteRegistration, trackInitiateCheckout, trackAddPaymentInfo, trackMetaCustomEvent } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { createStripeCheckout } from "@/services/stripeCheckout";
 import { PLANS, normalizePlanId } from "@/config/plans";
 import { useAuth } from "@/hooks/useAuth";
 import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
+import { trackEvent } from "@/lib/analytics";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -122,8 +123,6 @@ export default function Checkout() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGoogleProcessing, setIsGoogleProcessing] = useState(false);
   const [hasSession, setHasSession] = useState(false);
-  const hasTrackedCheckout = useRef(false);
-  const hasHandledGoogleAuth = useRef(false);
 
   // Note: OAuth callback is now handled by /auth page which checks for checkout_pending
   useEffect(() => {
@@ -134,21 +133,6 @@ export default function Checkout() {
       setEmail(session.user.email || "");
       setNome(session.user.user_metadata?.full_name || session.user.user_metadata?.name || "");
     });
-  }, []);
-
-  // Track InitiateCheckout on mount
-  useEffect(() => {
-    if (!hasTrackedCheckout.current) {
-      hasTrackedCheckout.current = true;
-      const preco = isAnual ? plano.precoAnual : plano.precoMensal;
-      trackInitiateCheckout({
-        value: preco,
-        currency: 'BRL',
-        content_name: plano.nome,
-        content_category: isAnual ? 'Annual' : 'Monthly',
-        num_items: 1
-      });
-    }
   }, []);
 
   const preco = isAnual ? plano.precoAnual : plano.precoMensal;
@@ -258,6 +242,16 @@ export default function Checkout() {
       return false;
     }
 
+    trackCompleteRegistration({
+      method: "email",
+      source: "checkout",
+    });
+    if (referralCode) {
+      trackMetaCustomEvent("Referral_Signup_Completed", {
+        has_ref: true,
+        ref_source: "url",
+      });
+    }
     setHasSession(true);
     return true;
   };
@@ -274,6 +268,13 @@ export default function Checkout() {
       if (!accountCreated) { setIsProcessing(false); return; }
       
       // Track payment info
+      const trackingPlanId = selectedPlano === "agencia" ? "agency" : selectedPlano;
+      trackMetaCustomEvent("Plan_Selected", {
+        plan_id: trackingPlanId,
+        plan_name: plano.nome,
+        value: plano.precoMensal,
+        currency: "BRL",
+      });
       trackAddPaymentInfo({
         content_category: 'Stripe',
         currency: 'BRL',
@@ -289,6 +290,33 @@ export default function Checkout() {
         authUserFromHook: user,
       });
 
+      trackEvent("checkout_started", {
+        plan_id: trackingPlanId,
+        plan_name: plano.nome,
+        value: plano.precoMensal,
+        currency: "BRL",
+        billing_cycle: isAnual ? "annual" : "monthly",
+        location: "checkout_page",
+        content_name: `Zuno Propect ${plano.nome}`,
+      });
+      trackInitiateCheckout({
+        content_name: `Zuno Propect ${plano.nome}`,
+        content_category: "subscription",
+        plan_id: trackingPlanId,
+        plan_name: plano.nome,
+        value: plano.precoMensal,
+        currency: "BRL",
+      });
+      const attribution = getAttributionParams();
+      if ((attribution.offer === "founder_pro" || attribution.utm_campaign === "founder") && trackingPlanId === "pro") {
+        trackMetaCustomEvent("Founder_Offer_Checkout", {
+          offer: "founder_pro",
+          plan_id: "pro",
+          value: 47,
+          currency: "BRL",
+        });
+      }
+
       toast.dismiss();
       
       toast.success("Redirecionando para o pagamento seguro...");
@@ -299,6 +327,10 @@ export default function Checkout() {
       const status = typeof error === "object" && error !== null && "status" in error ? (error as { status?: number }).status : undefined;
       toast.error(status === 401 ? "Sessão expirada. Faça login novamente." : "Não foi possível iniciar o pagamento", {
         description: status === 401 ? errorMessage : "Tente novamente.",
+      });
+      trackMetaCustomEvent("Checkout_Failed", {
+        plan_id: selectedPlano === "agencia" ? "agency" : selectedPlano,
+        error_message: errorMessage,
       });
     } finally {
       setIsProcessing(false);

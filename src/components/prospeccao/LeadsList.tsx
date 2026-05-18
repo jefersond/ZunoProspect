@@ -22,6 +22,8 @@ import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { UpsellCard } from "./UpsellCard";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useUsage } from "@/hooks/useUsage";
+import { trackEvent } from "@/lib/analytics";
+import { trackMetaCustomEvent } from "@/lib/metaPixel";
 
 export const LeadsList = () => {
   const { toast } = useToast();
@@ -411,6 +413,10 @@ export const LeadsList = () => {
         title: "Excel exportado!",
         description: `Arquivo ${fileName} foi baixado com sucesso`,
       });
+      trackMetaCustomEvent("Lead_Exported", {
+        export_type: "xlsx",
+        leads_count: leads.length,
+      });
     } catch (error: any) {
       console.error("Erro ao exportar Excel:", error);
       toast({
@@ -445,6 +451,10 @@ export const LeadsList = () => {
         title: "Leads salvos com sucesso!",
         description: `${leadsNaoSalvos.length} leads foram salvos e não serão deletados em novas buscas`,
       });
+      trackMetaCustomEvent("Lead_Saved", {
+        lead_id: "bulk",
+        lead_name: `${leadsNaoSalvos.length} leads`,
+      });
 
       loadLeads();
     } catch (error: any) {
@@ -457,21 +467,27 @@ export const LeadsList = () => {
     }
   };
 
-  const toggleSaveLead = async (leadId: string, currentSalvo: boolean) => {
+  const toggleSaveLead = async (lead: LeadProspeccao) => {
     try {
       const { error } = await supabase
         .from("leads")
-        .update({ salvo: !currentSalvo })
-        .eq("id", leadId);
+        .update({ salvo: !lead.salvo })
+        .eq("id", lead.id);
 
       if (error) throw error;
 
       toast({
-        title: currentSalvo ? "Lead desmarcado" : "Lead salvo",
-        description: currentSalvo 
+        title: lead.salvo ? "Lead desmarcado" : "Lead salvo",
+        description: lead.salvo 
           ? "Lead será deletado na próxima busca" 
           : "Lead será preservado em novas buscas",
       });
+      if (!lead.salvo) {
+        trackMetaCustomEvent("Lead_Saved", {
+          lead_id: lead.id,
+          lead_name: lead.nome,
+        });
+      }
 
       loadLeads();
     } catch (error: any) {
@@ -510,6 +526,12 @@ export const LeadsList = () => {
     }
 
     setReanalyzingLeads(prev => new Set(prev).add(lead.id));
+    trackMetaCustomEvent("AI_Analysis_Started", {
+      lead_id: lead.id,
+      lead_name: lead.nome,
+      source: "prospection_page",
+    });
+    trackEvent("ai_analysis_clicked", { lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "leads_list" });
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -535,9 +557,26 @@ export const LeadsList = () => {
       });
 
       await refetchUsage();
+      trackMetaCustomEvent("AI_Analysis_Completed", {
+        lead_id: lead.id,
+        lead_name: lead.nome,
+      });
+      const firstAnalysisKey = `zuno_first_ai_analysis_completed_${user.id}`;
+      if (!localStorage.getItem(firstAnalysisKey)) {
+        localStorage.setItem(firstAnalysisKey, new Date().toISOString());
+        trackMetaCustomEvent("First_AI_Analysis_Completed", {
+          lead_id: lead.id,
+        });
+      }
+      trackEvent("ai_analysis_completed", { lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "leads_list" });
       loadLeads();
     } catch (error: any) {
       console.error("Erro ao reanalisar:", error);
+      trackMetaCustomEvent("AI_Analysis_Failed", {
+        lead_id: lead.id,
+        error_message: error.message || "ai_analysis_error",
+      });
+      trackEvent("ai_analysis_failed", { lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: error.message || "ai_analysis_error", source: "leads_list" });
       toast({
         variant: "destructive",
         title: "Erro na análise",
@@ -694,6 +733,7 @@ export const LeadsList = () => {
                             href={lead.whatsapp_link}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={() => trackMetaCustomEvent("WhatsApp_Message_Click", { source: "lead_card" })}
                             className="flex items-center gap-1 text-sm text-green-600 hover:underline"
                           >
                             <MessageSquare className="h-3 w-3 flex-shrink-0" />
@@ -856,7 +896,7 @@ export const LeadsList = () => {
                         <Button
                           variant={lead.salvo ? "default" : "ghost"}
                           size="sm"
-                          onClick={() => toggleSaveLead(lead.id, lead.salvo)}
+                          onClick={() => toggleSaveLead(lead)}
                           title={lead.salvo ? "Desmarcar lead" : "Salvar lead"}
                           className="h-8 w-8 p-0"
                         >

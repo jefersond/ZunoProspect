@@ -1,33 +1,32 @@
-import { Users, Brain, FileText, TrendingUp, Target, CheckCircle } from "lucide-react";
+import { Bot, CheckCircle, FileText, Search, Target, Users } from "lucide-react";
 
 const metrics = [
-  { icon: Users, value: "+12.500", label: "Leads encontrados" },
-  { icon: Brain, value: "+8.200", label: "Análises de IA" },
-  { icon: FileText, value: "+5.800", label: "Planos gerados" },
-  { icon: TrendingUp, value: "4.2x", label: "Taxa de resposta" },
-  { icon: Target, value: "85%", label: "Precisão da IA" },
-  { icon: CheckCircle, value: "+3.400", label: "Clientes fechados" },
+  { icon: Search, value: "Cidade + nicho", label: "Busca direcionada" },
+  { icon: Bot, value: "IA sob demanda", label: "Análise quando você pedir" },
+  { icon: FileText, value: "3 canais", label: "WhatsApp, Instagram e e-mail" },
+  { icon: Target, value: "Score", label: "Priorização de oportunidades" },
+  { icon: Users, value: "Pipeline", label: "Acompanhamento de leads" },
+  { icon: CheckCircle, value: "7 dias", label: "Plano de sequência" },
 ];
 
 export function MetricsCarousel() {
-  // Duplicate for seamless loop
   const duplicatedMetrics = [...metrics, ...metrics];
 
   return (
-    <section className="py-12 bg-secondary/30 dark:bg-secondary/10 overflow-hidden">
+    <section className="overflow-hidden bg-secondary/30 py-10 dark:bg-secondary/10">
       <div className="relative">
         <div className="flex animate-marquee">
           {duplicatedMetrics.map((metric, index) => (
             <div
-              key={index}
-              className="flex-shrink-0 mx-4 px-6 py-4 bg-background rounded-xl border border-border/50 shadow-sm"
+              key={`${metric.label}-${index}`}
+              className="mx-3 flex-shrink-0 rounded-lg border border-border/50 bg-background px-5 py-4 shadow-sm"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
+                <div className="rounded-lg bg-primary/10 p-2">
                   <metric.icon className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <div className="font-bold text-lg">{metric.value}</div>
+                  <div className="text-base font-bold">{metric.value}</div>
                   <div className="text-sm text-muted-foreground">{metric.label}</div>
                 </div>
               </div>

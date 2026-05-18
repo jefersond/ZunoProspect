@@ -72,12 +72,35 @@ async function logAppEvent(
 ) {
   if (!userId) return;
   try {
-    await supabaseAdmin.rpc("log_app_event", {
-      p_user_id: userId,
-      p_event_type: eventType,
-      p_event_data: eventData,
-      p_ip_address: null,
-      p_user_agent: "stripe-webhook",
+    const { data: sourceEvent } = await supabaseAdmin
+      .from("app_events")
+      .select("email,anonymous_id,session_id,utm_source,utm_medium,utm_campaign,utm_content,utm_term,fbclid,ref,offer,first_touch,last_touch")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    await supabaseAdmin.from("app_events").insert({
+      user_id: userId,
+      email: sourceEvent?.email ?? null,
+      anonymous_id: sourceEvent?.anonymous_id ?? null,
+      session_id: sourceEvent?.session_id ?? null,
+      event_type: eventType,
+      event_name: eventType,
+      event_data: eventData,
+      metadata: eventData,
+      ip_address: null,
+      user_agent: "stripe-webhook",
+      utm_source: sourceEvent?.utm_source ?? null,
+      utm_medium: sourceEvent?.utm_medium ?? null,
+      utm_campaign: sourceEvent?.utm_campaign ?? null,
+      utm_content: sourceEvent?.utm_content ?? null,
+      utm_term: sourceEvent?.utm_term ?? null,
+      fbclid: sourceEvent?.fbclid ?? null,
+      ref: sourceEvent?.ref ?? null,
+      offer: sourceEvent?.offer ?? null,
+      first_touch: sourceEvent?.first_touch ?? null,
+      last_touch: sourceEvent?.last_touch ?? null,
     });
   } catch (eventError) {
     console.warn("[stripe-webhook] Falha ao registrar app_event", eventError);
@@ -325,6 +348,16 @@ serve(async (req) => {
         stripeEventId: event.id,
         planName: eventPlanName,
         status: eventStatus,
+      });
+    }
+
+    if (event.type === "invoice.payment_succeeded") {
+      await logAppEvent(supabaseAdmin, eventUserId, "purchase_completed", {
+        stripeEventId: event.id,
+        planName: eventPlanName,
+        status: eventStatus,
+        amount,
+        currency,
       });
     }
   } catch (error: any) {

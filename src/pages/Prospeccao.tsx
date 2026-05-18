@@ -8,6 +8,9 @@ import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { useSubscription } from "@/hooks/useSubscription";
 import { toast } from "sonner";
 import { createStripeCheckout } from "@/services/stripeCheckout";
+import { trackEvent } from "@/lib/analytics";
+import { trackInitiateCheckout, trackMetaCustomEvent } from "@/lib/metaPixel";
+import { PLANS, normalizePlanId } from "@/config/plans";
 
 import { AppHeader } from "@/components/AppHeader";
 
@@ -24,6 +27,9 @@ const Prospeccao = () => {
       const checkoutStatus = searchParams.get("checkout");
       
       if (checkoutStatus === "success") {
+        trackEvent("checkout_completed", { source: "checkout_return" });
+        // Nao disparamos Purchase aqui: a URL de retorno nao valida pagamento.
+        // Purchase deve ser enviado pelo webhook Stripe via Conversions API.
         sessionStorage.removeItem("checkout_in_progress");
         sessionStorage.removeItem("checkout_plano");
         sessionStorage.removeItem("checkout_isAnual");
@@ -59,12 +65,38 @@ const Prospeccao = () => {
           sessionStorage.removeItem("checkout_isAnual");
           
           try {
+            const normalizedPlan = normalizePlanId(plano);
             const data = await createStripeCheckout({
               selectedPlan: { planKey: plano.toLowerCase() },
               billingCycle: "monthly",
             });
+            if (normalizedPlan) {
+              const plan = PLANS[normalizedPlan];
+              trackEvent("checkout_started", {
+                plan_id: normalizedPlan,
+                plan_name: plan.name,
+                value: plan.monthlyPrice,
+                currency: "BRL",
+                billing_cycle: "monthly",
+                location: "google_success_return",
+                content_name: `Zuno Propect ${plan.name}`,
+              });
+              trackInitiateCheckout({
+                content_name: `Zuno Propect ${plan.name}`,
+                content_category: "subscription",
+                plan_id: normalizedPlan,
+                plan_name: plan.name,
+                value: plan.monthlyPrice,
+                currency: "BRL",
+              });
+            }
             window.location.href = data.url;
           } catch (error) {
+            trackMetaCustomEvent("Checkout_Failed", {
+              plan_id: plano.toLowerCase(),
+              error_message: "checkout_error",
+            });
+            trackEvent("checkout_failed", { plan_id: plano.toLowerCase(), billing_cycle: "monthly", location: "google_success_return", error: "checkout_error" });
             console.error("Erro ao gerar checkout apos Google:", error);
             toast.error("Erro ao gerar link de pagamento. Tente pelo checkout.");
             navigate(`/checkout?plano=${plano}&anual=${isAnual}`);
@@ -101,6 +133,8 @@ const Prospeccao = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user);
+        trackEvent("app_entered", { page: "prospeccao" });
+        trackEvent("prospection_page_viewed", {});
       } else {
         navigate("/auth");
       }

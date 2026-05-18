@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CheckCircle2, Globe, Loader2, Sparkles } from "lucide-react";
 import { UsaAddonDialog } from "./UsaAddonDialog";
-import { trackViewContent, trackLead } from "@/lib/metaPixel";
+import { getAttributionParams, trackInitiateCheckout, trackLead, trackMetaCustomEvent, trackViewContent } from "@/lib/metaPixel";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { createStripeCheckout } from "@/services/stripeCheckout";
@@ -15,6 +15,21 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, type BillingCycle, type PlanConfig } from "@/config/plans";
 import { cn } from "@/lib/utils";
 import { appendReferralToPath } from "@/lib/referral";
+import { trackEvent } from "@/lib/analytics";
+
+const freePlan = {
+  displayName: "Free",
+  subtitle: "Para testar a plataforma e entender como o Zuno funciona.",
+  leadsLimit: 20,
+  aiLimit: 3,
+  cta: "Começar grátis",
+  features: [
+    "20 leads por mês",
+    "3 análises com IA por mês",
+    "Busca por cidade e nicho",
+    "Acesso direto pelo navegador",
+  ],
+};
 
 export function PrecosSection() {
   const navigate = useNavigate();
@@ -32,6 +47,11 @@ export function PrecosSection() {
         entries.forEach((entry) => {
           if (entry.isIntersecting && !hasTrackedView.current) {
             hasTrackedView.current = true;
+            trackEvent("pricing_viewed", { location: "landing" });
+            trackMetaCustomEvent("Pricing_View", {
+              page: "landing",
+              section: "pricing",
+            });
             trackViewContent({
               content_name: "Pricing Section",
               content_category: "Pricing",
@@ -47,21 +67,60 @@ export function PrecosSection() {
     return () => observer.disconnect();
   }, []);
 
+  const handleFreeSignup = () => {
+    trackMetaCustomEvent("Pricing_Click", {
+      page: "landing",
+      plan_id: "free",
+      plan_name: "Free",
+      value: 0,
+      currency: "BRL",
+    });
+    trackLead({
+      content_name: "Free Plan Signup",
+      content_category: "Free Plan",
+      value: 0,
+      currency: "BRL",
+    });
+    trackEvent("cta_clicked", { cta: "comecar_gratis", location: "pricing" });
+    trackEvent("plan_clicked", { plan_id: "free", location: "pricing" });
+    navigate(appendReferralToPath("/auth?tab=signup"));
+  };
+
   const handleSelectPlano = async (plan: PlanConfig) => {
-    const { data: { session } } = await supabase.auth.getSession();
-
-    if (!session) {
-      navigate(appendReferralToPath(`/auth?tab=signup&plan=${encodeURIComponent(plan.id)}&leadsQty=${encodeURIComponent(String(plan.leadsLimit))}&anual=${billingCycle === "annual"}`));
-      return;
-    }
-
     const price = getPlanPrice(plan.id, billingCycle);
+    const trackingPrice = plan.monthlyPrice;
+
+    trackMetaCustomEvent("Pricing_Click", {
+      page: "landing",
+      plan_id: plan.id,
+      plan_name: plan.displayName,
+      value: trackingPrice,
+      currency: "BRL",
+    });
+    trackMetaCustomEvent("Plan_Selected", {
+      plan_id: plan.id,
+      plan_name: plan.displayName,
+      value: trackingPrice,
+      currency: "BRL",
+    });
+
     trackLead({
       content_name: `${plan.displayName} - ${plan.leadsLimit} leads`,
       content_category: "Paid Plan",
       value: price,
       currency: "BRL",
     });
+    trackEvent("plan_clicked", { plan_id: plan.id, location: "pricing", billing_cycle: billingCycle });
+    trackEvent("upgrade_clicked", { plan_id: plan.id, billing_cycle: billingCycle, location: "pricing" });
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      navigate(appendReferralToPath(`/auth?tab=signup&plan=${encodeURIComponent(plan.id)}&leadsQty=${encodeURIComponent(String(plan.leadsLimit))}&anual=${billingCycle === "annual"}`));
+      return;
+    }
 
     setIsProcessing(plan.id);
     try {
@@ -72,6 +131,33 @@ export function PrecosSection() {
         billingCycle,
         authUserFromHook: user,
       });
+
+      trackEvent("checkout_started", {
+        plan_id: plan.id,
+        plan_name: plan.name,
+        value: trackingPrice,
+        currency: "BRL",
+        billing_cycle: billingCycle,
+        location: "pricing",
+        content_name: `Zuno Propect ${plan.name}`,
+      });
+      trackInitiateCheckout({
+        content_name: `Zuno Propect ${plan.name}`,
+        content_category: "subscription",
+        plan_id: plan.id,
+        plan_name: plan.name,
+        value: trackingPrice,
+        currency: "BRL",
+      });
+
+      if ((getAttributionParams().offer === "founder_pro" || getAttributionParams().utm_campaign === "founder") && plan.id === "pro") {
+        trackMetaCustomEvent("Founder_Offer_Checkout", {
+          offer: "founder_pro",
+          plan_id: "pro",
+          value: 47,
+          currency: "BRL",
+        });
+      }
 
       toast.dismiss();
       window.location.href = data.url;
@@ -84,6 +170,11 @@ export function PrecosSection() {
         navigate(appendReferralToPath(`/auth?tab=login&plan=${encodeURIComponent(plan.id)}&leadsQty=${encodeURIComponent(String(plan.leadsLimit))}&anual=${billingCycle === "annual"}`));
         return;
       }
+      trackMetaCustomEvent("Checkout_Failed", {
+        plan_id: plan.id,
+        error_message: error?.message || "checkout_error",
+      });
+      trackEvent("checkout_failed", { plan_id: plan.id, billing_cycle: billingCycle, location: "pricing", error: error?.message || "checkout_error" });
       toast.error("Não foi possível iniciar o pagamento", { description: "Tente novamente." });
     } finally {
       setIsProcessing(null);
@@ -91,15 +182,15 @@ export function PrecosSection() {
   };
 
   return (
-    <section id="precos" ref={sectionRef} className="bg-background py-20">
+    <section id="precos" ref={sectionRef} className="bg-background py-16 md:py-20">
       <div className="container mx-auto px-4">
-        <div className="mx-auto mb-12 max-w-2xl text-center">
+        <div className="mx-auto mb-10 max-w-2xl text-center">
           <Badge variant="outline" className="mb-4">Planos</Badge>
           <h2 className="mb-4 text-3xl font-bold md:text-4xl">
-            Escolha o plano ideal para você
+            Comece grátis e evolua quando precisar de mais volume
           </h2>
-          <p className="mb-7 text-lg text-muted-foreground">
-            Três planos simples, com limites fixos e cobrança previsível.
+          <p className="mb-7 text-base text-muted-foreground md:text-lg">
+            Teste o Zuno com 20 leads e 3 análises com IA. Sem precisar escolher plano agora.
           </p>
 
           <div className="flex flex-col items-center gap-2">
@@ -122,33 +213,64 @@ export function PrecosSection() {
           </div>
         </div>
 
-        <div className="mx-auto mb-10 max-w-6xl">
-          <Card className="flex flex-col gap-5 rounded-lg border-emerald-500/30 bg-emerald-500/5 p-6 md:flex-row md:items-center md:justify-between">
+        <div className="mx-auto mb-8 max-w-6xl">
+          <Card className="flex flex-col gap-5 rounded-lg border-emerald-500/30 bg-emerald-500/5 p-5 md:flex-row md:items-center md:justify-between md:p-6">
             <div className="flex items-start gap-4">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/20">
                 <Sparkles className="h-5 w-5 text-emerald-400" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold">Indique e ganhe mais buscas</h3>
+                <h3 className="text-xl font-semibold">Teste grátis com 20 leads + 3 análises IA</h3>
                 <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                  Convide alguém para conhecer o Zuno. Quando essa pessoa assinar qualquer plano pago, você recebe 100 buscas extras na sua conta.
+                  Uma porta de entrada simples para entender o valor antes de assinar.
                 </p>
               </div>
             </div>
 
-            <div className="flex shrink-0">
-              <Button 
-                variant="outline" 
-                className="border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-400" 
-                onClick={() => document.getElementById("referral-section")?.scrollIntoView({ behavior: "smooth" })}
-              >
-                Ver como funciona
-              </Button>
-            </div>
+            <Button className="shrink-0" onClick={handleFreeSignup}>
+              Começar grátis
+            </Button>
           </Card>
         </div>
 
-        <div className="mx-auto grid max-w-6xl gap-6 md:grid-cols-3">
+        <div className="mx-auto grid max-w-7xl gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <Card className="relative flex min-h-[520px] flex-col overflow-hidden rounded-lg border border-border/70 bg-zinc-950/70 p-6 shadow-lg">
+            <div className="flex min-h-[134px] flex-col items-center text-center">
+              <div className="mb-4 h-7" />
+              <h3 className="text-2xl font-semibold tracking-tight">{freePlan.displayName}</h3>
+              <p className="mt-2 min-h-10 text-sm leading-5 text-muted-foreground">{freePlan.subtitle}</p>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border/60 bg-background/30 p-3 text-center">
+                <p className="text-lg font-semibold">{freePlan.leadsLimit}</p>
+                <p className="text-xs text-muted-foreground">leads/mês</p>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-background/30 p-3 text-center">
+                <p className="text-lg font-semibold">{freePlan.aiLimit}</p>
+                <p className="text-xs text-muted-foreground">análises IA/mês</p>
+              </div>
+            </div>
+
+            <div className="mt-6 text-center">
+              <div className="text-4xl font-bold tracking-tight">R$ 0</div>
+              <p className="mt-2 h-5 text-xs text-muted-foreground">sem cartão agora</p>
+            </div>
+
+            <ul className="mt-7 flex-1 space-y-3">
+              {freePlan.features.map((feature) => (
+                <li key={feature} className="flex items-start gap-3 text-sm leading-5 text-muted-foreground">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </ul>
+
+            <Button className="mt-7 h-12 w-full font-semibold" variant="outline" onClick={handleFreeSignup}>
+              {freePlan.cta}
+            </Button>
+          </Card>
+
           {PLAN_LIST.map((plan) => {
             const price = getPlanPrice(plan.id, billingCycle);
             const isCurrentProcessing = isProcessing === plan.id;
@@ -157,7 +279,7 @@ export function PrecosSection() {
               <Card
                 key={plan.id}
                 className={cn(
-                  "relative flex min-h-[540px] flex-col overflow-hidden rounded-lg border bg-zinc-950/70 p-6 shadow-lg",
+                  "relative flex min-h-[520px] flex-col overflow-hidden rounded-lg border bg-zinc-950/70 p-6 shadow-lg",
                   plan.highlighted ? "border-emerald-400/70 shadow-emerald-950/50" : "border-border/70",
                 )}
               >
@@ -165,7 +287,7 @@ export function PrecosSection() {
 
                 <div className="flex min-h-[134px] flex-col items-center text-center">
                   {plan.badge ? (
-                    <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/50 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-200">
+                    <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/50 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold uppercase text-emerald-200">
                       <Sparkles className="h-3 w-3" />
                       {plan.badge}
                     </div>
@@ -183,7 +305,7 @@ export function PrecosSection() {
                   </div>
                   <div className="rounded-lg border border-border/60 bg-background/30 p-3 text-center">
                     <p className="text-lg font-semibold">{plan.aiLimit.toLocaleString("pt-BR")}</p>
-                    <p className="text-xs text-muted-foreground">roteiros IA/mês</p>
+                    <p className="text-xs text-muted-foreground">análises IA/mês</p>
                   </div>
                 </div>
 

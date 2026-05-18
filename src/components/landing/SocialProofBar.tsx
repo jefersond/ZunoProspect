@@ -10,17 +10,17 @@ const avatars = [avatar1, avatar2, avatar3, avatar4, avatar5];
 
 export function SocialProofBar() {
   return (
-    <div className="flex items-center gap-3 mb-6">
+    <div className="mb-6 flex items-center gap-3">
       <div className="flex -space-x-3">
         {avatars.map((src, i) => (
-          <Avatar key={i} className="h-8 w-8 border-2 border-background">
+          <Avatar key={src} className="h-8 w-8 border-2 border-background">
             <AvatarImage src={src} alt={`Usuário ${i + 1}`} />
             <AvatarFallback>U{i + 1}</AvatarFallback>
           </Avatar>
         ))}
       </div>
       <span className="text-sm text-muted-foreground">
-        mais de <strong className="text-foreground">250+</strong> profissionais encontrando leads
+        Para profissionais que vendem serviços B2B e precisam abordar melhor.
       </span>
     </div>
   );

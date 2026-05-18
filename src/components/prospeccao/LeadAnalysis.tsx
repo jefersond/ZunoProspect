@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { copyToClipboard } from "@/utils/templateUtils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { trackMetaCustomEvent } from "@/lib/metaPixel";
 
 interface PlanoProspeccaoDia {
   dia: number;
@@ -32,10 +33,13 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
   const [copiedDia, setCopiedDia] = useState<number | null>(null);
   const { toast } = useToast();
 
-  const handleCopyMessage = async (dia: number, mensagem: string) => {
+  const handleCopyMessage = async (dia: number, mensagem: string, channel: PlanoProspeccaoDia["canal"]) => {
     const success = await copyToClipboard(mensagem);
     if (success) {
       setCopiedDia(dia);
+      trackMetaCustomEvent("AI_Message_Copied", {
+        channel,
+      });
       toast({
         title: "Copiado!",
         description: `Mensagem do Dia ${dia} copiada`,
@@ -222,7 +226,7 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleCopyMessage(dia.dia, dia.mensagem)}
+                        onClick={() => handleCopyMessage(dia.dia, dia.mensagem, dia.canal)}
                         className="h-7 w-7 p-0 -mt-1 -mr-1"
                       >
                         {copiedDia === dia.dia ? (

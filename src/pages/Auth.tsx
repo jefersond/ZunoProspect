@@ -11,10 +11,11 @@ import { Loader2, CheckCircle2, XCircle, ArrowLeft, Eye, EyeOff } from "lucide-r
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Progress } from "@/components/ui/progress";
 import { z } from "zod";
-import { trackLead, trackCompleteRegistration } from "@/lib/metaPixel";
+import { trackLead, trackCompleteRegistration, trackMetaCustomEvent, trackOnce } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { Logo } from "@/components/Logo";
 import { appendReferralToPath, getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
+import { trackEvent } from "@/lib/analytics";
 
 const authInputClass =
   "h-11 rounded-lg border-border/80 bg-card/70 shadow-sm transition-colors placeholder:text-muted-foreground/70 hover:border-muted-foreground/40 focus-visible:border-emerald-500/60 focus-visible:ring-2 focus-visible:ring-emerald-500/25 focus-visible:ring-offset-0";
@@ -66,6 +67,7 @@ const Auth = () => {
   const [rememberMe, setRememberMe] = useState(() => {
     return localStorage.getItem('rememberMe') !== 'false';
   });
+  const [signupStartedTracked, setSignupStartedTracked] = useState(false);
   const [passwordValidation, setPasswordValidation] = useState({
     minLength: false,
     hasUppercase: false,
@@ -115,6 +117,9 @@ const Auth = () => {
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
+    if (value === "signup") {
+      trackEvent("signup_page_viewed", { source: "auth_tab" });
+    }
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set("tab", value);
     window.history.replaceState({}, "", `${window.location.pathname}?${nextParams.toString()}`);
@@ -123,6 +128,7 @@ const Auth = () => {
   // Handle Google OAuth login
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
+    trackEvent(activeTab === "signup" ? "signup_started" : "login_started", { method: "google" });
     
     try {
       const referralCode = searchParams.get("ref");
@@ -149,6 +155,7 @@ const Auth = () => {
         title: "Erro inesperado",
         description: err.message || "Não foi possível iniciar o login com Google. Tente novamente."
       });
+      trackEvent("auth_error", { method: "google", error: err.message || "google_login_failed" });
       setGoogleLoading(false);
     }
   };
@@ -158,6 +165,9 @@ const Auth = () => {
     const tab = searchParams.get("tab");
     if (tab === "signup" || tab === "login") {
       setActiveTab(tab);
+      if (tab === "signup") {
+        trackEvent("signup_page_viewed", { source: "auth_url" });
+      }
     }
 
     // Handle OAuth error responses
@@ -181,6 +191,7 @@ const Auth = () => {
         title: "Erro no login com Google",
         description: errorMessage
       });
+      trackEvent("auth_error", { method: "google", error: errorMessage });
       
       // Clean up the URL by removing error params
       const newUrl = window.location.pathname;
@@ -195,6 +206,10 @@ const Auth = () => {
       (event, session) => {
         // Only process on sign-in events
         if (event === 'SIGNED_IN' && session) {
+          trackEvent(activeTab === "signup" ? "signup_completed" : "login_completed", { method: "google" });
+          trackOnce(`meta_login_google_${session.user.id}`, () => {
+            trackMetaCustomEvent("Login_Completed", { method: "google" });
+          });
           setTimeout(() => {
             redirectAfterAuth();
           }, 0);
@@ -279,6 +294,11 @@ const Auth = () => {
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
+    trackEvent("signup_started", { method: "email" });
+    trackMetaCustomEvent("Signup_Started", {
+      method: "email",
+      source: selectedPlan ? "checkout" : "landing_or_app",
+    });
     const formData = new FormData(e.currentTarget);
     const fullName = formData.get("fullName") as string;
     const email = formData.get("email") as string;
@@ -297,6 +317,7 @@ const Auth = () => {
         title: "Nome inválido",
         description: "O nome deve ter pelo menos 3 caracteres"
       });
+      trackEvent("auth_error", { method: "email", error: "invalid_name" });
       setLoading(false);
       return;
     }
@@ -309,6 +330,7 @@ const Auth = () => {
         title: "Email inválido",
         description: emailValidation.error.errors[0].message
       });
+      trackEvent("auth_error", { method: "email", error: "invalid_email" });
       setLoading(false);
       return;
     }
@@ -321,6 +343,7 @@ const Auth = () => {
         title: "Senha fraca",
         description: passwordValidation.error.errors[0].message
       });
+      trackEvent("auth_error", { method: "email", error: "weak_password" });
       setLoading(false);
       return;
     }
@@ -368,12 +391,20 @@ const Auth = () => {
         title: "Erro ao criar conta",
         description: errorMessage
       });
+      trackEvent("auth_error", { method: "email", error: errorMessage });
     } else {
       // Track CompleteRegistration event
       trackCompleteRegistration({
-        content_name: 'Free Account',
-        status: 'success'
+        method: "email",
+        source: selectedPlan ? "checkout" : "landing_or_app",
       });
+      if (referralCode) {
+        trackMetaCustomEvent("Referral_Signup_Completed", {
+          has_ref: true,
+          ref_source: "url",
+        });
+      }
+      trackEvent("signup_completed", { method: "email", has_session: Boolean(data.session) });
       
       // Verificar se já existe sessão (auto-confirm ativado)
       if (data.session) {
@@ -398,6 +429,7 @@ const Auth = () => {
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
+    trackEvent("login_started", { method: "email" });
     const formData = new FormData(e.currentTarget);
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
@@ -410,6 +442,7 @@ const Auth = () => {
         title: "Email inválido",
         description: emailValidation.error.errors[0].message
       });
+      trackEvent("auth_error", { method: "email", error: "invalid_email" });
       setLoading(false);
       return;
     }
@@ -438,7 +471,10 @@ const Auth = () => {
         title: "Erro ao entrar",
         description: "Email ou senha incorretos. Verifique suas credenciais."
       });
+      trackEvent("auth_error", { method: "email", error: "invalid_credentials" });
     } else if (data.session) {
+      trackMetaCustomEvent("Login_Completed", { method: "email" });
+      trackEvent("login_completed", { method: "email" });
       // Se "lembrar-me" estiver desmarcado, configurar logout ao fechar o navegador
       if (!rememberMe) {
         sessionStorage.setItem('logoutOnClose', 'true');
@@ -656,6 +692,10 @@ const Auth = () => {
                       required 
                       value={signupPassword} 
                       onChange={e => {
+                        if (!signupStartedTracked) {
+                          setSignupStartedTracked(true);
+                          trackEvent("signup_started", { method: "email", source: "password_input" });
+                        }
                         setSignupPassword(e.target.value);
                         validatePasswordStrength(e.target.value);
                       }}

@@ -1,4 +1,3 @@
-// Avatar imports
 import avatar1 from "@/assets/avatars/avatar-1.jpg";
 import avatar2 from "@/assets/avatars/avatar-2.jpg";
 import avatar3 from "@/assets/avatars/avatar-3.jpg";
@@ -6,7 +5,15 @@ import avatar4 from "@/assets/avatars/avatar-4.jpg";
 import avatar5 from "@/assets/avatars/avatar-5.jpg";
 import avatar6 from "@/assets/avatars/avatar-6.jpg";
 
-import { Building2, TrendingUp, LineChart, Megaphone, Palette, Code, LucideIcon } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  Building2,
+  LineChart,
+  LucideIcon,
+  Megaphone,
+  Palette,
+  TrendingUp,
+} from "lucide-react";
 import { PLAN_LIST, PLANS } from "@/config/plans";
 
 export const HERO_AVATARS = [avatar1, avatar2, avatar3, avatar4, avatar5, avatar6];
@@ -25,43 +32,43 @@ export const DEPOIMENTOS: Depoimento[] = [
     nome: "Ricardo Mendes",
     cargo: "Gestor de Tráfego",
     empresa: "Freelancer",
-    texto: "Em 2 semanas consegui 15 reuniões com leads qualificados. O plano de prospecção de 7 dias é genial, economizo umas 10h por semana."
+    texto: "Antes eu passava horas procurando empresas. Agora chego na abordagem com contexto e uma mensagem muito mais clara.",
   },
   {
     id: 2,
     nome: "Camila Santos",
     cargo: "Owner de Agência",
     empresa: "Agência Sete Marketing",
-    texto: "Antes eu passava horas no Google procurando empresas. Agora em minutos tenho uma lista pronta com diagnóstico e até as mensagens de abordagem."
+    texto: "O Zuno ajudou nossa rotina comercial a sair do improviso. Buscamos por nicho, salvamos leads e seguimos com mais organização.",
   },
   {
     id: 3,
     nome: "Felipe Oliveira",
     cargo: "Freela de Social Media",
     empresa: "Autônomo",
-    texto: "O diferencial é a análise de sinais digitais. Consigo identificar quem realmente precisa dos meus serviços antes de abordar."
+    texto: "O melhor é identificar sinais digitais antes de abordar. Eu consigo explicar melhor por que estou chamando aquele lead.",
   },
   {
     id: 4,
     nome: "Juliana Costa",
     cargo: "Especialista em SEO",
     empresa: "Consultoria Digital JC",
-    texto: "Finalmente uma ferramenta que entende o mercado de marketing. Os leads vêm com contexto e eu sei exatamente como abordar cada um."
+    texto: "A ferramenta entrega contexto comercial rápido. Fica mais fácil priorizar quem faz sentido abordar primeiro.",
   },
   {
     id: 5,
     nome: "Bruno Almeida",
     cargo: "Webdesigner",
     empresa: "BA Design",
-    texto: "Minha taxa de resposta subiu muito depois que comecei a usar os planos de prospecção. As mensagens são personalizadas e não parecem spam."
-  }
+    texto: "As abordagens prontas economizam muito tempo na primeira mensagem e nos follow-ups.",
+  },
 ];
 
 export const METRICAS = [
-  { numero: "+2.300", label: "Leads gerados", descricao: "por usuários da plataforma" },
-  { numero: "5x", label: "Mais reuniões", descricao: "em média comparado à prospecção manual" },
-  { numero: "10h", label: "Economizadas por semana", descricao: "em tempo de prospecção" },
-  { numero: "87%", label: "Taxa de satisfação", descricao: "dos usuários recomendam" }
+  { numero: "Cidade + nicho", label: "Busca direcionada", descricao: "para sair da pesquisa manual genérica" },
+  { numero: "IA sob demanda", label: "Análise do lead", descricao: "usada somente quando você pedir" },
+  { numero: "3 canais", label: "Abordagens prontas", descricao: "para WhatsApp, Instagram e e-mail" },
+  { numero: "7 dias", label: "Plano de sequência", descricao: "para manter a prospecção em movimento" },
 ];
 
 export const LOGOS_CLIENTES = [
@@ -70,7 +77,7 @@ export const LOGOS_CLIENTES = [
   { nome: "Studio Criativo" },
   { nome: "SEO Pro Brasil" },
   { nome: "Social Hub" },
-  { nome: "Growth Labs" }
+  { nome: "Growth Labs" },
 ];
 
 export interface PerfilAlvo {
@@ -81,41 +88,41 @@ export interface PerfilAlvo {
 
 export const PERFIS_ALVO: PerfilAlvo[] = [
   {
-    titulo: "Agências Full Service",
-    icone: Building2,
-    bullets: ["Escale sua operação de prospecção sem contratar mais SDRs", "Tenha um pipeline previsível de novos clientes"]
-  },
-  {
-    titulo: "Gestores de Tráfego",
+    titulo: "Gestores de tráfego",
     icone: TrendingUp,
-    bullets: ["Encontre empresas que ainda não fazem anúncios pagos", "Aborde com diagnóstico pronto sobre a presença digital"]
+    bullets: ["Encontre empresas que podem precisar de anúncios e receba abordagens prontas para iniciar conversa."],
   },
   {
-    titulo: "Especialistas em SEO",
-    icone: LineChart,
-    bullets: ["Identifique sites sem otimização básica", "Use dados técnicos na sua abordagem comercial"]
-  },
-  {
-    titulo: "Social Media",
+    titulo: "Social medias",
     icone: Megaphone,
-    bullets: ["Prospecte negócios locais que precisam de redes sociais", "Tenha cadências prontas para Instagram e WhatsApp"]
+    bullets: ["Identifique negócios com presença digital fraca e crie uma abordagem mais estratégica."],
   },
   {
-    titulo: "Webdesigners",
+    titulo: "Freelancers",
     icone: Palette,
-    bullets: ["Encontre empresas com sites desatualizados", "Aborde com proposta de valor clara"]
+    bullets: ["Comece a prospectar com mais clareza, sem depender só de indicação."],
   },
   {
-    titulo: "Desenvolvedores",
-    icone: Code,
-    bullets: ["Prospecte PMEs que precisam de soluções digitais", "Identifique oportunidades de sistemas e automações"]
-  }
+    titulo: "Consultores",
+    icone: LineChart,
+    bullets: ["Encontre empresas com sinais de oportunidade e priorize quem abordar primeiro."],
+  },
+  {
+    titulo: "Agências pequenas",
+    icone: Building2,
+    bullets: ["Gere listas de oportunidades por nicho e região para alimentar sua rotina comercial."],
+  },
+  {
+    titulo: "SDRs",
+    icone: BriefcaseBusiness,
+    bullets: ["Use dados e IA para organizar a primeira abordagem."],
+  },
 ];
 
 export interface Plano {
   nome: string;
-  planKey: string; // Key used in database (starter, pro, agencia)
-  precoBase: number; // Fixed monthly price
+  planKey: string;
+  precoBase: number;
   leadsLimit: number;
   aiLimit: number;
   descricao: string;
@@ -167,7 +174,6 @@ export const PLANOS_OFICIAIS: Plano[] = PLAN_LIST.map((plan) => ({
   gratuito: false,
 }));
 
-// Pricing configuration
 export const LEAD_PRICING_CONFIG = {
   baseLeads: 300,
   incrementLeads: 0,
@@ -176,50 +182,47 @@ export const LEAD_PRICING_CONFIG = {
   annualDiscountMonths: 0,
 };
 
-// Available lead quantities for selector
-export const LEAD_QUANTITIES = [
-  300, 800, 2000
-];
+export const LEAD_QUANTITIES = [300, 800, 2000];
 
 export const FAQ_ITEMS = [
   {
-    pergunta: "Preciso saber programar para usar?",
-    resposta: "Não! A plataforma foi feita para profissionais de marketing, não para devs. Basta informar o nicho, cidade e quantidade de leads que você quer encontrar. Todo o resto é automático."
+    pergunta: "O que o Zuno faz?",
+    resposta: "O Zuno ajuda você a encontrar empresas por cidade e nicho, analisar oportunidades com IA e gerar abordagens prontas para iniciar conversas.",
   },
   {
-    pergunta: "Quantos leads posso gerar por mês?",
-    resposta: "Depende do seu plano. No plano gratuito você pode fazer buscas limitadas para testar. Nos planos pagos, você tem acesso a volumes maiores de leads por mês."
+    pergunta: "De onde vêm os leads?",
+    resposta: "A busca usa dados públicos de empresas disponíveis em fontes como o Google Places. A disponibilidade dos contatos pode variar conforme as informações públicas de cada empresa.",
   },
   {
-    pergunta: "Posso exportar os leads para Excel ou CRM?",
-    resposta: "Sim! Você pode exportar todos os leads encontrados para Excel com um clique. A integração com CRMs está no roadmap."
+    pergunta: "A IA consome meu limite automaticamente?",
+    resposta: "Não. A IA só é usada quando você clica em \"Analisar com IA\".",
   },
   {
-    pergunta: "Vocês já mandam mensagem automática no WhatsApp?",
-    resposta: "Hoje o app gera o plano de prospecção completo com as mensagens prontas para cada dia. Você copia e envia manualmente. Estamos desenvolvendo um SDR com IA que vai automatizar esse envio no futuro."
+    pergunta: "O plano grátis tem limite?",
+    resposta: "Sim. O plano grátis inclui 20 leads por mês e 3 análises com IA.",
   },
   {
-    pergunta: "Os leads são realmente qualificados?",
-    resposta: "Sim! Além de encontrar as empresas, analisamos o site, presença em redes sociais e sinais de marketing digital. Você recebe um diagnóstico completo e probabilidade de conversão para cada lead."
+    pergunta: "O que acontece quando meu limite acaba?",
+    resposta: "Você pode fazer upgrade para liberar mais leads e análises.",
   },
   {
-    pergunta: "Funciona para qualquer cidade do Brasil?",
-    resposta: "Sim! Usamos o Google Places como base, então qualquer cidade com empresas cadastradas no Google funciona. Quanto maior a cidade, mais resultados."
+    pergunta: "Posso cancelar quando quiser?",
+    resposta: "Sim. Nos planos mensais, você pode cancelar quando quiser.",
   },
   {
-    pergunta: "Tem garantia?",
-    resposta: "Sim! Todos os planos têm garantia de 7 dias. Se não gostar, devolvemos seu dinheiro sem burocracia."
+    pergunta: "Como funciona a indicação?",
+    resposta: "Você ganha 100 buscas extras quando uma pessoa indicada pelo seu link assina qualquer plano pago. Cadastros gratuitos ficam como pendentes.",
   },
   {
-    pergunta: "Quando eu recebo o bônus de indicação?",
-    resposta: "Você recebe 100 buscas extras quando uma pessoa indicada pelo seu link assina qualquer plano pago do Zuno. Cadastros gratuitos não liberam bônus automaticamente."
+    pergunta: "Preciso instalar alguma coisa?",
+    resposta: "Não. O Zuno funciona direto no navegador.",
   },
   {
-    pergunta: "A pessoa indicada precisa assinar qual plano?",
-    resposta: "Qualquer plano pago: Iniciante, Pro ou Agência."
+    pergunta: "Posso exportar os leads?",
+    resposta: "Sim. Você pode exportar leads para Excel conforme os recursos disponíveis no seu plano.",
   },
   {
-    pergunta: "O bônus entra na hora?",
-    resposta: "O bônus é liberado automaticamente após a confirmação do pagamento."
-  }
+    pergunta: "O Zuno envia mensagens automaticamente?",
+    resposta: "Não. O Zuno gera abordagens prontas para você revisar, copiar e enviar pelo canal que preferir.",
+  },
 ];

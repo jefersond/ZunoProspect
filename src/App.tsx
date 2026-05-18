@@ -11,6 +11,9 @@ import { useOAuthCallback } from "@/hooks/useOAuthCallback";
 import LandingProspeccaoIA from "./pages/LandingProspeccaoIA";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { initTracking } from "@/lib/tracking";
+
+initTracking();
 
 // Lazy load all pages except landing page for code splitting
 const Auth = lazy(() => import("./pages/Auth"));
@@ -27,6 +30,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const ApiDocs = lazy(() => import("./pages/ApiDocs"));
 const Relatorios = lazy(() => import("./pages/Relatorios"));
 const AdminEmail = lazy(() => import("./pages/AdminEmail"));
+const AdminRealtime = lazy(() => import("./pages/AdminRealtime"));
 const Precos = lazy(() => import("./pages/Precos"));
 const DesignTokens = lazy(() => import("./pages/DesignTokens"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -71,6 +75,7 @@ const AppContent = () => {
           <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
           <Route path="/admin" element={<Navigate to="/admin/email" replace />} />
           <Route path="/admin/email" element={<ProtectedRoute><AdminEmail /></ProtectedRoute>} />
+          <Route path="/admin/realtime" element={<ProtectedRoute><AdminRealtime /></ProtectedRoute>} />
           <Route path="/api-docs" element={<ProtectedRoute><ApiDocs /></ProtectedRoute>} />
           <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
           

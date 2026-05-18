@@ -31,6 +31,7 @@ import {
   Zap,
   RefreshCw,
   MoreHorizontal,
+  Activity,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -85,7 +86,10 @@ export function AppHeader({
   const navItems = [
     ...defaultNavItems,
     ...(isAdmin
-      ? [{ to: "/admin/email", icon: Mail, label: "Email", isAdmin: true }]
+      ? [
+          { to: "/admin/realtime", icon: Activity, label: "Tempo Real", isAdmin: true },
+          { to: "/admin/email", icon: Mail, label: "Email", isAdmin: true },
+        ]
       : []),
   ];
   const primaryNavItems = navItems.slice(0, 4);

@@ -1,117 +1,140 @@
-// Meta Pixel IDs
-export const FB_PIXEL_ID = '1395903565453591';
+export const FB_PIXEL_ID = "1395903565453591";
 
-// Declare fbq for TypeScript
+type MetaParams = Record<string, any>;
+
 declare global {
   interface Window {
-    fbq: any;
-    _fbq: any;
+    fbq?: (...args: any[]) => void;
+    _fbq?: unknown;
   }
 }
 
-// Check if pixel is loaded
-const isPixelLoaded = () => typeof window !== 'undefined' && typeof window.fbq === 'function';
+const trackedEvents = new Set<string>();
+const isDev = import.meta.env.DEV;
 
-// Track PageView
-export const trackPageView = () => {
-  if (isPixelLoaded()) {
-    window.fbq('track', 'PageView');
-  }
-};
+const ATTRIBUTION_KEYS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "fbclid",
+  "ref",
+  "offer",
+] as const;
 
-// Track ViewContent - when user views important content (e.g., pricing section)
-export const trackViewContent = (params: {
-  content_name?: string;
-  content_category?: string;
-  content_type?: string;
-  value?: number;
-  currency?: string;
-}) => {
-  if (isPixelLoaded()) {
-    window.fbq('track', 'ViewContent', params);
+function safeStorage(storage: Storage | undefined, key: string, value?: string) {
+  try {
+    if (!storage) return null;
+    if (value) storage.setItem(`zuno_${key}`, value);
+    return storage.getItem(`zuno_${key}`);
+  } catch {
+    return null;
   }
-};
+}
 
-// Track Lead - when user shows interest (e.g., clicks on plan, starts signup)
-export const trackLead = (params?: {
-  content_name?: string;
-  content_category?: string;
-  value?: number;
-  currency?: string;
-}) => {
-  if (isPixelLoaded()) {
-    window.fbq('track', 'Lead', params);
-  }
-};
+export function captureAttributionParams() {
+  if (typeof window === "undefined") return {};
 
-// Track InitiateCheckout - when user starts checkout process
-export const trackInitiateCheckout = (params: {
-  value?: number;
-  currency?: string;
-  content_name?: string;
-  content_category?: string;
-  num_items?: number;
-}) => {
-  if (isPixelLoaded()) {
-    window.fbq('track', 'InitiateCheckout', params);
-  }
-};
+  const params = new URLSearchParams(window.location.search);
+  const attribution: MetaParams = {};
 
-// Track AddPaymentInfo - when user selects payment method
-export const trackAddPaymentInfo = (params?: {
-  content_category?: string;
-  content_ids?: string[];
-  currency?: string;
-  value?: number;
-}) => {
-  if (isPixelLoaded()) {
-    window.fbq('track', 'AddPaymentInfo', params);
-  }
-};
+  ATTRIBUTION_KEYS.forEach((key) => {
+    const value = params.get(key);
+    const persisted = safeStorage(localStorage, key, value || undefined);
+    const sessionPersisted = safeStorage(sessionStorage, key, value || undefined);
+    const resolved = value || persisted || sessionPersisted;
+    if (resolved) attribution[key] = resolved;
+  });
 
-// Track Purchase - when payment is confirmed
-export const trackPurchase = (params: {
-  value: number;
-  currency: string;
-  content_name?: string;
-  content_type?: string;
-  content_ids?: string[];
-  num_items?: number;
-}) => {
-  if (isPixelLoaded()) {
-    window.fbq('track', 'Purchase', params);
-  }
-};
+  return attribution;
+}
 
-// Track CompleteRegistration - when user completes signup
-export const trackCompleteRegistration = (params?: {
-  content_name?: string;
-  status?: string;
-  value?: number;
-  currency?: string;
-}) => {
-  if (isPixelLoaded()) {
-    window.fbq('track', 'CompleteRegistration', params);
-  }
-};
+export function getAttributionParams() {
+  return captureAttributionParams();
+}
 
-// Custom Event: ExitIntent - when user is about to leave
-export const trackExitIntent = (params: {
-  page?: string;
-  time_on_page?: number;
-  last_action?: string;
-}) => {
-  if (isPixelLoaded()) {
-    window.fbq('trackCustom', 'ExitIntent', params);
-  }
-};
+function withAttribution(params?: MetaParams) {
+  return {
+    ...getAttributionParams(),
+    ...(params || {}),
+  };
+}
 
-// Custom Event: ScrollDepth - track how far user scrolled
-export const trackScrollDepth = (params: {
-  depth_percentage: number;
-  page?: string;
-}) => {
-  if (isPixelLoaded()) {
-    window.fbq('trackCustom', 'ScrollDepth', params);
+function isPixelLoaded() {
+  return typeof window !== "undefined" && typeof window.fbq === "function";
+}
+
+export function trackMetaEvent(eventName: string, params?: MetaParams) {
+  if (typeof window === "undefined") return;
+  const payload = withAttribution(params);
+
+  if (!isPixelLoaded()) {
+    if (isDev) console.warn("[MetaPixel] fbq nao encontrado:", eventName, payload);
+    return;
   }
-};
+
+  window.fbq!("track", eventName, payload);
+
+  if (isDev) {
+    console.log("[MetaPixel] Evento padrao:", eventName, payload);
+  }
+}
+
+export function trackMetaCustomEvent(eventName: string, params?: MetaParams) {
+  if (typeof window === "undefined") return;
+  const payload = withAttribution(params);
+
+  if (!isPixelLoaded()) {
+    if (isDev) console.warn("[MetaPixel] fbq nao encontrado:", eventName, payload);
+    return;
+  }
+
+  window.fbq!("trackCustom", eventName, payload);
+
+  if (isDev) {
+    console.log("[MetaPixel] Evento customizado:", eventName, payload);
+  }
+}
+
+export function trackOnce(key: string, callback: () => void) {
+  if (trackedEvents.has(key)) return;
+  trackedEvents.add(key);
+  callback();
+}
+
+export function trackPageView() {
+  trackMetaEvent("PageView");
+}
+
+export function trackViewContent(params: MetaParams = {}) {
+  trackMetaEvent("ViewContent", params);
+}
+
+export function trackLead(params: MetaParams = {}) {
+  trackMetaEvent("Lead", params);
+}
+
+export function trackInitiateCheckout(params: MetaParams = {}) {
+  trackMetaEvent("InitiateCheckout", params);
+}
+
+export function trackAddPaymentInfo(params: MetaParams = {}) {
+  trackMetaEvent("AddPaymentInfo", params);
+}
+
+export function trackPurchase(params: MetaParams = {}) {
+  trackMetaEvent("Purchase", params);
+}
+
+export function trackCompleteRegistration(params: MetaParams = {}) {
+  trackMetaEvent("CompleteRegistration", params);
+}
+
+export function trackExitIntent(params: MetaParams = {}) {
+  trackMetaCustomEvent("ExitIntent", params);
+}
+
+export function trackScrollDepth(params: MetaParams = {}) {
+  trackMetaCustomEvent("ScrollDepth", params);
+}

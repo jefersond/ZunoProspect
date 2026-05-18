@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,6 +17,8 @@ import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, normalizePlanId, type Bill
 import { createStripeCheckout } from "@/services/stripeCheckout";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { trackEvent } from "@/lib/analytics";
+import { trackInitiateCheckout, trackMetaCustomEvent } from "@/lib/metaPixel";
 
 interface UpgradePlanDialogProps {
   open: boolean;
@@ -47,8 +49,23 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
     return PLAN_LIST.filter((plan) => PLAN_ORDER[plan.id] > currentPlanLevel);
   }, [currentPlanName]);
 
+  useEffect(() => {
+    if (!open) return;
+    trackMetaCustomEvent("Upgrade_Modal_Opened", {
+      source: "app",
+    });
+  }, [open]);
+
   const handleSelectPlano = async (plan: PlanConfig) => {
     setProcessingPlan(plan.id);
+    const trackingPrice = plan.monthlyPrice;
+    trackMetaCustomEvent("Plan_Selected", {
+      plan_id: plan.id,
+      plan_name: plan.name,
+      value: trackingPrice,
+      currency: "BRL",
+    });
+    trackEvent("upgrade_clicked", { plan_id: plan.id, billing_cycle: billingCycle, location: "upgrade_dialog" });
     try {
       toast.loading("Gerando link de pagamento seguro...");
 
@@ -56,6 +73,24 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
         selectedPlan: { planKey: plan.id },
         billingCycle,
         authUserFromHook: user,
+      });
+
+      trackEvent("checkout_started", {
+        plan_id: plan.id,
+        plan_name: plan.name,
+        value: trackingPrice,
+        currency: "BRL",
+        billing_cycle: billingCycle,
+        location: "upgrade_dialog",
+        content_name: `Zuno Propect ${plan.name}`,
+      });
+      trackInitiateCheckout({
+        content_name: `Zuno Propect ${plan.name}`,
+        content_category: "subscription",
+        plan_id: plan.id,
+        plan_name: plan.name,
+        value: trackingPrice,
+        currency: "BRL",
       });
 
       toast.dismiss();
@@ -72,6 +107,11 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
         return;
       }
 
+      trackMetaCustomEvent("Checkout_Failed", {
+        plan_id: plan.id,
+        error_message: error?.message || "checkout_error",
+      });
+      trackEvent("checkout_failed", { plan_id: plan.id, billing_cycle: billingCycle, location: "upgrade_dialog", error: error?.message || "checkout_error" });
       toast.error("Não foi possível iniciar o pagamento", {
         description: "Tente novamente.",
       });

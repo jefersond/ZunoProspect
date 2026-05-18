@@ -64,22 +64,22 @@ export function MockupHeroProspeccao() {
           ))}
         </div>
 
-        <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-500/25 dark:bg-emerald-950/20">
           <div className="mb-2 flex items-center gap-2">
-            <Bot className="h-4 w-4 text-emerald-300" />
-            <span className="text-sm font-semibold text-emerald-200">Abordagem pronta com IA</span>
+            <Bot className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
+            <span className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Abordagem pronta com IA</span>
           </div>
-          <p className="text-sm leading-6 text-foreground">
+          <p className="text-sm leading-6 text-slate-700 dark:text-muted-foreground">
             Vi que a clínica aparece bem no Google, mas ainda pode captar mais avaliações e campanhas locais. Posso te mostrar um diagnóstico rápido?
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs text-slate-600 dark:bg-background/60 dark:text-muted-foreground">
               <MessageCircle className="h-3 w-3" /> WhatsApp
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs text-slate-600 dark:bg-background/60 dark:text-muted-foreground">
               <Send className="h-3 w-3" /> Instagram
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs text-slate-600 dark:bg-background/60 dark:text-muted-foreground">
               <Mail className="h-3 w-3" /> E-mail
             </span>
           </div>

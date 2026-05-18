@@ -3,7 +3,7 @@ export { LPHeader } from "./LPHeader";
 export { HeroSection } from "./HeroSection";
 export { BeneficiosSection } from "./BeneficiosSection";
 export { ComoFuncionaSection } from "./ComoFuncionaSection";
-export { DepoimentosSection } from "./DepoimentosSection";
+export { ConfiancaOperacionalSection } from "./ConfiancaOperacionalSection";
 export { MetricasSection } from "./MetricasSection";
 export { ParaQuemSection } from "./ParaQuemSection";
 export { PrecosSection } from "./PrecosSection";

@@ -23,8 +23,8 @@ import {
   MockupPlanoAbordagem,
 } from "@/components/landing/mockups";
 
-const DepoimentosSection = lazy(() => import("@/components/landing/DepoimentosSection").then((m) => ({
-  default: m.DepoimentosSection,
+const ConfiancaOperacionalSection = lazy(() => import("@/components/landing/ConfiancaOperacionalSection").then((m) => ({
+  default: m.ConfiancaOperacionalSection,
 })));
 const MetricasSection = lazy(() => import("@/components/landing/MetricasSection").then((m) => ({
   default: m.MetricasSection,
@@ -204,7 +204,7 @@ export default function LandingProspeccaoIA() {
       </Suspense>
 
       <Suspense fallback={<SectionSkeleton />}>
-        <DepoimentosSection />
+        <ConfiancaOperacionalSection />
       </Suspense>
 
       <Suspense fallback={<SectionSkeleton />}>

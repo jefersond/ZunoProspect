@@ -1,10 +1,3 @@
-import avatar1 from "@/assets/avatars/avatar-1.jpg";
-import avatar2 from "@/assets/avatars/avatar-2.jpg";
-import avatar3 from "@/assets/avatars/avatar-3.jpg";
-import avatar4 from "@/assets/avatars/avatar-4.jpg";
-import avatar5 from "@/assets/avatars/avatar-5.jpg";
-import avatar6 from "@/assets/avatars/avatar-6.jpg";
-
 import {
   BriefcaseBusiness,
   Building2,
@@ -16,68 +9,11 @@ import {
 } from "lucide-react";
 import { PLAN_LIST, PLANS } from "@/config/plans";
 
-export const HERO_AVATARS = [avatar1, avatar2, avatar3, avatar4, avatar5, avatar6];
-
-export interface Depoimento {
-  id: number;
-  nome: string;
-  cargo: string;
-  empresa: string;
-  texto: string;
-}
-
-export const DEPOIMENTOS: Depoimento[] = [
-  {
-    id: 1,
-    nome: "Ricardo Mendes",
-    cargo: "Gestor de Tráfego",
-    empresa: "Freelancer",
-    texto: "Antes eu passava horas procurando empresas. Agora chego na abordagem com contexto e uma mensagem muito mais clara.",
-  },
-  {
-    id: 2,
-    nome: "Camila Santos",
-    cargo: "Owner de Agência",
-    empresa: "Agência Sete Marketing",
-    texto: "O Zuno ajudou nossa rotina comercial a sair do improviso. Buscamos por nicho, salvamos leads e seguimos com mais organização.",
-  },
-  {
-    id: 3,
-    nome: "Felipe Oliveira",
-    cargo: "Freela de Social Media",
-    empresa: "Autônomo",
-    texto: "O melhor é identificar sinais digitais antes de abordar. Eu consigo explicar melhor por que estou chamando aquele lead.",
-  },
-  {
-    id: 4,
-    nome: "Juliana Costa",
-    cargo: "Especialista em SEO",
-    empresa: "Consultoria Digital JC",
-    texto: "A ferramenta entrega contexto comercial rápido. Fica mais fácil priorizar quem faz sentido abordar primeiro.",
-  },
-  {
-    id: 5,
-    nome: "Bruno Almeida",
-    cargo: "Webdesigner",
-    empresa: "BA Design",
-    texto: "As abordagens prontas economizam muito tempo na primeira mensagem e nos follow-ups.",
-  },
-];
-
 export const METRICAS = [
   { numero: "Cidade + nicho", label: "Busca direcionada", descricao: "para sair da pesquisa manual genérica" },
   { numero: "IA sob demanda", label: "Análise do lead", descricao: "usada somente quando você pedir" },
   { numero: "3 canais", label: "Abordagens prontas", descricao: "para WhatsApp, Instagram e e-mail" },
   { numero: "7 dias", label: "Plano de sequência", descricao: "para manter a prospecção em movimento" },
-];
-
-export const LOGOS_CLIENTES = [
-  { nome: "Agência Pulso Digital" },
-  { nome: "Traffic Masters" },
-  { nome: "Studio Criativo" },
-  { nome: "SEO Pro Brasil" },
-  { nome: "Social Hub" },
-  { nome: "Growth Labs" },
 ];
 
 export interface PerfilAlvo {

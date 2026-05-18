@@ -45,10 +45,10 @@ export function ComoFuncionaSection() {
 
         <div className="grid gap-5 md:grid-cols-3">
           {passos.map((passo) => (
-            <Card key={passo.numero} className="h-full rounded-lg border-border/60 bg-zinc-950/60 p-6 transition-all hover:border-primary/50">
+            <Card key={passo.numero} className="h-full rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm transition-all hover:border-primary/50 dark:border-white/10 dark:bg-zinc-900/60">
               <div className="mb-5 flex items-center justify-between">
-                <span className="text-4xl font-bold text-primary/25">{passo.numero}</span>
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-primary/25 bg-primary/10">
+                <span className="text-4xl font-bold text-primary/70 dark:text-primary/35">{passo.numero}</span>
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-primary/20 bg-primary/10">
                   <passo.icone className="h-6 w-6 text-primary" />
                 </div>
               </div>

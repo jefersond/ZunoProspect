@@ -39,11 +39,11 @@ export function MockupAnaliseIA() {
         </div>
         <div className="flex items-center gap-3">
           <CheckCircle className="h-5 w-5 text-success flex-shrink-0" />
-          <span className="text-sm text-foreground">Instagram com 5.2k seguidores</span>
+          <span className="text-sm text-foreground">Instagram encontrado no perfil público</span>
         </div>
         <div className="flex items-center gap-3">
           <AlertCircle className="h-5 w-5 text-yellow-500 flex-shrink-0" />
-          <span className="text-sm text-foreground">Google com 4.2 estrelas (127 avaliações)</span>
+          <span className="text-sm text-foreground">Perfil do Google com sinais para analisar</span>
         </div>
         <div className="flex items-center gap-3">
           <XCircle className="h-5 w-5 text-destructive flex-shrink-0" />

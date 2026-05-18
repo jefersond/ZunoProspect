@@ -198,12 +198,12 @@ export function PrecosSection() {
               type="single"
               value={billingCycle}
               onValueChange={(value) => value && setBillingCycle(value as BillingCycle)}
-              className="rounded-lg border border-border/70 bg-zinc-900/70 p-1"
+              className="rounded-lg border border-border bg-muted p-1 shadow-sm dark:border-white/10 dark:bg-zinc-900"
             >
-              <ToggleGroupItem value="monthly" className="h-9 rounded-md px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+              <ToggleGroupItem value="monthly" className="h-9 rounded-md px-4 text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm dark:data-[state=on]:bg-zinc-800 dark:data-[state=on]:text-zinc-50">
                 Mensal
               </ToggleGroupItem>
-              <ToggleGroupItem value="annual" className="h-9 rounded-md px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+              <ToggleGroupItem value="annual" className="h-9 rounded-md px-4 text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm dark:data-[state=on]:bg-zinc-800 dark:data-[state=on]:text-zinc-50">
                 Anual
               </ToggleGroupItem>
             </ToggleGroup>
@@ -234,7 +234,7 @@ export function PrecosSection() {
         </div>
 
         <div className="mx-auto grid max-w-7xl gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <Card className="relative flex min-h-[520px] flex-col overflow-hidden rounded-lg border border-border/70 bg-zinc-950/70 p-6 shadow-lg">
+          <Card className="relative flex min-h-[520px] flex-col overflow-hidden rounded-lg border border-border bg-card p-6 text-card-foreground shadow-md dark:border-white/10 dark:bg-zinc-950/70">
             <div className="flex min-h-[134px] flex-col items-center text-center">
               <div className="mb-4 h-7" />
               <h3 className="text-2xl font-semibold tracking-tight">{freePlan.displayName}</h3>
@@ -242,11 +242,11 @@ export function PrecosSection() {
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
-              <div className="rounded-lg border border-border/60 bg-background/30 p-3 text-center">
+              <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-center dark:bg-background/30">
                 <p className="text-lg font-semibold">{freePlan.leadsLimit}</p>
                 <p className="text-xs text-muted-foreground">leads/mês</p>
               </div>
-              <div className="rounded-lg border border-border/60 bg-background/30 p-3 text-center">
+              <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-center dark:bg-background/30">
                 <p className="text-lg font-semibold">{freePlan.aiLimit}</p>
                 <p className="text-xs text-muted-foreground">análises IA/mês</p>
               </div>
@@ -279,15 +279,15 @@ export function PrecosSection() {
               <Card
                 key={plan.id}
                 className={cn(
-                  "relative flex min-h-[520px] flex-col overflow-hidden rounded-lg border bg-zinc-950/70 p-6 shadow-lg",
-                  plan.highlighted ? "border-emerald-400/70 shadow-emerald-950/50" : "border-border/70",
+                  "relative flex min-h-[520px] flex-col overflow-hidden rounded-lg border bg-card p-6 text-card-foreground shadow-md dark:bg-zinc-950/70",
+                  plan.highlighted ? "border-emerald-500 shadow-emerald-500/15 dark:border-emerald-400/70 dark:shadow-emerald-950/50" : "border-border dark:border-white/10",
                 )}
               >
                 {plan.highlighted && <div className="absolute inset-x-0 top-0 h-1 bg-emerald-400" />}
 
                 <div className="flex min-h-[134px] flex-col items-center text-center">
                   {plan.badge ? (
-                    <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/50 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold uppercase text-emerald-200">
+                    <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase text-emerald-700 dark:text-emerald-200">
                       <Sparkles className="h-3 w-3" />
                       {plan.badge}
                     </div>
@@ -299,11 +299,11 @@ export function PrecosSection() {
                 </div>
 
                 <div className="mt-5 grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-border/60 bg-background/30 p-3 text-center">
+                  <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-center dark:bg-background/30">
                     <p className="text-lg font-semibold">{plan.leadsLimit.toLocaleString("pt-BR")}</p>
                     <p className="text-xs text-muted-foreground">leads/mês</p>
                   </div>
-                  <div className="rounded-lg border border-border/60 bg-background/30 p-3 text-center">
+                  <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-center dark:bg-background/30">
                     <p className="text-lg font-semibold">{plan.aiLimit.toLocaleString("pt-BR")}</p>
                     <p className="text-xs text-muted-foreground">análises IA/mês</p>
                   </div>
@@ -329,7 +329,7 @@ export function PrecosSection() {
                 </ul>
 
                 <Button
-                  className={cn("mt-7 h-12 w-full font-semibold", plan.highlighted && "bg-emerald-500 text-white hover:bg-emerald-600")}
+                  className={cn("mt-7 h-12 w-full font-semibold", plan.highlighted && "bg-emerald-600 text-white hover:bg-emerald-500")}
                   variant={plan.highlighted ? "default" : "outline"}
                   onClick={() => handleSelectPlano(plan)}
                   disabled={Boolean(isProcessing)}
@@ -342,13 +342,13 @@ export function PrecosSection() {
         </div>
 
         <div className="mx-auto mt-14 max-w-6xl border-t border-border/60 pt-10">
-          <Card className="flex flex-col gap-5 rounded-lg border-border/70 bg-zinc-950/70 p-6 md:flex-row md:items-center md:justify-between">
+          <Card className="flex flex-col gap-5 rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm md:flex-row md:items-center md:justify-between dark:border-white/10 dark:bg-zinc-900/70">
             <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-blue-400/30 bg-blue-400/10">
-                <Globe className="h-5 w-5 text-blue-300" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-400/30 dark:bg-blue-400/10">
+                <Globe className="h-5 w-5 text-blue-600 dark:text-blue-300" />
               </div>
               <div>
-                <Badge variant="outline" className="mb-2 border-blue-400/40 text-blue-300">Complemento opcional</Badge>
+                <Badge variant="outline" className="mb-2 border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-400/40 dark:bg-blue-400/10 dark:text-blue-300">Complemento opcional</Badge>
                 <h3 className="text-xl font-semibold">Prospecção nos Estados Unidos</h3>
                 <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
                   Adicione prospecção em todos os estados dos EUA aos planos pagos.
@@ -358,7 +358,7 @@ export function PrecosSection() {
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="text-left sm:text-right">
-                <p className="text-2xl font-bold text-blue-300">+ R$ 57</p>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-300">+ R$ 57</p>
                 <p className="text-xs text-muted-foreground">por mês</p>
               </div>
               {(hasUsaAddon || isAdmin) && (

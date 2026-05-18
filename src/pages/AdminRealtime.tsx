@@ -65,6 +65,14 @@ function eventKey(event: AppEvent) {
   return event.event_name || event.event_type;
 }
 
+function normalizeAppEvent(event: AppEvent): AppEvent {
+  return {
+    ...event,
+    is_internal_event: event.is_internal_event ?? false,
+    event_source_type: event.event_source_type || "unknown",
+  };
+}
+
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
@@ -188,7 +196,7 @@ export default function AdminRealtime() {
           description: error.message,
         });
       } else {
-        setEvents((data || []) as AppEvent[]);
+        setEvents(((data || []) as AppEvent[]).map(normalizeAppEvent));
       }
       setLoading(false);
     };
@@ -198,7 +206,7 @@ export default function AdminRealtime() {
     const channel = supabase
       .channel("admin-app-events")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "app_events" }, (payload) => {
-        const event = payload.new as AppEvent;
+        const event = normalizeAppEvent(payload.new as AppEvent);
         if (new Date(event.created_at).toISOString() < sinceIso) return;
         if (internalFilter === "exclude" && event.is_internal_event === true) return;
         if (internalFilter === "only" && event.is_internal_event !== true) return;

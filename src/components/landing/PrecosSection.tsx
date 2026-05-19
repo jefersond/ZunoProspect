@@ -16,6 +16,7 @@ import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, type BillingCycle, type Pl
 import { cn } from "@/lib/utils";
 import { appendReferralToPath } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
+import { getFunnelContext } from "@/lib/funnelContext";
 
 const freePlan = {
   displayName: "Free",
@@ -110,8 +111,11 @@ export function PrecosSection() {
       value: price,
       currency: "BRL",
     });
+    const funnelContext = await getFunnelContext(null, "pricing_page");
+    const upgradeMetadata = { ...funnelContext, plan_id: plan.id, plan_name: plan.name, billing_cycle: billingCycle, location: "pricing", cta_text: plan.cta };
     trackEvent("plan_clicked", { plan_id: plan.id, location: "pricing", billing_cycle: billingCycle });
-    trackEvent("upgrade_clicked", { plan_id: plan.id, billing_cycle: billingCycle, location: "pricing" });
+    trackEvent("upgrade_clicked", upgradeMetadata);
+    trackEvent(funnelContext.has_done_first_ai_analysis ? "Upgrade_Click_After_AI" : "Upgrade_Click_Before_AI", upgradeMetadata);
 
     const {
       data: { session },
@@ -133,12 +137,15 @@ export function PrecosSection() {
       });
 
       trackEvent("checkout_started", {
+        ...funnelContext,
         plan_id: plan.id,
         plan_name: plan.name,
         value: trackingPrice,
         currency: "BRL",
         billing_cycle: billingCycle,
         location: "pricing",
+        source: "pricing_page",
+        stripe_session_id: data.sessionId || null,
         content_name: `Zuno Propect ${plan.name}`,
       });
       trackInitiateCheckout({
@@ -174,7 +181,7 @@ export function PrecosSection() {
         plan_id: plan.id,
         error_message: error?.message || "checkout_error",
       });
-      trackEvent("checkout_failed", { plan_id: plan.id, billing_cycle: billingCycle, location: "pricing", error: error?.message || "checkout_error" });
+      trackEvent("checkout_failed", { ...funnelContext, plan_id: plan.id, billing_cycle: billingCycle, location: "pricing", source: "pricing_page", error_message_safe: error?.message || "checkout_error", error: error?.message || "checkout_error" });
       toast.error("Não foi possível iniciar o pagamento", { description: "Tente novamente." });
     } finally {
       setIsProcessing(null);

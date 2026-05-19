@@ -1,7 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Lock, Unlock } from "lucide-react";
-import { Link } from "react-router-dom";
 
 interface UpsellCardProps {
   leadsOcultos: number;
@@ -33,14 +32,12 @@ export const UpsellCard = ({ leadsOcultos, onUpgrade }: UpsellCardProps) => {
 
         {/* Botão CTA - Link direto para checkout */}
         <Button
-          asChild
           size="lg"
+          onClick={onUpgrade}
           className="w-full max-w-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base py-6 shadow-lg shadow-emerald-500/25"
         >
-          <Link to="/checkout?plano=pro">
-            <Unlock className="h-5 w-5 mr-2" />
-            Desbloquear Todos os Leads
-          </Link>
+          <Unlock className="h-5 w-5 mr-2" />
+          Desbloquear Todos os Leads
         </Button>
       </CardContent>
     </Card>

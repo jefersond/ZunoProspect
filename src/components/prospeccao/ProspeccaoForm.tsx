@@ -491,7 +491,13 @@ export const ProspeccaoForm = () => {
       });
 
       // Verifica se há leads adicionais disponíveis (incentivo de upgrade)
-      if (responseData?.limitedByQuota && responseData?.additionalLeadsAvailable > 0) {
+      const shouldPrioritizeFirstAi =
+        normalizedPlanName === "free" &&
+        (usage.ai_used || 0) === 0 &&
+        (usage.ai_remaining || usage.ai_available_total || 0) > 0 &&
+        leadsCount > 0;
+
+      if (!shouldPrioritizeFirstAi && responseData?.limitedByQuota && responseData?.additionalLeadsAvailable > 0) {
         setUpgradeIncentive({
           additionalLeads: responseData.additionalLeadsAvailable,
           totalAvailable: responseData.totalAvailable,

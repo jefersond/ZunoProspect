@@ -100,5 +100,5 @@ export async function createStripeCheckout({
     throw checkoutError;
   }
 
-  return data as { url: string };
+  return data as { url: string; sessionId?: string };
 }

@@ -13,6 +13,7 @@ import { useLeadPricing } from "@/hooks/useLeadPricing";
 import { createStripeCheckout } from "@/services/stripeCheckout";
 import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
+import { getFunnelContext } from "@/lib/funnelContext";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -202,14 +203,18 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
         selectedPlan: plano,
         billingCycle: "monthly",
       });
+      const funnelContext = await getFunnelContext(null, "checkout_dialog");
 
       trackEvent("checkout_started", {
+        ...funnelContext,
         plan_id: plano.planKey,
         plan_name: plano.nome,
         value: preco,
         currency: "BRL",
         billing_cycle: "monthly",
         location: "checkout_dialog",
+        source: "checkout_dialog",
+        stripe_session_id: data.sessionId || null,
         content_name: `Zuno Propect ${plano.nome}`,
       });
       trackInitiateCheckout({
@@ -234,6 +239,17 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
       trackMetaCustomEvent("Checkout_Failed", {
         plan_id: plano.planKey,
         error_message: errorMessage,
+      });
+      getFunnelContext(null, "checkout_dialog").then((funnelContext) => {
+        trackEvent("checkout_failed", {
+          ...funnelContext,
+          plan_id: plano.planKey,
+          plan_name: plano.nome,
+          source: "checkout_dialog",
+          location: "checkout_dialog",
+          error_message_safe: errorMessage,
+          error: errorMessage,
+        });
       });
     } finally {
       setIsProcessing(false);

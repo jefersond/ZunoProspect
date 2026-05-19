@@ -72,6 +72,7 @@ export const UpgradeIncentive = ({
         open={showUpgradeDialog}
         onOpenChange={setShowUpgradeDialog}
         currentPlanName={currentPlanName}
+        source="after_search"
       />
     </>
   );

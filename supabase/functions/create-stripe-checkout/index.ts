@@ -296,7 +296,7 @@ serve(async (req) => {
       },
     });
 
-    return jsonResponse({ url: session.url }, 200);
+    return jsonResponse({ url: session.url, sessionId: session.id }, 200);
   } catch (error: any) {
     console.error("Checkout error", {
       functionName,

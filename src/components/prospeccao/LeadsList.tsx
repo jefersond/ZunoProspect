@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck, Sparkles } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
@@ -24,11 +24,12 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useUsage } from "@/hooks/useUsage";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
+import type { UpgradeSource } from "@/lib/funnelContext";
 
 export const LeadsList = () => {
   const { toast } = useToast();
   const { subscription, isAdmin: subscriptionIsAdmin } = useSubscription();
-  const { canAnalyzeAI, refetch: refetchUsage, isAdmin: usageIsAdmin } = useUsage();
+  const { usage, canAnalyzeAI, refetch: refetchUsage, isAdmin: usageIsAdmin } = useUsage();
   const isAdmin = subscriptionIsAdmin || usageIsAdmin;
   const [leads, setLeads] = useState<LeadProspeccao[]>([]);
   const [lockedLeads, setLockedLeads] = useState<LeadProspeccao[]>([]);
@@ -37,8 +38,22 @@ export const LeadsList = () => {
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [upgradeSource, setUpgradeSource] = useState<UpgradeSource>("unknown");
   const [reanalyzingLeads, setReanalyzingLeads] = useState<Set<string>>(new Set());
   const [currentSearchRunId, setCurrentSearchRunId] = useState<string | null>(null);
+  const firstAiCtaShownKeys = useRef<Set<string>>(new Set());
+  const normalizedPlanName = String(subscription?.plan_name || usage.plan_name || "free").toLowerCase();
+  const firstAnalyzableLead = useMemo(
+    () => leads.find((lead) => lead.probabilidade_conversao <= 0 && lead.plano_prospecao_7dias.length === 0) || leads[0],
+    [leads],
+  );
+  const shouldShowFirstAiCta =
+    !isAdmin &&
+    normalizedPlanName === "free" &&
+    leads.length > 0 &&
+    canAnalyzeAI &&
+    (usage.ai_used || 0) === 0 &&
+    Boolean(firstAnalyzableLead);
 
   // Função para validar se um número de telefone brasileiro é válido
   const isValidBrazilianPhone = (phone: string): boolean => {
@@ -375,6 +390,21 @@ export const LeadsList = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!shouldShowFirstAiCta) return;
+    const key = currentSearchRunId || leads.map((lead) => lead.id).join(":") || "session";
+    if (firstAiCtaShownKeys.current.has(key)) return;
+    firstAiCtaShownKeys.current.add(key);
+
+    trackEvent("First_AI_CTA_Shown", {
+      location: "after_search_banner",
+      leads_count: leads.length,
+      ai_available: usage.ai_remaining,
+      ai_used: usage.ai_used,
+      user_plan: normalizedPlanName,
+    });
+  }, [currentSearchRunId, leads, normalizedPlanName, shouldShowFirstAiCta, usage.ai_remaining, usage.ai_used]);
+
   const deleteLead = async (id: string) => {
     try {
       const { error } = await supabase.from("leads").delete().eq("id", id);
@@ -425,6 +455,19 @@ export const LeadsList = () => {
         description: error.message || "Não foi possível exportar para Excel",
       });
     }
+  };
+
+  const handleFirstAiCtaClick = async () => {
+    if (!firstAnalyzableLead) return;
+    trackEvent("First_AI_CTA_Clicked", {
+      location: "after_search_banner",
+      selected_lead_id: firstAnalyzableLead.id,
+      selected_lead_name: firstAnalyzableLead.nome,
+      ai_available: usage.ai_remaining,
+      ai_used: usage.ai_used,
+      user_plan: normalizedPlanName,
+    });
+    await reanalyzeLead(firstAnalyzableLead, "after_search_banner");
   };
 
   const handleSaveLeads = async () => {
@@ -514,13 +557,14 @@ export const LeadsList = () => {
   };
 
   // Analisar ou reanalisar lead manualmente
-  const reanalyzeLead = async (lead: LeadProspeccao) => {
+  const reanalyzeLead = async (lead: LeadProspeccao, source = "leads_list") => {
     if (!canAnalyzeAI) {
       toast({
         variant: "destructive",
         title: "Limite de IA atingido",
         description: "Você atingiu seu limite de análises com IA.",
       });
+      setUpgradeSource("limit_reached");
       setShowUpgradeDialog(true);
       return;
     }
@@ -531,7 +575,19 @@ export const LeadsList = () => {
       lead_name: lead.nome,
       source: "prospection_page",
     });
-    trackEvent("ai_analysis_clicked", { lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "leads_list" });
+    const firstAnalysisKeyPrefix = "zuno_first_ai_analysis_completed_";
+    const hasDoneFirstAi = usage.ai_used > 0;
+    trackEvent("ai_analysis_clicked", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source });
+    if (!hasDoneFirstAi) {
+      trackEvent("First_AI_Analysis_Started", {
+        lead_id: lead.id,
+        lead_name: lead.nome,
+        source,
+        ai_available: usage.ai_remaining,
+        ai_used: usage.ai_used,
+        user_plan: normalizedPlanName,
+      });
+    }
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -561,14 +617,22 @@ export const LeadsList = () => {
         lead_id: lead.id,
         lead_name: lead.nome,
       });
-      const firstAnalysisKey = `zuno_first_ai_analysis_completed_${user.id}`;
+      const firstAnalysisKey = `${firstAnalysisKeyPrefix}${user.id}`;
       if (!localStorage.getItem(firstAnalysisKey)) {
         localStorage.setItem(firstAnalysisKey, new Date().toISOString());
         trackMetaCustomEvent("First_AI_Analysis_Completed", {
           lead_id: lead.id,
         });
+        trackEvent("First_AI_Analysis_Completed", {
+          lead_id: lead.id,
+          lead_name: lead.nome,
+          source,
+          ai_available_before: usage.ai_remaining,
+          ai_used_before: usage.ai_used,
+          user_plan: normalizedPlanName,
+        });
       }
-      trackEvent("ai_analysis_completed", { lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "leads_list" });
+      trackEvent("ai_analysis_completed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source });
       loadLeads();
     } catch (error: any) {
       console.error("Erro ao reanalisar:", error);
@@ -576,7 +640,7 @@ export const LeadsList = () => {
         lead_id: lead.id,
         error_message: error.message || "ai_analysis_error",
       });
-      trackEvent("ai_analysis_failed", { lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: error.message || "ai_analysis_error", source: "leads_list" });
+      trackEvent("ai_analysis_failed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: error.message || "ai_analysis_error", source });
       toast({
         variant: "destructive",
         title: "Erro na análise",
@@ -633,6 +697,35 @@ export const LeadsList = () => {
             )}
           </div>
         </CardHeader>
+        {shouldShowFirstAiCta && firstAnalyzableLead && (
+          <div className="mx-4 mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground">Teste a IA antes de fazer upgrade</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Você encontrou seus leads. Agora gere uma abordagem pronta para entender o diferencial do Zuno. Você ainda tem {usage.ai_remaining} análises IA grátis.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={handleFirstAiCtaClick}
+                disabled={reanalyzingLeads.has(firstAnalyzableLead.id)}
+                className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-500"
+              >
+                {reanalyzingLeads.has(firstAnalyzableLead.id) ? (
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Zap className="mr-2 h-4 w-4" />
+                )}
+                Analisar meu primeiro lead com IA
+              </Button>
+            </div>
+          </div>
+        )}
         <CardContent className="p-0">
           <div className="w-full overflow-x-auto">
             <div className="min-w-[1120px] p-4">
@@ -1003,7 +1096,10 @@ export const LeadsList = () => {
                                 Encontramos mais empresas nesta busca! Faça upgrade para desbloquear todos os leads.
                               </p>
                               <Button 
-                                onClick={() => setShowUpgradeDialog(true)}
+                                onClick={() => {
+                                  setUpgradeSource(shouldShowFirstAiCta ? "after_search" : "limit_reached");
+                                  setShowUpgradeDialog(true);
+                                }}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
                               >
                                 <Zap className="h-4 w-4" />
@@ -1027,7 +1123,10 @@ export const LeadsList = () => {
       {!isAdmin && (
         <UpsellCard 
           leadsOcultos={totalLocked} 
-          onUpgrade={() => setShowUpgradeDialog(true)} 
+          onUpgrade={() => {
+            setUpgradeSource(shouldShowFirstAiCta ? "after_search" : "limit_reached");
+            setShowUpgradeDialog(true);
+          }} 
         />
       )}
 
@@ -1045,6 +1144,7 @@ export const LeadsList = () => {
         open={showUpgradeDialog} 
         onOpenChange={setShowUpgradeDialog}
         currentPlanName={subscription?.plan_name}
+        source={upgradeSource}
       />
     </>
   );

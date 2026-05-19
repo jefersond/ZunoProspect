@@ -6,6 +6,7 @@ import { isAdminEmail } from "@/config/admin";
 import { AppHeader } from "@/components/AppHeader";
 import { normalizeCreativeName, CREATIVE_NAME_MAP } from "@/lib/creativeMap";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -17,6 +18,7 @@ type AppEvent = {
   id: string;
   user_id: string | null;
   email: string | null;
+  user_email?: string | null;
   anonymous_id: string | null;
   session_id: string | null;
   event_type: string;
@@ -44,6 +46,26 @@ type AppEvent = {
   event_source_type: string | null;
   created_at: string;
 };
+
+type AdminUserSummary = {
+  id: string;
+  email: string;
+  plan_name: string;
+  leads_limit: number;
+  leads_used_this_month: number;
+  ai_limit: number;
+  ai_used_this_month: number;
+};
+
+type SegmentKey =
+  | "all"
+  | "searched_no_ai"
+  | "checkout_abandoned"
+  | "upgrade_before_ai"
+  | "free_zero_ai_used"
+  | "free_first_search_done"
+  | "recent_checkout_started"
+  | "free_high_leads_no_ai_checkout";
 
 const rangeHours = {
   "1h": 1,
@@ -98,7 +120,26 @@ function eventDetails(event: AppEvent) {
 }
 
 function identity(event: AppEvent) {
-  return event.email || event.anonymous_id || event.user_id || "anonimo";
+  return event.email || event.user_email || event.anonymous_id || event.user_id || "anonimo";
+}
+
+function metadata(event: AppEvent) {
+  return event.metadata || event.event_data || {};
+}
+
+function hasEvent(list: AppEvent[], names: string[]) {
+  return list.some((event) => names.includes(eventKey(event)));
+}
+
+function eventCount(list: AppEvent[], names: string[]) {
+  return list.filter((event) => names.includes(eventKey(event))).length;
+}
+
+function sourceBadge(event: AppEvent) {
+  if (event.is_internal_event) return "interno/teste";
+  if (event.event_source_type && event.event_source_type !== "unknown") return event.event_source_type;
+  if (!event.utm_source && !event.utm_campaign && !event.utm_content) return "sem UTM";
+  return "real";
 }
 
 function percent(part: number, total: number) {
@@ -111,8 +152,11 @@ export default function AdminRealtime() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<AppEvent[]>([]);
+  const [users, setUsers] = useState<AdminUserSummary[]>([]);
   const [range, setRange] = useState<keyof typeof rangeHours>("24h");
   const [eventType, setEventType] = useState("all");
+  const [segment, setSegment] = useState<SegmentKey>("all");
+  const [abandonmentHours, setAbandonmentHours] = useState("2");
   const [searchTerm, setSearchTerm] = useState("");
   const [utmSource, setUtmSource] = useState("");
   const [utmCampaign, setUtmCampaign] = useState("");
@@ -125,6 +169,9 @@ export default function AdminRealtime() {
     date.setHours(date.getHours() - rangeHours[range]);
     return date.toISOString();
   }, [range]);
+
+  const usersById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
+  const usersByEmail = useMemo(() => new Map(users.map((user) => [user.email?.toLowerCase(), user])), [users]);
 
   useEffect(() => {
     const verifyAdmin = async () => {
@@ -153,6 +200,30 @@ export default function AdminRealtime() {
 
     verifyAdmin();
   }, [navigate, toast]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const loadUsers = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const { data, error } = await supabase.functions.invoke("admin-get-users", {
+        body: { action: "list" },
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      });
+
+      if (error) {
+        console.warn("Erro ao carregar usuarios para segmentos:", error.message);
+        return;
+      }
+
+      setUsers((data?.users || []) as AdminUserSummary[]);
+    };
+
+    loadUsers();
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -222,9 +293,13 @@ export default function AdminRealtime() {
   const filteredEvents = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     if (!term) return events;
+    const matchedUserIds = users
+      .filter((user) => user.email?.toLowerCase().includes(term))
+      .map((user) => user.id);
     return events.filter((event) => {
       return [
         event.email,
+        event.user_email,
         event.anonymous_id,
         event.session_id,
         event.user_id,
@@ -235,11 +310,11 @@ export default function AdminRealtime() {
         event.utm_content,
         normalizeCreativeName(event.utm_content),
         JSON.stringify(event.metadata || event.event_data || {}),
-      ]
+      ].concat(matchedUserIds.includes(event.user_id || "") ? [event.user_id] : [])
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(term));
     });
-  }, [events, searchTerm]);
+  }, [events, searchTerm, users]);
 
   const metrics = useMemo(() => {
     const uniqueVisitors = new Set(filteredEvents.map((event) => event.anonymous_id || event.user_id).filter(Boolean));
@@ -318,12 +393,86 @@ export default function AdminRealtime() {
       .sort((a, b) => b.pageViews - a.pageViews);
   }, [filteredEvents]);
 
+  const segmentRows = useMemo(() => {
+    const grouped = new Map<string, AppEvent[]>();
+    const resolveKey = (event: AppEvent) => event.user_id || event.email || event.user_email || event.anonymous_id || event.session_id || event.id;
+
+    filteredEvents.forEach((event) => {
+      const key = resolveKey(event);
+      grouped.set(key, [...(grouped.get(key) || []), event]);
+    });
+
+    const cutoff = Date.now() - Number(abandonmentHours || 2) * 60 * 60 * 1000;
+
+    return Array.from(grouped.entries())
+      .map(([key, list]) => {
+        const sorted = [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        const last = sorted[sorted.length - 1];
+        const user = (last.user_id && usersById.get(last.user_id)) || usersByEmail.get((last.email || last.user_email || "").toLowerCase());
+        const plan = String(user?.plan_name || metadata(last).user_plan || "unknown").toLowerCase();
+        const leadsUsed = Number(user?.leads_used_this_month ?? metadata(last).leads_used ?? 0);
+        const leadsLimit = Number(user?.leads_limit ?? metadata(last).leads_limit ?? 0);
+        const aiUsed = Number(user?.ai_used_this_month ?? metadata(last).ai_used ?? 0);
+        const aiLimit = Number(user?.ai_limit ?? metadata(last).ai_limit ?? 0);
+        const checkoutStarted = sorted.filter((event) => ["checkout_started", "InitiateCheckout"].includes(eventKey(event)));
+        const purchaseDone = hasEvent(sorted, ["purchase_completed", "Purchase"]);
+        const hasSearchCompleted = hasEvent(sorted, ["search_completed", "first_search_completed"]);
+        const hasAiCompleted = hasEvent(sorted, ["ai_analysis_completed", "First_AI_Analysis_Completed", "first_ai_analysis_completed"]);
+        const hasUpgrade = hasEvent(sorted, ["upgrade_clicked", "Upgrade_Click_Before_AI", "Upgrade_Click_After_AI"]);
+        const lastCheckout = checkoutStarted[checkoutStarted.length - 1];
+        const matchesSegment =
+          segment === "all" ||
+          (segment === "searched_no_ai" && hasSearchCompleted && !hasAiCompleted) ||
+          (segment === "checkout_abandoned" && checkoutStarted.length > 0 && !purchaseDone && new Date(lastCheckout.created_at).getTime() <= cutoff) ||
+          (segment === "upgrade_before_ai" && hasUpgrade && !hasAiCompleted) ||
+          (segment === "free_zero_ai_used" && plan === "free" && aiUsed === 0) ||
+          (segment === "free_first_search_done" && plan === "free" && hasEvent(sorted, ["first_search_completed"])) ||
+          (segment === "recent_checkout_started" && checkoutStarted.length > 0) ||
+          (segment === "free_high_leads_no_ai_checkout" && plan === "free" && leadsUsed >= 10 && aiUsed === 0 && checkoutStarted.length > 0 && !purchaseDone);
+
+        return {
+          key,
+          matchesSegment,
+          email: user?.email || last.email || last.user_email || "-",
+          plan,
+          leadsUsage: leadsLimit ? `${leadsUsed}/${leadsLimit}` : String(leadsUsed || "-"),
+          aiUsage: aiLimit ? `${aiUsed}/${aiLimit}` : String(aiUsed || "-"),
+          lastEvent: eventKey(last),
+          lastAt: last.created_at,
+          utmContent: normalizeCreativeName(last.utm_content),
+          eventSource: sourceBadge(last),
+          journeyKey: user?.email || last.email || last.user_email || last.user_id || last.session_id || last.anonymous_id || key,
+          counts: {
+            searches: eventCount(sorted, ["search_completed"]),
+            ai: eventCount(sorted, ["ai_analysis_completed"]),
+            upgrades: eventCount(sorted, ["upgrade_clicked", "Upgrade_Click_Before_AI", "Upgrade_Click_After_AI"]),
+            checkouts: checkoutStarted.length,
+            purchases: eventCount(sorted, ["purchase_completed", "Purchase"]),
+          },
+        };
+      })
+      .filter((row) => row.matchesSegment)
+      .sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime())
+      .slice(0, 100);
+  }, [abandonmentHours, filteredEvents, segment, usersByEmail, usersById]);
+
   const selectedJourney = useMemo(() => {
     if (!selectedSession) return [];
+    const selected = selectedSession.toLowerCase();
+    const matchedUser = usersByEmail.get(selected);
     return events
-      .filter((event) => event.session_id === selectedSession || event.anonymous_id === selectedSession)
+      .filter((event) => {
+        return (
+          event.session_id === selectedSession ||
+          event.anonymous_id === selectedSession ||
+          event.user_id === selectedSession ||
+          event.email?.toLowerCase() === selected ||
+          event.user_email?.toLowerCase() === selected ||
+          (matchedUser?.id && event.user_id === matchedUser.id)
+        );
+      })
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  }, [events, selectedSession]);
+  }, [events, selectedSession, usersByEmail]);
 
   if (!isAdmin) return null;
 
@@ -420,10 +569,77 @@ export default function AdminRealtime() {
                 <SelectItem value="all">Todos</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={segment} onValueChange={(value) => setSegment(value as SegmentKey)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Segmento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os segmentos</SelectItem>
+                <SelectItem value="searched_no_ai">Buscou, sem IA</SelectItem>
+                <SelectItem value="checkout_abandoned">Checkout abandonado</SelectItem>
+                <SelectItem value="upgrade_before_ai">Upgrade antes da IA</SelectItem>
+                <SelectItem value="free_zero_ai_used">Free com 0 IA</SelectItem>
+                <SelectItem value="free_first_search_done">Free com primeira busca</SelectItem>
+                <SelectItem value="recent_checkout_started">Checkout recente</SelectItem>
+                <SelectItem value="free_high_leads_no_ai_checkout">Caso sousapros-like</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input placeholder="Abandono X horas" value={abandonmentHours} onChange={(event) => setAbandonmentHours(event.target.value)} />
             <Input placeholder="Email, usuario, sessao ou evento" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
             <Input placeholder="UTM source" value={utmSource} onChange={(event) => setUtmSource(event.target.value)} />
             <Input placeholder="Campanha UTM" value={utmCampaign} onChange={(event) => setUtmCampaign(event.target.value)} />
             <Input placeholder="Criativo / utm_content" value={utmContent} onChange={(event) => setUtmContent(event.target.value)} />
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-lg">
+          <CardHeader>
+            <CardTitle>Segmentos e recuperacao</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Plano</TableHead>
+                  <TableHead>Leads</TableHead>
+                  <TableHead>IA</TableHead>
+                  <TableHead>Eventos-chave</TableHead>
+                  <TableHead>Ultimo evento</TableHead>
+                  <TableHead>Criativo</TableHead>
+                  <TableHead>Origem</TableHead>
+                  <TableHead>Jornada</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {segmentRows.map((row) => (
+                  <TableRow key={row.key}>
+                    <TableCell className="max-w-[220px] truncate">{row.email}</TableCell>
+                    <TableCell>{row.plan}</TableCell>
+                    <TableCell>{row.leadsUsage}</TableCell>
+                    <TableCell>{row.aiUsage}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      buscas {row.counts.searches} / IA {row.counts.ai} / upgrades {row.counts.upgrades} / checkouts {row.counts.checkouts} / compras {row.counts.purchases}
+                    </TableCell>
+                    <TableCell>{row.lastEvent}</TableCell>
+                    <TableCell>{row.utmContent || "-"}</TableCell>
+                    <TableCell>{row.eventSource}</TableCell>
+                    <TableCell>
+                      <Button variant="outline" size="sm" onClick={() => setSelectedSession(row.journeyKey)}>
+                        Ver jornada
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {segmentRows.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                      Nenhum usuario encontrado para o segmento atual.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
 
@@ -501,7 +717,7 @@ export default function AdminRealtime() {
                     <TableCell>
                       <button
                         className="max-w-[240px] truncate text-left text-primary underline-offset-4 hover:underline"
-                        onClick={() => setSelectedSession(event.session_id || event.anonymous_id)}
+                        onClick={() => setSelectedSession(event.email || event.user_email || event.user_id || event.session_id || event.anonymous_id)}
                       >
                         {identity(event)}
                       </button>
@@ -527,28 +743,48 @@ export default function AdminRealtime() {
       </main>
 
       <Sheet open={Boolean(selectedSession)} onOpenChange={(open) => !open && setSelectedSession(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+        <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
           <SheetHeader>
-            <SheetTitle>Jornada do visitante</SheetTitle>
+            <SheetTitle>Jornada do usuário</SheetTitle>
             <SheetDescription>{selectedSession}</SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-3">
             {selectedJourney.map((event) => (
               <div key={event.id} className="rounded-lg border border-border/70 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <Badge>{eventKey(event)}</Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge>{eventKey(event)}</Badge>
+                    <Badge variant="outline">{sourceBadge(event)}</Badge>
+                    {event.event_type && event.event_type !== event.event_name && (
+                      <Badge variant="secondary">{event.event_type}</Badge>
+                    )}
+                  </div>
                   <span className="text-xs text-muted-foreground">{formatTime(event.created_at)}</span>
                 </div>
-                <p className="mt-2 text-sm">{event.pathname || event.path || event.page_url || "-"}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {[event.utm_source, event.utm_campaign, normalizeCreativeName(event.utm_content)].filter(Boolean).join(" / ") || "sem UTM"}
-                  {event.utm_content && event.utm_content !== normalizeCreativeName(event.utm_content) && (
-                    <span className="block text-[10px] text-muted-foreground/70">Original: {event.utm_content}</span>
-                  )}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">{eventDetails(event)}</p>
+                <div className="mt-3 grid gap-2 text-xs md:grid-cols-2">
+                  <p><span className="text-muted-foreground">page_url:</span> {event.page_url || "-"}</p>
+                  <p><span className="text-muted-foreground">path:</span> {event.pathname || event.path || "-"}</p>
+                  <p><span className="text-muted-foreground">referrer:</span> {event.referrer || "-"}</p>
+                  <p><span className="text-muted-foreground">creative:</span> {normalizeCreativeName(event.utm_content) || "-"}</p>
+                  <p><span className="text-muted-foreground">utm:</span> {[event.utm_source, event.utm_medium, event.utm_campaign, event.utm_content].filter(Boolean).join(" / ") || "-"}</p>
+                  <p><span className="text-muted-foreground">session_id:</span> {event.session_id || "-"}</p>
+                  <p><span className="text-muted-foreground">anonymous_id:</span> {event.anonymous_id || "-"}</p>
+                  <p><span className="text-muted-foreground">user:</span> {event.user_email || event.email || event.user_id || "-"}</p>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">{eventDetails(event)}</p>
+                <details className="mt-3 rounded-md bg-muted/40 p-3 text-xs">
+                  <summary className="cursor-pointer font-medium">Metadata completa</summary>
+                  <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap">
+                    {JSON.stringify(metadata(event), null, 2)}
+                  </pre>
+                </details>
               </div>
             ))}
+            {selectedJourney.length === 0 && (
+              <p className="rounded-lg border border-border/70 p-4 text-sm text-muted-foreground">
+                Nenhum evento encontrado para este email, usuário, sessão ou anonymous_id no período carregado.
+              </p>
+            )}
           </div>
         </SheetContent>
       </Sheet>

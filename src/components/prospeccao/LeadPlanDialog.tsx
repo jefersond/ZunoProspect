@@ -61,8 +61,9 @@ export const LeadPlanDialog = ({
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const { toast } = useToast();
   const { subscription, loading: subscriptionLoading, isAdmin: subscriptionIsAdmin } = useSubscription();
-  const { canAnalyzeAI, refetch: refetchUsage, isAdmin: usageIsAdmin } = useUsage();
+  const { usage, canAnalyzeAI, refetch: refetchUsage, isAdmin: usageIsAdmin } = useUsage();
   const isAdmin = subscriptionIsAdmin || usageIsAdmin;
+  const normalizedPlanName = String(subscription?.plan_name || usage.plan_name || "free").toLowerCase();
   
   // Planos que têm acesso às anotações
   const hasNotesAccess = isAdmin || (subscription && 
@@ -175,7 +176,17 @@ export const LeadPlanDialog = ({
       lead_name: lead.nome,
       source: "prospection_page",
     });
-    trackEvent("ai_analysis_clicked", { lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "lead_dialog" });
+    trackEvent("ai_analysis_clicked", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "lead_dialog" });
+    if ((usage.ai_used || 0) === 0) {
+      trackEvent("First_AI_Analysis_Started", {
+        lead_id: lead.id,
+        lead_name: lead.nome,
+        source: "lead_dialog",
+        ai_available: usage.ai_remaining,
+        ai_used: usage.ai_used,
+        user_plan: normalizedPlanName,
+      });
+    }
     try {
       // Obter user_id do usuário atual
       const { data: { user } } = await supabase.auth.getUser();
@@ -252,8 +263,16 @@ export const LeadPlanDialog = ({
         trackMetaCustomEvent("First_AI_Analysis_Completed", {
           lead_id: lead.id,
         });
+        trackEvent("First_AI_Analysis_Completed", {
+          lead_id: lead.id,
+          lead_name: lead.nome,
+          source: "lead_dialog",
+          ai_available_before: usage.ai_remaining,
+          ai_used_before: usage.ai_used,
+          user_plan: normalizedPlanName,
+        });
       }
-      trackEvent("ai_analysis_completed", { lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "lead_dialog" });
+      trackEvent("ai_analysis_completed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "lead_dialog" });
 
       toast({
         title: "Análise concluída",
@@ -265,7 +284,7 @@ export const LeadPlanDialog = ({
         lead_id: lead.id,
         error_message: error.message || "ai_analysis_error",
       });
-      trackEvent("ai_analysis_failed", { lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: error.message || "ai_analysis_error", source: "lead_dialog" });
+      trackEvent("ai_analysis_failed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: error.message || "ai_analysis_error", source: "lead_dialog" });
       toast({
         title: "Erro ao reanalisar",
         description: error.message || "Não foi possível reanalisar o lead",

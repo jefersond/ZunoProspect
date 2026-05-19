@@ -19,11 +19,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { trackEvent } from "@/lib/analytics";
 import { trackInitiateCheckout, trackMetaCustomEvent } from "@/lib/metaPixel";
+import { getFunnelContext, type UpgradeSource } from "@/lib/funnelContext";
+import { useUsage } from "@/hooks/useUsage";
 
 interface UpgradePlanDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentPlanName?: string;
+  source?: UpgradeSource;
 }
 
 const PLAN_ORDER = {
@@ -38,9 +41,10 @@ function getCurrentPlanLevel(currentPlanName?: string) {
   return PLAN_ORDER[normalized as keyof typeof PLAN_ORDER] ?? -1;
 }
 
-export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: UpgradePlanDialogProps) => {
+export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName, source = "modal_upgrade" }: UpgradePlanDialogProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { usage } = useUsage();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
 
@@ -51,21 +55,30 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
 
   useEffect(() => {
     if (!open) return;
-    trackMetaCustomEvent("Upgrade_Modal_Opened", {
-      source: "app",
-    });
-  }, [open]);
+    trackMetaCustomEvent("Upgrade_Modal_Opened", { source });
+    trackEvent("upgrade_modal_opened", { source });
+  }, [open, source]);
 
   const handleSelectPlano = async (plan: PlanConfig) => {
     setProcessingPlan(plan.id);
     const trackingPrice = plan.monthlyPrice;
+    const funnelContext = await getFunnelContext(usage, source);
     trackMetaCustomEvent("Plan_Selected", {
       plan_id: plan.id,
       plan_name: plan.name,
       value: trackingPrice,
       currency: "BRL",
     });
-    trackEvent("upgrade_clicked", { plan_id: plan.id, billing_cycle: billingCycle, location: "upgrade_dialog" });
+    const upgradeMetadata = {
+      ...funnelContext,
+      plan_id: plan.id,
+      plan_name: plan.name,
+      billing_cycle: billingCycle,
+      location: "upgrade_dialog",
+      cta_text: plan.cta,
+    };
+    trackEvent("upgrade_clicked", upgradeMetadata);
+    trackEvent(funnelContext.has_done_first_ai_analysis ? "Upgrade_Click_After_AI" : "Upgrade_Click_Before_AI", upgradeMetadata);
     try {
       toast.loading("Gerando link de pagamento seguro...");
 
@@ -76,12 +89,15 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
       });
 
       trackEvent("checkout_started", {
+        ...funnelContext,
         plan_id: plan.id,
         plan_name: plan.name,
         value: trackingPrice,
         currency: "BRL",
         billing_cycle: billingCycle,
         location: "upgrade_dialog",
+        source,
+        stripe_session_id: data.sessionId || null,
         content_name: `Zuno Propect ${plan.name}`,
       });
       trackInitiateCheckout({
@@ -111,7 +127,15 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName }: Upgra
         plan_id: plan.id,
         error_message: error?.message || "checkout_error",
       });
-      trackEvent("checkout_failed", { plan_id: plan.id, billing_cycle: billingCycle, location: "upgrade_dialog", error: error?.message || "checkout_error" });
+      trackEvent("checkout_failed", {
+        ...funnelContext,
+        plan_id: plan.id,
+        billing_cycle: billingCycle,
+        location: "upgrade_dialog",
+        source,
+        error_message_safe: error?.message || "checkout_error",
+        error: error?.message || "checkout_error",
+      });
       toast.error("Não foi possível iniciar o pagamento", {
         description: "Tente novamente.",
       });

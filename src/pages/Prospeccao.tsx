@@ -11,6 +11,7 @@ import { createStripeCheckout } from "@/services/stripeCheckout";
 import { trackEvent } from "@/lib/analytics";
 import { trackInitiateCheckout, trackMetaCustomEvent } from "@/lib/metaPixel";
 import { PLANS, normalizePlanId } from "@/config/plans";
+import { getFunnelContext } from "@/lib/funnelContext";
 
 import { AppHeader } from "@/components/AppHeader";
 
@@ -72,13 +73,17 @@ const Prospeccao = () => {
             });
             if (normalizedPlan) {
               const plan = PLANS[normalizedPlan];
+              const funnelContext = await getFunnelContext(subscription, "navbar");
               trackEvent("checkout_started", {
+                ...funnelContext,
                 plan_id: normalizedPlan,
                 plan_name: plan.name,
                 value: plan.monthlyPrice,
                 currency: "BRL",
                 billing_cycle: "monthly",
                 location: "google_success_return",
+                source: "navbar",
+                stripe_session_id: data.sessionId || null,
                 content_name: `Zuno Propect ${plan.name}`,
               });
               trackInitiateCheckout({
@@ -96,7 +101,7 @@ const Prospeccao = () => {
               plan_id: plano.toLowerCase(),
               error_message: "checkout_error",
             });
-            trackEvent("checkout_failed", { plan_id: plano.toLowerCase(), billing_cycle: "monthly", location: "google_success_return", error: "checkout_error" });
+            trackEvent("checkout_failed", { plan_id: plano.toLowerCase(), billing_cycle: "monthly", location: "google_success_return", source: "navbar", error_message_safe: "checkout_error", error: "checkout_error" });
             console.error("Erro ao gerar checkout apos Google:", error);
             toast.error("Erro ao gerar link de pagamento. Tente pelo checkout.");
             navigate(`/checkout?plano=${plano}&anual=${isAnual}`);
@@ -163,6 +168,7 @@ const Prospeccao = () => {
         open={showUpgradeDialog} 
         onOpenChange={setShowUpgradeDialog}
         currentPlanName={subscription?.plan_name}
+        source="navbar"
       />
     </div>
   );

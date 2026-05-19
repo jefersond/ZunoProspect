@@ -11,6 +11,7 @@ import { Logo } from "@/components/Logo";
 import { getAttributionParams, trackCompleteRegistration, trackInitiateCheckout, trackAddPaymentInfo, trackMetaCustomEvent } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { createStripeCheckout } from "@/services/stripeCheckout";
+import { getFunnelContext } from "@/lib/funnelContext";
 import { PLANS, normalizePlanId } from "@/config/plans";
 import { useAuth } from "@/hooks/useAuth";
 import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
@@ -290,13 +291,17 @@ export default function Checkout() {
         authUserFromHook: user,
       });
 
+      const funnelContext = await getFunnelContext(null, "checkout_page");
       trackEvent("checkout_started", {
+        ...funnelContext,
         plan_id: trackingPlanId,
         plan_name: plano.nome,
         value: plano.precoMensal,
         currency: "BRL",
         billing_cycle: isAnual ? "annual" : "monthly",
         location: "checkout_page",
+        source: "checkout_page",
+        stripe_session_id: data.sessionId || null,
         content_name: `Zuno Propect ${plano.nome}`,
       });
       trackInitiateCheckout({
@@ -331,6 +336,15 @@ export default function Checkout() {
       trackMetaCustomEvent("Checkout_Failed", {
         plan_id: selectedPlano === "agencia" ? "agency" : selectedPlano,
         error_message: errorMessage,
+      });
+      getFunnelContext(null, "checkout_page").then((funnelContext) => {
+        trackEvent("checkout_failed", {
+          ...funnelContext,
+          plan_id: selectedPlano === "agencia" ? "agency" : selectedPlano,
+          source: "checkout_page",
+          error_message_safe: errorMessage,
+          error: errorMessage,
+        });
       });
     } finally {
       setIsProcessing(false);

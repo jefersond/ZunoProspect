@@ -41,19 +41,60 @@ export const LeadsList = () => {
   const [upgradeSource, setUpgradeSource] = useState<UpgradeSource>("unknown");
   const [reanalyzingLeads, setReanalyzingLeads] = useState<Set<string>>(new Set());
   const [currentSearchRunId, setCurrentSearchRunId] = useState<string | null>(null);
-  const firstAiCtaShownKeys = useRef<Set<string>>(new Set());
+  
   const normalizedPlanName = String(subscription?.plan_name || usage.plan_name || "free").toLowerCase();
   const firstAnalyzableLead = useMemo(
     () => leads.find((lead) => lead.probabilidade_conversao <= 0 && lead.plano_prospecao_7dias.length === 0) || leads[0],
     [leads],
   );
-  const shouldShowFirstAiCta =
-    !isAdmin &&
-    normalizedPlanName === "free" &&
-    leads.length > 0 &&
-    canAnalyzeAI &&
-    (usage.ai_used || 0) === 0 &&
-    Boolean(firstAnalyzableLead);
+
+  const isFree = normalizedPlanName === "free";
+  const aiUsed = usage.ai_used || 0;
+  const aiRemaining = usage.ai_remaining ?? Math.max(0, 3 - aiUsed);
+  const aiLimit = usage.ai_limit ?? 3;
+  
+  // Estado 1: Onboarding Pós-Busca (Free, 0 IA usada, tem saldo, tem leads)
+  const isEstado1Onboarding = isFree && aiUsed === 0 && aiRemaining > 0 && leads.length > 0 && !isAdmin;
+  
+  // Estado 2: Pós-Primeira IA (Free, 1 IA usada, tem saldo)
+  const isEstado2PosPrimeiraIA = isFree && aiUsed === 1 && aiRemaining > 0 && !isAdmin;
+  
+  // Estado 3: Perto do Limite (Free, 2 IA usadas, 1 restante)
+  const isEstado3PertoLimite = isFree && aiUsed === 2 && aiRemaining === 1 && !isAdmin;
+  
+  // Estado 4: Limite Esgotado (Free, 3+ IA usadas, 0 restantes)
+  const isEstado4LimiteEsgotado = isFree && aiRemaining <= 0 && !isAdmin;
+
+  // Função centralizada para acionar e trackear cliques de upgrade conforme a jornada
+  const triggerUpgradeFlow = (source: UpgradeSource) => {
+    const pLimit = usage.leads_limit || 20;
+    const pUsed = usage.leads_used || 0;
+
+    const eventMetadata = {
+      source,
+      user_plan: "free",
+      ai_used: aiUsed,
+      ai_limit: aiLimit,
+      leads_used: pUsed,
+      leads_limit: pLimit,
+    };
+
+    if (isFree) {
+      if (aiUsed === 0) {
+        trackEvent("Upgrade_Click_Before_AI", eventMetadata);
+      } else if (aiUsed > 0 && aiUsed < 3) {
+        trackEvent("Upgrade_Click_After_AI", eventMetadata);
+      } else if (aiUsed >= 3) {
+        trackEvent("Upgrade_Click_After_Limit", eventMetadata);
+      }
+    }
+
+    trackEvent("Upgrade_Click", eventMetadata);
+    trackEvent("upgrade_clicked", eventMetadata);
+
+    setUpgradeSource(source);
+    setShowUpgradeDialog(true);
+  };
 
   // Função para validar se um número de telefone brasileiro é válido
   const isValidBrazilianPhone = (phone: string): boolean => {
@@ -390,20 +431,80 @@ export const LeadsList = () => {
     };
   }, []);
 
+  const shownEventsRef = useRef<Set<string>>(new Set());
+  const firstLeadCtaShownRef = useRef<string | null>(null);
+
+  // 1. Evento First_AI_CTA_Shown (Estado 1: Onboarding Pós-Busca)
   useEffect(() => {
-    if (!shouldShowFirstAiCta) return;
-    const key = currentSearchRunId || leads.map((lead) => lead.id).join(":") || "session";
-    if (firstAiCtaShownKeys.current.has(key)) return;
-    firstAiCtaShownKeys.current.add(key);
+    if (!isEstado1Onboarding) return;
+    const key = `state1_${currentSearchRunId || "session"}`;
+    if (shownEventsRef.current.has(key)) return;
+    shownEventsRef.current.add(key);
 
     trackEvent("First_AI_CTA_Shown", {
-      location: "after_search_banner",
-      leads_count: leads.length,
-      ai_available: usage.ai_remaining,
-      ai_used: usage.ai_used,
-      user_plan: normalizedPlanName,
+      source: "after_search",
+      location: "results_top_banner",
+      user_plan: "free",
+      ai_used: aiUsed,
+      ai_available: aiRemaining,
+      ai_limit: aiLimit,
+      leads_available: usage.leads_available_total || 20,
+      leads_used: usage.leads_used || 0,
+      leads_limit: usage.leads_limit || 20,
+      search_id: currentSearchRunId,
+      leads_count: leads.length
     });
-  }, [currentSearchRunId, leads, normalizedPlanName, shouldShowFirstAiCta, usage.ai_remaining, usage.ai_used]);
+  }, [isEstado1Onboarding, currentSearchRunId, leads.length, aiUsed, aiRemaining, aiLimit, usage.leads_available_total, usage.leads_used, usage.leads_limit]);
+
+  // 2. Evento AI_Limit_Near_Shown (Estado 3: Perto do Limite)
+  useEffect(() => {
+    if (!isEstado3PertoLimite) return;
+    const key = `state3_${currentSearchRunId || "session"}`;
+    if (shownEventsRef.current.has(key)) return;
+    shownEventsRef.current.add(key);
+
+    trackEvent("AI_Limit_Near_Shown", {
+      user_plan: "free",
+      ai_used: aiUsed,
+      ai_limit: aiLimit,
+      ai_available: aiRemaining
+    });
+  }, [isEstado3PertoLimite, currentSearchRunId, aiUsed, aiLimit, aiRemaining]);
+
+  // 3. Evento AI_Limit_Reached_Shown (Estado 4: Limite Esgotado)
+  useEffect(() => {
+    if (!isEstado4LimiteEsgotado) return;
+    const key = `state4_${currentSearchRunId || "session"}`;
+    if (shownEventsRef.current.has(key)) return;
+    shownEventsRef.current.add(key);
+
+    trackEvent("AI_Limit_Reached_Shown", {
+      user_plan: "free",
+      ai_used: aiUsed,
+      ai_limit: aiLimit,
+      ai_available: aiRemaining
+    });
+  }, [isEstado4LimiteEsgotado, currentSearchRunId, aiUsed, aiLimit, aiRemaining]);
+
+  // 4. Evento AI_Lead_CTA_Shown (Somente primeiro lead recomendado/visível)
+  useEffect(() => {
+    if (leads.length > 0 && firstAnalyzableLead) {
+      const key = `${firstAnalyzableLead.id}_cta_shown`;
+      if (firstLeadCtaShownRef.current === key) return;
+      firstLeadCtaShownRef.current = key;
+      
+      const hasDoneFirstAi = aiUsed > 0;
+      trackEvent("AI_Lead_CTA_Shown", {
+        lead_id: firstAnalyzableLead.id,
+        lead_name: firstAnalyzableLead.nome,
+        position: 0,
+        user_plan: "free",
+        ai_used: aiUsed,
+        ai_available: aiRemaining,
+        has_done_first_ai_analysis: hasDoneFirstAi
+      });
+    }
+  }, [leads, firstAnalyzableLead, aiUsed, aiRemaining]);
 
   const deleteLead = async (id: string) => {
     try {
@@ -460,14 +561,21 @@ export const LeadsList = () => {
   const handleFirstAiCtaClick = async () => {
     if (!firstAnalyzableLead) return;
     trackEvent("First_AI_CTA_Clicked", {
-      location: "after_search_banner",
+      location: "results_top_banner",
       selected_lead_id: firstAnalyzableLead.id,
       selected_lead_name: firstAnalyzableLead.nome,
       ai_available: usage.ai_remaining,
       ai_used: usage.ai_used,
       user_plan: normalizedPlanName,
     });
-    await reanalyzeLead(firstAnalyzableLead, "after_search_banner");
+    await reanalyzeLead(firstAnalyzableLead, "results_top_banner");
+  };
+
+  const scrollToLeadsTable = () => {
+    const element = document.getElementById("leads-table-container");
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   const handleSaveLeads = async () => {
@@ -570,21 +678,42 @@ export const LeadsList = () => {
     }
 
     setReanalyzingLeads(prev => new Set(prev).add(lead.id));
+    
+    const pLimit = usage.leads_limit || 20;
+    const pUsed = usage.leads_used || 0;
+    const aiUsedBefore = usage.ai_used || 0;
+    const aiAvailableBefore = usage.ai_remaining || 0;
+    const aiLimitTotal = usage.ai_limit || 3;
+    
+    trackEvent("AI_Analysis_Started", {
+      lead_id: lead.id,
+      lead_name: lead.nome,
+      user_plan: normalizedPlanName,
+      ai_used_before: aiUsedBefore,
+      ai_used_after: aiUsedBefore,
+      ai_available_before: aiAvailableBefore,
+      ai_available_after: aiAvailableBefore,
+      source,
+      path: window.location.pathname,
+    });
+    
     trackMetaCustomEvent("AI_Analysis_Started", {
       lead_id: lead.id,
       lead_name: lead.nome,
       source: "prospection_page",
     });
+    
     const firstAnalysisKeyPrefix = "zuno_first_ai_analysis_completed_";
-    const hasDoneFirstAi = usage.ai_used > 0;
+    const hasDoneFirstAi = aiUsedBefore > 0;
     trackEvent("ai_analysis_clicked", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source });
+    
     if (!hasDoneFirstAi) {
       trackEvent("First_AI_Analysis_Started", {
         lead_id: lead.id,
         lead_name: lead.nome,
         source,
-        ai_available: usage.ai_remaining,
-        ai_used: usage.ai_used,
+        ai_available: aiAvailableBefore,
+        ai_used: aiUsedBefore,
         user_plan: normalizedPlanName,
       });
     }
@@ -612,35 +741,72 @@ export const LeadsList = () => {
         description: `Lead "${lead.nome}" foi analisado com sucesso`,
       });
 
-      await refetchUsage();
+      const nextUsage = await refetchUsage();
+      const newAiUsed = nextUsage?.data?.ai_used ?? (aiUsedBefore + 1);
+      const newAiRemaining = nextUsage?.data?.ai_remaining ?? Math.max(0, aiAvailableBefore - 1);
+
+      trackEvent("AI_Analysis_Completed", {
+        lead_id: lead.id,
+        lead_name: lead.nome,
+        user_plan: normalizedPlanName,
+        ai_used_before: aiUsedBefore,
+        ai_used_after: newAiUsed,
+        ai_available_before: aiAvailableBefore,
+        ai_available_after: newAiRemaining,
+        source,
+        path: window.location.pathname,
+      });
+
       trackMetaCustomEvent("AI_Analysis_Completed", {
         lead_id: lead.id,
         lead_name: lead.nome,
       });
+
       const firstAnalysisKey = `${firstAnalysisKeyPrefix}${user.id}`;
       if (!localStorage.getItem(firstAnalysisKey)) {
         localStorage.setItem(firstAnalysisKey, new Date().toISOString());
+        
         trackMetaCustomEvent("First_AI_Analysis_Completed", {
           lead_id: lead.id,
         });
+
         trackEvent("First_AI_Analysis_Completed", {
           lead_id: lead.id,
           lead_name: lead.nome,
-          source,
-          ai_available_before: usage.ai_remaining,
-          ai_used_before: usage.ai_used,
           user_plan: normalizedPlanName,
+          ai_used: newAiUsed,
+          ai_available: newAiRemaining,
+          ai_limit: aiLimitTotal,
+          leads_used: pUsed,
+          leads_limit: pLimit
         });
       }
+      
       trackEvent("ai_analysis_completed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source });
       loadLeads();
     } catch (error: any) {
       console.error("Erro ao reanalisar:", error);
+      
+      trackEvent("AI_Analysis_Failed", {
+        lead_id: lead.id,
+        lead_name: lead.nome,
+        user_plan: normalizedPlanName,
+        ai_used_before: aiUsedBefore,
+        ai_used_after: aiUsedBefore,
+        ai_available_before: aiAvailableBefore,
+        ai_available_after: aiAvailableBefore,
+        source,
+        path: window.location.pathname,
+        error_message: error.message || "ai_analysis_error",
+      });
+
       trackMetaCustomEvent("AI_Analysis_Failed", {
         lead_id: lead.id,
         error_message: error.message || "ai_analysis_error",
       });
+      
       trackEvent("ai_analysis_failed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: error.message || "ai_analysis_error", source });
+      
       toast({
         variant: "destructive",
         title: "Erro na análise",
@@ -679,7 +845,7 @@ export const LeadsList = () => {
 
   return (
     <>
-      <Card className="w-full overflow-hidden shadow-lg">
+      <Card id="leads-table-container" className="w-full overflow-hidden shadow-lg">
         <CardHeader className="border-b bg-muted/20">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-xl">Leads Encontrados ({leads.length})</CardTitle>
@@ -697,32 +863,188 @@ export const LeadsList = () => {
             )}
           </div>
         </CardHeader>
-        {shouldShowFirstAiCta && firstAnalyzableLead && (
-          <div className="mx-4 mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
-                  <Sparkles className="h-5 w-5" />
+        
+        {/* Banner de Onboarding e Limites de IA - 4 Estados Discretos */}
+        {isEstado1Onboarding && firstAnalyzableLead && (
+          <div className="mx-4 mb-4 mt-4 rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/15 via-teal-500/5 to-transparent p-5 shadow-sm transition-all duration-300">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 animate-pulse">
+                  <Sparkles className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-foreground">Teste a IA antes de fazer upgrade</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Você encontrou seus leads. Agora gere uma abordagem pronta para entender o diferencial do Zuno. Você ainda tem {usage.ai_remaining} análises IA grátis.
+                  <h3 className="text-base font-semibold text-foreground">
+                    Você encontrou leads! E agora, como abordar?
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-3xl">
+                    Gere sua primeira abordagem personalizada com inteligência artificial para WhatsApp, Instagram e e-mail em poucos segundos. O Zuno analisa os sinais digitais e monta o roteiro de vendas perfeito.
                   </p>
                 </div>
               </div>
-              <Button
-                onClick={handleFirstAiCtaClick}
-                disabled={reanalyzingLeads.has(firstAnalyzableLead.id)}
-                className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-500"
-              >
-                {reanalyzingLeads.has(firstAnalyzableLead.id) ? (
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Zap className="mr-2 h-4 w-4" />
-                )}
-                Analisar meu primeiro lead com IA
-              </Button>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <Button
+                  onClick={scrollToLeadsTable}
+                  variant="outline"
+                  className="h-10 text-xs font-medium"
+                >
+                  Ver Lista
+                </Button>
+                <Button
+                  onClick={handleFirstAiCtaClick}
+                  disabled={reanalyzingLeads.has(firstAnalyzableLead.id)}
+                  className="h-10 bg-emerald-600 text-white hover:bg-emerald-500 shadow-md font-semibold text-xs transition-transform active:scale-95"
+                >
+                  {reanalyzingLeads.has(firstAnalyzableLead.id) ? (
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Zap className="mr-2 h-4 w-4" />
+                  )}
+                  Gerar abordagem com IA
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isEstado2PosPrimeiraIA && (
+          <div className="mx-4 mb-4 mt-4 rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent p-5 shadow-sm">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                  <Sparkles className="h-6 w-6 text-yellow-500 fill-yellow-500 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+                    🏆 Sua primeira abordagem com IA foi gerada!
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-3xl">
+                    O Zuno transformou os dados da empresa em um diagnóstico e mensagens prontas. Você ainda pode gerar abordagens personalizadas para mais leads com seu saldo grátis.
+                  </p>
+                  <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    Você ainda tem {aiRemaining} análises de IA grátis.
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <Button
+                  onClick={() => triggerUpgradeFlow("leads_list")}
+                  variant="outline"
+                  className="h-10 text-xs font-medium border-emerald-500/30 hover:bg-emerald-500/5"
+                >
+                  Conhecer Planos
+                </Button>
+                <Button
+                  onClick={scrollToLeadsTable}
+                  className="h-10 bg-emerald-600 text-white hover:bg-emerald-500 shadow-md font-semibold text-xs"
+                >
+                  Analisar outro lead
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isEstado3PertoLimite && (
+          <div className="mx-4 mb-4 mt-4 rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-5 shadow-sm">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 animate-pulse">
+                  <Zap className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-foreground text-amber-700 dark:text-amber-500">
+                    Resta apenas {aiRemaining} análise IA grátis!
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-3xl">
+                    Você está no fim do seu teste grátis. Continue testando em mais uma empresa ou mude para um plano profissional para gerar abordagens em massa!
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <Button
+                  onClick={scrollToLeadsTable}
+                  variant="outline"
+                  className="h-10 text-xs font-medium"
+                >
+                  Usar última análise
+                </Button>
+                <Button
+                  onClick={() => triggerUpgradeFlow("leads_list")}
+                  className="h-10 bg-amber-600 text-white hover:bg-amber-500 shadow-md font-semibold text-xs border border-amber-700"
+                >
+                  Ver planos Pro
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isEstado4LimiteEsgotado && (
+          <div className="mx-4 mb-4 mt-4 rounded-xl border border-emerald-500/40 bg-gradient-to-br from-slate-950 via-emerald-950/40 to-slate-950 p-6 text-white shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between relative z-10">
+              <div className="flex items-start gap-4 flex-1">
+                <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
+                  <Sparkles className="h-6 w-6" />
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-emerald-400 flex items-center gap-2">
+                      ✨ Suas análises IA grátis acabaram!
+                    </h3>
+                    <p className="text-sm text-slate-300 mt-1 leading-relaxed max-w-2xl">
+                      Você comprovou o valor do Zuno Prospect analisando empresas e gerando abordagens. Escolha o plano ideal para continuar convertendo leads in clientes de forma automatizada.
+                    </p>
+                  </div>
+                  
+                  {/* Tabela Comparativa de Planos */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-xl">
+                    <div className="rounded-lg bg-slate-900/80 border border-slate-800 p-3 flex flex-col justify-between">
+                      <div>
+                        <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Free</div>
+                        <div className="text-sm font-bold mt-1 text-slate-200">3 análises IA/mês</div>
+                        <div className="text-[11px] text-slate-400">20 leads/mês</div>
+                      </div>
+                      <div className="text-xs font-semibold text-slate-400 mt-2">Grátis</div>
+                    </div>
+                    <div className="rounded-lg bg-slate-900/80 border border-slate-800 p-3 flex flex-col justify-between">
+                      <div>
+                        <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Starter</div>
+                        <div className="text-sm font-bold mt-1 text-slate-200">30 Análises IA/mês</div>
+                        <div className="text-[11px] text-slate-400">300 leads/mês</div>
+                      </div>
+                      <div className="text-xs font-bold text-emerald-400 mt-2">R$ 47<span className="text-[10px] text-slate-400">/mês</span></div>
+                    </div>
+                    <div className="rounded-lg bg-slate-900/90 border border-emerald-500/40 p-3 flex flex-col justify-between relative shadow-lg">
+                      <span className="absolute -top-2.5 right-2 px-1.5 py-0.5 rounded bg-emerald-500 text-[9px] font-bold text-slate-950 uppercase tracking-wide">
+                        Popular
+                      </span>
+                      <div>
+                        <div className="text-xs text-emerald-400 font-bold uppercase tracking-wider">Pro</div>
+                        <div className="text-sm font-bold mt-1 text-slate-100">100 Análises IA/mês</div>
+                        <div className="text-[11px] text-slate-300">800 leads/mês</div>
+                      </div>
+                      <div className="text-xs font-bold text-emerald-400 mt-2">R$ 97<span className="text-[10px] text-slate-400">/mês</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto md:min-w-[200px] justify-center pt-2">
+                <Button
+                  onClick={() => triggerUpgradeFlow("ai_limit_reached")}
+                  className="w-full h-11 bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-bold text-xs shadow-lg uppercase tracking-wide transition-all duration-200 shadow-emerald-500/10 hover:shadow-emerald-500/25 active:scale-95"
+                >
+                  <Zap className="mr-1.5 h-4 w-4 fill-slate-950" />
+                  Liberar análises IA
+                </Button>
+                <Button
+                  onClick={() => triggerUpgradeFlow("ai_limit_reached")}
+                  variant="ghost"
+                  className="w-full h-9 text-xs text-slate-400 hover:text-white hover:bg-white/5 font-medium"
+                >
+                  Ver todos os planos
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -914,22 +1236,31 @@ export const LeadsList = () => {
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <span>
+                                <div className="flex flex-col items-center gap-1">
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => reanalyzeLead(lead)}
+                                    onClick={() => reanalyzeLead(lead, "leads_list")}
                                     disabled={reanalyzingLeads.has(lead.id) || !canAnalyzeAI}
-                                    className="h-8 whitespace-nowrap text-xs"
+                                    className={`h-8 whitespace-nowrap text-xs ${
+                                      isFree && aiUsed === 0 && lead.id === firstAnalyzableLead?.id
+                                        ? "border-emerald-500 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 animate-pulse font-semibold"
+                                        : ""
+                                    }`}
                                   >
                                     {reanalyzingLeads.has(lead.id) ? (
                                       <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
                                     ) : (
                                       <Zap className="h-3 w-3 mr-1" />
                                     )}
-                                    Analisar com IA
+                                    Gerar abordagem com IA
                                   </Button>
-                                </span>
+                                  {isFree && aiUsed === 0 && lead.id === firstAnalyzableLead?.id && (
+                                    <span className="text-[10px] text-emerald-600 font-medium whitespace-nowrap bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 animate-pulse">
+                                      Use 1 das suas 3 análises grátis
+                                    </span>
+                                  )}
+                                </div>
                               </TooltipTrigger>
                               {!canAnalyzeAI && (
                                 <TooltipContent>
@@ -968,7 +1299,7 @@ export const LeadsList = () => {
                           </div>
                         ) : (
                           <span className="line-clamp-2 text-xs text-muted-foreground">
-                            Clique em Analisar com IA para gerar o plano.
+                            Clique em Gerar abordagem com IA para gerar o plano.
                           </span>
                         )}
                       </div>
@@ -1097,7 +1428,7 @@ export const LeadsList = () => {
                               </p>
                               <Button 
                                 onClick={() => {
-                                  setUpgradeSource(shouldShowFirstAiCta ? "after_search" : "limit_reached");
+                                  setUpgradeSource(isEstado1Onboarding ? "after_search" : "limit_reached");
                                   setShowUpgradeDialog(true);
                                 }}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
@@ -1124,7 +1455,7 @@ export const LeadsList = () => {
         <UpsellCard 
           leadsOcultos={totalLocked} 
           onUpgrade={() => {
-            setUpgradeSource(shouldShowFirstAiCta ? "after_search" : "limit_reached");
+            setUpgradeSource(isEstado1Onboarding ? "after_search" : "limit_reached");
             setShowUpgradeDialog(true);
           }} 
         />

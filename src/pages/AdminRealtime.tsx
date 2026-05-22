@@ -60,12 +60,11 @@ type AdminUserSummary = {
 type SegmentKey =
   | "all"
   | "searched_no_ai"
+  | "ai_limit_reached_no_upgrade"
+  | "ai_used_no_checkout"
   | "checkout_abandoned"
-  | "upgrade_before_ai"
-  | "free_zero_ai_used"
-  | "free_first_search_done"
-  | "recent_checkout_started"
-  | "free_high_leads_no_ai_checkout";
+  | "hot_free_users"
+  | "first_ai_cta_seen_no_click";
 
 const rangeHours = {
   "1h": 1,
@@ -423,12 +422,11 @@ export default function AdminRealtime() {
         const matchesSegment =
           segment === "all" ||
           (segment === "searched_no_ai" && hasSearchCompleted && !hasAiCompleted) ||
+          (segment === "ai_limit_reached_no_upgrade" && plan === "free" && aiUsed >= 3 && !purchaseDone) ||
+          (segment === "ai_used_no_checkout" && hasAiCompleted && checkoutStarted.length === 0) ||
           (segment === "checkout_abandoned" && checkoutStarted.length > 0 && !purchaseDone && new Date(lastCheckout.created_at).getTime() <= cutoff) ||
-          (segment === "upgrade_before_ai" && hasUpgrade && !hasAiCompleted) ||
-          (segment === "free_zero_ai_used" && plan === "free" && aiUsed === 0) ||
-          (segment === "free_first_search_done" && plan === "free" && hasEvent(sorted, ["first_search_completed"])) ||
-          (segment === "recent_checkout_started" && checkoutStarted.length > 0) ||
-          (segment === "free_high_leads_no_ai_checkout" && plan === "free" && leadsUsed >= 10 && aiUsed === 0 && checkoutStarted.length > 0 && !purchaseDone);
+          (segment === "hot_free_users" && plan === "free" && eventCount(sorted, ["search_completed"]) >= 2 && hasAiCompleted && !purchaseDone) ||
+          (segment === "first_ai_cta_seen_no_click" && hasEvent(sorted, ["First_AI_CTA_Shown"]) && !hasEvent(sorted, ["First_AI_CTA_Clicked"]));
 
         return {
           key,
@@ -449,6 +447,11 @@ export default function AdminRealtime() {
             checkouts: checkoutStarted.length,
             purchases: eventCount(sorted, ["purchase_completed", "Purchase"]),
           },
+          checkoutStartedAt: lastCheckout ? formatTime(lastCheckout.created_at) : null,
+          checkoutUtmSource: lastCheckout?.utm_source || null,
+          checkoutUtmCampaign: lastCheckout?.utm_campaign || null,
+          sessionId: lastCheckout?.session_id || null,
+          isAbandoned: checkoutStarted.length > 0 && !purchaseDone,
         };
       })
       .filter((row) => row.matchesSegment)
@@ -576,12 +579,11 @@ export default function AdminRealtime() {
               <SelectContent>
                 <SelectItem value="all">Todos os segmentos</SelectItem>
                 <SelectItem value="searched_no_ai">Buscou, sem IA</SelectItem>
+                <SelectItem value="ai_limit_reached_no_upgrade">Limite IA atingido, sem Upgrade</SelectItem>
+                <SelectItem value="ai_used_no_checkout">Usou IA, sem Checkout</SelectItem>
                 <SelectItem value="checkout_abandoned">Checkout abandonado</SelectItem>
-                <SelectItem value="upgrade_before_ai">Upgrade antes da IA</SelectItem>
-                <SelectItem value="free_zero_ai_used">Free com 0 IA</SelectItem>
-                <SelectItem value="free_first_search_done">Free com primeira busca</SelectItem>
-                <SelectItem value="recent_checkout_started">Checkout recente</SelectItem>
-                <SelectItem value="free_high_leads_no_ai_checkout">Caso sousapros-like</SelectItem>
+                <SelectItem value="hot_free_users">Usuários Free Quentes</SelectItem>
+                <SelectItem value="first_ai_cta_seen_no_click">Viu CTA IA, sem clicar</SelectItem>
               </SelectContent>
             </Select>
             <Input placeholder="Abandono X horas" value={abandonmentHours} onChange={(event) => setAbandonmentHours(event.target.value)} />
@@ -614,12 +616,46 @@ export default function AdminRealtime() {
               <TableBody>
                 {segmentRows.map((row) => (
                   <TableRow key={row.key}>
-                    <TableCell className="max-w-[220px] truncate">{row.email}</TableCell>
+                    <TableCell className="max-w-[220px] truncate">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-foreground">{row.email}</span>
+                        {row.isAbandoned && (
+                          <div className="mt-1 flex items-center gap-1 text-[9px] text-amber-600 dark:text-amber-400 font-semibold bg-amber-500/10 w-fit px-1.5 py-0.5 rounded border border-amber-500/20">
+                            <Clock className="h-2.5 w-2.5 animate-pulse text-amber-500" />
+                            Checkout Abandonado
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{row.plan}</TableCell>
                     <TableCell>{row.leadsUsage}</TableCell>
                     <TableCell>{row.aiUsage}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      buscas {row.counts.searches} / IA {row.counts.ai} / upgrades {row.counts.upgrades} / checkouts {row.counts.checkouts} / compras {row.counts.purchases}
+                      <div className="flex flex-col gap-1">
+                        <div>
+                          buscas {row.counts.searches} / IA {row.counts.ai} / upgrades {row.counts.upgrades} / checkouts {row.counts.checkouts} / compras {row.counts.purchases}
+                        </div>
+                        {row.isAbandoned && row.checkoutStartedAt && (
+                          <div className="text-[10px] text-amber-600 dark:text-amber-400 flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <span className="font-medium">Iniciado: {row.checkoutStartedAt}</span>
+                            {row.checkoutUtmSource && (
+                              <Badge variant="outline" className="text-[8px] h-3.5 px-1 border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5">
+                                src: {row.checkoutUtmSource}
+                              </Badge>
+                            )}
+                            {row.checkoutUtmCampaign && (
+                              <Badge variant="outline" className="text-[8px] h-3.5 px-1 border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5">
+                                cmp: {row.checkoutUtmCampaign}
+                              </Badge>
+                            )}
+                            {row.sessionId && (
+                              <span className="text-muted-foreground/60 text-[9px]">
+                                Sessão: {row.sessionId.substring(0, 8)}...
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>{row.lastEvent}</TableCell>
                     <TableCell>{row.utmContent || "-"}</TableCell>

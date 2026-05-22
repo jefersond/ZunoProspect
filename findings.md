@@ -1,6 +1,7 @@
-# Descobertas e Restrições
+# Descobertas e Restrições Técnicas - Onboarding & IA
 
-- O UTM Content pode vir como ID numérico do Meta ou string explícita.
-- A tabela `app_events` armazena os eventos.
-- Não queremos quebrar o histórico: a normalização deve ser feita de preferência no frontend/painel ou com colunas adicionais seguras sem quebrar a tabela existente.
-- A aplicação é construída com React/TypeScript.
+- **Estrutura dos Leads:** Os leads são listados no componente `LeadsList.tsx`. O componente lida tanto com leads válidos descriptografados quanto com leads bloqueados com blur (`lockedLeads`).
+- **Controle de Uso (Usage Limits):** O hook `useUsage()` fornece `usage.ai_used`, `usage.ai_remaining` (ai_available), `usage.ai_limit`, `usage.leads_used`, `usage.leads_limit` e `canAnalyzeAI`.
+- **Desconto de Créditos de IA:** O desconto do crédito de IA é gerenciado pela RPC do Supabase `increment_ai_usage` dentro da Edge Function `analisar-lead-ia`. Esse processo ocorre no final da execução, garantindo que o usuário só seja cobrado se a análise for salva com total sucesso no banco de dados. No frontend, precisamos garantir que o clique em reanalisar respeite `canAnalyzeAI`.
+- **Sistema de Rastreamento (Tracking):** Centralizado em `src/lib/tracking.ts` através da função `trackEvent`. Ela já lida de forma autônoma com a normalização das UTMs (`creativeMap`), coleta de referrers, browser, OS, session_id e anonymous_id, além de separar perfeitamente eventos de teste interno (`is_internal_event = true` e `event_source_type = 'internal_test'`) se o e-mail for do admin ou se a URL contiver `?internal=true`.
+- **Segmentação Admin:** A computação de segmentos é realizada em tempo real no frontend no componente `AdminRealtime.tsx`. A lista `segmentRows` analisa o histórico de eventos de cada usuário e aplica filtros para agrupar e listar usuários de alta intenção, checkouts abandonados e comportamento de onboarding.

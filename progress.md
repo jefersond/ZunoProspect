@@ -16,4 +16,6 @@
   - O filtro atua nas variáveis de estado (`filteredEvents`) e já reflete automaticamente na tabela "Resumo por criativo".
   - Alerta sutil exibido caso seja selecionado "Excluir internos" e existam registros sem UTM (`sem_utm_content`), avisando sobre análises manuais necessárias.
   - Badge vermelho identificando eventos marcados como `teste`.
+  - Refatoração dos segmentos de funil (Passos A, B e C), incluindo 7 segmentos exatos de onboarding de IA e ativação de marketing: `all`, `searched_no_ai`, `ai_limit_reached_no_upgrade`, `ai_used_no_checkout`, `checkout_abandoned`, `hot_free_users`, `first_ai_cta_seen_no_click`.
+  - Exibição de design de altíssimo nível (Passo D) para checkouts abandonados na tabela, exibindo relógios pulsantes em âmbar, badges com UTMs (`checkoutUtmSource` e `checkoutUtmCampaign`) e o ID da sessão truncado para facilitar a recuperação de vendas perdidas pelo administrador.
 - Build verificado localmente (`npm run build`) com sucesso (Exit code: 0).

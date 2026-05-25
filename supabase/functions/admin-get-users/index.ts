@@ -9,9 +9,7 @@ const corsHeaders = {
 
 const ADMIN_EMAILS = new Set([
   "jeferson.zanotell@gmail.com", 
-  "jefeson.zanotell@gmail.com",
-  "falecom@klsalescompany.com",
-  "kiefferlinconts@gmail.com"
+  "jefeson.zanotell@gmail.com"
 ]);
 
 const jsonResponse = (body: Record<string, unknown>, status = 200) =>

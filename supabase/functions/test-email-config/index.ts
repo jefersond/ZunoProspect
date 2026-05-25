@@ -151,9 +151,7 @@ serve(async (req: Request): Promise<Response> => {
 
     if (
       !isAdmin && 
-      user.email !== "jeferson.zanotell@gmail.com" && 
-      user.email !== "falecom@klsalescompany.com" && 
-      user.email !== "kiefferlinconts@gmail.com"
+      user.email !== "jeferson.zanotell@gmail.com"
     ) {
       return jsonResponse({
         error: "Acesso negado",

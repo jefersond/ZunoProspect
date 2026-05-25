@@ -105,9 +105,7 @@ serve(async (req) => {
       email = data.user?.email ?? null;
 
       if (
-        email === "jeferson.zanotell@gmail.com" || 
-        email === "falecom@klsalescompany.com" || 
-        email === "kiefferlinconts@gmail.com"
+        email === "jeferson.zanotell@gmail.com"
       ) {
         isInternal = true;
         eventSource = "internal_test";

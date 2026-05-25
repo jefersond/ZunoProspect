@@ -41,8 +41,6 @@ const RATE_LIMIT_WINDOW_MINUTES = 1; // Window in minutes
 const ADMIN_EMAILS = new Set([
   "jeferson.zanotell@gmail.com",
   "jefeson.zanotell@gmail.com",
-  "falecom@klsalescompany.com",
-  "kiefferlinconts@gmail.com",
 ]);
 
 interface GetLeadsRequest {

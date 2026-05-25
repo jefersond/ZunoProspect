@@ -10,8 +10,6 @@ const globalCorsHeaders = {
 const ADMIN_EMAILS = new Set([
   "jeferson.zanotell@gmail.com",
   "jefeson.zanotell@gmail.com",
-  "falecom@klsalescompany.com",
-  "kiefferlinconts@gmail.com",
 ]);
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {

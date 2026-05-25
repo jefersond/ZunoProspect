@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ADMIN_TEST_EMAIL = "falecom@klsalescompany.com";
+const ADMIN_TEST_EMAIL = "jeferson.zanotell@gmail.com";
 const MAX_EMAILS_PER_SEND = Number(Deno.env.get("EMAIL_MAX_PER_SEND") || "50");
 const COOLDOWN_DAYS = Number(Deno.env.get("EMAIL_COOLDOWN_DAYS") || "7");
 const PUBLIC_SITE_URL = (Deno.env.get("PUBLIC_SITE_URL") || "https://www.zunopropect.com.br").replace(/\/$/, "");

@@ -89,6 +89,8 @@ interface SearchDiagnostics {
 const ADMIN_EMAILS = new Set([
   "jeferson.zanotell@gmail.com",
   "jefeson.zanotell@gmail.com",
+  "falecom@klsalescompany.com",
+  "kiefferlinconts@gmail.com",
 ]);
 
 const BRAZILIAN_STATE_NAMES: Record<string, string> = {

@@ -16,6 +16,8 @@ const PAID_PLANS = new Set(["starter", "pro", "agency", "agencia"]);
 const ADMIN_EMAILS = new Set([
   "jeferson.zanotell@gmail.com",
   "jefeson.zanotell@gmail.com",
+  "falecom@klsalescompany.com",
+  "kiefferlinconts@gmail.com",
 ]);
 
 const corsHeaders = {

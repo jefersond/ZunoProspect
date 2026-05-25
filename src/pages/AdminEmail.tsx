@@ -287,7 +287,7 @@ const AdminEmail = () => {
   const handleSendTestCampaign = async (campaignId: string) => {
     setTestingCampaign(campaignId);
     try {
-      const recipientEmail = "jeferson.zanotell@gmail.com";
+      const recipientEmail = "falecom@klsalescompany.com";
       const { data, error } = await supabase.functions.invoke("send-email-campaign", {
         body: {
           mode: "test",

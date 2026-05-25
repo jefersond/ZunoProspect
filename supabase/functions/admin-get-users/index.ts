@@ -7,7 +7,12 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
-const ADMIN_EMAILS = new Set(["jeferson.zanotell@gmail.com", "jefeson.zanotell@gmail.com"]);
+const ADMIN_EMAILS = new Set([
+  "jeferson.zanotell@gmail.com", 
+  "jefeson.zanotell@gmail.com",
+  "falecom@klsalescompany.com",
+  "kiefferlinconts@gmail.com"
+]);
 
 const jsonResponse = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {

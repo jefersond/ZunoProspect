@@ -149,7 +149,12 @@ serve(async (req: Request): Promise<Response> => {
       }, 500);
     }
 
-    if (!isAdmin && user.email !== "jeferson.zanotell@gmail.com") {
+    if (
+      !isAdmin && 
+      user.email !== "jeferson.zanotell@gmail.com" && 
+      user.email !== "falecom@klsalescompany.com" && 
+      user.email !== "kiefferlinconts@gmail.com"
+    ) {
       return jsonResponse({
         error: "Acesso negado",
         details: "Usuario nao e admin.",

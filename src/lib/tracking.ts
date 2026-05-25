@@ -13,7 +13,9 @@ export type EventSourceType =
   | "unknown";
 
 export const INTERNAL_TEST_EMAILS = [
-  "jeferson.zanotell@gmail.com"
+  "jeferson.zanotell@gmail.com",
+  "falecom@klsalescompany.com",
+  "kiefferlinconts@gmail.com"
 ];
 
 export type TouchAttribution = {

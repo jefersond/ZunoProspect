@@ -231,22 +231,73 @@ serve(async (req) => {
       apiVersion: "2023-10-16",
     });
 
-    const metadata = {
-      supabase_user_id: user.id,
+    const source = body.source || "upgrade";
+    const offerId = body.offerId || null;
+
+    // Buscar stripe_customer_id existente no banco para evitar duplicados no Stripe
+    let stripeCustomerId: string | null = null;
+    try {
+      // 1. Procurar em user_addons
+      const { data: addonData } = await supabaseAdmin
+        .from("user_addons")
+        .select("stripe_customer_id")
+        .eq("user_id", user.id)
+        .not("stripe_customer_id", "is", null)
+        .limit(1)
+        .maybeSingle();
+
+      if (addonData?.stripe_customer_id) {
+        stripeCustomerId = addonData.stripe_customer_id;
+      } else {
+        // 2. Procurar em user_subscriptions (coluna criada na migração)
+        const { data: subData } = await supabaseAdmin
+          .from("user_subscriptions")
+          .select("stripe_customer_id")
+          .eq("user_id", user.id)
+          .not("stripe_customer_id", "is", null)
+          .limit(1)
+          .maybeSingle();
+
+        if (subData?.stripe_customer_id) {
+          stripeCustomerId = subData.stripe_customer_id;
+        } else {
+          // 3. Procurar em payment_events
+          const { data: eventData } = await supabaseAdmin
+            .from("payment_events")
+            .select("stripe_customer_id")
+            .eq("user_id", user.id)
+            .not("stripe_customer_id", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (eventData?.stripe_customer_id) {
+            stripeCustomerId = eventData.stripe_customer_id;
+          }
+        }
+      }
+    } catch (dbError) {
+      console.warn("Erro ao buscar stripe_customer_id do banco:", dbError);
+    }
+
+    const checkoutMetadata = {
       user_id: user.id,
+      user_email: user.email || "",
       plan_id: planId,
       plan_key: planId,
+      billing_cycle: billingCycle === "annual" ? "yearly" : "monthly",
+      source: String(source),
+      offer_id: offerId ? String(offerId) : "",
+      supabase_user_id: user.id,
       leads_limit: String(plan.leadsLimit),
       ai_limit: String(plan.aiLimit),
-      billing_cycle: billingCycle,
       is_annual: String(billingCycle === "annual"),
     };
 
-    const session = await stripe.checkout.sessions.create({
+    const sessionArgs: any = {
       mode: "subscription",
       allow_promotion_codes: planId === "pro",
       payment_method_types: ["card"],
-      customer_email: user.email,
       line_items: [
         {
           quantity: 1,
@@ -265,11 +316,22 @@ serve(async (req) => {
       ],
       success_url: `${publicSiteUrl}/prospeccao?checkout=success`,
       cancel_url: `${publicSiteUrl}/precos?checkout=cancelled`,
-      metadata,
+      metadata: checkoutMetadata,
       subscription_data: {
-        metadata,
+        metadata: checkoutMetadata,
       },
-    });
+      client_reference_id: user.id,
+    };
+
+    if (stripeCustomerId) {
+      sessionArgs.customer = stripeCustomerId;
+      console.log(`Reutilizando stripe_customer_id existente: ${stripeCustomerId}`);
+    } else {
+      sessionArgs.customer_email = user.email;
+      console.log(`Nenhum stripe_customer_id encontrado, usando customer_email: ${user.email}`);
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionArgs);
 
     console.log("Checkout session created", {
       functionName,

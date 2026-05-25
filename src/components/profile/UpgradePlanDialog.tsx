@@ -86,6 +86,8 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName, source 
         selectedPlan: { planKey: plan.id },
         billingCycle,
         authUserFromHook: user,
+        source,
+        offerId: null,
       });
 
       trackEvent("checkout_started", {

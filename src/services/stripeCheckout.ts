@@ -15,12 +15,16 @@ type CreateStripeCheckoutArgs = {
   billingCycle?: BillingCycle;
   price?: number;
   authUserFromHook?: User | null;
+  source?: string;
+  offerId?: string | null;
 };
 
 export async function createStripeCheckout({
   selectedPlan,
   billingCycle = "monthly",
   authUserFromHook,
+  source,
+  offerId,
 }: CreateStripeCheckoutArgs) {
   const functionName = STRIPE_CHECKOUT_FUNCTION;
   const planId = normalizePlanId(selectedPlan?.planKey);
@@ -71,6 +75,8 @@ export async function createStripeCheckout({
     unitAmount,
     leadsLimit: plan.leadsLimit,
     aiLimit: plan.aiLimit,
+    source: source || "upgrade",
+    offerId: offerId || null,
   };
 
   const { data, error } = await supabase.functions.invoke(functionName, {

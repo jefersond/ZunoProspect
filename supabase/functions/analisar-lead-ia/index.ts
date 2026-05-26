@@ -52,7 +52,8 @@ async function fetchWithRetry(
   url: string,
   options: RequestInit,
   maxRetries = 3,
-  baseDelay = 2000
+  baseDelay = 2000,
+  onRetry?: () => void
 ): Promise<Response> {
   let lastError: Error | null = null;
 
@@ -71,6 +72,7 @@ async function fetchWithRetry(
           : baseDelay * Math.pow(2, attempt); // 2s, 4s, 8s
 
         console.log(`⏳ Rate limited (429). Aguardando ${delay / 1000}s... (tentativa ${attempt + 1}/${maxRetries})`);
+        if (onRetry) onRetry();
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }
@@ -83,6 +85,7 @@ async function fetchWithRetry(
       if (attempt < maxRetries - 1) {
         const delay = baseDelay * Math.pow(2, attempt);
         console.log(`⏳ Erro de rede. Aguardando ${delay / 1000}s... (tentativa ${attempt + 1}/${maxRetries})`);
+        if (onRetry) onRetry();
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }
@@ -416,9 +419,18 @@ serve(async (req) => {
     }, 405);
   }
 
+  const startTime = Date.now();
   let supabaseAdminForCatch: ReturnType<typeof createClient> | null = null;
   let userIdForCatch: string | null = null;
   let leadIdForCatch: string | null = null;
+  let leadNameForCatch: string | null = null;
+  let aiRemainingForCatch: number | null = null;
+  let aiLimitForCatch: number | null = null;
+  let aiUsedForCatch: number | null = null;
+  let sourceForCatch = "app";
+  let pathForCatch = "prospeccao";
+  let retryCountForCatch = 0;
+  const requestId = req.headers.get("x-request-id") || crypto.randomUUID();
 
   try {
     // ============= AUTHENTICATION VALIDATION =============
@@ -477,6 +489,9 @@ serve(async (req) => {
     leadIdForCatch = leadId || null;
     // Use authenticated user ID, ignore any user_id from request body for security
     const userId = authenticatedUserId;
+
+    sourceForCatch = requestData.source || payloadLead.source || context.source || "app";
+    pathForCatch = requestData.path || payloadLead.path || context.path || "prospeccao";
     
     console.log("🔍 Iniciando análise:", {
       leadId,
@@ -515,13 +530,21 @@ serve(async (req) => {
 
     const usageInfo = usageData?.[0];
     const aiRemaining = Number(usageInfo?.ai_available_total ?? usageInfo?.ai_remaining ?? 0);
+    aiRemainingForCatch = aiRemaining;
+    aiLimitForCatch = Number(usageInfo?.ai_limit ?? 3);
+    aiUsedForCatch = Number(usageInfo?.ai_used_this_month ?? 0);
     const isEmailAdmin = ADMIN_EMAILS.has((user.email || "").trim().toLowerCase());
     const isUnlimited = isEmailAdmin || usageInfo?.is_admin === true || Number(usageInfo?.ai_limit ?? 0) >= 999999;
 
     if (!isUnlimited && aiRemaining <= 0) {
+      console.log(`🚫 Bloqueio de Limite de IA preventivo para o usuário ${user.email} (ai_remaining: ${aiRemaining})`);
       return jsonResponse({
+        success: false,
+        blocked: true,
+        error_code: "AI_LIMIT_REACHED",
+        error_message: "Limite de IA atingido",
         error: "Limite de IA atingido",
-        details: "Voce atingiu seu limite de analises com IA.",
+        details: "Você atingiu seu limite de análises com IA.",
       }, 402);
     }
 
@@ -547,6 +570,7 @@ serve(async (req) => {
       }
       
       const lead = decryptedLeads[0];
+leadNameForCatch = lead.nome;
       leadData = {
         nome: lead.nome,
         nicho: lead.nicho,
@@ -645,11 +669,15 @@ serve(async (req) => {
       console.log(`🌍 Lead country (from request): ${leadData.pais} | isUS: ${isUSLead(leadData)}`);
     }
 
+    leadNameForCatch = leadData.nome;
+
     console.log("🤖 Analisando:", leadData.nome, "| Canais detectados:", 
       [leadData.whatsapp_number && "WhatsApp", leadData.email && "Email", leadData.instagram_url && "Instagram"].filter(Boolean).join(", ") || "Nenhum");
 
     console.log("🚀 Usando Gemini 2.0 Flash para análise manual...");
-    const analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY);
+    const analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY, () => {
+      retryCountForCatch += 1;
+    });
 
     // Save analysis to DB
     if (leadId) {
@@ -701,8 +729,23 @@ serve(async (req) => {
         userId: userIdForCatch,
         eventType: "ai_analysis_failed",
         eventData: {
-          leadId: leadIdForCatch,
-          error: error?.message || String(error),
+          lead_id: leadIdForCatch,
+          lead_name: leadNameForCatch || null,
+          source: sourceForCatch,
+          path: pathForCatch,
+          error_message: error?.message || String(error),
+          error_code: error?.code || null,
+          error_type: error?.name || null,
+          ai_used_before: aiUsedForCatch,
+          ai_used_after: aiUsedForCatch,
+          ai_available_before: aiRemainingForCatch,
+          ai_available_after: aiRemainingForCatch,
+          deducted_credit: false,
+          request_id: requestId,
+          edge_function: "analisar-lead-ia",
+          provider: "gemini",
+          duration_ms: Date.now() - startTime,
+          retry_count: retryCountForCatch
         },
         ipAddress: req.headers.get("x-forwarded-for"),
         userAgent: req.headers.get("user-agent"),
@@ -718,7 +761,7 @@ serve(async (req) => {
 // =============================================================================
 // GOOGLE GEMINI DIRETO (API KEY DO USUÁRIO) - MODELO PRINCIPAL
 // =============================================================================
-async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string): Promise<AnaliseResult> {
+async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string, onRetry?: () => void): Promise<AnaliseResult> {
   const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
   const canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
   
@@ -791,7 +834,8 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string): Promise<
         signal: controller.signal,
       },
       3, // maxRetries
-      2000 // baseDelay 2s
+      2000, // baseDelay 2s
+      onRetry
     );
 
     clearTimeout(timeoutId);

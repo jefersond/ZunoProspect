@@ -17,7 +17,7 @@ import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, normalizePlanId, type Bill
 import { createStripeCheckout } from "@/services/stripeCheckout";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { trackEvent } from "@/lib/analytics";
+import { trackEvent, trackUpgradeClick, trackCheckoutStarted, trackCheckoutFailed } from "@/lib/analytics";
 import { trackInitiateCheckout, trackMetaCustomEvent } from "@/lib/metaPixel";
 import { getFunnelContext, type UpgradeSource } from "@/lib/funnelContext";
 import { useUsage } from "@/hooks/useUsage";
@@ -69,16 +69,43 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName, source 
       value: trackingPrice,
       currency: "BRL",
     });
-    const upgradeMetadata = {
-      ...funnelContext,
-      plan_id: plan.id,
-      plan_name: plan.name,
-      billing_cycle: billingCycle,
-      location: "upgrade_dialog",
-      cta_text: plan.cta,
-    };
-    trackEvent("upgrade_clicked", upgradeMetadata);
-    trackEvent(funnelContext.has_done_first_ai_analysis ? "Upgrade_Click_After_AI" : "Upgrade_Click_Before_AI", upgradeMetadata);
+    
+    // Novo helper padronizado Upgrade_Click com metadata completa
+    await trackUpgradeClick({
+      planId: plan.id,
+      planName: plan.name,
+      value: trackingPrice,
+      currency: "BRL",
+      source,
+      ctaText: plan.cta,
+      usage: {
+        plan_name: usage.plan_name,
+        leads_used: usage.leads_used,
+        leads_limit: usage.leads_limit,
+        ai_used: usage.ai_used,
+        ai_limit: usage.ai_limit,
+        leads_available: usage.leads_remaining,
+        ai_available: usage.ai_remaining,
+      },
+      hasDoneFirstSearch: funnelContext.has_done_first_search,
+      hasDoneFirstAiAnalysis: funnelContext.has_done_first_ai_analysis,
+    });
+
+    if (source === "ai_limit_reached") {
+      trackEvent("Upgrade_Click_After_Limit", {
+        source: "ai_limit_reached",
+        cta_text: plan.cta,
+        user_plan: funnelContext.user_plan,
+        ai_used: funnelContext.ai_used,
+        ai_limit: funnelContext.ai_limit,
+        ai_available: funnelContext.ai_available,
+        leads_used: funnelContext.leads_used,
+        leads_limit: funnelContext.leads_limit,
+        plan_id: plan.id,
+        path: window.location.pathname,
+      });
+    }
+
     try {
       toast.loading("Gerando link de pagamento seguro...");
 
@@ -90,18 +117,27 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName, source 
         offerId: null,
       });
 
-      trackEvent("checkout_started", {
-        ...funnelContext,
-        plan_id: plan.id,
-        plan_name: plan.name,
+      // Novo helper padronizado Checkout_Started
+      await trackCheckoutStarted({
+        planId: plan.id,
+        planName: plan.name,
         value: trackingPrice,
         currency: "BRL",
-        billing_cycle: billingCycle,
-        location: "upgrade_dialog",
         source,
-        stripe_session_id: data.sessionId || null,
-        content_name: `Zuno Propect ${plan.name}`,
+        stripeSessionId: data.sessionId || null,
+        usage: {
+          plan_name: usage.plan_name,
+          leads_used: usage.leads_used,
+          leads_limit: usage.leads_limit,
+          ai_used: usage.ai_used,
+          ai_limit: usage.ai_limit,
+          leads_available: usage.leads_remaining,
+          ai_available: usage.ai_remaining,
+        },
+        hasDoneFirstSearch: funnelContext.has_done_first_search,
+        hasDoneFirstAiAnalysis: funnelContext.has_done_first_ai_analysis,
       });
+
       trackInitiateCheckout({
         content_name: `Zuno Propect ${plan.name}`,
         content_category: "subscription",
@@ -129,15 +165,27 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName, source 
         plan_id: plan.id,
         error_message: error?.message || "checkout_error",
       });
-      trackEvent("checkout_failed", {
-        ...funnelContext,
-        plan_id: plan.id,
-        billing_cycle: billingCycle,
-        location: "upgrade_dialog",
+
+      // Novo helper padronizado Checkout_Failed com segurança de logs
+      await trackCheckoutFailed({
+        planId: plan.id,
+        planName: plan.name,
+        value: trackingPrice,
+        currency: "BRL",
         source,
-        error_message_safe: error?.message || "checkout_error",
-        error: error?.message || "checkout_error",
+        errorMessage: error?.message || "checkout_error",
+        errorCode: error?.code || null,
+        usage: {
+          plan_name: usage.plan_name,
+          leads_used: usage.leads_used,
+          leads_limit: usage.leads_limit,
+          ai_used: usage.ai_used,
+          ai_limit: usage.ai_limit,
+          leads_available: usage.leads_remaining,
+          ai_available: usage.ai_remaining,
+        },
       });
+
       toast.error("Não foi possível iniciar o pagamento", {
         description: "Tente novamente.",
       });

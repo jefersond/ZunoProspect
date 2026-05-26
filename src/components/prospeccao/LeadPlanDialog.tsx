@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useUsage } from "@/hooks/useUsage";
+import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe, StickyNote, Loader2, Lock } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
@@ -55,6 +56,9 @@ export const LeadPlanDialog = ({
   onStatusChange 
 }: LeadPlanDialogProps) => {
   const [isReanalyzing, setIsReanalyzing] = useState(false);
+  const activeRequestRef = useRef(false);
+  const recentlyTrackedLimitBlockRef = useRef<Record<string, number>>({});
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [currentLead, setCurrentLead] = useState(lead);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [notes, setNotes] = useState(lead?.notas || "");
@@ -161,15 +165,61 @@ export const LeadPlanDialog = ({
 
   const handleReanalyze = async () => {
     if (!lead) return;
+    
+    if (activeRequestRef.current || isReanalyzing) {
+      console.log("Clique duplo detectado e prevenido para o lead no dialog:", lead.id);
+      trackEvent("AI_Analysis_Duplicate_Click_Prevented", {
+        lead_id: lead.id,
+        lead_name: lead.nome,
+        source: "lead_dialog",
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
+    const pLimit = usage.leads_limit || 20;
+    const pUsed = usage.leads_used || 0;
+    const aiUsedBefore = usage.ai_used || 0;
+    const aiAvailableBefore = usage.ai_remaining ?? Math.max(0, 3 - aiUsedBefore);
+    const aiLimitTotal = usage.ai_limit || 3;
+    const hasDoneFirstAi = aiUsedBefore > 0;
+
     if (!canAnalyzeLead) {
+      // Debounce de 5 segundos para o mesmo lead
+      const lastTrackedTime = recentlyTrackedLimitBlockRef.current[lead.id] || 0;
+      if (Date.now() - lastTrackedTime < 5000) {
+        setShowUpgradeDialog(true);
+        return;
+      }
+      recentlyTrackedLimitBlockRef.current[lead.id] = Date.now();
+
+      // Rastrear evento de bloqueio por limite
+      trackEvent("AI_Analysis_Blocked_By_Limit", {
+        lead_id: lead.id,
+        lead_name: lead.nome,
+        source: "lead_dialog",
+        path: window.location.pathname,
+        user_plan: normalizedPlanName,
+        ai_used: aiUsedBefore,
+        ai_limit: aiLimitTotal,
+        ai_available: aiAvailableBefore,
+        leads_used: pUsed,
+        leads_limit: pLimit,
+        has_done_first_ai_analysis: hasDoneFirstAi,
+        reason: "ai_limit_reached",
+        blocked_before_ai_call: true
+      });
+
       toast({
         title: "Limite de IA atingido",
         description: "Você atingiu seu limite de análises com IA.",
         variant: "destructive",
       });
+      setShowUpgradeDialog(true);
       return;
     }
 
+    activeRequestRef.current = true;
     setIsReanalyzing(true);
     trackMetaCustomEvent("AI_Analysis_Started", {
       lead_id: lead.id,
@@ -177,13 +227,13 @@ export const LeadPlanDialog = ({
       source: "prospection_page",
     });
     trackEvent("ai_analysis_clicked", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "lead_dialog" });
-    if ((usage.ai_used || 0) === 0) {
+    if (!hasDoneFirstAi) {
       trackEvent("First_AI_Analysis_Started", {
         lead_id: lead.id,
         lead_name: lead.nome,
         source: "lead_dialog",
-        ai_available: usage.ai_remaining,
-        ai_used: usage.ai_used,
+        ai_available: aiAvailableBefore,
+        ai_used: aiUsedBefore,
         user_plan: normalizedPlanName,
       });
     }
@@ -267,8 +317,8 @@ export const LeadPlanDialog = ({
           lead_id: lead.id,
           lead_name: lead.nome,
           source: "lead_dialog",
-          ai_available_before: usage.ai_remaining,
-          ai_used_before: usage.ai_used,
+          ai_available_before: aiAvailableBefore,
+          ai_used_before: aiUsedBefore,
           user_plan: normalizedPlanName,
         });
       }
@@ -287,10 +337,16 @@ export const LeadPlanDialog = ({
       trackEvent("ai_analysis_failed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: error.message || "ai_analysis_error", source: "lead_dialog" });
       toast({
         title: "Erro ao reanalisar",
-        description: error.message || "Não foi possível reanalisar o lead",
+        description: ((error.message || "").toLowerCase().includes("limite") || 
+                     (error.message || "").toLowerCase().includes("crédito") || 
+                     (error.message || "").toLowerCase().includes("saldo") ||
+                     (error.message || "").includes("402")) 
+          ? "Você não tem análises IA disponíveis." 
+          : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
         variant: "destructive",
       });
     } finally {
+      activeRequestRef.current = false;
       setIsReanalyzing(false);
     }
   };
@@ -436,6 +492,12 @@ export const LeadPlanDialog = ({
           </TabsContent>
         </Tabs>
       </DialogContent>
+      <UpgradePlanDialog
+        open={showUpgradeDialog}
+        onOpenChange={setShowUpgradeDialog}
+        currentPlanName={subscription?.plan_name || usage?.plan_name}
+        source="ai_limit_reached"
+      />
     </Dialog>
   );
 };

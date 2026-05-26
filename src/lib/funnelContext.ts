@@ -15,6 +15,7 @@ export type UsageLike = {
 
 export type UpgradeSource =
   | "limit_reached"
+  | "ai_limit_reached"
   | "navbar"
   | "pricing_page"
   | "dashboard"
@@ -76,6 +77,8 @@ export async function getFunnelContext(usage?: UsageLike | null, source: Upgrade
     user_plan_before_checkout: plan,
     current_leads_available: currentLeadsAvailable,
     current_ai_available: currentAiAvailable,
+    ai_available: currentAiAvailable,
+    leads_available: currentLeadsAvailable,
     leads_used: leadsUsed,
     leads_limit: leadsLimit,
     ai_used: aiUsed,

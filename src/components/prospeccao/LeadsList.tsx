@@ -40,6 +40,8 @@ export const LeadsList = () => {
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgradeSource, setUpgradeSource] = useState<UpgradeSource>("unknown");
   const [reanalyzingLeads, setReanalyzingLeads] = useState<Set<string>>(new Set());
+  const activeRequestsRef = useRef<Set<string>>(new Set());
+  const recentlyTrackedLimitBlockRef = useRef<Record<string, number>>({});
   const [currentSearchRunId, setCurrentSearchRunId] = useState<string | null>(null);
   
   const normalizedPlanName = String(subscription?.plan_name || usage.plan_name || "free").toLowerCase();
@@ -666,24 +668,64 @@ export const LeadsList = () => {
 
   // Analisar ou reanalisar lead manualmente
   const reanalyzeLead = async (lead: LeadProspeccao, source = "leads_list") => {
+    if (activeRequestsRef.current.has(lead.id) || reanalyzingLeads.has(lead.id)) {
+      console.log("Clique duplo detectado e prevenido para o lead:", lead.id);
+      trackEvent("AI_Analysis_Duplicate_Click_Prevented", {
+        lead_id: lead.id,
+        lead_name: lead.nome,
+        source,
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
+    const pLimit = usage.leads_limit || 20;
+    const pUsed = usage.leads_used || 0;
+    const aiUsedBefore = usage.ai_used || 0;
+    const aiAvailableBefore = usage.ai_remaining ?? Math.max(0, 3 - aiUsedBefore);
+    const aiLimitTotal = usage.ai_limit || 3;
+    const hasDoneFirstAi = aiUsedBefore > 0;
+
     if (!canAnalyzeAI) {
+      // Debounce de 5 segundos para o mesmo lead
+      const lastTrackedTime = recentlyTrackedLimitBlockRef.current[lead.id] || 0;
+      if (Date.now() - lastTrackedTime < 5000) {
+        setUpgradeSource("ai_limit_reached");
+        setShowUpgradeDialog(true);
+        return;
+      }
+      recentlyTrackedLimitBlockRef.current[lead.id] = Date.now();
+
+      // Rastrear evento de bloqueio por limite
+      trackEvent("AI_Analysis_Blocked_By_Limit", {
+        lead_id: lead.id,
+        lead_name: lead.nome,
+        source,
+        path: window.location.pathname,
+        user_plan: normalizedPlanName,
+        ai_used: aiUsedBefore,
+        ai_limit: aiLimitTotal,
+        ai_available: aiAvailableBefore,
+        leads_used: pUsed,
+        leads_limit: pLimit,
+        has_done_first_ai_analysis: hasDoneFirstAi,
+        reason: "ai_limit_reached",
+        blocked_before_ai_call: true
+      });
+
       toast({
         variant: "destructive",
         title: "Limite de IA atingido",
         description: "Você atingiu seu limite de análises com IA.",
       });
-      setUpgradeSource("limit_reached");
+      
+      setUpgradeSource("ai_limit_reached");
       setShowUpgradeDialog(true);
       return;
     }
 
+    activeRequestsRef.current.add(lead.id);
     setReanalyzingLeads(prev => new Set(prev).add(lead.id));
-    
-    const pLimit = usage.leads_limit || 20;
-    const pUsed = usage.leads_used || 0;
-    const aiUsedBefore = usage.ai_used || 0;
-    const aiAvailableBefore = usage.ai_remaining || 0;
-    const aiLimitTotal = usage.ai_limit || 3;
     
     trackEvent("AI_Analysis_Started", {
       lead_id: lead.id,
@@ -704,7 +746,6 @@ export const LeadsList = () => {
     });
     
     const firstAnalysisKeyPrefix = "zuno_first_ai_analysis_completed_";
-    const hasDoneFirstAi = aiUsedBefore > 0;
     trackEvent("ai_analysis_clicked", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source });
     
     if (!hasDoneFirstAi) {
@@ -807,12 +848,20 @@ export const LeadsList = () => {
       
       trackEvent("ai_analysis_failed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: error.message || "ai_analysis_error", source });
       
+      const isBalanceError = (error.message || "").toLowerCase().includes("limite") || 
+                             (error.message || "").toLowerCase().includes("crédito") || 
+                             (error.message || "").toLowerCase().includes("saldo") ||
+                             (error.message || "").includes("402");
+      
       toast({
         variant: "destructive",
         title: "Erro na análise",
-        description: error.message || "Não foi possível analisar o lead",
+        description: isBalanceError 
+          ? "Você não tem análises IA disponíveis." 
+          : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
       });
     } finally {
+      activeRequestsRef.current.delete(lead.id);
       setReanalyzingLeads(prev => {
         const next = new Set(prev);
         next.delete(lead.id);
@@ -1241,11 +1290,13 @@ export const LeadsList = () => {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => reanalyzeLead(lead, "leads_list")}
-                                    disabled={reanalyzingLeads.has(lead.id) || !canAnalyzeAI}
+                                    disabled={reanalyzingLeads.has(lead.id)}
                                     className={`h-8 whitespace-nowrap text-xs ${
-                                      isFree && aiUsed === 0 && lead.id === firstAnalyzableLead?.id
-                                        ? "border-emerald-500 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 animate-pulse font-semibold"
-                                        : ""
+                                      !canAnalyzeAI
+                                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 font-semibold shadow-sm transition-all duration-200"
+                                        : (isFree && aiUsed === 0 && lead.id === firstAnalyzableLead?.id
+                                            ? "border-emerald-500 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 animate-pulse font-semibold"
+                                            : "")
                                     }`}
                                   >
                                     {reanalyzingLeads.has(lead.id) ? (
@@ -1253,7 +1304,7 @@ export const LeadsList = () => {
                                     ) : (
                                       <Zap className="h-3 w-3 mr-1" />
                                     )}
-                                    Gerar abordagem com IA
+                                    {canAnalyzeAI ? "Gerar abordagem com IA" : "Liberar mais análises"}
                                   </Button>
                                   {isFree && aiUsed === 0 && lead.id === firstAnalyzableLead?.id && (
                                     <span className="text-[10px] text-emerald-600 font-medium whitespace-nowrap bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 animate-pulse">
@@ -1264,7 +1315,7 @@ export const LeadsList = () => {
                               </TooltipTrigger>
                               {!canAnalyzeAI && (
                                 <TooltipContent>
-                                  <p>Você atingiu seu limite de análises com IA.</p>
+                                  <p>Você usou todas as análises IA grátis. Escolha um plano para continuar gerando abordagens.</p>
                                 </TooltipContent>
                               )}
                             </Tooltip>

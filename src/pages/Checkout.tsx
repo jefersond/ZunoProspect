@@ -16,6 +16,7 @@ import { PLANS, normalizePlanId } from "@/config/plans";
 import { useAuth } from "@/hooks/useAuth";
 import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
+import { useUsage } from "@/hooks/useUsage";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -99,6 +100,7 @@ type PlanoKey = "starter" | "pro" | "agencia";
 export default function Checkout() {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const { usage } = useUsage();
   
   // Get params from URL
   const normalizedPlanParam = normalizePlanId(searchParams.get("plano"));
@@ -292,24 +294,46 @@ export default function Checkout() {
       });
 
       const funnelContext = await getFunnelContext(null, "checkout_page");
-      trackEvent("checkout_started", {
-        ...funnelContext,
+      
+      const usageMetadata = {
         plan_id: trackingPlanId,
         plan_name: plano.nome,
-        value: plano.precoMensal,
+        value: preco,
         currency: "BRL",
-        billing_cycle: isAnual ? "annual" : "monthly",
-        location: "checkout_page",
         source: "checkout_page",
+        checkout_source: "checkout_page",
         stripe_session_id: data.sessionId || null,
+        user_plan_before_checkout: usage?.plan_name || "free",
+        current_leads_available: usage?.leads_available_total ?? 0,
+        current_ai_available: usage?.ai_remaining ?? 0,
+        leads_used: usage?.leads_used ?? 0,
+        leads_limit: usage?.leads_limit ?? 20,
+        ai_used: usage?.ai_used ?? 0,
+        ai_limit: usage?.ai_limit ?? 3,
+        has_done_first_search: (usage?.leads_used ?? 0) > 0,
+        has_done_first_ai_analysis: (usage?.ai_used ?? 0) > 0,
+      };
+
+      trackEvent("checkout_started", {
+        ...funnelContext,
+        ...usageMetadata,
+        billing_cycle: isAnual ? "annual" : "monthly",
         content_name: `Zuno Propect ${plano.nome}`,
       });
+
+      trackEvent("InitiateCheckout", {
+        ...funnelContext,
+        ...usageMetadata,
+        billing_cycle: isAnual ? "annual" : "monthly",
+        content_name: `Zuno Propect ${plano.nome}`,
+      });
+
       trackInitiateCheckout({
         content_name: `Zuno Propect ${plano.nome}`,
         content_category: "subscription",
         plan_id: trackingPlanId,
         plan_name: plano.nome,
-        value: plano.precoMensal,
+        value: preco,
         currency: "BRL",
       });
       const attribution = getAttributionParams();

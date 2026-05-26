@@ -12,7 +12,7 @@ import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { useLeadPricing } from "@/hooks/useLeadPricing";
 import { createStripeCheckout } from "@/services/stripeCheckout";
 import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
-import { trackEvent } from "@/lib/analytics";
+import { trackEvent, trackCheckoutStarted, trackCheckoutFailed } from "@/lib/analytics";
 import { getFunnelContext } from "@/lib/funnelContext";
 
 // Google Icon Component
@@ -203,20 +203,28 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
         selectedPlan: plano,
         billingCycle: "monthly",
       });
-      const funnelContext = await getFunnelContext(null, "checkout_dialog");
 
-      trackEvent("checkout_started", {
-        ...funnelContext,
-        plan_id: plano.planKey,
-        plan_name: plano.nome,
+      // Novo helper padronizado Checkout_Started
+      await trackCheckoutStarted({
+        planId: plano.planKey,
+        planName: plano.nome,
         value: preco,
         currency: "BRL",
-        billing_cycle: "monthly",
-        location: "checkout_dialog",
         source: "checkout_dialog",
-        stripe_session_id: data.sessionId || null,
-        content_name: `Zuno Propect ${plano.nome}`,
+        stripeSessionId: data.sessionId || null,
+        usage: {
+          plan_name: "free",
+          leads_used: 0,
+          leads_limit: 20,
+          ai_used: 0,
+          ai_limit: 3,
+          leads_available: 20,
+          ai_available: 3
+        },
+        hasDoneFirstSearch: false,
+        hasDoneFirstAiAnalysis: false,
       });
+
       trackInitiateCheckout({
         content_name: `Zuno Propect ${plano.nome}`,
         content_category: "subscription",
@@ -240,16 +248,24 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
         plan_id: plano.planKey,
         error_message: errorMessage,
       });
-      getFunnelContext(null, "checkout_dialog").then((funnelContext) => {
-        trackEvent("checkout_failed", {
-          ...funnelContext,
-          plan_id: plano.planKey,
-          plan_name: plano.nome,
-          source: "checkout_dialog",
-          location: "checkout_dialog",
-          error_message_safe: errorMessage,
-          error: errorMessage,
-        });
+
+      // Novo helper padronizado Checkout_Failed
+      await trackCheckoutFailed({
+        planId: plano.planKey,
+        planName: plano.nome,
+        value: preco,
+        currency: "BRL",
+        source: "checkout_dialog",
+        errorMessage: errorMessage,
+        usage: {
+          plan_name: "free",
+          leads_used: 0,
+          leads_limit: 20,
+          ai_used: 0,
+          ai_limit: 3,
+          leads_available: 20,
+          ai_available: 3
+        }
       });
     } finally {
       setIsProcessing(false);

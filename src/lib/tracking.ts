@@ -369,12 +369,154 @@ export function trackFirstSearchCompleted(metadata?: EventMetadata) {
   return trackEvent("first_search_completed", metadata);
 }
 
-export function trackUpgradeClicked(metadata?: EventMetadata) {
-  return trackEvent("upgrade_clicked", metadata);
+export const PLAN_TRACKING_MAP = {
+  starter: {
+    plan_id: "starter",
+    plan_name: "Starter",
+    value: 47,
+    currency: "BRL"
+  },
+  pro: {
+    plan_id: "pro",
+    plan_name: "Pro",
+    value: 97,
+    currency: "BRL"
+  },
+  agency: {
+    plan_id: "agency",
+    plan_name: "Agency",
+    value: 247,
+    currency: "BRL"
+  }
+} as const;
+
+export interface UpgradeClickParams {
+  planId: string | null;
+  planName: string | null;
+  value: number | null;
+  currency: string | null;
+  source: string;
+  ctaText: string;
+  usage?: {
+    plan_name?: string;
+    leads_used?: number;
+    leads_limit?: number;
+    ai_used?: number;
+    ai_limit?: number;
+    leads_available?: number;
+    ai_available?: number;
+  };
+  hasDoneFirstSearch?: boolean;
+  hasDoneFirstAiAnalysis?: boolean;
 }
 
-export function trackCheckoutStarted(metadata?: EventMetadata) {
-  return trackEvent("checkout_started", metadata);
+export interface CheckoutStartedParams {
+  planId: string;
+  planName: string;
+  value: number;
+  currency: string;
+  source: string;
+  stripeSessionId?: string | null;
+  usage?: {
+    plan_name?: string;
+    leads_used?: number;
+    leads_limit?: number;
+    ai_used?: number;
+    ai_limit?: number;
+    leads_available?: number;
+    ai_available?: number;
+  };
+  hasDoneFirstSearch?: boolean;
+  hasDoneFirstAiAnalysis?: boolean;
+}
+
+export interface CheckoutFailedParams {
+  planId: string;
+  planName: string;
+  value: number;
+  currency: string;
+  source: string;
+  errorMessage: string;
+  errorCode?: string | null;
+  usage?: {
+    plan_name?: string;
+    leads_used?: number;
+    leads_limit?: number;
+    ai_used?: number;
+    ai_limit?: number;
+    leads_available?: number;
+    ai_available?: number;
+  };
+}
+
+export async function trackUpgradeClick(params: UpgradeClickParams) {
+  const metadata = {
+    plan_id: params.planId,
+    plan_name: params.planName,
+    value: params.value,
+    currency: params.currency,
+    source: params.source,
+    cta_text: params.ctaText,
+    user_plan: params.usage?.plan_name || null,
+    leads_used: params.usage?.leads_used || 0,
+    leads_limit: params.usage?.leads_limit || 0,
+    ai_used: params.usage?.ai_used || 0,
+    ai_limit: params.usage?.ai_limit || 0,
+    leads_available: params.usage?.leads_available || 0,
+    ai_available: params.usage?.ai_available || 0,
+    has_done_first_search: params.hasDoneFirstSearch ?? null,
+    has_done_first_ai_analysis: params.hasDoneFirstAiAnalysis ?? null,
+  };
+
+  await trackEvent("Upgrade_Click", metadata);
+  await trackEvent("upgrade_clicked", metadata);
+}
+
+export async function trackCheckoutStarted(params: CheckoutStartedParams) {
+  const metadata = {
+    plan_id: params.planId,
+    plan_name: params.planName,
+    value: params.value,
+    currency: params.currency,
+    source: params.source,
+    stripe_session_id: params.stripeSessionId || null,
+    user_plan_before_checkout: params.usage?.plan_name || null,
+    leads_used: params.usage?.leads_used || 0,
+    leads_limit: params.usage?.leads_limit || 0,
+    ai_used: params.usage?.ai_used || 0,
+    ai_limit: params.usage?.ai_limit || 0,
+    leads_available: params.usage?.leads_available || 0,
+    ai_available: params.usage?.ai_available || 0,
+    has_done_first_search: params.hasDoneFirstSearch ?? null,
+    has_done_first_ai_analysis: params.hasDoneFirstAiAnalysis ?? null,
+  };
+
+  await trackEvent("Checkout_Started", metadata);
+  await trackEvent("checkout_started", metadata);
+}
+
+export async function trackCheckoutFailed(params: CheckoutFailedParams) {
+  const metadata = {
+    plan_id: params.planId,
+    plan_name: params.planName,
+    value: params.value,
+    currency: params.currency,
+    source: params.source,
+    error_message: params.errorMessage,
+    error_code: params.errorCode || null,
+    user_plan_before_checkout: params.usage?.plan_name || null,
+    leads_used: params.usage?.leads_used || 0,
+    leads_limit: params.usage?.leads_limit || 0,
+    ai_used: params.usage?.ai_used || 0,
+    ai_limit: params.usage?.ai_limit || 0,
+  };
+
+  await trackEvent("Checkout_Failed", metadata);
+  await trackEvent("checkout_failed", metadata);
+}
+
+export function trackUpgradeClicked(metadata?: EventMetadata) {
+  return trackEvent("upgrade_clicked", metadata);
 }
 
 export function trackPurchaseCompleted(metadata?: EventMetadata) {

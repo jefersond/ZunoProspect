@@ -60,18 +60,19 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
                   <span>
                     <Button
                       onClick={onReanalyze}
-                      disabled={isReanalyzing || !canAnalyzeAI}
+                      disabled={isReanalyzing}
                       variant="outline"
                       size="sm"
+                      className={!canAnalyzeAI ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 font-semibold transition-all duration-200" : ""}
                     >
                       <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? 'animate-spin' : ''}`} />
-                      {isReanalyzing ? 'Analisando...' : 'Analisar com IA'}
+                      {isReanalyzing ? 'Analisando...' : (canAnalyzeAI ? 'Analisar com IA' : 'Liberar análises IA')}
                     </Button>
                   </span>
                 </TooltipTrigger>
                 {!canAnalyzeAI && (
                   <TooltipContent>
-                    <p>Você atingiu seu limite de análises com IA.</p>
+                    <p>Você usou todas as análises IA grátis. Escolha um plano para continuar gerando abordagens.</p>
                   </TooltipContent>
                 )}
               </Tooltip>
@@ -113,18 +114,19 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
                       <span>
                         <Button
                           onClick={onReanalyze}
-                          disabled={isReanalyzing || !canAnalyzeAI}
+                          disabled={isReanalyzing}
                           variant="outline"
                           size="sm"
+                          className={!canAnalyzeAI ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 font-semibold transition-all duration-200" : ""}
                         >
                           <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? 'animate-spin' : ''}`} />
-                          {isReanalyzing ? 'Analisando...' : 'Reanalisar'}
+                          {isReanalyzing ? 'Analisando...' : (canAnalyzeAI ? 'Reanalisar' : 'Liberar análises IA')}
                         </Button>
                       </span>
                     </TooltipTrigger>
                     {!canAnalyzeAI && (
                       <TooltipContent>
-                        <p>Você atingiu seu limite de análises com IA.</p>
+                        <p>Você usou todas as análises IA grátis. Escolha um plano para continuar gerando abordagens.</p>
                       </TooltipContent>
                     )}
                   </Tooltip>

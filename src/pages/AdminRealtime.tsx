@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Activity, Clock, CreditCard, Filter, MousePointerClick, Search, ShoppingCart, UserPlus, Users } from "lucide-react";
+import { Activity, Clock, CreditCard, Filter, MousePointerClick, Search, ShoppingCart, UserPlus, Users, XCircle, Brain, Terminal, AlertTriangle, ChevronRight, ChevronDown, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { isAdminEmail } from "@/config/admin";
 import { AppHeader } from "@/components/AppHeader";
@@ -141,6 +141,145 @@ function sourceBadge(event: AppEvent) {
   return "real";
 }
 
+interface AiFailureClassification {
+  type: "api_error" | "timeout" | "no_balance" | "duplicate_event" | "multiple_clicks" | "recovered" | "unknown";
+  label: string;
+  severity: "low" | "medium" | "high";
+  explanation: string;
+}
+
+function classifyAiFailure(event: any, eventsForSameLead: any[]): AiFailureClassification {
+  const meta = event.metadata || event.event_data || {};
+  const errMsg = (meta.error_message || meta.error || "").toLowerCase();
+  const errCode = String(meta.error_code || meta.code || "").toLowerCase();
+  
+  const eventTime = new Date(event.created_at).getTime();
+  const leadId = meta.lead_id || meta.leadId;
+  
+  // 1. Detectar se houve sucesso em até 2 minutos após esta falha para o mesmo lead
+  const successEvent = eventsForSameLead.find(e => {
+    const isSuccess = ["AI_Analysis_Completed", "First_AI_Analysis_Completed", "ai_analysis_completed"].includes(eventKey(e));
+    const sameLead = (metadata(e).lead_id || metadata(e).leadId) === leadId && leadId;
+    if (!isSuccess || !sameLead) return false;
+    
+    const diffSeconds = (new Date(e.created_at).getTime() - eventTime) / 1000;
+    return diffSeconds > 0 && diffSeconds <= 120;
+  });
+  
+  if (successEvent) {
+    const diffSecs = Math.round((new Date(successEvent.created_at).getTime() - eventTime) / 1000);
+    return {
+      type: "recovered",
+      label: "Falha recuperada",
+      severity: "low",
+      explanation: `Sucesso ${diffSecs}s pós falha.`
+    };
+  }
+
+  // 2. Detectar se houve sucesso depois de 2 minutos para o mesmo lead
+  const successLateEvent = eventsForSameLead.find(e => {
+    const isSuccess = ["AI_Analysis_Completed", "First_AI_Analysis_Completed", "ai_analysis_completed"].includes(eventKey(e));
+    const sameLead = (metadata(e).lead_id || metadata(e).leadId) === leadId && leadId;
+    if (!isSuccess || !sameLead) return false;
+    
+    const diffSeconds = (new Date(e.created_at).getTime() - eventTime) / 1000;
+    return diffSeconds > 120;
+  });
+  
+  if (successLateEvent) {
+    return {
+      type: "recovered",
+      label: "Sucesso posterior",
+      severity: "low",
+      explanation: "Sucesso posterior (> 2 min)."
+    };
+  }
+
+  // 3. Detectar se houve evento idêntico de erro em menos de 5 segundos (duplicidade)
+  const duplicateEvent = eventsForSameLead.find(e => {
+    if (e.id === event.id) return false;
+    const isFailed = ["AI_Analysis_Failed", "ai_analysis_failed"].includes(eventKey(e));
+    const sameLead = (metadata(e).lead_id || metadata(e).leadId) === leadId && leadId;
+    if (!isFailed || !sameLead) return false;
+    
+    const sameMsg = (metadata(e).error_message || metadata(e).error || "") === (meta.error_message || meta.error || "");
+    const diffSeconds = Math.abs((new Date(e.created_at).getTime() - eventTime) / 1000);
+    return sameMsg && diffSeconds <= 5;
+  });
+  
+  if (duplicateEvent) {
+    return {
+      type: "duplicate_event",
+      label: "Possível duplicação",
+      severity: "low",
+      explanation: "Falha duplicada detectada em menos de 5 segundos."
+    };
+  }
+
+  // 4. Detectar múltiplos cliques concorrentes em menos de 5 segundos
+  const multipleClicks = eventsForSameLead.find(e => {
+    if (e.id === event.id) return false;
+    const isFailed = ["AI_Analysis_Failed", "ai_analysis_failed"].includes(eventKey(e));
+    const sameLead = (metadata(e).lead_id || metadata(e).leadId) === leadId && leadId;
+    if (!isFailed || !sameLead) return false;
+    
+    const diffSeconds = Math.abs((new Date(e.created_at).getTime() - eventTime) / 1000);
+    return diffSeconds <= 5;
+  });
+  
+  if (multipleClicks) {
+    return {
+      type: "multiple_clicks",
+      label: "Múltiplos cliques",
+      severity: "medium",
+      explanation: "Tentativas concorrentes enviadas em poucos segundos."
+    };
+  }
+
+  // 5. Detectar sem saldo
+  const isNoBalance = errMsg.includes("limite") || errMsg.includes("saldo") || errMsg.includes("crédito") || 
+                      errCode.includes("limit") || errCode === "402" || meta.ai_available_before === 0;
+  if (isNoBalance) {
+    return {
+      type: "no_balance",
+      label: "Sem saldo de IA",
+      severity: "medium",
+      explanation: "Usuário não possui saldo de créditos ou bateu o limite grátis."
+    };
+  }
+
+  // 6. Detectar timeouts
+  const isTimeout = errMsg.includes("timeout") || errMsg.includes("aborted") || errMsg.includes("deadline") || 
+                    errMsg.includes("gateway") || errMsg.includes("demorou") || errCode.includes("timeout");
+  if (isTimeout) {
+    return {
+      type: "timeout",
+      label: "Timeout de API",
+      severity: "high",
+      explanation: "A Edge Function ou provedor estouraram o tempo limite de resposta."
+    };
+  }
+
+  // 7. Erros de rede ou API Gemini
+  const isApiError = errMsg.includes("api") || errMsg.includes("gemini") || errMsg.includes("model") || 
+                     errMsg.includes("fetch") || errMsg.includes("network") || errCode !== "";
+  if (isApiError) {
+    return {
+      type: "api_error",
+      label: "Falha real de API",
+      severity: "high",
+      explanation: "O provedor Gemini ou o backend retornaram erro técnico na execução."
+    };
+  }
+
+  return {
+    type: "unknown",
+    label: "Erro desconhecido",
+    severity: "medium",
+    explanation: meta.error_message || meta.error || "Código do erro não categorizado no helper."
+  };
+}
+
 function percent(part: number, total: number) {
   return total ? `${Math.round((part / total) * 100)}%` : "0%";
 }
@@ -162,6 +301,7 @@ export default function AdminRealtime() {
   const [utmContent, setUtmContent] = useState("");
   const [internalFilter, setInternalFilter] = useState("exclude");
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  const [journeyViewMode, setJourneyViewMode] = useState<"compact" | "failures" | "raw">("compact");
 
   const sinceIso = useMemo(() => {
     const date = new Date();
@@ -477,6 +617,245 @@ export default function AdminRealtime() {
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   }, [events, selectedSession, usersByEmail]);
 
+  const selectedJourneySummary = useMemo(() => {
+    if (selectedJourney.length === 0) return null;
+    
+    // Encontrar último evento para extrair informações do usuário
+    const sorted = [...selectedJourney].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const last = sorted[sorted.length - 1];
+    
+    // Obter dados do usuário no Supabase se disponíveis
+    const user = (last.user_id && usersById.get(last.user_id)) || usersByEmail.get((last.email || last.user_email || "").toLowerCase());
+    const email = user?.email || last.email || last.user_email || "-";
+    const plan = String(user?.plan_name || metadata(last).user_plan || "unknown").toLowerCase();
+    
+    // UTMs e Origem do tráfego
+    const firstWithUtm = sorted.find(e => e.utm_source);
+    const utmSourceVal = firstWithUtm?.utm_source || last.utm_source || null;
+    const utmCampaignVal = firstWithUtm?.utm_campaign || last.utm_campaign || null;
+    const utmContentVal = firstWithUtm?.utm_content || last.utm_content || null;
+    
+    // Normalizar criativo
+    const creativeNameVal = utmContentVal ? normalizeCreativeName(utmContentVal) : null;
+    
+    // Origem do tráfego badge
+    const trafficSource = sourceBadge(last);
+    
+    // Contadores
+    const countSearches = eventCount(sorted, ["search_completed", "first_search_completed"]);
+    const countIaStarted = eventCount(sorted, ["AI_Analysis_Started", "First_AI_Analysis_Started", "ai_analysis_started"]);
+    const countIaCompleted = eventCount(sorted, ["AI_Analysis_Completed", "First_AI_Analysis_Completed", "ai_analysis_completed"]);
+    
+    const totalUpgradeClicks = eventCount(sorted, ["upgrade_clicked", "Upgrade_Click_Before_AI", "Upgrade_Click_After_AI", "Upgrade_Click_After_Limit"]);
+    const checkoutStarted = sorted.filter((event) => ["checkout_started", "InitiateCheckout"].includes(eventKey(event)));
+    const countCheckouts = checkoutStarted.length;
+    const purchaseDone = hasEvent(sorted, ["purchase_completed", "Purchase"]);
+    const countPurchases = purchaseDone ? 1 : 0;
+    
+    // Telemetria detalhada de Falhas de IA com Reclassificação Inteligente de Saldo (Zuno Real Formula)
+    let countIaBlockedByLimit = 0;
+    let countIaRealFailures = 0;
+    let countIaRecovered = 0;
+    let countIaDuplicates = 0;
+    let countIaAttemptsAfterLimit = 0;
+    
+    const limitEvents: AppEvent[] = [];
+    
+    sorted.forEach((e) => {
+      const key = eventKey(e);
+      const isNewBlock = ["AI_Analysis_Blocked_By_Limit", "ai_analysis_blocked_by_limit"].includes(key);
+      let isOldBlock = false;
+      let cl = null;
+      
+      if (["AI_Analysis_Failed", "ai_analysis_failed"].includes(key)) {
+        cl = classifyAiFailure(e, sorted);
+        if (cl.type === "no_balance") {
+          isOldBlock = true;
+        }
+      }
+      
+      if (isNewBlock || isOldBlock) {
+        countIaBlockedByLimit++;
+        
+        // Detectar se é uma tentativa repetida após limite (intervalo < 5s com mesmo lead e mesmo erro de limite)
+        const metaE = metadata(e);
+        const leadIdE = metaE.lead_id || metaE.leadId || "";
+        const msgE = (metaE.error_message || metaE.error || metaE.reason || "").toLowerCase();
+        const timeE = new Date(e.created_at).getTime();
+        
+        const isRepeated = limitEvents.some(prev => {
+          const metaPrev = metadata(prev);
+          const leadIdPrev = metaPrev.lead_id || metaPrev.leadId || "";
+          const msgPrev = (metaPrev.error_message || metaPrev.error || metaPrev.reason || "").toLowerCase();
+          const timePrev = new Date(prev.created_at).getTime();
+          
+          const sameLead = leadIdE === leadIdPrev && leadIdE !== "";
+          const sameMsg = msgE === msgPrev || (msgE.includes("limite") && msgPrev.includes("limite"));
+          const diffSecs = Math.abs(timeE - timePrev) / 1000;
+          
+          return sameLead && sameMsg && diffSecs < 5;
+        });
+        
+        if (isRepeated) {
+          countIaAttemptsAfterLimit++;
+        }
+        
+        limitEvents.push(e);
+      } else if (["AI_Analysis_Failed", "ai_analysis_failed"].includes(key)) {
+        if (!cl) cl = classifyAiFailure(e, sorted);
+        if (cl.type === "recovered") {
+          countIaRecovered++;
+        } else if (cl.type === "duplicate_event" || cl.type === "multiple_clicks") {
+          countIaDuplicates++;
+        } else {
+          countIaRealFailures++;
+        }
+      }
+    });
+
+    // A taxa de falha real deve ser calculada assim: Falhas reais / (Falhas reais + IA sucesso) * 100
+    let failureRate = 0;
+    const totalTentaReal = countIaRealFailures + countIaCompleted;
+    if (totalTentaReal > 0) {
+      failureRate = Math.round((countIaRealFailures / totalTentaReal) * 100);
+    }
+    
+    // Alertas comportamentais de alta intenção comercial e marketing
+    const alerts: string[] = [];
+    
+    if (countIaBlockedByLimit > 0) {
+      alerts.push("Usuário atingiu o limite de IA e tentou continuar usando.");
+    }
+    
+    if (countIaBlockedByLimit >= 3) {
+      alerts.push("Alta intenção após limite: múltiplas tentativas de usar IA sem saldo.");
+    }
+    
+    if (countIaAttemptsAfterLimit > 0) {
+      alerts.push("Tentativas repetidas após limite. Verificar se o botão estava desabilitado corretamente.");
+    }
+    
+    const isCheckoutAbandoned = countCheckouts > 0 && !purchaseDone;
+    if (isCheckoutAbandoned && countIaBlockedByLimit > 0) {
+      alerts.push("Alta intenção detectada.");
+      alerts.push("Verificar se o CTA de upgrade após limite está claro.");
+    }
+    
+    if (utmSourceVal && utmSourceVal.toLowerCase() !== "direct" && utmSourceVal.toLowerCase() !== "organic") {
+      alerts.push("Veio de tráfego pago: avaliar criativo/campanha.");
+    }
+
+    // Datas de atividades
+    const firstActiveAt = sorted[0].created_at;
+    const lastActiveAt = last.created_at;
+    
+    // Diagnóstico de Gargalos Automático
+    let bottleneck = {
+      label: "Processando jornada...",
+      color: "bg-slate-550/10 text-slate-400 border-slate-550/20",
+      description: "Carregando dados comportamentais..."
+    };
+    
+    if (purchaseDone) {
+      bottleneck = {
+        label: "Ativado & Convertido (Sucesso)",
+        color: "bg-emerald-500/10 text-[#10d98a] border-emerald-500/30",
+        description: "O lead completou toda a jornada, realizou busca, IA e comprou o plano!"
+      };
+    } else if (isCheckoutAbandoned) {
+      if (countIaBlockedByLimit > 0) {
+        bottleneck = {
+          label: "Checkout abandonado",
+          color: "bg-amber-500/10 text-amber-400 border-amber-500/20 font-bold",
+          description: "Checkout abandonado. Usuário atingiu limite de IA, tentou continuar usando (alta intenção detectada) e iniciou o checkout, mas desistiu antes de pagar."
+        };
+      } else if (countIaRealFailures >= 3 || failureRate >= 30) {
+        bottleneck = {
+          label: "Checkout abandonado + Falhas técnicas de IA",
+          color: "bg-rose-500/15 text-rose-400 border-rose-500/30 font-bold animate-pulse",
+          description: "O usuário tentou iniciar o checkout, mas enfrentou falhas técnicas consecutivas na IA, abalando a confiança."
+        };
+      } else {
+        bottleneck = {
+          label: "Objeção comercial no checkout (Preço / Valor)",
+          color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+          description: "O lead iniciou o checkout mas desistiu. Provavelmente objeção comercial (preço) ou abandono comum."
+        };
+      }
+    } else if (countIaBlockedByLimit >= 3) {
+      bottleneck = {
+        label: "Alta intenção após limite de IA",
+        color: "bg-violet-500/15 text-violet-400 border-violet-500/30 font-bold animate-pulse",
+        description: "O lead atingiu o limite grátis de IA e tentou gerar análises repetidas vezes sem créditos, demonstrando altíssimo interesse comercial."
+      };
+    } else if (countIaBlockedByLimit > 0) {
+      bottleneck = {
+        label: "Limite da IA atingido",
+        color: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+        description: "O lead usou as análises de IA grátis e atingiu o limite do plano grátis (Aha Moment)."
+      };
+    } else if (countIaRealFailures >= 3 && countIaCompleted === 0) {
+      bottleneck = {
+        label: "Bloqueio Técnico Crítico (IA não funciona)",
+        color: "bg-red-500/15 text-red-400 border-red-500/25 font-bold",
+        description: "O usuário tentou gerar abordagens com IA por 3+ vezes e teve apenas falhas. Não experimentou o valor do produto."
+      };
+    } else if (countIaCompleted > 0 && totalUpgradeClicks > 0) {
+      bottleneck = {
+        label: "Interesse em Upgrade sem checkout",
+        color: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+        description: "O lead usou a IA com sucesso, clicou em botões de Upgrade, mas não iniciou o preenchimento dos dados de pagamento."
+      };
+    } else if (countIaCompleted > 0) {
+      bottleneck = {
+        label: "AHA Moment! Usou IA mas não iniciou compra",
+        color: "bg-teal-500/10 text-teal-400 border-teal-500/20",
+        description: "O lead ativou a IA e recebeu o relatório, mas ainda não demonstrou intenção de compra ou upgrade."
+      };
+    } else if (countSearches > 0) {
+      bottleneck = {
+        label: "Buscou leads, mas não ativou a IA",
+        color: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+        description: "O lead realizou buscas e visualizou as empresas, mas não clicou no CTA para gerar a abordagem consultiva com IA."
+      };
+    } else {
+      bottleneck = {
+        label: "Cadastrado frio (Sem buscas)",
+        color: "bg-slate-550/10 text-slate-400 border-slate-550/20",
+        description: "O usuário criou a conta mas não efetuou nenhuma busca ou navegação profunda no app de prospecção."
+      };
+    }
+    
+    return {
+      email,
+      plan,
+      utmSource: utmSourceVal,
+      utmCampaign: utmCampaignVal,
+      utmContent: utmContentVal,
+      creativeName: creativeNameVal,
+      trafficSource,
+      firstActiveAt,
+      lastActiveAt,
+      bottleneck,
+      failureRate,
+      alerts,
+      counts: {
+        searches: countSearches,
+        iaStarted: countIaStarted,
+        iaCompleted: countIaCompleted,
+        iaFailed: countIaBlockedByLimit + countIaRealFailures + countIaRecovered + countIaDuplicates,
+        iaFailedReal: countIaRealFailures,
+        iaFailedRecovered: countIaRecovered,
+        iaFailedDuplicates: countIaDuplicates,
+        iaBlockedByLimit: countIaBlockedByLimit,
+        iaAttemptsAfterLimit: countIaAttemptsAfterLimit,
+        upgrades: totalUpgradeClicks,
+        checkouts: countCheckouts,
+        purchases: countPurchases
+      }
+    };
+  }, [selectedJourney, usersById, usersByEmail, selectedSession]);
+
   if (!isAdmin) return null;
 
   return (
@@ -779,49 +1158,600 @@ export default function AdminRealtime() {
       </main>
 
       <Sheet open={Boolean(selectedSession)} onOpenChange={(open) => !open && setSelectedSession(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
-          <SheetHeader>
-            <SheetTitle>Jornada do usuário</SheetTitle>
-            <SheetDescription>{selectedSession}</SheetDescription>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-4xl bg-[#0b0f0e] border-l border-emerald-500/20 text-slate-100 shadow-2xl p-6">
+          <SheetHeader className="border-b border-slate-800 pb-4 mb-5">
+            <SheetTitle className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+              <Activity className="h-5 w-5 text-[#10d98a]" />
+              Resumo Executivo da Jornada
+            </SheetTitle>
+            <SheetDescription className="text-slate-400 font-mono text-xs break-all">{selectedSession}</SheetDescription>
           </SheetHeader>
-          <div className="mt-6 space-y-3">
-            {selectedJourney.map((event) => (
-              <div key={event.id} className="rounded-lg border border-border/70 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge>{eventKey(event)}</Badge>
-                    <Badge variant="outline">{sourceBadge(event)}</Badge>
-                    {event.event_type && event.event_type !== event.event_name && (
-                      <Badge variant="secondary">{event.event_type}</Badge>
+
+          {selectedJourneySummary && (
+            <div className="space-y-6">
+              {/* Painel do Resumo Executivo */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-[#111816] rounded-xl border border-emerald-500/10 p-4 space-y-2 md:col-span-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-450 mb-3 flex items-center gap-1.5">
+                    <Users className="h-4 w-4" />
+                    Identificação & Perfil Comercial
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <p><span className="text-slate-500 font-medium">E-mail:</span> <span className="text-slate-200 font-bold break-all">{selectedJourneySummary.email}</span></p>
+                    <p>
+                      <span className="text-slate-500 font-medium">Plano Atual:</span>{' '}
+                      <Badge className={`text-[10px] py-0.5 px-2 font-bold uppercase ${
+                        selectedJourneySummary.plan === "free" ? "bg-slate-800 text-slate-300 border-slate-700" :
+                        selectedJourneySummary.plan === "starter" ? "bg-emerald-500/15 text-[#10d98a] border-emerald-500/30" :
+                        selectedJourneySummary.plan === "pro" ? "bg-blue-500/15 text-blue-400 border-blue-500/30" :
+                        "bg-violet-500/15 text-violet-400 border-violet-500/30"
+                      }`}>{selectedJourneySummary.plan}</Badge>
+                    </p>
+                    <p><span className="text-slate-500 font-medium">Origem do Tráfego:</span> <span className="font-semibold text-slate-200">{selectedJourneySummary.trafficSource}</span></p>
+                    <p><span className="text-slate-500 font-medium">Criativo da Campanha:</span> <span className="font-semibold text-[#10d98a]" title={selectedJourneySummary.utmContent || ""}>{selectedJourneySummary.creativeName || "Nenhum criativo (Tráfego Orgânico/Direto)"}</span></p>
+                    <p className="sm:col-span-2"><span className="text-slate-500 font-medium">UTM UTM Source / Campaign:</span> <span className="font-mono text-[11px] text-slate-450">{selectedJourneySummary.utmSource || "-"} / {selectedJourneySummary.utmCampaign || "-"}</span></p>
+                    <p><span className="text-slate-500 font-medium">Primeiro Acesso:</span> <span className="font-mono text-slate-350">{formatTime(selectedJourneySummary.firstActiveAt)}</span></p>
+                    <p><span className="text-slate-500 font-medium">Última Atividade:</span> <span className="font-mono text-slate-350">{formatTime(selectedJourneySummary.lastActiveAt)}</span></p>
+                  </div>
+                </div>
+
+                {/* Card de Diagnóstico do Funil */}
+                <div className={`rounded-xl border p-4 flex flex-col justify-between space-y-3 ${selectedJourneySummary.bottleneck.color}`}>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider block opacity-75">Diagnóstico do Funil</span>
+                    <h4 className="font-bold text-sm mt-1.5 leading-snug">{selectedJourneySummary.bottleneck.label}</h4>
+                    <p className="text-[11px] mt-1.5 opacity-90 leading-relaxed">{selectedJourneySummary.bottleneck.description}</p>
+                    {selectedJourneySummary.alerts && selectedJourneySummary.alerts.length > 0 && (
+                      <div className="mt-3 space-y-1.5 border-t border-current/20 pt-2.5">
+                        {selectedJourneySummary.alerts.map((alert, aIdx) => (
+                          <div key={aIdx} className="flex items-start gap-1 text-[10px] leading-relaxed opacity-95">
+                            <span className="shrink-0">⚠️</span>
+                            <span>{alert}</span>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground">{formatTime(event.created_at)}</span>
+                  <div className="text-[10px] font-semibold opacity-70 font-mono flex items-center gap-1.5 pt-1.5 border-t border-current/10 mt-1">
+                    <Clock className="h-3 w-3" />
+                    Telemetria de Ativação
+                  </div>
                 </div>
-                <div className="mt-3 grid gap-2 text-xs md:grid-cols-2">
-                  <p><span className="text-muted-foreground">page_url:</span> {event.page_url || "-"}</p>
-                  <p><span className="text-muted-foreground">path:</span> {event.pathname || event.path || "-"}</p>
-                  <p><span className="text-muted-foreground">referrer:</span> {event.referrer || "-"}</p>
-                  <p><span className="text-muted-foreground">creative:</span> {normalizeCreativeName(event.utm_content) || "-"}</p>
-                  <p><span className="text-muted-foreground">utm:</span> {[event.utm_source, event.utm_medium, event.utm_campaign, event.utm_content].filter(Boolean).join(" / ") || "-"}</p>
-                  <p><span className="text-muted-foreground">session_id:</span> {event.session_id || "-"}</p>
-                  <p><span className="text-muted-foreground">anonymous_id:</span> {event.anonymous_id || "-"}</p>
-                  <p><span className="text-muted-foreground">user:</span> {event.user_email || event.email || event.user_id || "-"}</p>
-                </div>
-                <p className="mt-3 text-xs text-muted-foreground">{eventDetails(event)}</p>
-                <details className="mt-3 rounded-md bg-muted/40 p-3 text-xs">
-                  <summary className="cursor-pointer font-medium">Metadata completa</summary>
-                  <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap">
-                    {JSON.stringify(metadata(event), null, 2)}
-                  </pre>
-                </details>
               </div>
-            ))}
-            {selectedJourney.length === 0 && (
-              <p className="rounded-lg border border-border/70 p-4 text-sm text-muted-foreground">
-                Nenhum evento encontrado para este email, usuário, sessão ou anonymous_id no período carregado.
-              </p>
-            )}
-          </div>
+
+              {/* Grade de Estatísticas e Contadores */}
+              <div className="bg-[#111816] rounded-xl border border-slate-800/80 p-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
+                  <Activity className="h-4 w-4 text-emerald-500" />
+                  Métricas de Conversão e Sucesso Real
+                </h3>
+                <div className="flex flex-wrap gap-3">
+                  {[
+                    { label: "Buscas", val: selectedJourneySummary.counts.searches, color: "text-sky-400" },
+                    { label: "IA Iniciadas", val: selectedJourneySummary.counts.iaStarted, color: "text-violet-400" },
+                    { label: "IA Sucesso", val: selectedJourneySummary.counts.iaCompleted, color: "text-[#10d98a] font-bold" },
+                    { label: "Bloqueios Limite", val: selectedJourneySummary.counts.iaBlockedByLimit, color: "text-violet-400 font-bold" },
+                    { label: "Tentativas Repetidas", val: selectedJourneySummary.counts.iaAttemptsAfterLimit, color: "text-orange-400 font-semibold" },
+                    { label: "Falhas Totais", val: selectedJourneySummary.counts.iaFailed, color: "text-red-400/50" },
+                    { label: "Falhas Reais", val: selectedJourneySummary.counts.iaFailedReal, color: "text-red-450 font-bold" },
+                    { label: "Recuperadas", val: selectedJourneySummary.counts.iaFailedRecovered, color: "text-[#10d98a] font-semibold" },
+                    { label: "Duplicadas", val: selectedJourneySummary.counts.iaFailedDuplicates, color: "text-amber-400/80" },
+                    { label: "Taxa Falha Real", val: `${selectedJourneySummary.failureRate}%`, color: selectedJourneySummary.failureRate >= 30 ? "text-rose-500 font-bold animate-pulse" : "text-slate-300" },
+                    { label: "Upgrades Clicks", val: selectedJourneySummary.counts.upgrades, color: "text-indigo-400" },
+                    { label: "Checkouts", val: selectedJourneySummary.counts.checkouts, color: "text-amber-500" },
+                    { label: "Compras", val: selectedJourneySummary.counts.purchases, color: selectedJourneySummary.counts.purchases > 0 ? "text-[#10d98a] font-bold" : "text-slate-400" }
+                  ].map((stat, sIdx) => (
+                    <div key={stat.label} className="bg-slate-900/40 border border-slate-800 px-3 py-1.5 rounded-lg text-center flex-grow sm:flex-grow-0">
+                      <span className="text-[10px] text-slate-500 block font-semibold">{stat.label}</span>
+                      <span className={`text-sm font-bold block mt-0.5 ${stat.color}`}>{stat.val}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Controle de Abas Customizado */}
+              <div className="flex border-b border-slate-800/80 pb-px mb-1">
+                {[
+                  { id: "compact", label: "Linha do Tempo", icon: Clock },
+                  { id: "failures", label: "Falhas de IA por Lead", icon: Brain, isNew: selectedJourneySummary.counts.iaFailed > 0 },
+                  { id: "raw", label: "Eventos Brutos", icon: Terminal }
+                ].map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = journeyViewMode === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setJourneyViewMode(tab.id as any)}
+                      className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition-all duration-200 relative ${
+                        isActive
+                          ? "border-[#10d98a] text-[#10d98a] bg-emerald-500/5"
+                          : "border-transparent text-slate-450 hover:text-slate-200"
+                      }`}
+                    >
+                      <Icon className={`h-3.5 w-3.5 ${isActive ? "text-[#10d98a]" : "text-slate-450"}`} />
+                      {tab.label}
+                      {tab.isNew && tab.id === "failures" && (
+                        <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span>
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Renderização Condicional da Aba Selecionada */}
+              {journeyViewMode === "failures" ? (() => {
+                const iaEvents = selectedJourney.filter(e => 
+                  ["AI_Analysis_Started", "First_AI_Analysis_Started", 
+                   "AI_Analysis_Completed", "First_AI_Analysis_Completed", "ai_analysis_completed", 
+                   "AI_Analysis_Failed", "ai_analysis_failed"].includes(eventKey(e))
+                );
+
+                const leadsGroup: Record<string, {
+                  leadId: string;
+                  leadName: string;
+                  attempts: any[];
+                  failures: any[];
+                  successes: any[];
+                  started: any[];
+                  firstFailureAt: string | null;
+                  lastSuccessAt: string | null;
+                  deductedCredit: boolean;
+                }> = {};
+
+                iaEvents.forEach(e => {
+                  const meta = metadata(e) || {};
+                  const leadId = meta.lead_id || meta.leadId || "";
+                  const leadName = meta.lead_name || meta.leadName || "";
+                  
+                  const fallbackKey = leadId || (leadName ? `name_${leadName}` : "unknown_lead");
+                  
+                  if (!leadsGroup[fallbackKey]) {
+                    leadsGroup[fallbackKey] = {
+                      leadId: leadId || "não informado",
+                      leadName: leadName || "Não informado",
+                      attempts: [],
+                      failures: [],
+                      successes: [],
+                      started: [],
+                      firstFailureAt: null,
+                      lastSuccessAt: null,
+                      deductedCredit: false
+                    };
+                  }
+                  
+                  const group = leadsGroup[fallbackKey];
+                  group.attempts.push(e);
+                  
+                  const key = eventKey(e);
+                  if (["AI_Analysis_Failed", "ai_analysis_failed"].includes(key)) {
+                    group.failures.push(e);
+                    if (!group.firstFailureAt) {
+                      group.firstFailureAt = e.created_at;
+                    }
+                    const aiUsedAfter = Number(meta.ai_used_after || 0);
+                    const aiUsedBefore = Number(meta.ai_used_before || 0);
+                    if (meta.deducted_credit === true || aiUsedAfter > aiUsedBefore) {
+                      group.deductedCredit = true;
+                    }
+                  } else if (["AI_Analysis_Completed", "First_AI_Analysis_Completed", "ai_analysis_completed"].includes(key)) {
+                    group.successes.push(e);
+                    group.lastSuccessAt = e.created_at;
+                  } else if (["AI_Analysis_Started", "First_AI_Analysis_Started"].includes(key)) {
+                    group.started.push(e);
+                  }
+                });
+
+                const groupedLeadsList = Object.values(leadsGroup).filter(g => g.failures.length > 0);
+
+                return (
+                  <div className="space-y-4 pt-1">
+                    <div className="p-3.5 bg-slate-900/30 rounded-xl border border-slate-800/60 text-xs text-slate-400 space-y-1">
+                      <p className="font-semibold text-slate-200">Painel de Auditoria de Falhas de IA por Lead</p>
+                      <p>Rastreia de forma atômica erros de API, timeouts, múltiplas tentativas e auditoria automática de créditos.</p>
+                      <p className="mt-1">Leads com falhas técnicas: <span className="font-bold text-[#10d98a]">{groupedLeadsList.length}</span></p>
+                    </div>
+
+                    {groupedLeadsList.length === 0 ? (
+                      <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-8 text-xs text-slate-400 text-center flex flex-col items-center gap-2">
+                        <CheckCircle2 className="h-6 w-6 text-[#10d98a] shrink-0" />
+                        Nenhuma falha técnica de IA registrada para este usuário!
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {groupedLeadsList.map((g, idx) => {
+                          const hasRecovery = g.successes.length > 0;
+                          
+                          let hasDuplication = false;
+                          let hasMultipleClicks = false;
+                          
+                          g.failures.forEach(f => {
+                            const cl = classifyAiFailure(f, selectedJourney);
+                            if (cl.type === "duplicate_event") hasDuplication = true;
+                            if (cl.type === "multiple_clicks") hasMultipleClicks = true;
+                          });
+
+                          let statusLabel = "Falha Não Recuperada";
+                          let statusColor = "bg-red-500/10 text-red-400 border-red-500/25";
+                          
+                          if (hasRecovery) {
+                            const firstFailTime = new Date(g.firstFailureAt!).getTime();
+                            const recoverySuccess = g.successes.find(s => {
+                              const diffSecs = (new Date(s.created_at).getTime() - firstFailTime) / 1000;
+                              return diffSecs > 0 && diffSecs <= 120;
+                            });
+                            
+                            if (recoverySuccess) {
+                              const diff = Math.round((new Date(recoverySuccess.created_at).getTime() - firstFailTime) / 1000);
+                              statusLabel = `Falha recuperada (${diff}s após)`;
+                              statusColor = "bg-emerald-500/15 text-[#10d98a] border-emerald-500/30 font-bold";
+                            } else {
+                              statusLabel = "Sucesso posterior (> 2min)";
+                              statusColor = "bg-teal-500/10 text-teal-400 border-teal-500/20";
+                            }
+                          } else if (hasDuplication) {
+                            statusLabel = "Possível duplicação";
+                            statusColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+                          } else if (hasMultipleClicks) {
+                            statusLabel = "Múltiplos cliques";
+                            statusColor = "bg-violet-500/10 text-violet-400 border-violet-500/20";
+                          }
+
+                          return (
+                            <div key={idx} className="rounded-xl border border-slate-800/80 bg-slate-950/20 p-4 shadow-sm space-y-4 hover:border-slate-800 hover:bg-slate-950/40 transition-all">
+                              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/60 pb-3 mb-0.5">
+                                <div>
+                                  <h4 className="font-bold text-slate-100 text-sm flex items-center gap-1.5">
+                                    <Brain className="h-4 w-4 text-violet-405" />
+                                    {g.leadName}
+                                  </h4>
+                                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">ID: {g.leadId}</p>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 items-center">
+                                  <Badge variant="outline" className={`text-[9px] px-2 py-0.5 uppercase tracking-wider font-bold ${statusColor}`}>
+                                    {statusLabel}
+                                  </Badge>
+                                  {g.deductedCredit && (
+                                    <Badge className="bg-red-500/20 text-red-400 border border-red-500/40 text-[9px] font-bold uppercase animate-pulse">
+                                      Desconto Indevido
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-[10.5px] text-slate-400">
+                                <div className="bg-slate-900/30 p-2 rounded-lg border border-slate-800/40">
+                                  <span className="text-slate-500 block">Tentativas</span>
+                                  <span className="font-bold text-slate-200 text-xs">{g.attempts.length}</span>
+                                </div>
+                                <div className="bg-slate-900/30 p-2 rounded-lg border border-slate-800/40">
+                                  <span className="text-slate-500 block">Falhas IA</span>
+                                  <span className="font-bold text-red-400 text-xs">{g.failures.length}</span>
+                                </div>
+                                <div className="bg-slate-900/30 p-2 rounded-lg border border-slate-800/40">
+                                  <span className="text-slate-500 block">Sucessos IA</span>
+                                  <span className="font-bold text-emerald-400 text-xs">{g.successes.length}</span>
+                                </div>
+                                <div className="bg-slate-900/30 p-2 rounded-lg border border-slate-800/40">
+                                  <span className="text-slate-500 block">Primeira Falha</span>
+                                  <span className="font-mono text-slate-350 text-[10px]">{g.firstFailureAt ? formatTime(g.firstFailureAt) : "-"}</span>
+                                </div>
+                                <div className="bg-slate-900/30 p-2 rounded-lg border border-slate-800/40">
+                                  <span className="text-slate-500 block">Último Sucesso</span>
+                                  <span className="font-mono text-slate-350 text-[10px]">{g.lastSuccessAt ? formatTime(g.lastSuccessAt) : "-"}</span>
+                                </div>
+                              </div>
+
+                              {g.deductedCredit && (
+                                <div className="flex items-center gap-1.5 text-[10px] text-red-400 bg-red-500/10 p-3 rounded-lg border border-red-500/25 animate-pulse">
+                                  <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+                                  <span className="font-bold">Desconto Indevido de Créditos:</span> Evento com falha técnica sofreu débito indevido. O administrador deve creditar saldo para o usuário manualmente.
+                                </div>
+                              )}
+
+                              <details className="mt-2 rounded-lg bg-[#080c0b] border border-slate-800/80 p-3 text-xs text-slate-400">
+                                <summary className="cursor-pointer font-bold text-slate-300 hover:text-slate-200 transition-colors list-none select-none flex items-center gap-1">
+                                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform details-open:rotate-90" />
+                                  Detalhes Técnicos da Linha de Erros ({g.failures.length} eventos)
+                                </summary>
+                                <div className="mt-4 space-y-4 border-l-2 border-slate-800/60 pl-3 ml-1.5">
+                                  {g.failures.map((f, fIdx) => {
+                                    const cl = classifyAiFailure(f, selectedJourney);
+                                    const isDeducted = metadata(f).deducted_credit === true || 
+                                                       (metadata(f).ai_used_after !== undefined && 
+                                                        metadata(f).ai_used_before !== undefined && 
+                                                        Number(metadata(f).ai_used_after) > Number(metadata(f).ai_used_before));
+                                    
+                                    return (
+                                      <div key={fIdx} className="space-y-2 relative">
+                                        <div className="absolute -left-[19.5px] top-1.5 h-2 w-2 rounded-full bg-red-500 border border-[#0b0f0e]" />
+                                        <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-800/20 pb-1.5">
+                                          <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] font-bold">
+                                            {cl.label}
+                                          </Badge>
+                                          <span className="text-[10px] text-slate-500 font-mono">{formatTime(f.created_at)}</span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-300 font-mono bg-black/60 p-2.5 rounded border border-slate-800 max-h-24 overflow-y-auto break-words whitespace-pre-wrap">{metadata(f).error_message || metadata(f).error || "Nenhum log de erro fornecido pelo backend"}</p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] text-slate-550">
+                                          {metadata(f).error_code && <p><span className="text-slate-500 font-medium">Código do Erro:</span> <span className="font-mono text-slate-300">{String(metadata(f).error_code)}</span></p>}
+                                          {metadata(f).error_type && <p><span className="text-slate-500 font-medium">Tipo de Erro:</span> <span className="font-mono text-slate-300">{String(metadata(f).error_type)}</span></p>}
+                                          <p><span className="text-slate-500 font-medium">Duração:</span> <span className="text-slate-300">{metadata(f).duration_ms !== undefined ? `${metadata(f).duration_ms} ms` : "não informado"}</span></p>
+                                          <p><span className="text-slate-500 font-medium">Tentativas (Retries):</span> <span className="text-slate-300">{metadata(f).retry_count !== undefined ? metadata(f).retry_count : "não informado"}</span></p>
+                                          {metadata(f).request_id && <p className="sm:col-span-2"><span className="text-slate-500 font-mono font-medium">Request ID:</span> <span className="font-mono text-slate-300 break-all">{String(metadata(f).request_id)}</span></p>}
+                                          <p className="sm:col-span-2"><span className="text-slate-500 font-medium">Crédito Descontado:</span> <span className={isDeducted ? "text-red-400 font-bold" : "text-slate-400"}>{isDeducted ? "Sim (ANOMALIA DE DADO)" : "Não (Correto)"}</span></p>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </details>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })() : journeyViewMode === "compact" ? (() => {
+                // Lógica de agrupamento para a Timeline Compacta
+                const compactEvents = [];
+                let currentGroup = null;
+
+                selectedJourney.forEach((e) => {
+                  const key = eventKey(e);
+                  const isKey = ["search_completed", "ai_analysis_completed", "AI_Analysis_Failed", "ai_analysis_failed", "upgrade_clicked", "checkout_started", "purchase_completed", "Purchase", "First_AI_CTA_Shown", "First_AI_CTA_Clicked", "AI_Analysis_Duplicate_Click_Prevented"].includes(key);
+                  
+                  if (isKey) {
+                    if (currentGroup) {
+                      compactEvents.push(currentGroup);
+                      currentGroup = null;
+                    }
+                    compactEvents.push({ event: e, count: 1, list: [e], isKey: true });
+                  } else {
+                    if (currentGroup && eventKey(currentGroup.event) === key) {
+                      currentGroup.count++;
+                      currentGroup.list.push(e);
+                    } else {
+                      if (currentGroup) {
+                        compactEvents.push(currentGroup);
+                      }
+                      currentGroup = { event: e, count: 1, list: [e], isKey: false };
+                    }
+                  }
+                });
+                if (currentGroup) {
+                  compactEvents.push(currentGroup);
+                }
+
+                return (
+                  <div className="space-y-3 pt-1">
+                    {compactEvents.map((g, idx) => {
+                      const e = g.event;
+                      const key = eventKey(e);
+                      
+                      const isNewBlock = ["AI_Analysis_Blocked_By_Limit", "ai_analysis_blocked_by_limit"].includes(key);
+                      const isOldBlock = ["AI_Analysis_Failed", "ai_analysis_failed"].includes(key) && classifyAiFailure(e, selectedJourney).type === "no_balance";
+                      const isBlockedLimit = isNewBlock || isOldBlock;
+                      
+                      const isFailed = ["AI_Analysis_Failed", "ai_analysis_failed"].includes(key) && !isBlockedLimit;
+                      const isPrevented = key === "AI_Analysis_Duplicate_Click_Prevented";
+
+                      return (
+                        <div key={idx} className={`rounded-xl border p-4 transition-all ${
+                          isFailed ? "border-red-500/20 bg-red-500/5" :
+                          isBlockedLimit ? "border-violet-500/20 bg-violet-500/5 shadow-md shadow-violet-950/10" :
+                          isPrevented ? "border-violet-500/20 bg-violet-500/5" :
+                          g.isKey ? "border-[#10d98a]/20 bg-emerald-500/[0.02]" :
+                          "border-slate-800 bg-[#111816]/40 text-slate-400"
+                        }`}>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge className={
+                                isFailed ? "bg-red-500/20 text-red-400 border-red-500/30 font-bold" :
+                                isBlockedLimit ? "bg-violet-500/25 text-violet-400 border-violet-500/30 font-bold uppercase tracking-wider" :
+                                isPrevented ? "bg-violet-500/20 text-violet-400 border-violet-500/30 font-bold" :
+                                g.isKey ? "bg-[#10d98a]/15 text-[#10d98a] border-emerald-500/30" :
+                                "bg-slate-800 text-slate-350 border-slate-700"
+                              }>{isBlockedLimit ? "Bloqueio por limite" : key}</Badge>
+                              <Badge variant="outline" className="border-slate-800 text-slate-450">{sourceBadge(e)}</Badge>
+                              
+                              {g.count > 1 && (
+                                <Badge className="bg-emerald-500/10 text-[#10d98a] border-emerald-500/20 text-[10px] font-bold">
+                                  repetido {g.count}x
+                                </Badge>
+                              )}
+                            </div>
+                            <span className="text-xs text-slate-450 font-mono">{formatTime(e.created_at)}</span>
+                          </div>
+
+                          {/* Bloco Detalhado se for Falha de IA */}
+                          {isFailed && (() => {
+                            const cl = classifyAiFailure(e, selectedJourney);
+                            const eventTime = new Date(e.created_at).getTime();
+                            const leadId = metadata(e).lead_id || metadata(e).leadId;
+                            
+                            const successEventAfter = selectedJourney.find(evt => {
+                              const isSuccess = ["AI_Analysis_Completed", "First_AI_Analysis_Completed", "ai_analysis_completed"].includes(eventKey(evt));
+                              const sameLead = (metadata(evt).lead_id || metadata(evt).leadId) === leadId && leadId;
+                              if (!isSuccess || !sameLead) return false;
+                              const diffSeconds = (new Date(evt.created_at).getTime() - eventTime) / 1000;
+                              return diffSeconds > 0 && diffSeconds <= 120;
+                            });
+                            
+                            const isDeducted = metadata(e).deducted_credit === true || 
+                                               (metadata(e).ai_used_after !== undefined && 
+                                                metadata(e).ai_used_before !== undefined && 
+                                                Number(metadata(e).ai_used_after) > Number(metadata(e).ai_used_before));
+
+                            return (
+                              <div className="mt-3.5 pt-3 border-t border-red-500/10 space-y-3 text-[11px] text-slate-300">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="font-bold text-red-400 flex items-center gap-1.5 text-xs">
+                                    <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+                                    Falha técnica na IA: {cl.label}
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    {successEventAfter && (
+                                      <Badge className="bg-[#10d98a]/15 text-[#10d98a] border-emerald-500/30 text-[9px] font-bold">
+                                        Falha Recuperada com Sucesso
+                                      </Badge>
+                                    )}
+                                    <Badge variant="outline" className={`text-[9px] font-bold h-5 ${
+                                      isDeducted 
+                                        ? "bg-red-500/20 text-red-400 border-red-500/40 animate-pulse font-extrabold" 
+                                        : "bg-emerald-500/10 text-[#10d98a] border-emerald-500/20"
+                                    }`}>
+                                      Consumiu crédito: {isDeducted ? "Sim (CRÍTICO)" : "Não"}
+                                    </Badge>
+                                  </div>
+                                </div>
+
+                                <p className="bg-black/50 p-2.5 rounded border border-slate-800 font-mono text-[10.5px] text-red-400 break-words whitespace-pre-wrap">{metadata(e).error_message || metadata(e).error || "Não informado"}</p>
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] text-slate-450 border-t border-slate-800/30 pt-2.5">
+                                  {metadata(e).error_code && <p><span className="text-slate-500 font-medium">Error Code:</span> <span className="font-mono text-slate-300">{String(metadata(e).error_code)}</span></p>}
+                                  {metadata(e).error_type && <p><span className="text-slate-500 font-medium">Error Type:</span> <span className="font-mono text-slate-300">{String(metadata(e).error_type)}</span></p>}
+                                  <p><span className="text-slate-500 font-medium">Lead Afetado:</span> <span className="font-semibold text-slate-300">{String(metadata(e).lead_name || metadata(e).leadName || "Não informado")}</span></p>
+                                  <p><span className="text-slate-500 font-medium">Lead ID:</span> <span className="font-mono text-slate-350 text-[9px]">{String(metadata(e).lead_id || "Não informado")}</span></p>
+                                  <p><span className="text-slate-500 font-medium">Créditos IA (Antes/Depois):</span> <span className="text-slate-300">{String(metadata(e).ai_available_before !== undefined ? metadata(e).ai_available_before : "-")} &gt; {String(metadata(e).ai_available_after !== undefined ? metadata(e).ai_available_after : "-")}</span></p>
+                                  <p><span className="text-slate-500 font-medium">Tempo de Resposta:</span> <span className="text-slate-300">{metadata(e).duration_ms !== undefined ? `${metadata(e).duration_ms} ms` : "não medido"}</span></p>
+                                  <p><span className="text-slate-500 font-medium">Tentativas de Conexão:</span> <span className="text-slate-300">{metadata(e).retry_count !== undefined ? metadata(e).retry_count : "não informado"}</span></p>
+                                  {metadata(e).request_id && <p className="sm:col-span-2"><span className="text-slate-500 font-mono font-medium">Request ID:</span> <span className="font-mono text-slate-300 break-all">{String(metadata(e).request_id)}</span></p>}
+                                </div>
+
+                                {isDeducted && (
+                                  <div className="flex items-center gap-1.5 text-[9.5px] text-red-400 font-bold bg-red-500/15 p-2 rounded border border-red-500/30 animate-pulse">
+                                    <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                                    Atenção: Crédito do plano foi debitado indevidamente nesta falha.
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* Bloco Detalhado se for Bloqueio por Limite */}
+                          {isBlockedLimit && (() => {
+                            return (
+                              <div className="mt-3.5 pt-3 border-t border-violet-500/10 space-y-3 text-[11px] text-slate-300">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="font-bold text-violet-400 flex items-center gap-1.5 text-xs">
+                                    <Lock className="h-4 w-4 text-violet-500 shrink-0" />
+                                    Bloqueio por Limite de IA
+                                  </span>
+                                  <Badge variant="outline" className="bg-emerald-500/10 text-[#10d98a] border-emerald-500/20 text-[9px] font-bold">
+                                    Consumiu crédito: Não
+                                  </Badge>
+                                </div>
+                                
+                                {isOldBlock && (
+                                  <div className="text-[10px] text-amber-500 bg-amber-500/10 p-2.5 rounded border border-amber-500/20">
+                                    ⚠️ Evento antigo registrado como falha, mas reclassificado como bloqueio por limite.
+                                  </div>
+                                )}
+
+                                <p className="bg-black/50 p-2.5 rounded border border-slate-800 font-mono text-[10.5px] text-slate-400 break-words whitespace-pre-wrap">
+                                  {metadata(e).error_message || metadata(e).error || "Limite de IA atingido"}
+                                </p>
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] text-slate-450 border-t border-slate-800/30 pt-2.5">
+                                  <p><span className="text-slate-500 font-medium">Plano do Usuário:</span> <span className="font-semibold text-slate-300">{String(metadata(e).user_plan || "free")}</span></p>
+                                  <p><span className="text-slate-500 font-medium">Lead Afetado:</span> <span className="font-semibold text-slate-300">{String(metadata(e).lead_name || metadata(e).leadName || "Não informado")}</span></p>
+                                  <p><span className="text-slate-500 font-medium">Lead ID:</span> <span className="font-mono text-slate-350 text-[9px]">{String(metadata(e).lead_id || "Não informado")}</span></p>
+                                  <p><span className="text-slate-500 font-medium">Créditos Usados / Limite:</span> <span className="text-slate-300">{String(metadata(e).ai_used !== undefined ? metadata(e).ai_used : "-")} / {String(metadata(e).ai_limit !== undefined ? metadata(e).ai_limit : "-")}</span></p>
+                                  <p><span className="text-slate-500 font-medium">Créditos Disponíveis:</span> <span className="text-slate-300">{String(metadata(e).ai_available !== undefined ? metadata(e).ai_available : "0")}</span></p>
+                                  <p><span className="text-slate-500 font-medium">Bloqueado antes da API:</span> <span className="text-slate-300">{metadata(e).blocked_before_ai_call !== false ? "Sim (Correto)" : "Não"}</span></p>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Bloco Detalhado se for Duplicado Prevenido */}
+                          {isPrevented && (
+                            <div className="mt-3.5 pt-3 border-t border-violet-500/10 space-y-1.5 text-[11px] text-slate-300">
+                              <span className="font-bold text-violet-400 flex items-center gap-1.5 text-xs">
+                                <AlertTriangle className="h-4 w-4 text-violet-500 shrink-0" />
+                                Bloqueio de Clique Concorrente (Sucesso)
+                              </span>
+                              <p className="text-slate-400 leading-relaxed text-[10.5px]">O sistema identificou cliques duplos síncronos redundantes no botão de IA para o lead <span className="font-bold text-slate-200">{String(metadata(e).lead_name)}</span> e preveniu chamadas duplicadas adicionais com sucesso absoluto, preservando a estabilidade e os créditos do usuário.</p>
+                            </div>
+                          )}
+
+                          {/* Dados da URL e detalhes de outros eventos */}
+                          {!isFailed && !isPrevented && (
+                            <div className="mt-3 space-y-2.5 text-xs">
+                              <div className="grid gap-2 md:grid-cols-2 text-[10.5px] text-slate-450">
+                                <p><span className="text-slate-500 font-medium">page_url:</span> <span className="text-slate-350 break-all">{e.page_url || "-"}</span></p>
+                                <p><span className="text-slate-500 font-medium">path:</span> <span className="text-slate-350 break-all">{e.pathname || e.path || "-"}</span></p>
+                                <p><span className="text-slate-500 font-medium">creative:</span> <span className="text-slate-350">{normalizeCreativeName(e.utm_content) || "-"}</span></p>
+                                <p><span className="text-slate-500 font-medium">utm:</span> <span className="text-slate-350 font-mono text-[9.5px]">{[e.utm_source, e.utm_medium, e.utm_campaign, e.utm_content].filter(Boolean).join(" / ") || "-"}</span></p>
+                              </div>
+                              <p className="text-[11px] font-medium text-slate-300 bg-slate-900/30 p-2 rounded border border-slate-800/40 leading-relaxed">{eventDetails(e)}</p>
+                            </div>
+                          )}
+
+                          {/* Accordion expandível para JSON de metadados se count > 1 */}
+                          {g.count > 1 && (
+                            <details className="mt-3 rounded-lg bg-slate-900/40 p-2 text-xs border border-slate-800/40">
+                              <summary className="cursor-pointer font-bold text-slate-400 hover:text-slate-300 select-none">
+                                Ver timestamps de todas as ocorrências ({g.count})
+                              </summary>
+                              <div className="mt-2 space-y-1.5 pl-2 font-mono text-[10px] text-slate-500">
+                                {g.list.map((item, itemIdx) => (
+                                  <p key={itemIdx}>{itemIdx + 1}. Ocorrido às: <span className="text-slate-400">{formatTime(item.created_at)}</span></p>
+                                ))}
+                              </div>
+                            </details>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })() : (
+                /* Aba: Eventos Brutos (Visualizador Completo) */
+                <div className="space-y-3 pt-1">
+                  {selectedJourney.map((event) => (
+                    <div key={event.id} className="rounded-xl border border-slate-800 bg-[#111816]/30 p-4 text-xs text-slate-400 space-y-3.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge className="bg-slate-800 text-slate-300 border-slate-700">{eventKey(event)}</Badge>
+                          <Badge variant="outline" className="border-slate-850 text-slate-450">{sourceBadge(event)}</Badge>
+                          {event.event_type && event.event_type !== event.event_name && (
+                            <Badge variant="secondary">{event.event_type}</Badge>
+                          )}
+                        </div>
+                        <span className="text-xs text-slate-450 font-mono">{formatTime(event.created_at)}</span>
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-2 text-[10.5px]">
+                        <p><span className="text-slate-500 font-medium">page_url:</span> <span className="text-slate-300 break-all">{event.page_url || "-"}</span></p>
+                        <p><span className="text-slate-500 font-medium">path:</span> <span className="text-slate-300 break-all">{event.pathname || event.path || "-"}</span></p>
+                        <p><span className="text-slate-500 font-medium">referrer:</span> <span className="text-slate-300 break-all">{event.referrer || "-"}</span></p>
+                        <p><span className="text-slate-500 font-medium">creative:</span> <span className="text-[#10d98a]">{normalizeCreativeName(event.utm_content) || "-"}</span></p>
+                        <p><span className="text-slate-500 font-medium">utm:</span> <span className="text-slate-300 font-mono">{[event.utm_source, event.utm_medium, event.utm_campaign, event.utm_content].filter(Boolean).join(" / ") || "-"}</span></p>
+                        <p><span className="text-slate-500 font-medium">session_id:</span> <span className="text-slate-300 font-mono text-[9px] break-all">{event.session_id || "-"}</span></p>
+                        <p><span className="text-slate-500 font-medium">anonymous_id:</span> <span className="text-slate-300 font-mono text-[9px] break-all">{event.anonymous_id || "-"}</span></p>
+                        <p><span className="text-slate-500 font-medium">user_id/email:</span> <span className="text-slate-300 font-mono text-[9px] break-all">{event.user_email || event.email || event.user_id || "-"}</span></p>
+                      </div>
+                      <p className="text-[11px] font-medium text-slate-300 bg-slate-900/30 p-2.5 rounded border border-slate-805 leading-relaxed">{eventDetails(event)}</p>
+                      <details className="rounded-lg bg-black/40 border border-slate-805 p-2.5 text-xs text-slate-400">
+                        <summary className="cursor-pointer font-bold text-slate-400 hover:text-slate-300 select-none">Metadata JSON Completo</summary>
+                        <pre className="mt-2.5 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[10px] bg-slate-950 p-3 rounded border border-slate-900">
+                          {JSON.stringify(metadata(event), null, 2)}
+                        </pre>
+                      </details>
+                    </div>
+                  ))}
+                  {selectedJourney.length === 0 && (
+                    <p className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-6 text-xs text-slate-400 text-center">
+                      Nenhum evento encontrado para este email, usuário, sessão ou anonymous_id no período carregado.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </SheetContent>
       </Sheet>
     </div>

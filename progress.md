@@ -19,3 +19,76 @@
   - Refatoração dos segmentos de funil (Passos A, B e C), incluindo 7 segmentos exatos de onboarding de IA e ativação de marketing: `all`, `searched_no_ai`, `ai_limit_reached_no_upgrade`, `ai_used_no_checkout`, `checkout_abandoned`, `hot_free_users`, `first_ai_cta_seen_no_click`.
   - Exibição de design de altíssimo nível (Passo D) para checkouts abandonados na tabela, exibindo relógios pulsantes em âmbar, badges com UTMs (`checkoutUtmSource` e `checkoutUtmCampaign`) e o ID da sessão truncado para facilitar a recuperação de vendas perdidas pelo administrador.
 - Build verificado localmente (`npm run build`) com sucesso (Exit code: 0).
+- **Sheet de Jornada do Usuário Reestruturada (Concluído):**
+  - Desenvolvida a interface premium da Sheet da Jornada com background glassmorphic e visualização de altíssimo nível.
+  - Implementado o **Resumo Executivo** contendo os 17 campos (e-mail, plano, origem do tráfego, UTMs com Friendly Names dos criativos, datas de atividades e todos os contadores de funil: buscas, IA iniciadas/concluídas/falhadas, cliques em upgrade, checkouts e compras).
+  - Implementado o **Diagnóstico de Gargalos Automático** dinâmico e proeminente, colorido com base nas regras lógicas do funil de ativação (se comprou, se abandonou no checkout, se bateu limite de IA, se buscou sem usar IA, se cadastrou sem buscar, etc.).
+  - Desenvolvidos os **Dois Modos de Visualização**: *Timeline Compacta* (que agrupa eventos consecutivos de repetição, ex: `page_view x5`, exibindo badges dinâmicos e permitindo expandir os sub-eventos para examinar detalhes) e *Eventos Brutos* (com accordion elegante para visualizar o JSON de metadados).
+  - Integrados **Filtros Rápidos na Timeline** (Todos, Apenas Chaves, Buscas, IA/Abordagem, Upgrade/Checkout, Erros, Testes) para simplificar a exploração manual do comportamento do lead pelo administrador.
+- **Implementação do Remailing Comportamental (Fase 3 - Concluída):**
+  - Desenvolvida a migração SQL `20260522190000_behavior_email_marketing.sql` estruturando as tabelas `public.behavior_email_queue` e `public.behavior_email_logs`, com restrições `UNIQUE`, índices de agendamento e políticas RLS/Triggers de bypass robustos.
+  - Desenvolvida e publicada a Edge Function `process-behavior-emails` no Supabase com lógica para escaneamento de eventos pendentes (`scanBehaviorAutomations`), processamento agendado, templates HTML premium dark/esmeralda, tracking pixel invisível, descadastro SHA-256 e proteções de sobreposição (máx 1 e-mail comportamental/dia por usuário, safety de compras no funil e double check lógico).
+  - Modificado o painel administrativo (`AdminRealtime.tsx`) injetando toda a lógica de carregamento, canais em tempo real, estado de envio e templates locais de preview para 6 automações/e-mails comportamentais.
+  - Criada aba premium "E-mails Comportamentais" contendo:
+    - **Grade de Contadores** (Fila, Agendados, Enviados, Pulados, Falhados) calculados dinamicamente.
+    - **Área de Homologação/Disparos Rápidos** com 6 botões interativos para enviar testes reais imediatos via Edge Function para `jeferson.zanotell@gmail.com` com feedbacks visuais de carregamento.
+    - **Visualizador de Previews Premium** com menu lateral contendo os 6 templates, iframe sandbox para renderizar o layout do e-mail HTML na caixa de entrada simulada e aba expansível para PlainText.
+    - **Tabela de Fila e Logs** detalhada com filtros dinâmicos de busca por e-mail/automação, status, tipo de e-mail e exibição de bypass (`skip_reason`) ou erros de forma proeminente.
+  - Realizado o build de produção do frontend (`npm run build`) com absoluto sucesso, atestando a qualidade do TypeScript e das lógicas JSX de renderização do admin.
+- **Deploy de Produção Concluído (Concluído):**
+  - Executado o deploy final com sucesso para a Vercel (`npx vercel --prod`).
+  - O painel admin de controle de e-mails comportamentais e toda a estrutura de reengajamento foram colocados no ar no domínio oficial: https://www.zunopropect.com.br
+  - Realizado o deploy da Edge Function `analisar-lead-ia` com sucesso total para o projeto Supabase em produção (`ihtltqxxlvbsxbiacbpr`), atestando a atualização imediata do enriquecimento de metadados em novos erros e falhas de IA.
+
+## Auditoria de Falhas de IA (Novo Progresso)
+- [x] Inicialização do protocolo V.L.A.E.G. para auditoria e prevenção de concorrência.
+- [x] Atualização de `gemini.md`, `task_plan.md` e `findings.md` com as regras e esquemas técnicos de falhas de IA.
+- [x] Definição do plano de implementação detalhado em `implementation_plan.md`.
+- [x] Implementação da Fase 1 (Enriquecimento de Metadados de Erro no Backend na Edge Function analisar-lead-ia/index.ts) com telemetria de duração, retentativas e request_id.
+- [x] Implementação da Fase 2 (Prevenção síncrona/concorrente de cliques e UX amigável de toast no frontend em LeadsList.tsx e LeadPlanDialog.tsx).
+- [x] Implementação da Fase 3 (Desenvolvimento da aba analítica de Falhas de IA por Lead no AdminRealtime.tsx, do helper classifyAiFailure, da taxa de falhas real da Zuno e da detecção de desconto indevido de créditos piscante).
+- [x] Identificação e correção de erros sintáticos remanescentes que impediam a compilação: declaração incompleta de `trafficSource` em `AdminRealtime.tsx` e re-declaração duplicada de `hasDoneFirstAi` no escopo de `LeadsList.tsx`.
+- [x] Validação final do build de produção do frontend local (`npm run build`) com absoluto sucesso (Exit code: 0, Vite compilou e otimizou todos os chunks em 13.31s).
+- [x] Deploy da Edge Function atualizada no Supabase e homologação de infraestrutura.
+- [x] Documentação final da memória técnica e estruturação do guia de validação e walkthrough para o usuário.
+
+## Visão "Checkouts Abandonados" no Painel Admin (Progresso Atual)
+- [x] Atualização de `gemini.md` e `task_plan.md` no workspace com as novas diretrizes de faturamento e funil.
+- [x] Criação do plano de implementação oficial em `implementation_plan.md` com aprovação expressa do usuário.
+- [x] **Enriquecimento do Checkout (`Checkout.tsx`):** Importação e integração do hook `useUsage` para registrar o evento `"InitiateCheckout"` localmente no Supabase (tabela `app_events`) enriquecido com dados de consumo de leads, créditos de IA, planos anteriores, stripe session e valores do faturamento.
+- [x] **Roteamento Dinâmico (`App.tsx`):** Criação da rota protegida `/admin/checkouts-abandonados` com carregamento sob demanda (`lazy`).
+- [x] **Menu de Navegação Global (`AppHeader.tsx`):** Adicionada a aba de navegação global "Checkouts" acessível para administradores em todo o ecossistema do painel admin do Zuno Propect.
+- [x] **Componente Admin Analítico (`AdminAbandonedCheckouts.tsx`):**
+  - Implementada validação de admin via RPC `is_admin` e bypass especial para o email administrativo `jeferson.zanotell@gmail.com`.
+  - Construídos cards estatísticos de topo (Checkouts Iniciados, Abandonados, Com Erro, Convertidos, Taxa de Abandono Geral, planos críticos e criativos gargalo).
+  - Implementada lógica exata de agrupamento cronológico por usuário e classificação de status do faturamento (`converted`, `checkout_failed`, `recent` e `abandoned`).
+  - Criado o motor de diagnósticos automáticos multidimensionais (Alta intenção, Alta falha de IA antes, erro Stripe, Starter/Pro/Agency).
+  - Programado o motor de prioridade de atendimento do suporte técnico e comercial (*CRÍTICA*, *TÉCNICA*, *ALTA*, *NORMAL*).
+  - Desenvolvidas as tabelas comparativas auxiliares "Abandono por Plano" e "Abandono por Criativo (Top 5 Volumetria)".
+  - Desenvolvido o painel "Auditoria de Impacto de IA antes do Checkout" para cruzar problemas técnicos com a intenção de compra.
+  - Integrado botão "Ver Jornada" que redireciona o admin diretamente à timeline ao vivo em `/admin/realtime?session_id=...` focando na sessão correspondente.
+  - Estilização premium glassmorphism baseada na paleta de cores oficial escura e esmeralda da Zuno Propect.
+- [x] **Compilação e Homologação:** Execução do comando `npm run build` completada com absoluto sucesso em 13.38 segundos, atestando a tipagem estrita do TypeScript e a corretude de todas as importações Lucide Icons e Radix UI no Vite.
+- [x] Documentado o walkthrough analítico detalhado cobrindo as 17 respostas técnicas solicitadas no edital.
+
+## Correção Emergencial do Faturamento Stripe & Reconciliação do Plano Pro no Admin (Progresso Atual)
+- [x] **Investigação do Cliente Real:** Identificação da compra de ontem nos logs e na Stripe API.
+  - **Email:** `kiefferlinconts@gmail.com` (atualizado no banco do Supabase para `falecom@klsalescompany.com`, `user_id = "b133f74a-863f-4f44-98f8-b4505822fac0"`).
+  - **Stripe Subscription ID:** `sub_1TazyQFgIIQ1aOHHElbp8uTC`.
+  - **Stripe Customer ID:** `cus_UaAJZtbMx68Omf`.
+  - **Checkout Session ID:** `cs_live_b1kPcnLSGhhi1tBP4Aruz9LaxQ2PqgsQBGmuV3QJZqO5qNkMVLIETII37v`.
+  - **Stripe Price ID:** `price_1Tazy0FgIIQ1aOHHT0IHZiH8` (Plano Pro, R$ 97,00 mensais).
+- [x] **Análise da Divergência de Planos no Admin:** Identificado que a migração de privilégios admin anterior (`20260525130000`) definiu o plano como `'agencia'` por meio do trigger `handle_new_user_subscription()`, e a migração de remoção de privilégios (`20260525150000`) se esqueceu de atualizar a tabela `user_subscriptions` para voltar a conta a `'pro'`, mantendo a assinatura registrada incorretamente como `'agencia'`.
+- [x] **Criação de Script SQL de Correção Manual:** Desenvolvido o script emergencial e 100% seguro em `.tmp/correct_client_retroactive.sql` para o administrador rodar no painel SQL do Supabase. O script:
+  - Insere/atualiza a assinatura dele para `'pro'` com limites corretos (800 leads e 100 análises IA) e status `'active'`.
+  - Zera seu buscas_saldo no perfil, garantindo remoção do saldo de admin (999999) anterior.
+  - Remove a role de admin da tabela `user_roles`.
+  - Registra o evento de pagamento retroativo em `payment_events`.
+  - Registra o evento de compra retroativo `"purchase_completed"` em `app_events` para o funil.
+- [x] **Auditoria e Refatoração do Webhook Stripe (`stripe-webhook/index.ts`):**
+  - Desenvolvida a função `resolvePlanByStripeData` para deduzir o plano a partir de Price IDs ou dos valores de centavos cobrados (4700/47000 = Starter, 9700/97000 = Pro, 24700/247000 = Agency) como segurança e redundância absoluta caso metadados venham vazios.
+  - Atualizada a função `activateUserPlan` para aceitar `stripePriceId` e atualizar limites exatos síncronamente.
+  - Refatorada a função `logAppEvent` para permitir o registro de eventos de falhas ou faturamentos órfãos mesmo se o `userId` for nulo, salvando o e-mail fallback para auditoria e suporte.
+  - Desenvolvida a função `checkDuplicatePurchaseEvent` para garantir a idempotência analítica de eventos `"purchase_completed"` em `app_events` (evitando duplicar se `checkout.session.completed` e `invoice.payment_succeeded` rodarem simultaneamente).
+  - Atualizados os manipuladores dos eventos `checkout.session.completed` e `invoice.payment_succeeded` para extrair os metadados enriquecidos no formato exato solicitado e disparar instantaneamente a venda no painel de atividades Tempo Real do admin.
+- [x] **Compilação e Build de Produção:** Execução do comando `npm run build` completada com absoluto sucesso em 13.61 segundos, garantindo tipagem perfeita de todas as novas lógicas no Vite!

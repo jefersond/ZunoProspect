@@ -19,6 +19,7 @@ import { ABTestingDashboard } from "@/components/admin/ABTestingDashboard";
 import { WelcomeEmailsDashboard } from "@/components/admin/WelcomeEmailsDashboard";
 import { EmailTestCard } from "@/components/admin/EmailTestCard";
 import { UsersDashboard } from "@/components/admin/UsersDashboard";
+import { BehaviorEmailsDashboard } from "@/components/admin/BehaviorEmailsDashboard";
 import { isAdminEmail } from "@/config/admin";
 import { createFounderAccessCampaignTemplate } from "../../supabase/functions/_shared/emailTemplates";
 
@@ -459,6 +460,10 @@ const AdminEmail = () => {
               <Zap className="h-4 w-4" />
               Onboarding
             </TabsTrigger>
+            <TabsTrigger value="comportamentais" className="gap-2">
+              <Zap className="h-4 w-4 text-emerald-400" />
+              Comportamentais
+            </TabsTrigger>
             <TabsTrigger value="abtesting" className="gap-2">
               <FlaskConical className="h-4 w-4" />
               A/B Testing
@@ -627,6 +632,10 @@ const AdminEmail = () => {
 
           <TabsContent value="onboarding">
             <OnboardingEmailsDashboard />
+          </TabsContent>
+
+          <TabsContent value="comportamentais">
+            <BehaviorEmailsDashboard />
           </TabsContent>
 
           <TabsContent value="abtesting">

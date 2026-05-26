@@ -31,6 +31,7 @@ const ApiDocs = lazy(() => import("./pages/ApiDocs"));
 const Relatorios = lazy(() => import("./pages/Relatorios"));
 const AdminEmail = lazy(() => import("./pages/AdminEmail"));
 const AdminRealtime = lazy(() => import("./pages/AdminRealtime"));
+const AdminAbandonedCheckouts = lazy(() => import("./pages/AdminAbandonedCheckouts"));
 const Precos = lazy(() => import("./pages/Precos"));
 const DesignTokens = lazy(() => import("./pages/DesignTokens"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -76,6 +77,7 @@ const AppContent = () => {
           <Route path="/admin" element={<Navigate to="/admin/email" replace />} />
           <Route path="/admin/email" element={<ProtectedRoute><AdminEmail /></ProtectedRoute>} />
           <Route path="/admin/realtime" element={<ProtectedRoute><AdminRealtime /></ProtectedRoute>} />
+          <Route path="/admin/checkouts-abandonados" element={<ProtectedRoute><AdminAbandonedCheckouts /></ProtectedRoute>} />
           <Route path="/api-docs" element={<ProtectedRoute><ApiDocs /></ProtectedRoute>} />
           <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
           

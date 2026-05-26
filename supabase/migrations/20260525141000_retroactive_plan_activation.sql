@@ -102,7 +102,7 @@ BEGIN
     ),
     now()
   )
-  ON CONFLICT (provider, provider_event_id) DO NOTHING;
+  ON CONFLICT (provider, provider_event_id) WHERE provider_event_id IS NOT NULL DO NOTHING;
 
   -- 5. Registrar evento de aplicativo correspondente
   INSERT INTO public.app_events (

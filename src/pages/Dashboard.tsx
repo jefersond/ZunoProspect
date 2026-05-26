@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, Users, Target, Activity, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, Users, Target, Activity, Loader2, Sparkles, Search } from "lucide-react";
+import { trackEvent } from "@/lib/analytics";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { AppHeader } from "@/components/AppHeader";
@@ -30,6 +32,7 @@ const Dashboard = () => {
   const { usage, loading: usageLoading, isAdmin: usageIsAdmin } = useUsage();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [ctaShown, setCtaShown] = useState(false);
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     totalLeads: 0,
     leadsNovos: 0,
@@ -46,6 +49,28 @@ const Dashboard = () => {
     checkAuth();
     loadMetrics();
   }, []);
+
+  useEffect(() => {
+    if (!loading && metrics.totalLeads === 0 && !ctaShown) {
+      setCtaShown(true);
+      trackEvent("First_Search_CTA_Shown", {
+        user_plan: String(usage.plan_name || "free").toLowerCase(),
+        leads_used: usage.leads_used || 0,
+        leads_limit: usage.leads_limit || 20,
+        ai_used: usage.ai_used || 0,
+        ai_limit: usage.ai_limit || 3,
+        source: "post_signup",
+      });
+    }
+  }, [loading, metrics.totalLeads, ctaShown, usage]);
+
+  const handleFirstSearchClick = () => {
+    trackEvent("First_Search_CTA_Clicked", {
+      user_plan: String(usage.plan_name || "free").toLowerCase(),
+      source: "post_signup",
+    });
+    navigate("/prospeccao");
+  };
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -143,6 +168,36 @@ const Dashboard = () => {
       <AppHeader isAdmin={isAdmin} />
 
       <main className="container mx-auto px-4 py-8 space-y-6">
+        {/* Banner de Onboarding pós-cadastro */}
+        {metrics.totalLeads === 0 && (
+          <div className="rounded-xl border border-emerald-500/20 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent p-6 shadow-xl transition-all duration-300">
+            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 animate-pulse">
+                  <Sparkles className="h-6 w-6 text-emerald-400" />
+                </div>
+                <div className="space-y-1">
+                  <h2 className="text-lg font-bold text-slate-100">
+                    Faça sua primeira busca
+                  </h2>
+                  <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
+                    Você tem <strong className="text-emerald-400">20 leads grátis</strong> + <strong className="text-emerald-400">3 análises IA</strong> para testar o Zuno. Encontre contatos comerciais de tomadores de decisão de forma simples e gere abordagens sob medida!
+                  </p>
+                </div>
+              </div>
+              <div className="shrink-0 w-full md:w-auto">
+                <Button
+                  onClick={handleFirstSearchClick}
+                  className="w-full md:w-auto h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 shadow-md gap-2 transition-all active:scale-95 duration-200"
+                >
+                  <Search className="h-4 w-4" />
+                  Buscar meus primeiros leads
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* KPIs principais */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="shadow-lg">

@@ -32,6 +32,7 @@ import {
   RefreshCw,
   MoreHorizontal,
   Activity,
+  ShoppingCart,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -88,6 +89,7 @@ export function AppHeader({
     ...(isAdmin
       ? [
           { to: "/admin/realtime", icon: Activity, label: "Tempo Real", isAdmin: true },
+          { to: "/admin/checkouts-abandonados", icon: ShoppingCart, label: "Checkouts", isAdmin: true },
           { to: "/admin/email", icon: Mail, label: "Email", isAdmin: true },
         ]
       : []),

@@ -4,6 +4,8 @@ export {
   getAttribution,
   getSessionId,
   initTracking,
+  trackUpgradeClick,
+  trackCheckoutFailed,
   trackCheckoutStarted,
   trackCtaClick,
   trackEvent,

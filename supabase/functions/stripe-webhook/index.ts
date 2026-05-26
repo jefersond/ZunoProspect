@@ -41,6 +41,83 @@ function isAddonMetadata(metadata?: Stripe.Metadata | null) {
   return metadata?.type === "addon" && metadata?.addon_id === "us_prospecting" && Boolean(metadata?.user_id);
 }
 
+// Resolvedor de plano inteligente baseado em Price ID / Valor (ETAPA EXTRA - 3 e 8)
+function resolvePlanByStripeData(
+  priceId: string | null,
+  amount: number | null,
+  metadataPlanId: string | null
+): { planId: string; planResolutionSource: string; hasPlanConflict: boolean; conflictDetails?: any } {
+  let resolvedPlan = "pro"; // default
+  let resolutionSource = "default";
+  let hasConflict = false;
+  let conflictDetails: any = null;
+
+  // 1. Mapeamento por Price ID fixo conhecido ou por padrões de lookup key no Stripe (se existirem)
+  const knownPrices: Record<string, string> = {
+    "price_1Tazy0FgIIQ1aOHHT0IHZiH8": "pro",
+  };
+
+  if (priceId && knownPrices[priceId]) {
+    resolvedPlan = knownPrices[priceId];
+    resolutionSource = "stripe_price_id";
+  } 
+  // 2. Mapeamento por Valor (amount) - Este é o mais confiável e determinístico para preços dinâmicos!
+  else if (amount !== null) {
+    const amountVal = Math.round(amount);
+    // Starter: R$ 47 (4700 centavos) ou R$ 470 anual (47000 centavos)
+    if (amountVal === 4700 || amountVal === 47000 || amountVal === 47) {
+      resolvedPlan = "starter";
+      resolutionSource = "stripe_amount";
+    }
+    // Pro: R$ 97 (9700 centavos) ou R$ 970 anual (97000 centavos)
+    else if (amountVal === 9700 || amountVal === 97000 || amountVal === 97) {
+      resolvedPlan = "pro";
+      resolutionSource = "stripe_amount";
+    }
+    // Agency: R$ 247 (24700 centavos) ou R$ 2470 anual (247000 centavos)
+    else if (amountVal === 24700 || amountVal === 247000 || amountVal === 247) {
+      resolvedPlan = "agency";
+      resolutionSource = "stripe_amount";
+    } else {
+      // Se o valor não bater exatamente, usamos o metadado como fallback
+      if (metadataPlanId) {
+        resolvedPlan = metadataPlanId;
+        resolutionSource = "stripe_metadata";
+      }
+    }
+  } 
+  // 3. Fallback para metadados
+  else if (metadataPlanId) {
+    resolvedPlan = metadataPlanId;
+    resolutionSource = "stripe_metadata";
+  }
+
+  // Normalizar
+  resolvedPlan = normalizePlanDbName(resolvedPlan);
+
+  // Verificar se há conflito com metadados
+  if (metadataPlanId) {
+    const normMetadataPlan = normalizePlanDbName(metadataPlanId);
+    if (resolvedPlan !== normMetadataPlan) {
+      hasConflict = true;
+      conflictDetails = {
+        metadata_plan_id: metadataPlanId,
+        stripe_price_plan_id: resolvedPlan,
+        stripe_price_id: priceId,
+        stripe_amount: amount,
+      };
+      console.warn(`[stripe-webhook] Conflito de plano detectado! Metadata: ${metadataPlanId}, Resolvido por valor/price_id: ${resolvedPlan}`);
+    }
+  }
+
+  return {
+    planId: resolvedPlan,
+    planResolutionSource: resolutionSource,
+    hasPlanConflict: hasConflict,
+    conflictDetails,
+  };
+}
+
 // Ativação e persistência centralizada do plano (ETAPA 4)
 async function activateUserPlan(
   supabaseAdmin: ReturnType<typeof createClient>,
@@ -99,7 +176,7 @@ async function activateUserPlan(
   let periodEnd = params.currentPeriodEnd;
   if (!periodEnd) {
     const end = new Date(now);
-    if (params.billingCycle === "yearly" || params.billingCycle === "annual") {
+    if (params.billingCycle === "yearly" || params.billingCycle === "annual" || params.billingCycle === "year") {
       end.setFullYear(end.getFullYear() + 1);
     } else {
       end.setMonth(end.getMonth() + 1);
@@ -119,10 +196,11 @@ async function activateUserPlan(
       ai_used_this_month: aiUsed,
       billing_period_start: periodStart,
       billing_period_end: periodEnd,
-      is_annual: params.billingCycle === "yearly" || params.billingCycle === "annual",
+      is_annual: params.billingCycle === "yearly" || params.billingCycle === "annual" || params.billingCycle === "year",
       subscription_status: subscriptionStatus,
       stripe_customer_id: params.stripeCustomerId ?? null,
       stripe_subscription_id: params.stripeSubscriptionId ?? null,
+      stripe_price_id: params.stripePriceId ?? null,
       current_period_start: periodStart,
       current_period_end: periodEnd,
       billing_cycle: params.billingCycle || "monthly",
@@ -287,41 +365,95 @@ async function logAppEvent(
   userId: string | null,
   eventType: string,
   eventData: Record<string, unknown>,
+  emailFallback?: string | null,
 ) {
-  if (!userId) return;
   try {
-    const { data: sourceEvent } = await supabaseAdmin
-      .from("app_events")
-      .select("email,anonymous_id,session_id,utm_source,utm_medium,utm_campaign,utm_content,utm_term,fbclid,ref,offer,first_touch,last_touch")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    let sourceEvent: any = null;
+    if (userId) {
+      const { data } = await supabaseAdmin
+        .from("app_events")
+        .select("email,anonymous_id,session_id,utm_source,utm_medium,utm_campaign,utm_content,utm_term,fbclid,ref,offer,first_touch,last_touch")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      sourceEvent = data;
+    }
 
-    await supabaseAdmin.from("app_events").insert({
-      user_id: userId,
-      email: sourceEvent?.email ?? null,
-      anonymous_id: sourceEvent?.anonymous_id ?? null,
-      session_id: sourceEvent?.session_id ?? null,
+    const now = new Date().toISOString();
+    const { error } = await supabaseAdmin.from("app_events").insert({
+      user_id: userId || null,
+      email: sourceEvent?.email || emailFallback || eventData.email || eventData.user_email || null,
+      anonymous_id: sourceEvent?.anonymous_id || null,
+      session_id: sourceEvent?.session_id || null,
       event_type: eventType,
       event_name: eventType,
       event_data: eventData,
       metadata: eventData,
       ip_address: null,
       user_agent: "stripe-webhook",
-      utm_source: sourceEvent?.utm_source ?? null,
-      utm_medium: sourceEvent?.utm_medium ?? null,
-      utm_campaign: sourceEvent?.utm_campaign ?? null,
-      utm_content: sourceEvent?.utm_content ?? null,
-      utm_term: sourceEvent?.utm_term ?? null,
-      fbclid: sourceEvent?.fbclid ?? null,
-      ref: sourceEvent?.ref ?? null,
-      offer: sourceEvent?.offer ?? null,
-      first_touch: sourceEvent?.first_touch ?? null,
-      last_touch: sourceEvent?.last_touch ?? null,
+      utm_source: sourceEvent?.utm_source || null,
+      utm_medium: sourceEvent?.utm_medium || null,
+      utm_campaign: sourceEvent?.utm_campaign || null,
+      utm_content: sourceEvent?.utm_content || null,
+      utm_term: sourceEvent?.utm_term || null,
+      fbclid: sourceEvent?.fbclid || null,
+      ref: sourceEvent?.ref || null,
+      offer: sourceEvent?.offer || null,
+      first_touch: sourceEvent?.first_touch || null,
+      last_touch: sourceEvent?.last_touch || null,
+      created_at: now,
     });
+    
+    if (error) {
+      console.error("[stripe-webhook] Erro ao inserir na tabela app_events:", error);
+    }
   } catch (eventError) {
     console.warn("[stripe-webhook] Falha ao registrar app_event", eventError);
+  }
+}
+
+async function checkDuplicatePurchaseEvent(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userId: string | null,
+  checkoutSessionId: string | null,
+  subscriptionId: string | null
+): Promise<boolean> {
+  if (!userId) return false;
+  
+  try {
+    let query = supabaseAdmin
+      .from("app_events")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("event_name", "purchase_completed");
+      
+    const conditions: string[] = [];
+    if (checkoutSessionId) {
+      conditions.push(`metadata->>stripe_checkout_session_id.eq.${checkoutSessionId}`);
+      conditions.push(`event_data->>stripe_checkout_session_id.eq.${checkoutSessionId}`);
+    }
+    if (subscriptionId) {
+      conditions.push(`metadata->>stripe_subscription_id.eq.${subscriptionId}`);
+      conditions.push(`event_data->>stripe_subscription_id.eq.${subscriptionId}`);
+    }
+    
+    if (conditions.length > 0) {
+      query = query.or(conditions.join(','));
+    } else {
+      return false;
+    }
+    
+    const { data, error } = await query.limit(1);
+    if (error) {
+      console.warn("[stripe-webhook] Erro ao checar duplicidade de purchase event:", error);
+      return false;
+    }
+    
+    return data && data.length > 0;
+  } catch (e) {
+    console.warn("[stripe-webhook] Falha ao executar checkDuplicatePurchaseEvent:", e);
+    return false;
   }
 }
 
@@ -437,13 +569,31 @@ serve(async (req) => {
       });
 
       eventUserId = userId;
-      eventPlanName = metadata?.plan_id || metadata?.plan_key || null;
-      eventStatus = session.payment_status || session.status || null;
       stripeCustomerId = stripeId(session.customer);
       stripeSubscriptionId = stripeId(session.subscription);
       stripeCheckoutSessionId = session.id;
       amount = session.amount_total ?? null;
       currency = session.currency ?? null;
+
+      // RESOLVER O PLANO COM MÁXIMA SEGURANÇA
+      let resolvedPriceId: string | null = null;
+      if (stripeSubscriptionId) {
+        try {
+          const sub = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+          resolvedPriceId = sub.items?.data?.[0]?.price?.id || null;
+        } catch (e) {
+          console.warn("Erro ao buscar subscription no Stripe para obter Price ID:", e);
+        }
+      }
+
+      const { planId: finalPlanId, planResolutionSource, hasPlanConflict, conflictDetails } = resolvePlanByStripeData(
+        resolvedPriceId,
+        amount,
+        metadata?.plan_id || metadata?.plan_key || null
+      );
+      
+      eventPlanName = finalPlanId;
+      eventStatus = session.payment_status || session.status || null;
 
       if (!eventUserId) {
         console.error(`[stripe-webhook] checkout.session.completed recebido sem user_id correspondente (ID do Evento: ${event.id})`);
@@ -453,8 +603,11 @@ serve(async (req) => {
           event_type: event.type,
           stripe_customer_id: stripeCustomerId,
           stripe_subscription_id: stripeSubscriptionId,
+          stripe_checkout_session_id: stripeCheckoutSessionId,
+          plan_id: finalPlanId,
+          amount_total: amount,
           error_message: "Usuário não encontrado para ativação automática.",
-        });
+        }, email || session.customer_details?.email || session.customer_email);
       } else {
         if (isAddonMetadata(metadata)) {
           await upsertAddon(supabaseAdmin, {
@@ -467,27 +620,58 @@ serve(async (req) => {
           console.log(`[stripe-webhook] Add-on ${metadata.addon_id} ativado via checkout.session.completed para o usuário ${eventUserId}`);
         } else {
           // Ativação do plano principal
-          const planId = eventPlanName || "pro";
           const billingCycle = metadata?.billing_cycle || "monthly";
           
           await activateUserPlan(supabaseAdmin, {
             userId: eventUserId,
             email,
-            planId,
+            planId: finalPlanId,
             billingCycle,
             stripeCustomerId,
             stripeSubscriptionId,
+            stripePriceId: resolvedPriceId,
             status: "active",
           });
           
           await logAppEvent(supabaseAdmin, eventUserId, "Payment_Plan_Activated", {
             stripe_event_id: event.id,
             event_type: event.type,
-            plan_id: planId,
+            plan_id: finalPlanId,
             email,
             stripe_customer_id: stripeCustomerId,
             stripe_subscription_id: stripeSubscriptionId,
+            stripe_checkout_session_id: stripeCheckoutSessionId,
           });
+
+          // REGISTRAR COMPRA IMEDIATAMENTE NO TEMPO REAL SE O PAGAMENTO ESTIVER CONFIRMADO
+          if (eventStatus === "paid" || session.payment_status === "paid") {
+            const hasDuplicate = await checkDuplicatePurchaseEvent(
+              supabaseAdmin,
+              eventUserId,
+              stripeCheckoutSessionId,
+              stripeSubscriptionId
+            );
+
+            if (!hasDuplicate) {
+              await logAppEvent(supabaseAdmin, eventUserId, "purchase_completed", {
+                stripe_event_id: event.id,
+                stripe_checkout_session_id: stripeCheckoutSessionId,
+                stripe_customer_id: stripeCustomerId,
+                stripe_subscription_id: stripeSubscriptionId,
+                stripe_price_id: resolvedPriceId,
+                plan_id: finalPlanId,
+                plan_name: finalPlanId === "starter" ? "Starter" : finalPlanId === "pro" ? "Pro" : finalPlanId === "agency" ? "Agency" : "Free",
+                value: amount ? amount / 100 : 0,
+                currency: currency?.toUpperCase() || "BRL",
+                billing_cycle: billingCycle === "yearly" || billingCycle === "annual" || billingCycle === "year" ? "yearly" : "monthly",
+                source: "stripe_webhook",
+                plan_resolution_source: planResolutionSource,
+                has_plan_conflict: hasPlanConflict,
+                conflict_details: conflictDetails,
+              });
+              console.log(`[stripe-webhook] Evento purchase_completed registrado com sucesso via checkout.session.completed para ${eventUserId}`);
+            }
+          }
         }
       }
     }
@@ -503,10 +687,21 @@ serve(async (req) => {
       });
 
       eventUserId = userId;
-      eventPlanName = metadata?.plan_id || metadata?.plan_key || metadata?.addon_id || null;
-      eventStatus = subscription.status;
       stripeCustomerId = stripeId(subscription.customer);
       stripeSubscriptionId = subscription.id;
+      
+      const priceId = subscription.items?.data?.[0]?.price?.id || null;
+      const subscriptionAmount = subscription.items?.data?.[0]?.price?.unit_amount || null;
+      currency = subscription.items?.data?.[0]?.price?.currency || null;
+
+      const { planId: finalPlanId, planResolutionSource, hasPlanConflict, conflictDetails } = resolvePlanByStripeData(
+        priceId,
+        subscriptionAmount,
+        metadata?.plan_id || metadata?.plan_key || null
+      );
+      
+      eventPlanName = finalPlanId;
+      eventStatus = subscription.status;
 
       if (isAddonMetadata(metadata)) {
         await updateAddonFromSubscription(supabaseAdmin, subscription);
@@ -514,17 +709,16 @@ serve(async (req) => {
         if (!eventUserId) {
           console.warn(`[stripe-webhook] customer.subscription.created/updated recebido sem user_id mapeado (ID do Evento: ${event.id})`);
         } else {
-          const planId = eventPlanName || "pro";
           const billingCycle = metadata?.billing_cycle || "monthly";
           
           await activateUserPlan(supabaseAdmin, {
             userId: eventUserId,
             email,
-            planId,
+            planId: finalPlanId,
             billingCycle,
             stripeCustomerId,
             stripeSubscriptionId,
-            stripePriceId: subscription.items?.data?.[0]?.price?.id || null,
+            stripePriceId: priceId,
             currentPeriodStart: new Date(subscription.current_period_start * 1000).toISOString(),
             currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
             status: subscription.status,
@@ -533,7 +727,7 @@ serve(async (req) => {
           await logAppEvent(supabaseAdmin, eventUserId, "Subscription_Updated", {
             stripe_event_id: event.id,
             event_type: event.type,
-            plan_id: planId,
+            plan_id: finalPlanId,
             email,
             stripe_customer_id: stripeCustomerId,
             stripe_subscription_id: stripeSubscriptionId,
@@ -553,10 +747,9 @@ serve(async (req) => {
       });
 
       eventUserId = userId;
-      eventPlanName = metadata?.plan_id || metadata?.plan_key || metadata?.addon_id || null;
-      eventStatus = "cancelled";
       stripeCustomerId = stripeId(subscription.customer);
       stripeSubscriptionId = subscription.id;
+      eventStatus = "cancelled";
 
       if (isAddonMetadata(metadata)) {
         await updateAddonFromSubscription(supabaseAdmin, subscription, "cancelled");
@@ -578,7 +771,7 @@ serve(async (req) => {
           await logAppEvent(supabaseAdmin, eventUserId, "Subscription_Canceled", {
             stripe_event_id: event.id,
             event_type: event.type,
-            plan_id: eventPlanName || "free",
+            plan_id: metadata?.plan_id || "free",
             email,
             stripe_customer_id: stripeCustomerId,
             stripe_subscription_id: stripeSubscriptionId,
@@ -594,6 +787,7 @@ serve(async (req) => {
       eventStatus = event.type === "invoice.payment_failed" ? "failed" : "paid";
       stripeCustomerId = stripeId(invoice.customer);
       stripeSubscriptionId = subscriptionId;
+      stripeCheckoutSessionId = stripeId(invoice.charge) || null;
       amount = invoice.amount_paid || invoice.amount_due || null;
       currency = invoice.currency || null;
 
@@ -607,7 +801,15 @@ serve(async (req) => {
         });
 
         eventUserId = userId;
-        eventPlanName = metadata?.plan_id || metadata?.plan_key || metadata?.addon_id || null;
+        const priceId = subscription.items?.data?.[0]?.price?.id || null;
+
+        const { planId: finalPlanId, planResolutionSource, hasPlanConflict, conflictDetails } = resolvePlanByStripeData(
+          priceId,
+          amount,
+          metadata?.plan_id || metadata?.plan_key || metadata?.addon_id || null
+        );
+
+        eventPlanName = finalPlanId;
 
         if (isAddonMetadata(metadata)) {
           await updateAddonFromSubscription(
@@ -626,21 +828,20 @@ serve(async (req) => {
                 stripe_customer_id: stripeCustomerId,
                 stripe_subscription_id: stripeSubscriptionId,
                 error_message: "Falha de pagamento de fatura para usuário não mapeado.",
-              });
+              }, email || invoice.customer_email || invoice.customer_name);
             }
           } else {
-            const planId = eventPlanName || "pro";
             const billingCycle = metadata?.billing_cycle || "monthly";
             const isFailed = event.type === "invoice.payment_failed";
 
             await activateUserPlan(supabaseAdmin, {
               userId: eventUserId,
               email,
-              planId: planId,
+              planId: finalPlanId,
               billingCycle,
               stripeCustomerId,
               stripeSubscriptionId,
-              stripePriceId: subscription.items?.data?.[0]?.price?.id || null,
+              stripePriceId: priceId,
               currentPeriodStart: new Date(subscription.current_period_start * 1000).toISOString(),
               currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
               status: isFailed ? "past_due" : "active",
@@ -650,7 +851,7 @@ serve(async (req) => {
               await logAppEvent(supabaseAdmin, eventUserId, "Invoice_Payment_Failed", {
                 stripe_event_id: event.id,
                 event_type: event.type,
-                plan_id: planId,
+                plan_id: finalPlanId,
                 email,
                 stripe_customer_id: stripeCustomerId,
                 stripe_subscription_id: stripeSubscriptionId,
@@ -659,11 +860,39 @@ serve(async (req) => {
               await logAppEvent(supabaseAdmin, eventUserId, "Payment_Plan_Activated", {
                 stripe_event_id: event.id,
                 event_type: event.type,
-                plan_id: planId,
+                plan_id: finalPlanId,
                 email,
                 stripe_customer_id: stripeCustomerId,
                 stripe_subscription_id: stripeSubscriptionId,
               });
+
+              // REGISTRAR COMPRA SE NÃO TIVER SIDO REGISTRADA ANTES (GARANTE IDEMPOTÊNCIA)
+              const hasDuplicate = await checkDuplicatePurchaseEvent(
+                supabaseAdmin,
+                eventUserId,
+                null,
+                stripeSubscriptionId
+              );
+
+              if (!hasDuplicate) {
+                await logAppEvent(supabaseAdmin, eventUserId, "purchase_completed", {
+                  stripe_event_id: event.id,
+                  stripe_checkout_session_id: null,
+                  stripe_customer_id: stripeCustomerId,
+                  stripe_subscription_id: stripeSubscriptionId,
+                  stripe_price_id: priceId,
+                  plan_id: finalPlanId,
+                  plan_name: finalPlanId === "starter" ? "Starter" : finalPlanId === "pro" ? "Pro" : finalPlanId === "agency" ? "Agency" : "Free",
+                  value: amount ? amount / 100 : 0,
+                  currency: currency?.toUpperCase() || "BRL",
+                  billing_cycle: billingCycle === "yearly" || billingCycle === "annual" || billingCycle === "year" ? "yearly" : "monthly",
+                  source: "stripe_webhook",
+                  plan_resolution_source: planResolutionSource,
+                  has_plan_conflict: hasPlanConflict,
+                  conflict_details: conflictDetails,
+                });
+                console.log(`[stripe-webhook] Evento purchase_completed registrado com sucesso via invoice.payment_succeeded para ${eventUserId}`);
+              }
             }
           }
         }
@@ -685,24 +914,6 @@ serve(async (req) => {
       status: eventStatus,
       event_data: event.data.object as Record<string, unknown>,
     });
-
-    if (event.type === "checkout.session.completed") {
-      await logAppEvent(supabaseAdmin, eventUserId, "checkout_completed", {
-        stripeEventId: event.id,
-        planName: eventPlanName,
-        status: eventStatus,
-      });
-    }
-
-    if (event.type === "invoice.payment_succeeded") {
-      await logAppEvent(supabaseAdmin, eventUserId, "purchase_completed", {
-        stripeEventId: event.id,
-        planName: eventPlanName,
-        status: eventStatus,
-        amount,
-        currency,
-      });
-    }
   } catch (error: any) {
     console.error("Erro ao processar webhook Stripe:", {
       eventType: event.type,

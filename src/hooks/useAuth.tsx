@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { clearReferralCode, getStoredReferralCode, shouldApplyReferralForUser } from "@/lib/referral";
+import { syncAttributionToProfile } from "@/lib/tracking";
 
 type AuthContextType = {
   session: Session | null;
@@ -55,7 +56,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.session?.user ?? null);
 
         if (data.session?.user) {
-          await processPendingReferral(data.session.user);
+          await Promise.all([
+            processPendingReferral(data.session.user),
+            syncAttributionToProfile(data.session.user.id),
+          ]);
         }
       } catch (err) {
         console.error("Exceção ao carregar sessão:", err);
@@ -72,7 +76,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
 
       if (newSession?.user) {
-        await processPendingReferral(newSession.user);
+        await Promise.all([
+          processPendingReferral(newSession.user),
+          syncAttributionToProfile(newSession.user.id),
+        ]);
       }
     });
 

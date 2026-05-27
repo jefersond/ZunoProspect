@@ -369,18 +369,65 @@ async function logAppEvent(
 ) {
   try {
     let sourceEvent: any = null;
+    let profile: any = null;
     if (userId) {
-      const { data } = await supabaseAdmin
-        .from("app_events")
-        .select("email,anonymous_id,session_id,utm_source,utm_medium,utm_campaign,utm_content,utm_term,fbclid,ref,offer,first_touch,last_touch")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      sourceEvent = data;
+      const [eventRes, profileRes] = await Promise.all([
+        supabaseAdmin
+          .from("app_events")
+          .select("email,anonymous_id,session_id,utm_source,utm_medium,utm_campaign,utm_content,utm_term,fbclid,ref,offer")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabaseAdmin
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .maybeSingle()
+      ]);
+      sourceEvent = eventRes.data;
+      profile = profileRes.data;
     }
 
+    const firstTouchObj = profile?.first_utm_source ? {
+      utm_source: profile.first_utm_source,
+      utm_medium: profile.first_utm_medium,
+      utm_campaign: profile.first_utm_campaign,
+      utm_content: profile.first_utm_content,
+      referrer: profile.first_referrer,
+      landing_page: profile.first_landing_page,
+      seen_at: profile.first_seen_at,
+      event_source_type: profile.first_event_source_type,
+      creative_name: profile.first_creative_name,
+    } : null;
+
+    const lastTouchObj = profile?.last_utm_source ? {
+      utm_source: profile.last_utm_source,
+      utm_medium: profile.last_utm_medium,
+      utm_campaign: profile.last_utm_campaign,
+      utm_content: profile.last_utm_content,
+      referrer: profile.last_referrer,
+      landing_page: profile.last_landing_page,
+      seen_at: profile.last_seen_at,
+      event_source_type: profile.last_event_source_type,
+      creative_name: profile.last_creative_name,
+    } : null;
+
     const now = new Date().toISOString();
+    const enrichedData = {
+      ...eventData,
+      first_touch: firstTouchObj,
+      last_touch: lastTouchObj,
+      first_utm_source: profile?.first_utm_source || null,
+      first_utm_campaign: profile?.first_utm_campaign || null,
+      first_utm_content: profile?.first_utm_content || null,
+      first_event_source_type: profile?.first_event_source_type || null,
+      last_utm_source: profile?.last_utm_source || null,
+      last_utm_campaign: profile?.last_utm_campaign || null,
+      last_utm_content: profile?.last_utm_content || null,
+      last_event_source_type: profile?.last_event_source_type || null,
+    };
+
     const { error } = await supabaseAdmin.from("app_events").insert({
       user_id: userId || null,
       email: sourceEvent?.email || emailFallback || eventData.email || eventData.user_email || null,
@@ -388,20 +435,20 @@ async function logAppEvent(
       session_id: sourceEvent?.session_id || null,
       event_type: eventType,
       event_name: eventType,
-      event_data: eventData,
-      metadata: eventData,
+      event_data: enrichedData,
+      metadata: enrichedData,
       ip_address: null,
       user_agent: "stripe-webhook",
-      utm_source: sourceEvent?.utm_source || null,
-      utm_medium: sourceEvent?.utm_medium || null,
-      utm_campaign: sourceEvent?.utm_campaign || null,
-      utm_content: sourceEvent?.utm_content || null,
+      utm_source: profile?.last_utm_source || sourceEvent?.utm_source || null,
+      utm_medium: profile?.last_utm_medium || sourceEvent?.utm_medium || null,
+      utm_campaign: profile?.last_utm_campaign || sourceEvent?.utm_campaign || null,
+      utm_content: profile?.last_utm_content || sourceEvent?.utm_content || null,
       utm_term: sourceEvent?.utm_term || null,
       fbclid: sourceEvent?.fbclid || null,
       ref: sourceEvent?.ref || null,
       offer: sourceEvent?.offer || null,
-      first_touch: sourceEvent?.first_touch || null,
-      last_touch: sourceEvent?.last_touch || null,
+      first_touch: firstTouchObj,
+      last_touch: lastTouchObj,
       created_at: now,
     });
     
@@ -534,7 +581,7 @@ serve(async (req) => {
   let event: Stripe.Event;
 
   try {
-    event = stripe.webhooks.constructEvent(body, signature, endpointSecret);
+    event = await stripe.webhooks.constructEventAsync(body, signature, endpointSecret);
   } catch (err: any) {
     console.error(`Webhook signature verification failed: ${err.message}`);
     return new Response(`Webhook Error: ${err.message}`, { status: 400 });

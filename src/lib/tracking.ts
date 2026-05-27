@@ -28,6 +28,8 @@ export type TouchAttribution = {
   landing_url: string | null;
   referrer: string | null;
   captured_at: string;
+  creative_name: string | null;
+  event_source_type: EventSourceType;
 };
 
 const ANONYMOUS_ID_KEY = "zuno_anonymous_id";
@@ -68,6 +70,47 @@ function parseStoredTouch(value: string | null): TouchAttribution | null {
   }
 }
 
+export function classifyAttributionSource(
+  touch: Partial<TouchAttribution> | null,
+  referrer: string | null
+): EventSourceType {
+  const isInternal = detectInternalEvent();
+  if (isInternal) return "internal_test";
+
+  if (!touch) return "direct";
+
+  const isPaid =
+    touch.utm_source === "meta" ||
+    (touch.utm_medium && touch.utm_medium.toLowerCase().includes("paid")) ||
+    !!touch.fbclid ||
+    (touch.utm_source && ["fb", "facebook", "instagram", "ads", "google", "meta"].includes(touch.utm_source.toLowerCase()));
+
+  if (isPaid) return "paid";
+
+  const rLower = (touch.referrer || referrer || "").toLowerCase();
+  if (rLower) {
+    const isSearchEngine =
+      rLower.includes("google") ||
+      rLower.includes("bing") ||
+      rLower.includes("yahoo") ||
+      rLower.includes("duckduckgo");
+    
+    if (isSearchEngine && !touch.utm_source && !touch.utm_medium) {
+      return "organic";
+    }
+
+    if (typeof window !== "undefined" && !rLower.includes(window.location.hostname)) {
+      return "referral";
+    }
+  }
+
+  if (!touch.utm_source && !touch.utm_medium && !touch.utm_campaign) {
+    return "direct";
+  }
+
+  return "unknown";
+}
+
 function createTouch(params: URLSearchParams): TouchAttribution | null {
   const values = ATTRIBUTION_KEYS.reduce<Record<string, string | null>>((acc, key) => {
     acc[key] = params.get(key);
@@ -75,7 +118,70 @@ function createTouch(params: URLSearchParams): TouchAttribution | null {
   }, {});
 
   const hasAttribution = ATTRIBUTION_KEYS.some((key) => Boolean(values[key]));
-  if (!hasAttribution) return null;
+  const referrer = typeof document === "undefined" ? null : document.referrer || null;
+  const landingUrl = typeof window === "undefined" ? null : window.location.href;
+
+  // Se não houver UTM na URL, verificamos o referrer externo para classificar como organic ou referral
+  if (!hasAttribution) {
+    if (referrer && typeof window !== "undefined") {
+      const rLower = referrer.toLowerCase();
+      if (!rLower.includes(window.location.hostname)) {
+        // É um acesso externo! Classifica como organic, referral ou direct
+        const dummyTouch: Partial<TouchAttribution> = { referrer };
+        const eventSource = classifyAttributionSource(dummyTouch, referrer);
+        
+        return {
+          utm_source: eventSource === "organic" ? "organic" : (eventSource === "referral" ? "referral" : null),
+          utm_medium: eventSource === "organic" ? "search" : (eventSource === "referral" ? "referral" : null),
+          utm_campaign: null,
+          utm_content: null,
+          utm_term: null,
+          fbclid: null,
+          ref: null,
+          offer: null,
+          landing_url: landingUrl,
+          referrer: referrer,
+          captured_at: new Date().toISOString(),
+          creative_name: null,
+          event_source_type: eventSource,
+        };
+      }
+    }
+    
+    // Acesso direto puro
+    return {
+      utm_source: null,
+      utm_medium: null,
+      utm_campaign: null,
+      utm_content: null,
+      utm_term: null,
+      fbclid: null,
+      ref: null,
+      offer: null,
+      landing_url: landingUrl,
+      referrer: referrer,
+      captured_at: new Date().toISOString(),
+      creative_name: null,
+      event_source_type: "direct",
+    };
+  }
+
+  const rawUtmContent = values.utm_content;
+  const creativeName = rawUtmContent ? normalizeCreativeName(rawUtmContent) : null;
+
+  const touchCandidate: Partial<TouchAttribution> = {
+    utm_source: values.utm_source,
+    utm_medium: values.utm_medium,
+    utm_campaign: values.utm_campaign,
+    utm_content: values.utm_content,
+    utm_term: values.utm_term,
+    fbclid: values.fbclid,
+    ref: values.ref,
+    offer: values.offer,
+    referrer,
+  };
+
+  const source = classifyAttributionSource(touchCandidate, referrer);
 
   return {
     utm_source: values.utm_source,
@@ -86,9 +192,11 @@ function createTouch(params: URLSearchParams): TouchAttribution | null {
     fbclid: values.fbclid,
     ref: values.ref,
     offer: values.offer,
-    landing_url: typeof window === "undefined" ? null : window.location.href,
-    referrer: typeof document === "undefined" ? null : document.referrer || null,
+    landing_url: landingUrl,
+    referrer: referrer,
     captured_at: new Date().toISOString(),
+    creative_name: creativeName,
+    event_source_type: source,
   };
 }
 
@@ -120,18 +228,116 @@ export function captureAttributionFromUrl() {
   const existingFirstTouch = parseStoredTouch(safeGet(localStorage, FIRST_TOUCH_KEY));
   const existingLastTouch = parseStoredTouch(safeGet(localStorage, LAST_TOUCH_KEY));
 
-  if (currentTouch && !existingFirstTouch) {
-    safeSet(localStorage, FIRST_TOUCH_KEY, JSON.stringify(currentTouch));
+  // Regras para salvar o FIRST TOUCH:
+  // 1. Se estiver completamente vazio, salva o toque atual.
+  // 2. Se já existir, mas for "direct" ou "unknown" E o toque atual for útil (paid, organic, referral), faz o upgrade!
+  // 3. Nunca substitui um first_touch útil (paid/organic/referral) por direct.
+  if (currentTouch) {
+    const existingSource = existingFirstTouch ? existingFirstTouch.event_source_type : null;
+    const isExistingDirectOrUnknown = !existingFirstTouch || existingSource === "direct" || existingSource === "unknown";
+    const isNewTouchUseful = currentTouch.event_source_type === "paid" || currentTouch.event_source_type === "organic" || currentTouch.event_source_type === "referral";
+
+    if (!existingFirstTouch || (isExistingDirectOrUnknown && isNewTouchUseful)) {
+      safeSet(localStorage, FIRST_TOUCH_KEY, JSON.stringify(currentTouch));
+    }
   }
 
+  // Regras para o LAST TOUCH:
+  // Salva a cada nova sessão ou quando houver parâmetros de UTM na URL.
+  // Evita sobrescrever com navegação interna (referrer sendo o próprio domínio).
   if (currentTouch) {
-    safeSet(localStorage, LAST_TOUCH_KEY, JSON.stringify(currentTouch));
+    const referrer = document.referrer || "";
+    const isInternalNavigation = referrer !== "" && referrer.includes(window.location.hostname);
+    
+    // Só atualiza se houver UTM de verdade, se for nova sessão ou se NÃO for navegação interna
+    if (params.get("utm_source") || !existingLastTouch || !isInternalNavigation) {
+      safeSet(localStorage, LAST_TOUCH_KEY, JSON.stringify(currentTouch));
+    }
   }
+
+  const updatedFirstTouch = parseStoredTouch(safeGet(localStorage, FIRST_TOUCH_KEY));
+  const updatedLastTouch = parseStoredTouch(safeGet(localStorage, LAST_TOUCH_KEY));
 
   return {
-    first_touch: currentTouch && !existingFirstTouch ? currentTouch : existingFirstTouch,
-    last_touch: currentTouch || existingLastTouch,
+    first_touch: updatedFirstTouch,
+    last_touch: updatedLastTouch,
   };
+}
+
+export async function syncAttributionToProfile(userId: string) {
+  if (typeof window === "undefined") return;
+
+  try {
+    initTracking();
+    const firstTouch = parseStoredTouch(safeGet(localStorage, FIRST_TOUCH_KEY));
+    const lastTouch = parseStoredTouch(safeGet(localStorage, LAST_TOUCH_KEY));
+
+    if (!firstTouch && !lastTouch) return;
+
+    // Buscar profile atual para evitar sobrescrever dados válidos
+    const { data: profile, error: getError } = await supabase
+      .from("profiles")
+      .select("first_utm_source, last_seen_at")
+      .eq("id", userId)
+      .single();
+
+    if (getError && getError.code !== "PGRST116") {
+      console.warn("[tracking] sync: erro ao buscar perfil", getError.message);
+      return;
+    }
+
+    const updates: Record<string, any> = {};
+
+    // 1. Regra do First Touch: se o banco não tem first touch e nós temos localmente, atualiza.
+    if (firstTouch && (!profile || !profile.first_utm_source)) {
+      updates.first_utm_source = firstTouch.utm_source;
+      updates.first_utm_medium = firstTouch.utm_medium;
+      updates.first_utm_campaign = firstTouch.utm_campaign;
+      updates.first_utm_content = firstTouch.utm_content;
+      updates.first_referrer = firstTouch.referrer;
+      updates.first_landing_page = firstTouch.landing_url;
+      updates.first_seen_at = firstTouch.captured_at || new Date().toISOString();
+      updates.first_event_source_type = firstTouch.event_source_type;
+      updates.first_creative_name = firstTouch.creative_name;
+    }
+
+    // 2. Regra do Last Touch: sempre atualiza se for mais recente ou se o banco não tiver
+    const shouldUpdateLast = lastTouch && (
+      !profile || 
+      !profile.last_seen_at || 
+      new Date(lastTouch.captured_at).getTime() > new Date(profile.last_seen_at).getTime()
+    );
+
+    if (shouldUpdateLast && lastTouch) {
+      updates.last_utm_source = lastTouch.utm_source;
+      updates.last_utm_medium = lastTouch.utm_medium;
+      updates.last_utm_campaign = lastTouch.utm_campaign;
+      updates.last_utm_content = lastTouch.utm_content;
+      updates.last_referrer = lastTouch.referrer;
+      updates.last_landing_page = lastTouch.landing_url;
+      updates.last_seen_at = lastTouch.captured_at || new Date().toISOString();
+      updates.last_event_source_type = lastTouch.event_source_type;
+      updates.last_creative_name = lastTouch.creative_name;
+      updates.updated_at = new Date().toISOString();
+    }
+
+    if (Object.keys(updates).length > 0) {
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", userId);
+
+      if (updateError) {
+        console.warn("[tracking] sync: erro ao atualizar perfil", updateError.message);
+      } else {
+        if (isDev) {
+          console.log("[tracking] sync: atribuição sincronizada com o perfil com sucesso", updates);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[tracking] sync: erro inesperado", err);
+  }
 }
 
 export function initTracking() {

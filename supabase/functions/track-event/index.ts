@@ -118,6 +118,94 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    // Helper de normalização local de criativos
+    function normalizeCreativeName(utmContent: string | null): string {
+      if (!utmContent || utmContent.trim() === "") {
+        return "sem_utm_content";
+      }
+      const trimmed = utmContent.trim();
+      const map: Record<string, string> = {
+        "120246631612400725": "quem_abordar",
+        "120246630603260725": "o_que_falar",
+        "leads_conversas": "leads_conversas",
+        "quem_abordar": "quem_abordar",
+        "o_que_falar": "o_que_falar",
+        "link_in_bio": "link_in_bio",
+        "sem_utm_content": "sem_utm_content",
+      };
+      return map[trimmed] || trimmed;
+    }
+
+    // Rotina de Sincronização e Atribuição de Origem Multitoque no Backend
+    if (userId) {
+      try {
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("first_utm_source, last_seen_at")
+          .eq("id", userId)
+          .single();
+
+        const updates: Record<string, any> = {};
+        const eventFirstTouch = body.first_touch;
+        const eventLastTouch = body.last_touch;
+
+        // 1. Regra do First Touch: se o profile no banco tem first touch vazio, e temos first touch no evento
+        if (eventFirstTouch && typeof eventFirstTouch === "object" && (!profile || !profile.first_utm_source)) {
+          const firstType = eventFirstTouch.event_source_type || "unknown";
+          const rawContent = eventFirstTouch.utm_content;
+          const creative = rawContent ? normalizeCreativeName(rawContent) : null;
+
+          updates.first_utm_source = eventFirstTouch.utm_source;
+          updates.first_utm_medium = eventFirstTouch.utm_medium;
+          updates.first_utm_campaign = eventFirstTouch.utm_campaign;
+          updates.first_utm_content = eventFirstTouch.utm_content;
+          updates.first_referrer = eventFirstTouch.referrer;
+          updates.first_landing_page = eventFirstTouch.landing_url;
+          updates.first_seen_at = eventFirstTouch.captured_at || new Date().toISOString();
+          updates.first_event_source_type = firstType;
+          updates.first_creative_name = creative;
+        }
+
+        // 2. Regra do Last Touch: sempre atualiza se for mais recente ou se o banco não tiver
+        const eventLastCapturedAt = eventLastTouch?.captured_at;
+        const shouldUpdateLast = eventLastTouch && typeof eventLastTouch === "object" && (
+          !profile || 
+          !profile.last_seen_at || 
+          (eventLastCapturedAt && new Date(eventLastCapturedAt).getTime() > new Date(profile.last_seen_at).getTime())
+        );
+
+        if (shouldUpdateLast) {
+          const lastType = eventLastTouch.event_source_type || "unknown";
+          const rawContent = eventLastTouch.utm_content;
+          const creative = rawContent ? normalizeCreativeName(rawContent) : null;
+
+          updates.last_utm_source = eventLastTouch.utm_source;
+          updates.last_utm_medium = eventLastTouch.utm_medium;
+          updates.last_utm_campaign = eventLastTouch.utm_campaign;
+          updates.last_utm_content = eventLastTouch.utm_content;
+          updates.last_referrer = eventLastTouch.referrer;
+          updates.last_landing_page = eventLastTouch.landing_url;
+          updates.last_seen_at = eventLastTouch.captured_at || new Date().toISOString();
+          updates.last_event_source_type = lastType;
+          updates.last_creative_name = creative;
+          updates.updated_at = new Date().toISOString();
+        }
+
+        if (Object.keys(updates).length > 0) {
+          const { error: profileUpdateErr } = await supabaseAdmin
+            .from("profiles")
+            .update(updates)
+            .eq("id", userId);
+
+          if (profileUpdateErr) {
+            console.warn("[track-event] sync profiles failed", profileUpdateErr.message);
+          }
+        }
+      } catch (err) {
+        console.warn("[track-event] unexpected attribution sync error", err);
+      }
+    }
+
     const { error } = await supabaseAdmin.from("app_events").insert({
       user_id: userId,
       email,

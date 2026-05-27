@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Activity, Clock, CreditCard, Filter, MousePointerClick, Search, ShoppingCart, UserPlus, Users, XCircle, Brain, Terminal, AlertTriangle, ChevronRight, ChevronDown, CheckCircle2 } from "lucide-react";
+import { Activity, Clock, CreditCard, Filter, MousePointerClick, Search, ShoppingCart, UserPlus, Users, XCircle, Brain, Terminal, AlertTriangle, ChevronRight, ChevronDown, CheckCircle2, Target, ArrowUpRight, ArrowDownRight, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { isAdminEmail } from "@/config/admin";
 import { AppHeader } from "@/components/AppHeader";
@@ -825,6 +825,50 @@ export default function AdminRealtime() {
         description: "O usuário criou a conta mas não efetuou nenhuma busca ou navegação profunda no app de prospecção."
       };
     }
+
+    // Extrair atribuição detalhada do profile do usuário (Multi-Touch Attribution)
+    const firstUtmSource = user?.first_utm_source || null;
+    const firstUtmMedium = user?.first_utm_medium || null;
+    const firstUtmCampaign = user?.first_utm_campaign || null;
+    const firstUtmContent = user?.first_utm_content || null;
+    const firstReferrer = user?.first_referrer || null;
+    const firstLandingPage = user?.first_landing_page || null;
+    const firstSeenAt = user?.first_seen_at || null;
+    const firstEventSourceType = user?.first_event_source_type || null;
+    const firstCreativeName = user?.first_creative_name || null;
+
+    const lastUtmSource = user?.last_utm_source || null;
+    const lastUtmMedium = user?.last_utm_medium || null;
+    const lastUtmCampaign = user?.last_utm_campaign || null;
+    const lastUtmContent = user?.last_utm_content || null;
+    const lastReferrer = user?.last_referrer || null;
+    const lastLandingPage = user?.last_landing_page || null;
+    const lastSeenAt = user?.last_seen_at || null;
+    const lastEventSourceType = user?.last_event_source_type || null;
+    const lastCreativeName = user?.last_creative_name || null;
+
+    // Calcular Diagnóstico Automático de Atribuição
+    let attributionDiagnostic = "Origem inicial desconhecida. Verificar tracking.";
+    
+    if (firstEventSourceType) {
+      const firstPaid = firstEventSourceType === "paid";
+      const lastPaid = lastEventSourceType === "paid";
+      const lastDirect = lastEventSourceType === "direct";
+      
+      if (firstPaid && lastDirect) {
+        attributionDiagnostic = "Compra direta com possível influência anterior de campanha.";
+      } else if (firstPaid && lastPaid && firstUtmCampaign !== lastUtmCampaign) {
+        attributionDiagnostic = "Compra por campanha recente, mas primeira origem foi outra campanha.";
+      } else if (firstEventSourceType === "direct" && lastPaid) {
+        attributionDiagnostic = "Usuário entrou direto inicialmente e converteu após campanha.";
+      } else if (firstUtmCampaign === lastUtmCampaign && firstUtmSource === lastUtmSource) {
+        attributionDiagnostic = "Origem consistente.";
+      } else {
+        attributionDiagnostic = "Origem consistente com variações de canais.";
+      }
+    } else if (utmSourceVal) {
+      attributionDiagnostic = "Origem detectada por UTM do evento. Sincronização do perfil pendente.";
+    }
     
     return {
       email,
@@ -839,6 +883,29 @@ export default function AdminRealtime() {
       bottleneck,
       failureRate,
       alerts,
+      firstTouch: {
+        utmSource: firstUtmSource,
+        utmMedium: firstUtmMedium,
+        utmCampaign: firstUtmCampaign,
+        utmContent: firstUtmContent,
+        referrer: firstReferrer,
+        landingPage: firstLandingPage,
+        seenAt: firstSeenAt,
+        eventSourceType: firstEventSourceType,
+        creativeName: firstCreativeName,
+      },
+      lastTouch: {
+        utmSource: lastUtmSource,
+        utmMedium: lastUtmMedium,
+        utmCampaign: lastUtmCampaign,
+        utmContent: lastUtmContent,
+        referrer: lastReferrer,
+        landingPage: lastLandingPage,
+        seenAt: lastSeenAt,
+        eventSourceType: lastEventSourceType,
+        creativeName: lastCreativeName,
+      },
+      attributionDiagnostic,
       counts: {
         searches: countSearches,
         iaStarted: countIaStarted,
@@ -1215,6 +1282,90 @@ export default function AdminRealtime() {
                   <div className="text-[10px] font-semibold opacity-70 font-mono flex items-center gap-1.5 pt-1.5 border-t border-current/10 mt-1">
                     <Clock className="h-3 w-3" />
                     Telemetria de Ativação
+                  </div>
+                </div>
+              </div>
+
+              {/* Atribuição de Origem Multitoque (First & Last Touch) */}
+              <div className="bg-[#111816] rounded-xl border border-emerald-500/10 p-4 space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-450 flex items-center gap-1.5 border-b border-slate-800/80 pb-2">
+                  <Target className="h-4 w-4" />
+                  Atribuição de Origem Multitoque (First & Last Touch)
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* First Touch */}
+                  <div className="bg-slate-950/40 rounded-lg border border-slate-800/80 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-[#10d98a] flex items-center gap-1">
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                        PRIMEIRO CONTATO (First Touch)
+                      </span>
+                      {selectedJourneySummary.firstTouch.eventSourceType && (
+                        <Badge variant="outline" className="text-[9px] uppercase px-1.5 h-4.5 border-emerald-500/30 text-[#10d98a] bg-emerald-500/5">
+                          {selectedJourneySummary.firstTouch.eventSourceType}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="space-y-1.5 text-xs">
+                      <p><span className="text-slate-500 font-medium">Origem (Source):</span> <span className="font-semibold text-slate-200">{selectedJourneySummary.firstTouch.utmSource || "-"}</span></p>
+                      <p><span className="text-slate-500 font-medium">Meio (Medium):</span> <span className="font-semibold text-slate-200">{selectedJourneySummary.firstTouch.utmMedium || "-"}</span></p>
+                      <p><span className="text-slate-500 font-medium">Campanha:</span> <span className="font-semibold text-slate-200">{selectedJourneySummary.firstTouch.utmCampaign || "-"}</span></p>
+                      <p><span className="text-slate-500 font-medium">Criativo (Content):</span> <span className="font-semibold text-[#10d98a]">{selectedJourneySummary.firstTouch.creativeName || selectedJourneySummary.firstTouch.utmContent || "-"}</span></p>
+                      {selectedJourneySummary.firstTouch.referrer && (
+                        <p><span className="text-slate-500 font-medium">Referenciador:</span> <span className="text-slate-400 break-all text-[10px] font-mono block mt-0.5" title={selectedJourneySummary.firstTouch.referrer}>{selectedJourneySummary.firstTouch.referrer}</span></p>
+                      )}
+                      {selectedJourneySummary.firstTouch.landingPage && (
+                        <p><span className="text-slate-500 font-medium">LP Entrada:</span> <span className="text-slate-400 break-all text-[10px] font-mono block mt-0.5" title={selectedJourneySummary.firstTouch.landingPage}>{selectedJourneySummary.firstTouch.landingPage}</span></p>
+                      )}
+                      {selectedJourneySummary.firstTouch.seenAt && (
+                        <p><span className="text-slate-500 font-medium">Data/Hora:</span> <span className="font-mono text-slate-350">{formatTime(selectedJourneySummary.firstTouch.seenAt)}</span></p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Last Touch */}
+                  <div className="bg-slate-950/40 rounded-lg border border-slate-800/80 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-[#10d98a] flex items-center gap-1">
+                        <ArrowDownRight className="h-3.5 w-3.5" />
+                        CONTATO MAIS RECENTE (Last Touch)
+                      </span>
+                      {selectedJourneySummary.lastTouch.eventSourceType && (
+                        <Badge variant="outline" className="text-[9px] uppercase px-1.5 h-4.5 border-emerald-500/30 text-[#10d98a] bg-emerald-500/5">
+                          {selectedJourneySummary.lastTouch.eventSourceType}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="space-y-1.5 text-xs">
+                      <p><span className="text-slate-500 font-medium">Origem (Source):</span> <span className="font-semibold text-slate-200">{selectedJourneySummary.lastTouch.utmSource || "-"}</span></p>
+                      <p><span className="text-slate-500 font-medium">Meio (Medium):</span> <span className="font-semibold text-slate-200">{selectedJourneySummary.lastTouch.utmMedium || "-"}</span></p>
+                      <p><span className="text-slate-500 font-medium">Campanha:</span> <span className="font-semibold text-slate-200">{selectedJourneySummary.lastTouch.utmCampaign || "-"}</span></p>
+                      <p><span className="text-slate-500 font-medium">Criativo (Content):</span> <span className="font-semibold text-[#10d98a]">{selectedJourneySummary.lastTouch.creativeName || selectedJourneySummary.lastTouch.utmContent || "-"}</span></p>
+                      {selectedJourneySummary.lastTouch.referrer && (
+                        <p><span className="text-slate-500 font-medium">Referenciador:</span> <span className="text-slate-400 break-all text-[10px] font-mono block mt-0.5" title={selectedJourneySummary.lastTouch.referrer}>{selectedJourneySummary.lastTouch.referrer}</span></p>
+                      )}
+                      {selectedJourneySummary.lastTouch.landingPage && (
+                        <p><span className="text-slate-500 font-medium">LP Entrada:</span> <span className="text-slate-400 break-all text-[10px] font-mono block mt-0.5" title={selectedJourneySummary.lastTouch.landingPage}>{selectedJourneySummary.lastTouch.landingPage}</span></p>
+                      )}
+                      {selectedJourneySummary.lastTouch.seenAt && (
+                        <p><span className="text-slate-500 font-medium">Data/Hora:</span> <span className="font-mono text-slate-350">{formatTime(selectedJourneySummary.lastTouch.seenAt)}</span></p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Diagnóstico de Atribuição */}
+                <div className="bg-[#10d98a]/5 border border-[#10d98a]/20 rounded-lg p-3 flex items-start gap-2.5">
+                  <div className="p-1 rounded bg-[#10d98a]/10 text-[#10d98a] shrink-0 mt-0.5">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[#10d98a] uppercase tracking-wider block">Diagnóstico de Inteligência</span>
+                    <p className="text-xs font-semibold text-slate-200 mt-1">{selectedJourneySummary.attributionDiagnostic}</p>
+                    <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                      A Zuno cruza as origens de primeiro e último toque em tempo real para decifrar a jornada exata do cliente de ponta a ponta.
+                    </p>
                   </div>
                 </div>
               </div>

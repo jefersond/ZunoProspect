@@ -127,6 +127,27 @@ const buildUserSummary = (
     billing_period_end: subscription.billing_period_end || null,
     created_at: authUser.created_at,
     last_sign_in_at: authUser.last_sign_in_at,
+    
+    // Atribuição de Origem Multitoque (First Touch e Last Touch)
+    first_utm_source: profile.first_utm_source || null,
+    first_utm_medium: profile.first_utm_medium || null,
+    first_utm_campaign: profile.first_utm_campaign || null,
+    first_utm_content: profile.first_utm_content || null,
+    first_referrer: profile.first_referrer || null,
+    first_landing_page: profile.first_landing_page || null,
+    first_seen_at: profile.first_seen_at || null,
+    first_event_source_type: profile.first_event_source_type || null,
+    first_creative_name: profile.first_creative_name || null,
+    
+    last_utm_source: profile.last_utm_source || null,
+    last_utm_medium: profile.last_utm_medium || null,
+    last_utm_campaign: profile.last_utm_campaign || null,
+    last_utm_content: profile.last_utm_content || null,
+    last_referrer: profile.last_referrer || null,
+    last_landing_page: profile.last_landing_page || null,
+    last_seen_at: profile.last_seen_at || null,
+    last_event_source_type: profile.last_event_source_type || null,
+    last_creative_name: profile.last_creative_name || null,
   };
 };
 

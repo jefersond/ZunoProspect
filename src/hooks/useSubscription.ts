@@ -91,15 +91,40 @@ export const useSubscription = (): UseSubscriptionReturn => {
       setLoading(true);
       setError(null);
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) {
         setSubscription(null);
         setIsAdmin(false);
         return;
       }
 
-      const { data: adminCheck, error: adminError } = await supabase
-        .rpc("is_admin", { _user_id: user.id });
+      // Executa todas as consultas de dados em paralelo para maxima performance
+      const [
+        adminResponse,
+        usageResponse,
+        subResponse,
+        addonResponse
+      ] = await Promise.all([
+        supabase.rpc("is_admin", { _user_id: user.id }),
+        supabase.rpc("get_current_user_usage", {}),
+        supabase
+          .from("user_subscriptions")
+          .select("usa_addon, usa_addon_active_until")
+          .eq("user_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("user_addons")
+          .select("status")
+          .eq("user_id", user.id)
+          .eq("addon_id", "us_prospecting")
+          .maybeSingle()
+      ]);
+
+      const { data: adminCheck, error: adminError } = adminResponse;
+      const { data, error: fetchError } = usageResponse;
+      const { data: subData } = subResponse;
+      const { data: addonData, error: addonError } = addonResponse;
 
       const admin = isAdminUser(user, { is_admin: adminCheck === true });
       setIsAdmin(admin);
@@ -107,21 +132,6 @@ export const useSubscription = (): UseSubscriptionReturn => {
       if (adminError && !isAdminEmail(user.email)) {
         console.warn("Erro ao verificar admin:", adminError.message);
       }
-
-      const { data, error: fetchError } = await supabase.rpc("get_current_user_usage", {});
-
-      const { data: subData } = await supabase
-        .from("user_subscriptions")
-        .select("usa_addon, usa_addon_active_until")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      const { data: addonData, error: addonError } = await supabase
-        .from("user_addons")
-        .select("status")
-        .eq("user_id", user.id)
-        .eq("addon_id", "us_prospecting")
-        .maybeSingle();
 
       if (addonError) {
         console.warn("Erro ao buscar add-on EUA:", addonError.message);

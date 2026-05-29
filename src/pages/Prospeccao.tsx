@@ -6,21 +6,21 @@ import { LeadsList } from "@/components/prospeccao/LeadsList";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { createStripeCheckout } from "@/services/stripeCheckout";
 import { trackEvent } from "@/lib/analytics";
 import { trackInitiateCheckout, trackMetaCustomEvent } from "@/lib/metaPixel";
 import { PLANS, normalizePlanId } from "@/config/plans";
 import { getFunnelContext } from "@/lib/funnelContext";
-
 import { AppHeader } from "@/components/AppHeader";
 
 const Prospeccao = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [user, setUser] = useState<any>(null);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const { subscription, isAdmin } = useSubscription();
+  const { user } = useAuth();
 
   // Handle checkout success/cancel and Google OAuth checkout
   useEffect(() => {
@@ -116,37 +116,11 @@ const Prospeccao = () => {
   }, [searchParams, setSearchParams, navigate]);
 
   useEffect(() => {
-    // Set up auth state listener to ensure session is fully established
-    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (session?.user) {
-          setUser(session.user);
-        } else if (event === 'SIGNED_OUT' || !session) {
-          // Only redirect if explicitly signed out or no session after initial check
-          setTimeout(() => {
-            supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-              if (!currentSession) {
-                navigate("/auth");
-              }
-            });
-          }, 100);
-        }
-      }
-    );
-
-    // Also check for existing session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
-        trackEvent("app_entered", { page: "prospeccao" });
-        trackEvent("prospection_page_viewed", {});
-      } else {
-        navigate("/auth");
-      }
-    });
-
-    return () => authSubscription.unsubscribe();
-  }, [navigate]);
+    if (user) {
+      trackEvent("app_entered", { page: "prospeccao" });
+      trackEvent("prospection_page_viewed", {});
+    }
+  }, [user]);
   
   if (!user) return null;
   

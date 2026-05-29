@@ -92,3 +92,31 @@
   - Desenvolvida a função `checkDuplicatePurchaseEvent` para garantir a idempotência analítica de eventos `"purchase_completed"` em `app_events` (evitando duplicar se `checkout.session.completed` e `invoice.payment_succeeded` rodarem simultaneamente).
   - Atualizados os manipuladores dos eventos `checkout.session.completed` e `invoice.payment_succeeded` para extrair os metadados enriquecidos no formato exato solicitado e disparar instantaneamente a venda no painel de atividades Tempo Real do admin.
 - [x] **Compilação e Build de Produção:** Execução do comando `npm run build` completada com absoluto sucesso em 13.61 segundos, garantindo tipagem perfeita de todas as novas lógicas no Vite!
+
+## Atribuição de Origem Multitoque (First & Last Touch) - Progresso Concluído
+
+- [x] **Fase 1: Migração do Esquema (Concluída):**
+  - Criado o arquivo de migração `20260527000000_attribution_schema.sql` adicionando com segurança as 18 colunas de primeiro toque (`first_touch`) e último toque (`last_touch`) à tabela `public.profiles` com suporte idempotente e comentários.
+- [x] **Fase 2: Captura e Sincronização do Frontend (Concluída):**
+  - Refatorado o arquivo `src/lib/tracking.ts` com o resolvedor inteligente `classifyAttributionSource` para segmentar canais pagos, orgânicos, referenciadores e tráfego direto.
+  - Implementada a gravação antissubstituição no `captureAttributionFromUrl()` para blindar e persistir tráfego pago inicial sem que seja sobrescrito por diretos subsequentes.
+  - Criada a rotina síncrona `syncAttributionToProfile()` sincronizando o estado local do localStorage/sessionStorage diretamente no Supabase após a validação das RLS.
+  - Injetado o hook `syncAttributionToProfile` no provedor de autenticação `src/hooks/useAuth.tsx` para sincronizar os dados a cada novo login ou início de sessão do usuário.
+- [x] **Fase 3: Persistência do Backend e Stripe (Concluída):**
+  - Atualizada a Edge Function `track-event/index.ts` para persistir o primeiro e último contatos diretamente no banco a cada evento rastreado que contenha `userId`.
+  - Atualizada a Edge Function `stripe-webhook/index.ts` para buscar no banco a atribuição de primeiro e último contato do comprador e injetar nos metadados do evento analítico `"purchase_completed"` em `app_events`.
+  - Atualizada a Edge Function `admin-get-users/index.ts` para retornar os 18 campos de atribuição dentro da estrutura `buildUserSummary`, alimentando o admin de ponta a ponta.
+- [x] **Fase 4: Exibição e Diagnóstico Inteligente na UI do Admin (Concluída):**
+  - Refatorada a gaveta da jornada no `src/pages/AdminRealtime.tsx` para computar a lógica de comparação entre `firstTouch` e `lastTouch`.
+  - Injetados os cards de visualização premium no design escuro e esmeralda da Zuno para o Primeiro Contato (First Touch), Contato Mais Recente (Last Touch) com badges e referenciador de página, e a caixa de alerta de Diagnóstico de Marketing.
+- [x] **Fase 5: Compilação, Deploys e Publicação (Concluída):**
+  - Realizado build local do frontend (`npm run build`) com absoluto sucesso em 13.29 segundos, atestando a integridade do código e das importações de ícones Lucide.
+  - Implantadas com 100% de sucesso as Edge Functions `track-event` e `stripe-webhook` no Supabase live remoto.
+  - Git commit e push realizados com sucesso para a branch principal `main`, disparando o deploy automático de produção na Vercel oficial do Zuno Propect.
+
+## Correção Emergencial do Travamento de Tela Preta na Prospecção (Progresso Concluído)
+- [x] **Investigação do Travamento:** Identificado que a página `/prospeccao` sofria travamento de renderização (tela inteira preta) devido a controle manual assíncrono redundante de sessão no mount.
+- [x] **Refatoração com useAuth unificado:** Substituídas as chamadas assíncronas do Supabase no mount do arquivo `src/pages/Prospeccao.tsx` pelo hook global `useAuth()`, aproveitando que a rota já está sob o wrapper `<ProtectedRoute>`.
+- [x] **Importação de Dependências:** Restabelecida a declaração do componente, importações necessárias do roteador e do componente `AppHeader`.
+- [x] **Validação do Build:** Homologação do build de produção (`npm run build`) concluída com 100% de sucesso em 11.18 segundos, garantindo ausência total de erros residuais sintáticos no TypeScript.
+

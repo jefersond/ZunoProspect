@@ -25,3 +25,20 @@
 - Na migração seguinte `20260525150000_remove_admin_privileges.sql`, os privilégios administrativos foram removidos dele da tabela `user_roles` e seu buscas_saldo foi zerado no perfil, mas a migração **se esqueceu de atualizar a tabela `user_subscriptions` para voltar a conta dele para `'pro'`.** Como o painel lê o plano direto de `user_subscriptions`, a conta continuava listada incorretamente como plano Agência!
 - **Registro de Vendas Órfãs em app_events:** O webhook original descartava logs do `logAppEvent` se o `userId` fosse nulo (quando o usuário não era correspondido pelo e-mail ou Stripe IDs). Refatoramos o webhook para registrar com robustez em `app_events` mesmo sem o `userId` (como falha ou órfão), permitindo auditar imediatamente no painel de administração e cruzar os dados de e-mail e pagamento sem perder rastreamento.
 - **Idempotência analítica no painel Tempo Real:** O recebimento de eventos simultâneos de `checkout.session.completed` e `invoice.payment_succeeded` na Stripe para a mesma transação gerava logs duplicados de conversão no funil. Adicionamos a função `checkDuplicatePurchaseEvent` que verifica no banco se já existe um evento `"purchase_completed"` registrado para aquele `checkout_session_id` ou `subscription_id` nas últimas 24 horas antes de inserir um novo log na tabela `app_events`, blindando a precisão do funil de conversão contra eventos duplicados.
+
+---
+
+# Descobertas Técnicas - Atribuição de Origem Multitoque (First & Last Touch)
+
+- **Armazenamento de 18 Campos na Tabela Profiles:** Para evitar joins complexos no banco de dados e garantir máxima performance nos painéis de administração em tempo real, optamos por salvar a atribuição de primeiro toque (`first_touch`) e último toque (`last_touch`) diretamente como 18 colunas planas no perfil do usuário (`public.profiles`) em vez de criar uma tabela separada. Isso facilita as buscas seguras por políticas RLS.
+- **Proteção Antissubstituição Lógica (Idempotency):** Para evitar que acessos subsequentes diretos e internos corrompam as fontes de tráfego pago originais, aplicamos uma regra rigorosa no frontend (`src/lib/tracking.ts`) e no backend (`supabase/functions/track-event`):
+  - O `first_touch` só pode ser gravado uma vez e **NUNCA** pode ser sobrescrito por um acesso direto (`direct`). Caso o primeiro acesso seja orgânico/referral e o usuário clique em um link pago posteriormente, o `first_touch` é promovido para a campanha paga (upgrading lógico de atribuição).
+  - O `last_touch` registra a última UTM ou referenciador útil ativo e ignora cliques internos ou acessos diretos se o usuário já tiver uma fonte útil na sessão.
+- **Enriquecimento Stripe Webhook:** O webhook da Stripe (`stripe-webhook/index.ts`) lê as colunas de atribuição diretamente de `public.profiles` usando o `user_id` e enriquece os metadados do evento analítico `"purchase_completed"` em `app_events`. Isso garante que o painel de Atividade ao Vivo mostre imediatamente de qual campanha/criativo o comprador se originou inicialmente, mesmo que ele tenha efetuado a compra meses depois via acesso direto sem UTM.
+- **Diagnósticos de Marketing Inteligentes:** O painel admin de jornada calcula dinamicamente 5 categorias de diagnóstico:
+  1. *Compra direta com possível influência anterior de campanha:* Comprador atual direto, mas com primeiro contato vindo de campanha paga.
+  2. *Compra por campanha recente, mas primeira origem foi outra campanha:* Primeiro contato em uma campanha, mas conversão impulsionada por outra campanha mais recente.
+  3. *Usuário entrou direto inicialmente e converteu após campanha:* Entrou orgânico/direto inicialmente e converteu via campanha paga.
+  4. *Origem consistente:* Primeiro e último contatos idênticos.
+  5. *Origem consistente com variações de canais:* Primeiro e último contatos ativos com variações secundárias.
+

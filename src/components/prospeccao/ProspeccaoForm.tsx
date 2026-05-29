@@ -117,7 +117,8 @@ export const ProspeccaoForm = () => {
     console.log("[ProspeccaoForm] render: country selector enabled");
 
     const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (user) {
         setUserEmail(user.email || undefined);
         setUserName(user.user_metadata?.full_name || undefined);

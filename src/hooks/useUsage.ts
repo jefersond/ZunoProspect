@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isAdminUser } from "@/config/admin";
+import { useAuth } from "@/hooks/useAuth";
 
 export type UsageInfo = {
   plan_name: string;
@@ -106,17 +107,36 @@ export function useUsage(): UseUsageReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isFetchingRef = useRef(false);
+  const { user } = useAuth();
 
   const fetchUsage = useCallback(async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
 
+    if (user && isAdminUser(user)) {
+      setUsage({
+        plan_name: "admin",
+        leads_limit: 999999,
+        leads_used: 0,
+        leads_remaining: 999999,
+        ai_limit: 999999,
+        ai_used: 0,
+        ai_remaining: 999999,
+        ai_available_total: 999999,
+        leads_bonus_balance: 999999,
+        leads_available_total: 999999,
+        billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        is_admin: true,
+      });
+      setLoading(false);
+      isFetchingRef.current = false;
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user;
       if (!user) {
         setUsage(DEFAULT_USAGE);
         setLoading(false);
@@ -140,9 +160,15 @@ export function useUsage(): UseUsageReturn {
       setLoading(false);
       isFetchingRef.current = false;
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
+    if (!user?.id) {
+      setUsage(DEFAULT_USAGE);
+      setLoading(false);
+      return;
+    }
+
     // Timeout de segurança contra carregamento infinito (máximo 8 segundos)
     const safetyTimeout = setTimeout(() => {
       setLoading((currLoading) => {
@@ -160,7 +186,7 @@ export function useUsage(): UseUsageReturn {
     return () => {
       clearTimeout(safetyTimeout);
     };
-  }, [fetchUsage]);
+  }, [user?.id, fetchUsage]);
 
   const derived = useMemo(() => {
     const isAdmin = usage.is_admin || usage.leads_limit >= 999999 || usage.ai_limit >= 999999;

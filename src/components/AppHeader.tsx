@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
@@ -73,9 +74,10 @@ export function AppHeader({
   const navigate = useNavigate();
   const location = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const { signOut } = useAuth();
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut();
     navigate("/auth");
   };
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ADMIN_LEADS_LIMIT, isAdminEmail, isAdminUser } from "@/config/admin";
+import { useAuth } from "@/hooks/useAuth";
 
 const FREE_PLAN_LIMIT = 20;
 
@@ -86,17 +87,40 @@ export const useSubscription = (): UseSubscriptionReturn => {
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const isFetchingRef = useRef(false);
+  const { user } = useAuth();
 
   const fetchSubscription = useCallback(async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
 
+    if (user && isAdminUser(user)) {
+      setSubscription({
+        plan_name: "admin",
+        leads_limit: -1,
+        leads_used: 0,
+        leads_remaining: 999999,
+        ai_limit: 999999,
+        ai_used: 0,
+        ai_remaining: 999999,
+        ai_available_total: 999999,
+        billing_period_end: defaultPeriodEnd(),
+        is_admin: true,
+        usa_addon: true,
+        usa_addon_active_until: null,
+        us_prospecting_addon_status: "active",
+        leads_bonus_balance: 999999,
+        leads_available_total: 999999,
+      });
+      setIsAdmin(true);
+      setLoading(false);
+      isFetchingRef.current = false;
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user;
       if (!user) {
         setSubscription(null);
         setIsAdmin(false);
@@ -203,9 +227,16 @@ export const useSubscription = (): UseSubscriptionReturn => {
       setLoading(false);
       isFetchingRef.current = false;
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
+    if (!user?.id) {
+      setSubscription(null);
+      setIsAdmin(false);
+      setLoading(false);
+      return;
+    }
+
     // Timeout de segurança contra carregamento infinito (máximo 8 segundos)
     const safetyTimeout = setTimeout(() => {
       setLoading((currLoading) => {
@@ -223,7 +254,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
     return () => {
       clearTimeout(safetyTimeout);
     };
-  }, [fetchSubscription]);
+  }, [user?.id, fetchSubscription]);
 
   const canUseLeads = useCallback((count: number): boolean => {
     if (loading) return true;

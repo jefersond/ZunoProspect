@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isAdminUser } from "@/config/admin";
 
@@ -105,8 +105,12 @@ export function useUsage(): UseUsageReturn {
   const [usage, setUsage] = useState<UsageInfo>(DEFAULT_USAGE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isFetchingRef = useRef(false);
 
   const fetchUsage = useCallback(async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
     try {
       setLoading(true);
       setError(null);
@@ -115,6 +119,8 @@ export function useUsage(): UseUsageReturn {
       const user = session?.user;
       if (!user) {
         setUsage(DEFAULT_USAGE);
+        setLoading(false);
+        isFetchingRef.current = false;
         return;
       }
 
@@ -132,11 +138,28 @@ export function useUsage(): UseUsageReturn {
       setUsage(DEFAULT_USAGE);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   }, []);
 
   useEffect(() => {
+    // Timeout de segurança contra carregamento infinito (máximo 8 segundos)
+    const safetyTimeout = setTimeout(() => {
+      setLoading((currLoading) => {
+        if (currLoading) {
+          console.warn("[useUsage] Timeout de 8s atingido. Forçando fim do loading.");
+          setUsage((currUsage) => currUsage || DEFAULT_USAGE);
+          return false;
+        }
+        return currLoading;
+      });
+    }, 8000);
+
     fetchUsage();
+
+    return () => {
+      clearTimeout(safetyTimeout);
+    };
   }, [fetchUsage]);
 
   const derived = useMemo(() => {

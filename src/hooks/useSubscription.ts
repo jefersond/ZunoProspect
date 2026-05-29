@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ADMIN_LEADS_LIMIT, isAdminEmail, isAdminUser } from "@/config/admin";
 
@@ -85,8 +85,12 @@ export const useSubscription = (): UseSubscriptionReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const isFetchingRef = useRef(false);
 
   const fetchSubscription = useCallback(async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
     try {
       setLoading(true);
       setError(null);
@@ -96,6 +100,8 @@ export const useSubscription = (): UseSubscriptionReturn => {
       if (!user) {
         setSubscription(null);
         setIsAdmin(false);
+        setLoading(false);
+        isFetchingRef.current = false;
         return;
       }
 
@@ -195,11 +201,28 @@ export const useSubscription = (): UseSubscriptionReturn => {
       setSubscription(starterFallback(false));
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   }, []);
 
   useEffect(() => {
+    // Timeout de segurança contra carregamento infinito (máximo 8 segundos)
+    const safetyTimeout = setTimeout(() => {
+      setLoading((currLoading) => {
+        if (currLoading) {
+          console.warn("[useSubscription] Timeout de 8s atingido. Forçando fim do loading.");
+          setSubscription((currSub) => currSub || starterFallback(false));
+          return false;
+        }
+        return currLoading;
+      });
+    }, 8000);
+
     fetchSubscription();
+
+    return () => {
+      clearTimeout(safetyTimeout);
+    };
   }, [fetchSubscription]);
 
   const canUseLeads = useCallback((count: number): boolean => {

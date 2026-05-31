@@ -24,6 +24,16 @@ import { BehaviorEmailsDashboard } from "@/components/admin/BehaviorEmailsDashbo
 import { isAdminEmail } from "@/config/admin";
 import { createFounderAccessCampaignTemplate } from "../../supabase/functions/_shared/emailTemplates";
 
+// Auxiliar para Promises com timeout seguro
+const withTimeout = <T extends unknown>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMsg)), timeoutMs)
+    ),
+  ]);
+};
+
 // Sanitize HTML for safe rendering - allows common email tags
 const sanitizeHtml = (dirty: string): string => {
   return DOMPurify.sanitize(dirty, {
@@ -101,7 +111,11 @@ const AdminEmail = () => {
 
   const checkAdminAndLoad = async () => {
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await withTimeout(
+        supabase.auth.getUser(),
+        6000,
+        "Tempo limite excedido ao obter usuário."
+      );
       if (userError) throw userError;
       
       if (!user) {
@@ -117,7 +131,11 @@ const AdminEmail = () => {
       }
 
       // Check if user is admin
-      const { data: adminCheck, error: rpcError } = await supabase.rpc("is_admin", { _user_id: user.id });
+      const { data: adminCheck, error: rpcError } = await withTimeout(
+        supabase.rpc("is_admin", { _user_id: user.id }),
+        6000,
+        "Tempo limite excedido ao validar administrador."
+      );
       if (rpcError) throw rpcError;
       
       if (!adminCheck) {
@@ -148,10 +166,14 @@ const AdminEmail = () => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fetchErr } = await supabase
-        .from("email_campaigns")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const { data, error: fetchErr } = await withTimeout(
+        supabase
+          .from("email_campaigns")
+          .select("*")
+          .order("created_at", { ascending: false }),
+        6000,
+        "Tempo limite esgotado ao carregar campanhas."
+      );
 
       if (fetchErr) {
         throw fetchErr;

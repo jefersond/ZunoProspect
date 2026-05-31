@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Activity, Clock, CreditCard, Filter, MousePointerClick, Search, ShoppingCart, UserPlus, Users, XCircle, Brain, Terminal, AlertTriangle, ChevronRight, ChevronDown, CheckCircle2, Target, ArrowUpRight, ArrowDownRight, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";

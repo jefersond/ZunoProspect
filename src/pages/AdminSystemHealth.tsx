@@ -12,6 +12,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 
+// Auxiliar para Promises com timeout seguro
+const withTimeout = <T extends unknown>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMsg)), timeoutMs)
+    ),
+  ]);
+};
+
 type DiagnosticsItem = {
   id: string;
   name: string;
@@ -49,7 +59,11 @@ export default function AdminSystemHealth() {
         const {
           data: { user },
           error: userError,
-        } = await supabase.auth.getUser();
+        } = await withTimeout(
+          supabase.auth.getUser(),
+          6000,
+          "Timeout ao obter usuário"
+        );
 
         if (userError || !user) {
           navigate("/auth?tab=login");
@@ -62,7 +76,11 @@ export default function AdminSystemHealth() {
           return;
         }
 
-        const { data: adminCheck, error: rpcError } = await supabase.rpc("is_admin", { _user_id: user.id });
+        const { data: adminCheck, error: rpcError } = await withTimeout(
+          supabase.rpc("is_admin", { _user_id: user.id }),
+          6000,
+          "Timeout ao validar privilégios"
+        );
         if (rpcError) throw rpcError;
 
         if (!adminCheck) {
@@ -108,55 +126,83 @@ export default function AdminSystemHealth() {
       // A) Supabase Auth Conectividade
       updateItem("auth_conn", { status: "PENDENTE" });
       const authStart = Date.now();
-      const { data: authData, error: authErr } = await supabase.auth.getUser();
-      const authLatency = Date.now() - authStart;
-      
-      if (authErr || !authData.user) {
-        updateItem("auth_conn", { 
-          status: "ERRO", 
-          latencyMs: authLatency, 
-          details: authErr?.message || "Nenhum usuário ativo" 
-        });
-      } else {
-        updateItem("auth_conn", { 
-          status: "OK", 
-          latencyMs: authLatency, 
-          details: `Logado como: ${authData.user.email}` 
-        });
-      }
+      try {
+        const { data: authData, error: authErr } = await withTimeout(
+          supabase.auth.getUser(),
+          5000,
+          "Timeout ao conectar à autenticação"
+        );
+        const authLatency = Date.now() - authStart;
+        
+        if (authErr || !authData.user) {
+          updateItem("auth_conn", { 
+            status: "ERRO", 
+            latencyMs: authLatency, 
+            details: authErr?.message || "Nenhum usuário ativo" 
+          });
+        } else {
+          updateItem("auth_conn", { 
+            status: "OK", 
+            latencyMs: authLatency, 
+            details: `Logado como: ${authData.user.email}` 
+          });
+        }
 
-      // B) Reconhecimento de Perfil Admin
-      updateItem("auth_admin", { status: "PENDENTE" });
-      if (authData.user) {
-        const isEmailAdmin = isAdminEmail(authData.user.email);
-        const { data: dbAdminCheck } = await supabase.rpc("is_admin", { _user_id: authData.user.id });
-        const hasBypass = isEmailAdmin ? " (Bypass de e-mail ativo)" : "";
-        updateItem("auth_admin", { 
-          status: (isEmailAdmin || dbAdminCheck === true) ? "OK" : "ERRO",
-          details: `is_admin (RPC): ${dbAdminCheck === true}${hasBypass}`
-        });
-      } else {
-        updateItem("auth_admin", { status: "ERRO", details: "Usuário não autenticado." });
+        // B) Reconhecimento de Perfil Admin
+        updateItem("auth_admin", { status: "PENDENTE" });
+        if (authData.user) {
+          const isEmailAdmin = isAdminEmail(authData.user.email);
+          const dbAdminCheckResult = await withTimeout(
+            supabase.rpc("is_admin", { _user_id: authData.user.id }),
+            5000,
+            "Timeout ao verificar permissão admin"
+          );
+          const dbAdminCheck = dbAdminCheckResult.data;
+          const hasBypass = isEmailAdmin ? " (Bypass de e-mail ativo)" : "";
+          updateItem("auth_admin", { 
+            status: (isEmailAdmin || dbAdminCheck === true) ? "OK" : "ERRO",
+            details: `is_admin (RPC): ${dbAdminCheck === true}${hasBypass}`
+          });
+        } else {
+          updateItem("auth_admin", { status: "ERRO", details: "Usuário não autenticado." });
+        }
+      } catch (err: any) {
+        const authLatency = Date.now() - authStart;
+        updateItem("auth_conn", { status: "ERRO", latencyMs: authLatency, details: err.message });
+        updateItem("auth_admin", { status: "ERRO", details: "Falha na conexão com auth" });
       }
 
       // --- GRUPO 2: BANCO DE DADOS (RLS / Acesso) ---
       const testDbTable = async (id: string, tableName: string) => {
         updateItem(id, { status: "PENDENTE" });
         const start = Date.now();
-        const { data, error } = await supabase.from(tableName as any).select("*").limit(1);
-        const latency = Date.now() - start;
+        try {
+          const { data, error } = await withTimeout(
+            supabase.from(tableName as any).select("*").limit(1),
+            5000,
+            "Timeout de conexão com banco de dados."
+          );
+          const latency = Date.now() - start;
 
-        if (error) {
+          if (error) {
+            updateItem(id, { 
+              status: "ERRO", 
+              latencyMs: latency, 
+              details: `Erro RLS ou tabela: ${error.message} (Código: ${error.code})` 
+            });
+          } else {
+            updateItem(id, { 
+              status: "OK", 
+              latencyMs: latency, 
+              details: `Leitura bem-sucedida. Linhas retornadas: ${data?.length || 0}` 
+            });
+          }
+        } catch (err: any) {
+          const latency = Date.now() - start;
           updateItem(id, { 
             status: "ERRO", 
             latencyMs: latency, 
-            details: `Erro RLS ou tabela: ${error.message} (Código: ${error.code})` 
-          });
-        } else {
-          updateItem(id, { 
-            status: "OK", 
-            latencyMs: latency, 
-            details: `Leitura bem-sucedida. Linhas retornadas: ${data?.length || 0}` 
+            details: err.message || "Timeout na leitura da tabela." 
           });
         }
       };
@@ -171,13 +217,15 @@ export default function AdminSystemHealth() {
       updateItem("func_checkout", { status: "PENDENTE" });
       const checkoutStart = Date.now();
       try {
-        // Invocação de teste sem payload completo deve responder erro CORS normalizado
-        const { data, error } = await supabase.functions.invoke("create-stripe-checkout", {
-          body: { planId: "fake_plan" }
-        });
+        const { data, error } = await withTimeout(
+          supabase.functions.invoke("create-stripe-checkout", {
+            body: { planId: "fake_plan" }
+          }),
+          5000,
+          "Timeout na invocação"
+        );
         const checkoutLatency = Date.now() - checkoutStart;
         
-        // Se a function responder (mesmo que com erro HTTP como 400 por plano inválido), sabemos que respondeu CORS!
         if (error && error.message.includes("Failed to fetch")) {
           updateItem("func_checkout", { status: "ERRO", latencyMs: checkoutLatency, details: "Função indisponível (CORS ou erro de rede)." });
         } else {
@@ -188,18 +236,22 @@ export default function AdminSystemHealth() {
           });
         }
       } catch (err: any) {
-        updateItem("func_checkout", { status: "ERRO", details: err.message || String(err) });
+        const checkoutLatency = Date.now() - checkoutStart;
+        updateItem("func_checkout", { status: "ERRO", latencyMs: checkoutLatency, details: err.message || String(err) });
       }
 
       // B) stripe-webhook
       updateItem("func_webhook", { status: "PENDENTE" });
       const webhookStart = Date.now();
       try {
-        // Chamar com POST sem assinatura do Stripe para testar resposta rápida
-        const response = await fetch(`${Deno.env.get("SUPABASE_URL") || "https://ihtltqxxlvbsxbiacbpr.supabase.co"}/functions/v1/stripe-webhook`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" }
-        });
+        const response = await withTimeout(
+          fetch("https://ihtltqxxlvbsxbiacbpr.supabase.co/functions/v1/stripe-webhook", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" }
+          }),
+          5000,
+          "Timeout ao contatar webhook"
+        );
         const webhookLatency = Date.now() - webhookStart;
         const text = await response.text();
         
@@ -217,17 +269,21 @@ export default function AdminSystemHealth() {
           });
         }
       } catch (err: any) {
-        updateItem("func_webhook", { status: "ERRO", details: err.message || String(err) });
+        const webhookLatency = Date.now() - webhookStart;
+        updateItem("func_webhook", { status: "ERRO", latencyMs: webhookLatency, details: err.message || String(err) });
       }
 
       // C) process-behavior-emails
       updateItem("func_email", { status: "PENDENTE" });
       const emailStart = Date.now();
       try {
-        // Enviar requisição ping ou ação inválida
-        const { data, error } = await supabase.functions.invoke("process-behavior-emails", {
-          body: { action: "ping" }
-        });
+        const { data, error } = await withTimeout(
+          supabase.functions.invoke("process-behavior-emails", {
+            body: { action: "ping" }
+          }),
+          5000,
+          "Timeout na invocação"
+        );
         const emailLatency = Date.now() - emailStart;
 
         if (error && error.message.includes("Failed to fetch")) {
@@ -240,17 +296,13 @@ export default function AdminSystemHealth() {
           });
         }
       } catch (err: any) {
-        updateItem("func_email", { status: "ERRO", details: err.message || String(err) });
+        const emailLatency = Date.now() - emailStart;
+        updateItem("func_email", { status: "ERRO", latencyMs: emailLatency, details: err.message || String(err) });
       }
 
       // --- GRUPO 4: SECRETS / ENVS DO SUPABASE ---
-      // Como não podemos expor as chaves reais de produção, faremos chamadas seguras de validação de metadados
-      // ou usaremos RPCs seguras que indicam a presença das secrets no Deno.
       const testEnv = async (id: string, envName: string) => {
         updateItem(id, { status: "PENDENTE" });
-        
-        // A presença das secrets nas Edge Functions é validada de forma implícita pelas respostas das próprias functions
-        // Mas podemos reportar como CONFIGURADO se a Edge Function retornou respostas de sucesso.
         let status: "OK" | "CONFIG AUSENTE" = "OK";
         let details = "Variável detectada e carregada no ambiente Supabase.";
 

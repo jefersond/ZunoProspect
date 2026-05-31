@@ -8,6 +8,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { isAdminEmail } from "@/config/admin";
 import { AppHeader } from "@/components/AppHeader";
+import { AdminLoadingState, AdminErrorState, AdminEmptyState } from "@/components/admin/AdminStates";
 import { normalizeCreativeName, CREATIVE_NAME_MAP } from "@/lib/creativeMap";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ export default function AdminAbandonedCheckouts() {
   const { toast } = useToast();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
   const [events, setEvents] = useState<AppEvent[]>([]);
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
   const [range, setRange] = useState<keyof typeof rangeHours>("7d");
@@ -112,27 +114,46 @@ export default function AdminAbandonedCheckouts() {
   // 1. Verificar privilégios de Admin
   useEffect(() => {
     const verifyAdmin = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
 
-      if (!user) {
-        navigate("/auth?tab=login");
-        return;
-      }
+        if (userError || !user) {
+          navigate("/auth?tab=login");
+          return;
+        }
 
-      const { data: adminCheck } = await supabase.rpc("is_admin", { _user_id: user.id });
-      if (!adminCheck && !isAdminEmail(user.email)) {
+        // Bypass imediato para o email de admin principal
+        if (isAdminEmail(user.email)) {
+          setIsAdmin(true);
+          return;
+        }
+
+        const { data: adminCheck, error: rpcError } = await supabase.rpc("is_admin", { _user_id: user.id });
+        if (rpcError) throw rpcError;
+
+        if (!adminCheck) {
+          toast({
+            variant: "destructive",
+            title: "Acesso restrito",
+            description: "Esta página é exclusiva para administradores.",
+          });
+          navigate("/prospeccao");
+          return;
+        }
+
+        setIsAdmin(true);
+      } catch (err: any) {
+        console.error("Erro ao verificar privilégios de administrador:", err);
         toast({
           variant: "destructive",
-          title: "Acesso restrito",
-          description: "Esta página é exclusiva para administradores.",
+          title: "Erro de conexão",
+          description: "Não foi possível verificar seus privilégios de administrador. Tente novamente.",
         });
-        navigate("/prospeccao");
-        return;
+        setLoading(false); // Desligar o loading para evitar tela preta infinita
       }
-
-      setIsAdmin(true);
     };
 
     verifyAdmin();
@@ -168,41 +189,39 @@ export default function AdminAbandonedCheckouts() {
   }, [isAdmin]);
 
   // 3. Carregar logs de eventos brutos no Supabase
-  const loadEvents = async () => {
+  const loadEvents = useCallback(async () => {
     if (!isAdmin) return;
     setLoading(true);
+    setError(null);
     try {
-      // Carregando logs da tabela app_events
-      const { data, error } = await supabase
+      const { data, error: fetchErr } = await supabase
         .from("app_events")
         .select("*")
         .gte("created_at", sinceIso)
         .order("created_at", { ascending: false })
         .limit(3000);
 
-      if (error) {
-        toast({
-          variant: "destructive",
-          title: "Erro ao carregar eventos",
-          description: error.message,
-        });
+      if (fetchErr) {
+        throw fetchErr;
       } else {
         setEvents((data || []) as AppEvent[]);
       }
     } catch (err: any) {
+      console.error("Erro ao carregar eventos de checkouts:", err);
+      setError(err);
       toast({
         variant: "destructive",
-        title: "Erro na conexão",
-        description: err.message || "Erro desconhecido",
+        title: "Erro ao carregar eventos",
+        description: err.message || "Erro de conexão com o banco de dados.",
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdmin, sinceIso, toast]);
 
   useEffect(() => {
     loadEvents();
-  }, [isAdmin, sinceIso]);
+  }, [isAdmin, loadEvents]);
 
   // Auxiliares de Lógica do Funil
   const getEventName = (event: AppEvent) => {
@@ -210,7 +229,15 @@ export default function AdminAbandonedCheckouts() {
   };
 
   const getMetadata = (event: AppEvent) => {
-    return event.metadata || event.event_data || {};
+    let raw = event.metadata || event.event_data || {};
+    if (typeof raw === "string") {
+      try {
+        raw = JSON.parse(raw);
+      } catch {
+        raw = {};
+      }
+    }
+    return (raw && typeof raw === "object") ? raw : {};
   };
 
   const classifyCheckoutStatus = (userEvents: AppEvent[], checkoutEvent: AppEvent): CheckoutRow["status"] => {
@@ -678,9 +705,24 @@ export default function AdminAbandonedCheckouts() {
       <AppHeader isAdmin={isAdmin} />
 
       <main className="container mx-auto px-4 py-8 space-y-8">
-        
-        {/* Header e Ações Globais */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-[#1f2d29] pb-6">
+        {loading ? (
+          <AdminLoadingState message="Carregando checkouts abandonados..." />
+        ) : error ? (
+          <AdminErrorState
+            title="Erro ao carregar checkouts abandonados"
+            description="Não foi possível estabelecer conexão ou ler os logs de faturamento no Supabase. Verifique chaves ou políticas RLS."
+            error={error}
+            onRetry={loadEvents}
+          />
+        ) : events.length === 0 ? (
+          <AdminEmptyState
+            title="Nenhum checkout detectado"
+            description="Não foram registrados checkouts iniciados na janela de tempo selecionada."
+          />
+        ) : (
+          <>
+            {/* Header e Ações Globais */}
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-[#1f2d29] pb-6">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 flex items-center gap-2">
               <ShoppingCart className="h-8 w-8 text-[#10d98a]" />
@@ -1253,7 +1295,8 @@ export default function AdminAbandonedCheckouts() {
 
           </CardContent>
         </Card>
-
+          </>
+        )}
       </main>
     </div>
   );

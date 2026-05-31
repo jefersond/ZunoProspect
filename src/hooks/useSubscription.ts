@@ -222,7 +222,8 @@ export const useSubscription = (): UseSubscriptionReturn => {
     } catch (err: any) {
       console.error("Erro ao buscar assinatura:", err);
       setError(err.message);
-      setSubscription(starterFallback(false));
+      const isUserAdmin = user ? isAdminUser(user) : false;
+      setSubscription(starterFallback(isUserAdmin));
     } finally {
       setLoading(false);
       isFetchingRef.current = false;

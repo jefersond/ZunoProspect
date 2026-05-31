@@ -1,6 +1,7 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AdminLoadingState, AdminErrorState, AdminEmptyState } from "@/components/admin/AdminStates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -363,9 +364,23 @@ export const UsersDashboard = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <div className="w-full overflow-x-auto">
-              <Table className="min-w-[1350px]">
+          {errorMessage ? (
+            <AdminErrorState
+              title="Erro ao carregar usuários"
+              description="Não foi possível se comunicar com o banco de dados do Supabase ou carregar os registros de usuários."
+              error={errorDetails}
+              onRetry={loadUsers}
+            />
+          ) : users.length === 0 ? (
+            <AdminEmptyState
+              title="Nenhum usuário encontrado"
+              description="Não há usuários cadastrados que correspondam à busca ou aos filtros aplicados."
+            />
+          ) : (
+            <>
+              <div className="rounded-md border">
+                <div className="w-full overflow-x-auto">
+                  <Table className="min-w-[1350px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[280px]">Usuario</TableHead>
@@ -466,6 +481,8 @@ export const UsersDashboard = () => {
             <p className="mt-4 text-sm text-muted-foreground">
               Exibindo {users.length} usuarios. Os detalhes completos por usuario entram na Fase 2 do painel admin.
             </p>
+          )}
+            </>
           )}
         </CardContent>
       </Card>

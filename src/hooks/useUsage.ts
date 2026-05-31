@@ -155,7 +155,25 @@ export function useUsage(): UseUsageReturn {
     } catch (err: any) {
       console.error("Erro ao buscar uso do plano:", err);
       setError(err.message || "Erro ao buscar uso do plano");
-      setUsage(DEFAULT_USAGE);
+      const isUserAdmin = user ? isAdminUser(user) : false;
+      if (isUserAdmin) {
+        setUsage({
+          plan_name: "admin",
+          leads_limit: 99999,
+          leads_used: 0,
+          leads_remaining: 99999,
+          ai_limit: 99999,
+          ai_used: 0,
+          ai_remaining: 99999,
+          ai_available_total: 99999,
+          leads_bonus_balance: 99999,
+          leads_available_total: 99999,
+          billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          is_admin: true,
+        });
+      } else {
+        setUsage(DEFAULT_USAGE);
+      }
     } finally {
       setLoading(false);
       isFetchingRef.current = false;

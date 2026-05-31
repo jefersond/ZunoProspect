@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { AdminLoadingState, AdminErrorState, AdminEmptyState } from "@/components/admin/AdminStates";
 import { Loader2, Mail, Send, Trash2, Eye, Plus, ArrowLeft, Users, MailOpen, AlertCircle, Zap, FlaskConical, UserCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -72,6 +73,7 @@ const AdminEmail = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [sending, setSending] = useState<string | null>(null);
@@ -99,17 +101,26 @@ const AdminEmail = () => {
 
   const checkAdminAndLoad = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
       
       if (!user) {
         navigate("/auth");
         return;
       }
 
+      // Bypass imediato para o email de admin principal
+      if (isAdminEmail(user.email)) {
+        setIsAdmin(true);
+        await loadCampaigns();
+        return;
+      }
+
       // Check if user is admin
-      const { data: adminCheck } = await supabase.rpc("is_admin", { _user_id: user.id });
+      const { data: adminCheck, error: rpcError } = await supabase.rpc("is_admin", { _user_id: user.id });
+      if (rpcError) throw rpcError;
       
-      if (!adminCheck && !isAdminEmail(user.email)) {
+      if (!adminCheck) {
         toast({
           variant: "destructive",
           title: "Acesso negado",
@@ -122,11 +133,11 @@ const AdminEmail = () => {
       setIsAdmin(true);
       await loadCampaigns();
     } catch (error: any) {
-      console.error("Erro:", error);
+      console.error("Erro ao verificar privilégios de administrador:", error);
       toast({
         variant: "destructive",
-        title: "Erro",
-        description: error.message,
+        title: "Erro de conexão",
+        description: "Não foi possível verificar seus privilégios de administrador. Tente novamente.",
       });
     } finally {
       setLoading(false);
@@ -134,17 +145,29 @@ const AdminEmail = () => {
   };
 
   const loadCampaigns = async () => {
-    const { data, error } = await supabase
-      .from("email_campaigns")
-      .select("*")
-      .order("created_at", { ascending: false });
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: fetchErr } = await supabase
+        .from("email_campaigns")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Erro ao carregar campanhas:", error);
-      return;
+      if (fetchErr) {
+        throw fetchErr;
+      }
+      setCampaigns(data || []);
+    } catch (err: any) {
+      console.error("Erro ao carregar campanhas:", err);
+      setError(err);
+      toast({
+        variant: "destructive",
+        title: "Erro ao carregar campanhas",
+        description: err.message || "Erro de conexão com o banco de dados.",
+      });
+    } finally {
+      setLoading(false);
     }
-
-    setCampaigns(data || []);
   };
 
   const handleCreateCampaign = async () => {
@@ -534,7 +557,14 @@ const AdminEmail = () => {
                 <CardDescription>Gerencie suas campanhas de email marketing</CardDescription>
               </CardHeader>
               <CardContent>
-                {campaigns.length === 0 ? (
+                {error ? (
+                  <AdminErrorState
+                    title="Erro ao carregar campanhas manuais"
+                    description="Não foi possível estabelecer conexão ou ler a tabela email_campaigns no Supabase. Verifique chaves ou políticas RLS."
+                    error={error}
+                    onRetry={loadCampaigns}
+                  />
+                ) : campaigns.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>Nenhuma campanha criada ainda.</p>

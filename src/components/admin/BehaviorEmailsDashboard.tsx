@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AdminLoadingState, AdminErrorState, AdminEmptyState } from "@/components/admin/AdminStates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -103,6 +104,7 @@ export const BehaviorEmailsDashboard = () => {
   const [sendingTest, setSendingTest] = useState<boolean>(false);
   const [loadingLogs, setLoadingLogs] = useState<boolean>(true);
   const [logs, setLogs] = useState<QueueItem[]>([]);
+  const [error, setError] = useState<any>(null);
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
   useEffect(() => {
@@ -122,22 +124,24 @@ export const BehaviorEmailsDashboard = () => {
   };
 
   const loadQueueLogs = async () => {
+    setLoadingLogs(true);
+    setError(null);
     try {
-      setLoadingLogs(true);
-      const { data, error } = await supabase
+      const { data, error: fetchErr } = await supabase
         .from("behavior_email_queue")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(20);
 
-      if (error) throw error;
+      if (fetchErr) throw fetchErr;
       setLogs(data || []);
-    } catch (error: any) {
-      console.error("Erro ao carregar logs da fila comportamental:", error);
+    } catch (err: any) {
+      console.error("Erro ao carregar logs da fila comportamental:", err);
+      setError(err);
       toast({
         variant: "destructive",
         title: "Erro ao carregar fila",
-        description: error.message || "Não foi possível conectar com o banco de dados."
+        description: err.message || "Não foi possível conectar com o banco de dados."
       });
     } finally {
       setLoadingLogs(false);
@@ -478,14 +482,19 @@ https://zunopropect.com.br/unsubscribe?email_hash=mock_hash_12345`;
         </CardHeader>
         <CardContent>
           {loadingLogs ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
-              <span className="text-sm text-muted-foreground">Carregando fila...</span>
-            </div>
+            <AdminLoadingState message="Carregando logs da fila comportamental..." />
+          ) : error ? (
+            <AdminErrorState
+              title="Erro ao carregar logs da fila comportamental"
+              description="Não foi possível ler os registros da tabela behavior_email_queue no Supabase. Verifique RLS ou migrations."
+              error={error}
+              onRetry={loadQueueLogs}
+            />
           ) : logs.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground text-sm">
-              Nenhum e-mail processado ou enfileirado na fila comportamental ainda.
-            </div>
+            <AdminEmptyState
+              title="Nenhum e-mail na fila"
+              description="Não há registros de e-mails disparados ou pendentes na fila de remarketing."
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table>

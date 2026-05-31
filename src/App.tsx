@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { Suspense, lazy } from "react";
 import { ExitIntentTracker } from "@/components/ExitIntentTracker";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AdminErrorBoundary } from "@/components/AdminErrorBoundary";
 import { useOAuthCallback } from "@/hooks/useOAuthCallback";
 import LandingProspeccaoIA from "./pages/LandingProspeccaoIA";
 import { AuthProvider } from "@/hooks/useAuth";
@@ -32,6 +33,7 @@ const Relatorios = lazy(() => import("./pages/Relatorios"));
 const AdminEmail = lazy(() => import("./pages/AdminEmail"));
 const AdminRealtime = lazy(() => import("./pages/AdminRealtime"));
 const AdminAbandonedCheckouts = lazy(() => import("./pages/AdminAbandonedCheckouts"));
+const AdminSystemHealth = lazy(() => import("./pages/AdminSystemHealth"));
 const Precos = lazy(() => import("./pages/Precos"));
 const DesignTokens = lazy(() => import("./pages/DesignTokens"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -75,9 +77,10 @@ const AppContent = () => {
           <Route path="/pipeline" element={<ProtectedRoute><Pipeline /></ProtectedRoute>} />
           <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
           <Route path="/admin" element={<Navigate to="/admin/email" replace />} />
-          <Route path="/admin/email" element={<ProtectedRoute><AdminEmail /></ProtectedRoute>} />
-          <Route path="/admin/realtime" element={<ProtectedRoute><AdminRealtime /></ProtectedRoute>} />
-          <Route path="/admin/checkouts-abandonados" element={<ProtectedRoute><AdminAbandonedCheckouts /></ProtectedRoute>} />
+          <Route path="/admin/email" element={<ProtectedRoute><AdminErrorBoundary><AdminEmail /></AdminErrorBoundary></ProtectedRoute>} />
+          <Route path="/admin/realtime" element={<ProtectedRoute><AdminErrorBoundary><AdminRealtime /></AdminErrorBoundary></ProtectedRoute>} />
+          <Route path="/admin/checkouts-abandonados" element={<ProtectedRoute><AdminErrorBoundary><AdminAbandonedCheckouts /></AdminErrorBoundary></ProtectedRoute>} />
+          <Route path="/admin/system-health" element={<ProtectedRoute><AdminErrorBoundary><AdminSystemHealth /></AdminErrorBoundary></ProtectedRoute>} />
           <Route path="/api-docs" element={<ProtectedRoute><ApiDocs /></ProtectedRoute>} />
           <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
           

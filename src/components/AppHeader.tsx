@@ -34,6 +34,7 @@ import {
   MoreHorizontal,
   Activity,
   ShoppingCart,
+  Shield,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -77,8 +78,8 @@ export function AppHeader({
   const { signOut } = useAuth();
 
   const handleLogout = async () => {
+    navigate("/auth", { replace: true });
     await signOut();
-    navigate("/auth");
   };
 
   const handleNavClick = (to: string) => {
@@ -93,6 +94,7 @@ export function AppHeader({
           { to: "/admin/realtime", icon: Activity, label: "Tempo Real", isAdmin: true },
           { to: "/admin/checkouts-abandonados", icon: ShoppingCart, label: "Checkouts", isAdmin: true },
           { to: "/admin/email", icon: Mail, label: "Email", isAdmin: true },
+          { to: "/admin/system-health", icon: Shield, label: "Saúde", isAdmin: true },
         ]
       : []),
   ];

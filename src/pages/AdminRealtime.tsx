@@ -4,6 +4,7 @@ import { Activity, Clock, CreditCard, Filter, MousePointerClick, Search, Shoppin
 import { supabase } from "@/integrations/supabase/client";
 import { isAdminEmail } from "@/config/admin";
 import { AppHeader } from "@/components/AppHeader";
+import { AdminLoadingState, AdminErrorState, AdminEmptyState } from "@/components/admin/AdminStates";
 import { normalizeCreativeName, CREATIVE_NAME_MAP } from "@/lib/creativeMap";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -105,7 +106,7 @@ function formatTime(value: string) {
 }
 
 function eventDetails(event: AppEvent) {
-  const data = event.metadata || event.event_data || {};
+  const data = metadata(event);
   const parts = [
     data.cta ? `cta: ${data.cta}` : null,
     data.plan_id ? `plano: ${data.plan_id}` : null,
@@ -122,8 +123,16 @@ function identity(event: AppEvent) {
   return event.email || event.user_email || event.anonymous_id || event.user_id || "anonimo";
 }
 
-function metadata(event: AppEvent) {
-  return event.metadata || event.event_data || {};
+function metadata(event: AppEvent): Record<string, any> {
+  let raw = event.metadata || event.event_data || {};
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      raw = {};
+    }
+  }
+  return (raw && typeof raw === "object") ? raw : {};
 }
 
 function hasEvent(list: AppEvent[], names: string[]) {
@@ -289,6 +298,7 @@ export default function AdminRealtime() {
   const { toast } = useToast();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
   const [events, setEvents] = useState<AppEvent[]>([]);
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
   const [range, setRange] = useState<keyof typeof rangeHours>("24h");
@@ -314,27 +324,46 @@ export default function AdminRealtime() {
 
   useEffect(() => {
     const verifyAdmin = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
 
-      if (!user) {
-        navigate("/auth?tab=login");
-        return;
-      }
+        if (userError || !user) {
+          navigate("/auth?tab=login");
+          return;
+        }
 
-      const { data: adminCheck } = await supabase.rpc("is_admin", { _user_id: user.id });
-      if (!adminCheck && !isAdminEmail(user.email)) {
+        // Bypass imediato para o email de admin principal
+        if (isAdminEmail(user.email)) {
+          setIsAdmin(true);
+          return;
+        }
+
+        const { data: adminCheck, error: rpcError } = await supabase.rpc("is_admin", { _user_id: user.id });
+        if (rpcError) throw rpcError;
+
+        if (!adminCheck) {
+          toast({
+            variant: "destructive",
+            title: "Acesso restrito",
+            description: "Esta pagina e exclusiva para administradores.",
+          });
+          navigate("/prospeccao");
+          return;
+        }
+
+        setIsAdmin(true);
+      } catch (err: any) {
+        console.error("Erro ao verificar privilégios de administrador:", err);
         toast({
           variant: "destructive",
-          title: "Acesso restrito",
-          description: "Esta pagina e exclusiva para administradores.",
+          title: "Erro de conexão",
+          description: "Não foi possível verificar seus privilégios de administrador. Tente novamente.",
         });
-        navigate("/prospeccao");
-        return;
+        setLoading(false); // Desligar o loading para evitar tela preta infinita
       }
-
-      setIsAdmin(true);
     };
 
     verifyAdmin();
@@ -364,11 +393,10 @@ export default function AdminRealtime() {
     loadUsers();
   }, [isAdmin]);
 
-  useEffect(() => {
-    if (!isAdmin) return;
-
-    const loadEvents = async () => {
-      setLoading(true);
+  const loadEvents = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
       let query = (supabase as any)
         .from("app_events")
         .select("*")
@@ -400,16 +428,25 @@ export default function AdminRealtime() {
 
       const { data, error } = await query;
       if (error) {
-        toast({
-          variant: "destructive",
-          title: "Erro ao carregar eventos",
-          description: error.message,
-        });
+        throw error;
       } else {
         setEvents(((data || []) as AppEvent[]).map(normalizeAppEvent));
       }
+    } catch (err: any) {
+      console.error("Erro ao carregar eventos:", err);
+      setError(err);
+      toast({
+        variant: "destructive",
+        title: "Erro ao carregar eventos",
+        description: err.message || "Erro de conexão com o banco de dados.",
+      });
+    } finally {
       setLoading(false);
-    };
+    }
+  }, [eventType, sinceIso, utmCampaign, utmContent, utmSource, internalFilter, toast]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
 
     loadEvents();
 
@@ -427,7 +464,7 @@ export default function AdminRealtime() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [eventType, isAdmin, sinceIso, toast, utmCampaign, utmContent, utmSource, internalFilter]);
+  }, [isAdmin, loadEvents, sinceIso, internalFilter]);
 
   const filteredEvents = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -929,7 +966,23 @@ export default function AdminRealtime() {
     <div className="min-h-screen bg-background">
       <AppHeader isAdmin />
       <main className="container mx-auto space-y-6 px-4 py-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        {loading ? (
+          <AdminLoadingState message="Carregando eventos do funil em tempo real..." />
+        ) : error ? (
+          <AdminErrorState
+            title="Erro ao carregar eventos em tempo real"
+            description="Não foi possível estabelecer conexão ou ler os logs de eventos no Supabase. Verifique chaves ou políticas RLS."
+            error={error}
+            onRetry={loadEvents}
+          />
+        ) : events.length === 0 ? (
+          <AdminEmptyState
+            title="Nenhum evento detectado"
+            description="Não foram registrados eventos de tráfego ou navegação de usuários na janela de tempo selecionada."
+          />
+        ) : (
+          <>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Atividade ao vivo</h1>
             <p className="text-sm text-muted-foreground">Eventos internos do funil em tempo real, com UTMs e criativos.</p>
@@ -1222,6 +1275,8 @@ export default function AdminRealtime() {
             </Table>
           </CardContent>
         </Card>
+          </>
+        )}
       </main>
 
       <Sheet open={Boolean(selectedSession)} onOpenChange={(open) => !open && setSelectedSession(null)}>

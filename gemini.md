@@ -359,3 +359,16 @@ Evento de rastreamento disparado na finalização segura do checkout (`app_event
    - **TÉCNICA:** Falhas recorrentes de IA antes do checkout (falhas de IA > 3 ou falhas de IA > sucessos) ou evento `Checkout_Failed` presente.
    - **ALTA:** Abandonado vindo de tráfego pago (paid) e que obteve AHA moment (IA sucesso >= 1 ou cliques de upgrade >= 1).
    - **NORMAL:** Outros casos de menor engajamento ou checkouts recentes.
+
+---
+
+## 4. Invariantes da Área Administrativa (ADM)
+
+### Proteções de Acesso e Autenticação
+1. **Bypass Síncrono de Admin Principal:** O e-mail `jeferson.zanotell@gmail.com` (e o email legacy `jefeson.zanotell@gmail.com`) recebe bypass imediato e síncrono no frontend nas checagens administrativas. Sob nenhuma circunstância de falha de conexão do Supabase ou latência de rede o acesso do admin principal deve ser bloqueado com tela preta ou loading infinito.
+2. **Bypass de Faturamento para Admin:** O admin principal terá limites mockados em `999999` para leads, IA, leads bônus e saldo restante, com acesso permanente a todos os recursos premium do SaaS sem depender de assinaturas ou planos ativos no Stripe.
+
+### Tratamento e Padronização de Estados das Abas
+1. **Independência de Abas (Error Boundary):** As abas do admin devem operar de forma isolada através do `AdminErrorBoundary`. A falha catastrófica em runtime de uma aba (ex: colunas ausentes ou erro CORS de Edge Function) nunca deve derrubar o painel administrativo inteiro, exibindo em vez disso um card de erro amigável contextualizado.
+2. **Ciclo de Vida do Loading (Try-Catch-Finally):** Qualquer requisição administrativa de dados no Supabase ou Edge Functions deve ser envelopada em um bloco `try/catch` síncrono, garantindo o desligamento do loader (`setLoading(false)`) no bloco `finally` e exibindo `AdminErrorState` com botão de retentativa em caso de falha.
+3. **Resiliência a Campos Nulos:** Na listagem de tráfego, jornada e checkouts, qualquer leitura de metadados nulos ou ausentes deve ser normalizada síncronamente com fallbacks amigáveis (ex: `value || "não informado"`), impedindo quebras de render no React.

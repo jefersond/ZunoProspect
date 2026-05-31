@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Suspense, lazy } from "react";
 import { ExitIntentTracker } from "@/components/ExitIntentTracker";
@@ -47,6 +47,12 @@ const PageLoader = () => (
   </div>
 );
 
+// Componente para preservar as UTMs de e-mails em redirecionamentos de rotas legadas
+const LegacyRedirect = ({ to }: { to: string }) => {
+  const location = useLocation();
+  return <Navigate to={`${to}${location.search}`} replace />;
+};
+
 const AppContent = () => {
   // Handle OAuth callback tokens in URL hash (clean URL + redirect)
   const { isProcessing } = useOAuthCallback();
@@ -88,6 +94,14 @@ const AppContent = () => {
           <Route path="/precos" element={<Precos />} />
           <Route path="/preco" element={<Navigate to="/precos" replace />} />
           <Route path="/design-tokens" element={<DesignTokens />} />
+          
+          {/* Legacy Redirect Routes for Emails Retrocompatibility */}
+          <Route path="/app/prospectar" element={<LegacyRedirect to="/prospeccao" />} />
+          <Route path="/app/prospeccao" element={<LegacyRedirect to="/prospeccao" />} />
+          <Route path="/prospectar" element={<LegacyRedirect to="/prospeccao" />} />
+          <Route path="/app/upgrade" element={<LegacyRedirect to="/precos" />} />
+          <Route path="/upgrade" element={<LegacyRedirect to="/precos" />} />
+          <Route path="/login" element={<LegacyRedirect to="/auth" />} />
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

@@ -133,7 +133,7 @@ const emailTemplates: Record<string, (metadata: any) => EmailTemplatePayload> = 
     title: "Faça sua primeira busca",
     preheader: "Comece encontrando empresas por cidade e nicho.",
     body: `Você criou sua conta no Zuno Propect, mas ainda não fez sua primeira busca.
-
+ 
 Comece escolhendo uma cidade e um nicho. O Zuno encontra empresas e ajuda você a transformar isso em oportunidades de abordagem.`,
     ctaLabel: "Fazer minha primeira busca",
     ctaUrl: "https://www.zunopropect.com.br/prospeccao?utm_source=email&utm_medium=behavior&utm_campaign=signup_no_search_1h",
@@ -144,51 +144,51 @@ Comece escolhendo uma cidade e um nicho. O Zuno encontra empresas e ajuda você 
     title: "Gere sua primeira abordagem com IA",
     preheader: "Use a IA para transformar um lead em uma mensagem com contexto.",
     body: `Você já encontrou leads no Zuno.
-
+ 
 O próximo passo é escolher uma empresa e gerar uma abordagem com IA para WhatsApp, Instagram ou e-mail.`,
     ctaLabel: "Gerar abordagem com IA",
     ctaUrl: "https://www.zunopropect.com.br/prospeccao?utm_source=email&utm_medium=behavior&utm_campaign=search_no_ai_1h",
     microcopy: "Esse é o momento em que uma lista vira uma conversa com contexto."
   }),
-
+ 
   ai_used_continue_2h: () => ({
     title: "Continue analisando seus melhores leads",
     preheader: "Você ainda pode gerar mais abordagens com IA.",
     body: `Você já usou a IA do Zuno para gerar contexto de abordagem.
-
+ 
 Agora escolha outro lead com potencial e gere uma nova mensagem antes de tomar a decisão de contato.`,
     ctaLabel: "Analisar outro lead",
     ctaUrl: "https://www.zunopropect.com.br/prospeccao?utm_source=email&utm_medium=behavior&utm_campaign=ai_used_continue_2h",
     microcopy: "Priorize empresas que parecem ter mais chance de responder."
   }),
-
+ 
   ai_limit_no_upgrade_1h: () => ({
     title: "Libere mais análises IA",
     preheader: "Continue gerando abordagens com mais análises IA.",
     body: `Você usou suas análises IA grátis no Zuno Propect.
-
+ 
 Com um plano pago, você pode continuar transformando leads em abordagens com mais contexto para WhatsApp, Instagram e e-mail.`,
     ctaLabel: "Ver planos",
-    ctaUrl: "https://www.zunopropect.com.br/profile?utm_source=email&utm_medium=behavior&utm_campaign=ai_limit_no_upgrade_1h",
+    ctaUrl: "https://www.zunopropect.com.br/precos?utm_source=email&utm_medium=behavior&utm_campaign=ai_limit_no_upgrade_1h",
     microcopy: "O Starter libera 30 análises IA por mês. O Pro libera 100 análises IA por mês."
   }),
-
+ 
   checkout_abandoned_1h: () => ({
     title: "Continue com o plano Starter",
     preheader: "Continue de onde parou no plano Starter.",
     body: `Você iniciou o checkout do plano Starter no Zuno Propect, mas não finalizou a assinatura.
-
+ 
 Com o Starter, você libera 30 análises IA por mês para continuar transformando leads em abordagens mais claras para WhatsApp, Instagram e e-mail.`,
     ctaLabel: "Continuar com o Starter",
-    ctaUrl: "https://www.zunopropect.com.br/profile?utm_source=email&utm_medium=behavior&utm_campaign=checkout_abandoned_1h&utm_content=starter",
+    ctaUrl: "https://www.zunopropect.com.br/precos?utm_source=email&utm_medium=behavior&utm_campaign=checkout_abandoned_1h&utm_content=starter",
     microcopy: "Se o checkout anterior expirou, criaremos uma nova sessão segura."
   }),
-
+ 
   hot_user_inactive_24h: () => ({
     title: "Continue sua prospecção",
     preheader: "Volte para continuar sua prospecção no Zuno.",
     body: `Você já encontrou leads e usou a IA do Zuno para gerar abordagens com contexto.
-
+ 
 Volte para continuar analisando oportunidades e organizar sua próxima abordagem.`,
     ctaLabel: "Voltar para o Zuno",
     ctaUrl: "https://www.zunopropect.com.br/prospeccao?utm_source=email&utm_medium=behavior&utm_campaign=hot_user_inactive_24h",

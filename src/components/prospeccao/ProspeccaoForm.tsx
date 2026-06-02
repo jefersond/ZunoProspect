@@ -256,6 +256,13 @@ export const ProspeccaoForm = () => {
 
     // Salva os parâmetros da pesquisa
     setLastSearchParams(data);
+    localStorage.setItem("zuno_last_search_context", JSON.stringify({
+      city: data.cidade,
+      state: data.estado,
+      country: data.pais,
+      niche: data.nicho,
+      focus: data.foco
+    }));
     setShowRepeatButton(false);
     setUpgradeIncentive(null); // Limpa incentivo anterior
     

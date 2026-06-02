@@ -24,6 +24,7 @@ import {
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { LeadPlanDialog } from "@/components/prospeccao/LeadPlanDialog";
 import type { LeadProspeccao } from "@/types/lead";
+import { normalizeLeadForAI } from "@/utils/normalizeLead";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -281,6 +282,22 @@ const LeadsSalvos = () => {
   };
 
   const handleReanalyze = async (leadId: string) => {
+    let searchContext = {};
+    try {
+      const storedContext = localStorage.getItem("zuno_last_search_context");
+      if (storedContext) {
+        searchContext = JSON.parse(storedContext);
+      }
+    } catch (e) {
+      console.error("Erro ao ler search_context do localStorage:", e);
+    }
+
+    const lead = leads.find(l => l.id === leadId);
+    if (lead) {
+      console.log("[AI Lead Payload]", lead);
+    }
+    const normalizedLead = lead ? normalizeLeadForAI(lead, searchContext) : null;
+
     try {
       setReanalyzingLeadId(leadId);
       
@@ -294,7 +311,11 @@ const LeadsSalvos = () => {
       if (!token) throw new Error("Sessão expirada. Faça login novamente.");
 
       const { error } = await supabase.functions.invoke("analisar-lead-ia", {
-        body: { leadId },
+        body: { 
+          leadId,
+          lead: normalizedLead,
+          search_context: searchContext
+        },
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -339,12 +360,29 @@ const LeadsSalvos = () => {
                              errorMsg.toLowerCase().includes("suficientes") ||
                              errorMsg.toLowerCase().includes("payload");
 
+      if (isPayloadError && lead) {
+        trackEvent("AI_Analysis_Blocked_Insufficient_Data", {
+          lead_id: leadId,
+          lead_name: lead.nome,
+          available_fields: Object.keys(lead || {}),
+          missing_required_fields: ["nome", "cidade/nicho/contato"],
+          search_context_available: !!searchContext && Object.keys(searchContext).length > 0,
+          normalized_lead_preview: {
+            nome: lead.nome || null,
+            cidade: lead.cidade || null,
+            nicho: lead.nicho || null,
+            telefone: lead.telefone || null,
+            website: lead.website || null,
+          }
+        });
+      }
+
       toast({
         title: "Erro na reanálise",
         description: isBalanceError 
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
-          ? "Esse lead não tem dados suficientes para análise. Tente outro lead."
+          ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
         variant: "destructive",
       });

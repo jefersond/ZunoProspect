@@ -117,11 +117,86 @@ interface LeadData {
   porte_empresa?: string | null;
   cnae_principal?: string | null;
   pais?: "BR" | "US";
+  place_id?: string | null;
+  rating?: number | null;
+  reviews?: number | null;
+  endereco?: string | null;
 }
 
 // Helper to check if lead is from USA
 function isUSLead(lead: LeadData): boolean {
   return lead.pais === "US";
+}
+
+function normalizeLeadForAI(lead: any, searchContext: any = {}): LeadData {
+  if (!lead) return {} as LeadData;
+
+  // 1. Nome da empresa
+  const nome = lead.nome || lead.name || lead.business_name || lead.company_name || lead.title || lead.nome_empresa || lead.empresa || "";
+
+  // 2. Telefone/Whatsapp
+  const phone = lead.phone || lead.telefone || lead.formatted_phone_number || lead.international_phone_number || lead.whatsapp || lead.whatsapp_number || null;
+
+  // 3. Site
+  const website = lead.website || lead.site || lead.url || lead.website_url || null;
+
+  // 4. Endereço
+  const address = lead.address || lead.endereco || lead.formatted_address || lead.vicinity || null;
+
+  // 5. Cidade
+  const city = lead.city || lead.cidade || (lead.location && typeof lead.location === 'object' ? lead.location.city : null) || (lead.searchParams && typeof lead.searchParams === 'object' ? lead.searchParams.city : null) || (lead.filtros && typeof lead.filtros === 'object' ? lead.filtros.cidade : null) || searchContext.city || searchContext.cidade || null;
+
+  // 6. Nicho/categoria
+  let nicho = lead.category || lead.categoria || lead.niche || lead.segmento || (lead.searchParams && typeof lead.searchParams === 'object' ? lead.searchParams.niche : null) || (lead.filtros && typeof lead.filtros === 'object' ? lead.filtros.nicho : null) || searchContext.niche || searchContext.nicho || null;
+  if (!nicho && Array.isArray(lead.types) && lead.types.length > 0) {
+    nicho = lead.types[0];
+  }
+
+  // 7. Avaliação
+  const rating = lead.rating !== undefined ? lead.rating : (lead.avaliacao !== undefined ? lead.avaliacao : (lead.stars !== undefined ? lead.stars : null));
+
+  // 8. Reviews
+  const reviews = lead.reviews !== undefined ? lead.reviews : (lead.user_ratings_total !== undefined ? lead.user_ratings_total : (lead.review_count !== undefined ? lead.review_count : (lead.total_reviews !== undefined ? lead.total_reviews : null)));
+
+  // 9. Instagram
+  const instagram = lead.instagram || lead.instagram_url || null;
+
+  // 10. Google place id
+  const placeId = lead.place_id || lead.google_place_id || null;
+
+  // Sinais de marketing
+  const has_whatsapp_on_site = lead.whatsapp_on_site || lead.has_whatsapp_on_site || (lead.sinais && typeof lead.sinais === 'object' ? lead.sinais.has_whatsapp_on_site : false) || false;
+  const has_meta_pixel = lead.has_meta_pixel || (lead.sinais && typeof lead.sinais === 'object' ? lead.sinais.has_meta_pixel : false) || false;
+  const has_gtag = lead.has_gtag || (lead.sinais && typeof lead.sinais === 'object' ? lead.sinais.has_gtag : false) || false;
+  const has_gtm = lead.has_gtm || (lead.sinais && typeof lead.sinais === 'object' ? lead.sinais.has_gtm : false) || false;
+
+  return {
+    nome: String(nome).trim(),
+    nicho: nicho ? String(nicho).trim() : "Não informado",
+    cidade: city ? String(city).trim() : "Não informada",
+    website: website ? String(website).trim() : null,
+    foco: lead.foco || searchContext.focus || "Full Service",
+    whatsapp_on_site: !!has_whatsapp_on_site,
+    whatsapp_number: phone ? String(phone).trim() : null,
+    email: lead.email || null,
+    has_meta_pixel: !!has_meta_pixel,
+    has_gtag: !!has_gtag,
+    has_gtm: !!has_gtm,
+    instagram_url: instagram ? String(instagram).trim() : null,
+    instagram_context: lead.instagram_context || null,
+    canaisProspeccao: lead.canaisProspeccao || [],
+    cnpj: lead.cnpj || null,
+    razao_social: lead.razao_social || null,
+    nome_responsavel: lead.nome_responsavel || null,
+    situacao_cadastral: lead.situacao_cadastral || null,
+    porte_empresa: lead.porte_empresa || null,
+    cnae_principal: lead.cnae_principal || null,
+    pais: lead.pais || lead.country || searchContext.country || searchContext.pais || "BR",
+    place_id: placeId ? String(placeId).trim() : null,
+    rating: rating ? Number(rating) : null,
+    reviews: reviews ? Number(reviews) : null,
+    endereco: address ? String(address).trim() : null,
+  };
 }
 
 function getAvailableChannels(lead: LeadData, selectedChannels: ("email" | "whatsapp" | "instagram")[]): ("email" | "whatsapp" | "instagram")[] {
@@ -493,10 +568,12 @@ serve(async (req) => {
     sourceForCatch = requestData.source || payloadLead.source || context.source || "app";
     pathForCatch = requestData.path || payloadLead.path || context.path || "prospeccao";
     
+    console.log("[AI Lead Payload]", payloadLead);
+
     console.log("🔍 Iniciando análise:", {
       leadId,
       userId,
-      hasNome: !!(payloadLead.nome || payloadLead.name),
+      hasNome: !!(payloadLead.nome || payloadLead.name || payloadLead.business_name || payloadLead.company_name || payloadLead.title),
     });
 
     let GOOGLE_GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("Gemini_API");
@@ -559,6 +636,7 @@ serve(async (req) => {
     }
 
     let leadData: LeadData;
+    const searchContext = requestData.search_context || context || {};
     
     if (leadId) {
       console.log("📥 Buscando lead via RPC...");
@@ -573,48 +651,28 @@ serve(async (req) => {
       }
       
       const lead = decryptedLeads[0];
-leadNameForCatch = lead.nome;
-      leadData = {
-        nome: lead.nome,
-        nicho: lead.nicho,
-        cidade: lead.cidade,
-        website: lead.website,
-        foco: lead.foco,
-        whatsapp_on_site: lead.whatsapp_on_site || false,
-        whatsapp_number: lead.whatsapp_number,
-        email: lead.email,
-        has_meta_pixel: lead.has_meta_pixel || false,
-        has_gtag: lead.has_gtag || false,
-        has_gtm: lead.has_gtm || false,
-        instagram_url: lead.instagram_url,
-        instagram_context: lead.instagram_context,
-        canaisProspeccao: requestData.canaisProspeccao,
-        cnpj: lead.cnpj,
-        razao_social: lead.razao_social,
-        nome_responsavel: lead.nome_responsavel,
-        situacao_cadastral: lead.situacao_cadastral,
-        porte_empresa: lead.porte_empresa,
-        cnae_principal: lead.cnae_principal,
-        pais: lead.pais || "BR", // Important: Read country from database
-      };
+      leadNameForCatch = lead.nome;
       
-      console.log(`🌍 Lead country: ${leadData.pais} | isUS: ${isUSLead(leadData)}`);
+      const rawLead = {
+        ...lead,
+        canaisProspeccao: requestData.canaisProspeccao || lead.canaisProspeccao
+      };
       
       // Re-scrape website for fresh signals
       if (lead.website) {
         const newSignals = await scrapeSiteForSignals(lead.website);
-        leadData.whatsapp_on_site = newSignals.whatsapp_on_site || leadData.whatsapp_on_site;
-        leadData.whatsapp_number = newSignals.whatsapp_number || leadData.whatsapp_number;
-        leadData.email = newSignals.email || leadData.email;
-        leadData.instagram_url = newSignals.instagram_url || leadData.instagram_url;
-        leadData.has_meta_pixel = newSignals.has_meta_pixel || leadData.has_meta_pixel;
-        leadData.has_gtag = newSignals.has_gtag || leadData.has_gtag;
-        leadData.has_gtm = newSignals.has_gtm || leadData.has_gtm;
+        rawLead.whatsapp_on_site = newSignals.whatsapp_on_site || rawLead.whatsapp_on_site;
+        rawLead.whatsapp_number = newSignals.whatsapp_number || rawLead.whatsapp_number;
+        rawLead.email = newSignals.email || rawLead.email;
+        rawLead.instagram_url = newSignals.instagram_url || rawLead.instagram_url;
+        rawLead.has_meta_pixel = newSignals.has_meta_pixel || rawLead.has_meta_pixel;
+        rawLead.has_gtag = newSignals.has_gtag || rawLead.has_gtag;
+        rawLead.has_gtm = newSignals.has_gtm || rawLead.has_gtm;
         
-        if (newSignals.cnpj && !leadData.nome_responsavel) {
+        if (newSignals.cnpj && !rawLead.nome_responsavel) {
           const cnpjData = await fetchCNPJData(newSignals.cnpj);
           if (cnpjData) {
-            Object.assign(leadData, {
+            Object.assign(rawLead, {
               cnpj: newSignals.cnpj,
               razao_social: cnpjData.razao_social,
               nome_responsavel: cnpjData.nome_responsavel,
@@ -622,53 +680,32 @@ leadNameForCatch = lead.nome;
               porte_empresa: cnpjData.porte_empresa,
               cnae_principal: cnpjData.cnae_principal,
             });
-            if (!leadData.email && cnpjData.email) leadData.email = cnpjData.email;
+            if (!rawLead.email && cnpjData.email) rawLead.email = cnpjData.email;
           }
         }
         
         // Update signals in DB
         await supabaseAdmin.from("leads").update({
-          whatsapp_on_site: leadData.whatsapp_on_site,
-          has_meta_pixel: leadData.has_meta_pixel,
-          has_gtag: leadData.has_gtag,
-          has_gtm: leadData.has_gtm,
-          ...(leadData.cnpj && { 
-            cnpj: leadData.cnpj,
-            razao_social: leadData.razao_social,
-            nome_responsavel: leadData.nome_responsavel,
-            situacao_cadastral: leadData.situacao_cadastral,
-            porte_empresa: leadData.porte_empresa,
-            cnae_principal: leadData.cnae_principal,
+          whatsapp_on_site: rawLead.whatsapp_on_site,
+          has_meta_pixel: rawLead.has_meta_pixel,
+          has_gtag: rawLead.has_gtag,
+          has_gtm: rawLead.has_gtm,
+          ...(rawLead.cnpj && { 
+            cnpj: rawLead.cnpj,
+            razao_social: rawLead.razao_social,
+            nome_responsavel: rawLead.nome_responsavel,
+            situacao_cadastral: rawLead.situacao_cadastral,
+            porte_empresa: rawLead.porte_empresa,
+            cnae_principal: rawLead.cnae_principal,
           }),
         }).eq("id", leadId);
       }
-    } else {
-      const nome = payloadLead.nome || payloadLead.name || payloadLead.empresa || payloadLead.company_name;
-      if (!nome) {
-        return jsonResponse({
-          error: "Payload invalido",
-          details: "Informe lead.nome ou lead.name para analisar sem leadId.",
-        }, 400);
-      }
 
-      leadData = {
-        nome,
-        nicho: payloadLead.nicho || payloadLead.categoria || payloadLead.category || context.focus || "Nao informado",
-        cidade: payloadLead.cidade || payloadLead.city || context.city || "Nao informada",
-        website: payloadLead.website || payloadLead.site || null,
-        foco: payloadLead.foco || payloadLead.focus || context.focus || "Full Service",
-        whatsapp_on_site: payloadLead.whatsapp_on_site || payloadLead.has_whatsapp_on_site || false,
-        whatsapp_number: payloadLead.whatsapp_number || payloadLead.telefone || payloadLead.phone || null,
-        email: payloadLead.email || null,
-        has_meta_pixel: payloadLead.has_meta_pixel || false,
-        has_gtag: payloadLead.has_gtag || false,
-        has_gtm: payloadLead.has_gtm || false,
-        instagram_url: payloadLead.instagram_url || payloadLead.instagram || null,
-        instagram_context: payloadLead.instagram_context,
-        canaisProspeccao: requestData.canaisProspeccao || payloadLead.canaisProspeccao,
-        pais: payloadLead.pais || payloadLead.country || context.country || "BR", // Read country from request
-      };
-      
+      leadData = normalizeLeadForAI(rawLead, searchContext);
+      console.log(`🌍 Lead country: ${leadData.pais} | isUS: ${isUSLead(leadData)}`);
+    } else {
+      // Se não vier leadId, normalizar diretamente do payload
+      leadData = normalizeLeadForAI(payloadLead, searchContext);
       console.log(`🌍 Lead country (from request): ${leadData.pais} | isUS: ${isUSLead(leadData)}`);
     }
 
@@ -676,22 +713,36 @@ leadNameForCatch = lead.nome;
 
     // Validação de dados mínimos do lead (INVALID_LEAD_PAYLOAD)
     const hasNome = !!leadData.nome && leadData.nome.trim() !== "" && leadData.nome.toLowerCase() !== "não informado" && leadData.nome.toLowerCase() !== "nao informado";
-    const hasNicho = !!leadData.nicho && leadData.nicho.trim() !== "" && leadData.nicho.toLowerCase() !== "não informado" && leadData.nicho.toLowerCase() !== "nao informado";
     
-    // Canais selecionados para a validação de contato
-    const canaisSelecionados = leadData.canaisProspeccao?.length ? leadData.canaisProspeccao : ["email", "whatsapp", "instagram"] as const;
-    const canaisDisponiveis = getAvailableChannels(leadData, [...canaisSelecionados]);
-    const hasContact = canaisDisponiveis.length > 0;
+    const has_name = hasNome;
+    const has_category = !!leadData.nicho && leadData.nicho.trim() !== "" && leadData.nicho.toLowerCase() !== "não informado" && leadData.nicho.toLowerCase() !== "nao informado";
+    const has_city = !!leadData.cidade && leadData.cidade.trim() !== "" && leadData.cidade.toLowerCase() !== "não informada" && leadData.cidade.toLowerCase() !== "nao informada" && leadData.cidade.toLowerCase() !== "não informado" && leadData.cidade.toLowerCase() !== "nao informado";
+    const has_address = !!leadData.endereco && leadData.endereco.trim() !== "";
+    const has_phone = !!leadData.whatsapp_number && leadData.whatsapp_number.trim() !== "";
+    const has_website = !!leadData.website && leadData.website.trim() !== "";
+    const has_rating = leadData.rating !== undefined && leadData.rating !== null;
+    const has_reviews = leadData.reviews !== undefined && leadData.reviews !== null;
+    const has_instagram = !!leadData.instagram_url && leadData.instagram_url.trim() !== "";
+    const has_place_id = !!leadData.place_id && leadData.place_id.trim() !== "";
 
-    if (!hasNome || !hasNicho || !hasContact) {
-      console.warn("🚫 Lead sem dados suficientes para análise:", { leadId, nome: leadData.nome, nicho: leadData.nicho, hasContact });
-      const payloadError = new Error("Esse lead não tem dados suficientes para análise. Tente outro lead.");
+    const hasContext = has_city || has_address || has_category || has_website || has_phone || has_rating || has_reviews || has_instagram || has_place_id;
+
+    if (!has_name || !hasContext) {
+      console.warn("🚫 Lead sem dados suficientes para análise:", { 
+        leadId, 
+        nome: leadData.nome, 
+        nicho: leadData.nicho, 
+        cidade: leadData.cidade, 
+        hasContext 
+      });
+      const payloadError = new Error("Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho.");
       (payloadError as any).code = "INVALID_LEAD_PAYLOAD";
       throw payloadError;
     }
 
-    console.log("🤖 Analisando:", leadData.nome, "| Canais detectados:", 
-      canaisDisponiveis.join(", ") || "Nenhum");
+    // Canais selecionados para a análise
+    const canaisSelecionados = leadData.canaisProspeccao?.length ? leadData.canaisProspeccao : ["email", "whatsapp", "instagram"] as const;
+    const canaisDisponiveis = getAvailableChannels(leadData, [...canaisSelecionados]);
 
     let analise: AnaliseResult;
     try {
@@ -777,6 +828,24 @@ leadNameForCatch = lead.nome;
     debugMessage = debugMessage.replace(/AIzaSy[A-Za-z0-9_-]{35}/g, "AIzaSy[SECRET_REDACTED]");
     
     if (supabaseAdminForCatch && userIdForCatch) {
+      // Metadados de auditoria segura sobre campos de lead
+      const available_fields = (leadData as any) ? Object.keys(leadData) : [];
+      const has_name = (leadData as any) ? (!!leadData.nome && leadData.nome.trim() !== "" && leadData.nome.toLowerCase() !== "não informado" && leadData.nome.toLowerCase() !== "nao informado") : false;
+      const has_category = (leadData as any) ? (!!leadData.nicho && leadData.nicho.trim() !== "" && leadData.nicho.toLowerCase() !== "não informado" && leadData.nicho.toLowerCase() !== "nao informado") : false;
+      const has_city = (leadData as any) ? (!!leadData.cidade && leadData.cidade.trim() !== "" && leadData.cidade.toLowerCase() !== "não informada" && leadData.cidade.toLowerCase() !== "nao informada" && leadData.cidade.toLowerCase() !== "não informado" && leadData.cidade.toLowerCase() !== "nao informado") : false;
+      const has_address = (leadData as any) ? (!!leadData.endereco && leadData.endereco.trim() !== "") : false;
+      const has_phone = (leadData as any) ? (!!leadData.whatsapp_number && leadData.whatsapp_number.trim() !== "") : false;
+      const has_website = (leadData as any) ? (!!leadData.website && leadData.website.trim() !== "") : false;
+      const has_rating = (leadData as any) ? (leadData.rating !== undefined && leadData.rating !== null) : false;
+      const has_reviews = (leadData as any) ? (leadData.reviews !== undefined && leadData.reviews !== null) : false;
+
+      const missing_required_fields = [];
+      if (!has_name) missing_required_fields.push("nome");
+      const has_any_context = has_city || has_address || has_category || has_website || has_phone || has_rating || ((leadData as any) ? !!leadData.place_id : false);
+      if (!has_any_context) {
+        missing_required_fields.push("contexto_minimo");
+      }
+
       await logAppEvent(supabaseAdminForCatch, {
         userId: userIdForCatch,
         eventType: "ai_analysis_failed",
@@ -798,7 +867,19 @@ leadNameForCatch = lead.nome;
           edge_function: "analisar-lead-ia",
           provider: "gemini",
           duration_ms: duration,
-          retry_count: retryCountForCatch
+          retry_count: retryCountForCatch,
+          
+          // Metadados seguros do lead
+          available_fields,
+          has_name,
+          has_category,
+          has_city,
+          has_address,
+          has_phone,
+          has_website,
+          has_rating,
+          has_reviews,
+          missing_required_fields
         },
         ipAddress: req.headers.get("x-forwarded-for"),
         userAgent: req.headers.get("user-agent"),
@@ -830,8 +911,13 @@ leadNameForCatch = lead.nome;
 // GOOGLE GEMINI DIRETO (API KEY DO USUÁRIO) - MODELO PRINCIPAL
 // =============================================================================
 async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string, onRetry?: () => void): Promise<AnaliseResult> {
-  const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
-  const canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
+  const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp", "instagram"] as const;
+  let canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
+  
+  if (canaisDisponiveis.length === 0) {
+    console.log("⚠️ Nenhum canal de contato encontrado. Usando canais selecionados como fallback consultivo:", canaisSelecionados);
+    canaisDisponiveis = [...canaisSelecionados];
+  }
   
   const isUS = isUSLead(lead);
   const systemPrompt = buildEliteCopywriterSystemPrompt(isUS);
@@ -971,8 +1057,13 @@ async function analyzeWithLovableAI(lead: LeadData): Promise<AnaliseResult> {
     return generateMockAnalise(lead);
   }
 
-  const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
-  const canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
+  const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp", "instagram"] as const;
+  let canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
+  
+  if (canaisDisponiveis.length === 0) {
+    console.log("⚠️ Nenhum canal de contato encontrado. Usando canais selecionados como fallback consultivo:", canaisSelecionados);
+    canaisDisponiveis = [...canaisSelecionados];
+  }
   
   const isUS = isUSLead(lead);
   const systemPrompt = buildEliteCopywriterSystemPrompt(isUS);
@@ -1147,6 +1238,7 @@ Sua missão: criar mensagens que fazem o prospect PARAR, LER e RESPONDER.
    ❌ NUNCA prometa milagres ou números absurdos
    ❌ NUNCA seja bajulador ou use elogios genéricos
    ❌ NUNCA comece com "Somos uma agência..." ou fale de si primeiro
+   ❌ NUNCA invente ou alucine informações ausentes. Use apenas os dados disponíveis. Se algum dado estiver ausente, não invente. Gere uma abordagem útil com base no nome da empresa, nicho e localização. Não afirme que a empresa não tem site, Instagram ou campanhas se essa informação não estiver disponível nos dados do lead.
 
 ═══════════════════════════════════════════════════════════════
 5. 🎯 AÇÃO SUGERIDA (CAMPO OBRIGATÓRIO)
@@ -1359,6 +1451,7 @@ Your mission: craft messages that make prospects STOP, READ, and RESPOND.
    ❌ NEVER promise miracles or absurd numbers
    ❌ NEVER be overly flattering or use generic praise
    ❌ NEVER start with "We're an agency..." or talk about yourself first
+   ❌ NEVER invent or hallucinate missing information. Only use the provided data. If any information is missing, do not make it up. Generate a useful outreach plan based on the company's name, niche, and location. Do not state that the company does not have a website, Instagram, or campaigns unless that is explicitly stated in the lead data.
 
 ═══════════════════════════════════════════════════════════════
 5. 🎯 SUGGESTED ACTION (REQUIRED FIELD)

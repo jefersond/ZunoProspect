@@ -21,6 +21,7 @@ import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe, Sti
 import type { LeadProspeccao } from "@/types/lead";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
+import { normalizeLeadForAI } from "@/utils/normalizeLead";
 
 // Função para formatar número de telefone brasileiro
 const formatPhoneNumber = (phone: string): string => {
@@ -237,6 +238,19 @@ export const LeadPlanDialog = ({
         user_plan: normalizedPlanName,
       });
     }
+    let searchContext = {};
+    try {
+      const storedContext = localStorage.getItem("zuno_last_search_context");
+      if (storedContext) {
+        searchContext = JSON.parse(storedContext);
+      }
+    } catch (e) {
+      console.error("Erro ao ler search_context do localStorage:", e);
+    }
+
+    console.log("[AI Lead Payload]", lead);
+    const normalizedLead = normalizeLeadForAI(lead, searchContext);
+
     try {
       // Obter user_id do usuário atual
       const { data: { user } } = await supabase.auth.getUser();
@@ -250,7 +264,10 @@ export const LeadPlanDialog = ({
         {
           body: {
             lead_id: lead.id,
+            leadId: lead.id,
             user_id: user?.id,
+            lead: normalizedLead,
+            search_context: searchContext,
             nome: lead.nome,
             nicho: lead.nicho,
             cidade: lead.cidade,
@@ -345,12 +362,6 @@ export const LeadPlanDialog = ({
         }
       }
 
-      trackMetaCustomEvent("AI_Analysis_Failed", {
-        lead_id: lead.id,
-        error_message: errorMsg,
-      });
-      trackEvent("ai_analysis_failed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: errorMsg, source: "lead_dialog" });
-
       const isBalanceError = errorMsg.toLowerCase().includes("limite") || 
                              errorMsg.toLowerCase().includes("crédito") || 
                              errorMsg.toLowerCase().includes("saldo") ||
@@ -361,12 +372,35 @@ export const LeadPlanDialog = ({
                              errorMsg.toLowerCase().includes("suficientes") ||
                              errorMsg.toLowerCase().includes("payload");
 
+      if (isPayloadError) {
+        trackEvent("AI_Analysis_Blocked_Insufficient_Data", {
+          lead_id: lead.id,
+          lead_name: lead.nome,
+          available_fields: Object.keys(lead || {}),
+          missing_required_fields: ["nome", "cidade/nicho/contato"],
+          search_context_available: !!searchContext && Object.keys(searchContext).length > 0,
+          normalized_lead_preview: {
+            nome: lead.nome || null,
+            cidade: lead.cidade || null,
+            nicho: lead.nicho || null,
+            telefone: lead.telefone || null,
+            website: lead.website || null,
+          }
+        });
+      } else {
+        trackMetaCustomEvent("AI_Analysis_Failed", {
+          lead_id: lead.id,
+          error_message: errorMsg,
+        });
+        trackEvent("ai_analysis_failed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: errorMsg, source: "lead_dialog" });
+      }
+
       toast({
         title: "Erro ao reanalisar",
         description: isBalanceError 
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
-          ? "Esse lead não tem dados suficientes para análise. Tente outro lead."
+          ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
         variant: "destructive",
       });

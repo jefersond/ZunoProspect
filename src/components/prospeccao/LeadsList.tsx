@@ -25,6 +25,7 @@ import { useUsage } from "@/hooks/useUsage";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import type { UpgradeSource } from "@/lib/funnelContext";
+import { normalizeLeadForAI } from "@/utils/normalizeLead";
 
 const normalizeLeadsResponse = (response: any): any[] => {
   if (!response) return [];
@@ -813,6 +814,19 @@ export const LeadsList = () => {
       });
     }
     
+    let searchContext = {};
+    try {
+      const storedContext = localStorage.getItem("zuno_last_search_context");
+      if (storedContext) {
+        searchContext = JSON.parse(storedContext);
+      }
+    } catch (e) {
+      console.error("Erro ao ler search_context do localStorage:", e);
+    }
+
+    console.log("[AI Lead Payload]", lead);
+    const normalizedLead = normalizeLeadForAI(lead, searchContext);
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
@@ -824,6 +838,8 @@ export const LeadsList = () => {
         body: {
           leadId: lead.id,
           user_id: user.id,
+          lead: normalizedLead,
+          search_context: searchContext,
           canaisProspeccao: ["email", "whatsapp", "instagram"],
         },
         headers: { Authorization: `Bearer ${token}` },
@@ -898,44 +914,6 @@ export const LeadsList = () => {
 
       const durationMs = Date.now() - startTime;
       
-      const failedMetadata = {
-        lead_id: lead.id,
-        lead_name: lead.nome,
-        user_plan: normalizedPlanName,
-        ai_used_before: aiUsedBefore,
-        ai_used_after: errorPayload?.ai_used_after ?? aiUsedBefore,
-        ai_available_before: aiAvailableBefore,
-        ai_available_after: errorPayload?.ai_available_after ?? aiAvailableBefore,
-        source,
-        path: window.location.pathname,
-        error_message: errorMsg,
-        error_code: errorPayload?.error_code || error?.code || null,
-        debug_message: errorPayload?.debug_message || null,
-        error_type: errorPayload?.error_type || error?.name || "UnknownError",
-        deducted_credit: errorPayload?.deducted_credit ?? false,
-        request_id: errorPayload?.request_id || null,
-        edge_function: "analisar-lead-ia",
-        provider: "gemini",
-        duration_ms: errorPayload?.duration_ms ?? durationMs,
-        retry_count: errorPayload?.retry_count ?? 0,
-      };
-
-      trackEvent("AI_Analysis_Failed", failedMetadata);
-
-      trackMetaCustomEvent("AI_Analysis_Failed", {
-        lead_id: lead.id,
-        error_message: errorMsg,
-      });
-      
-      trackEvent("ai_analysis_failed", { 
-        lead_id: lead.id, 
-        lead_name: lead.nome, 
-        city: lead.cidade, 
-        niche: lead.nicho, 
-        error: errorMsg, 
-        source 
-      });
-      
       const isBalanceError = errorMsg.toLowerCase().includes("limite") || 
                              errorMsg.toLowerCase().includes("crédito") || 
                              errorMsg.toLowerCase().includes("saldo") ||
@@ -945,6 +923,61 @@ export const LeadsList = () => {
       const isPayloadError = errorPayload?.error_code === "INVALID_LEAD_PAYLOAD" || 
                              errorMsg.toLowerCase().includes("suficientes") ||
                              errorMsg.toLowerCase().includes("payload");
+
+      if (isPayloadError) {
+        trackEvent("AI_Analysis_Blocked_Insufficient_Data", {
+          lead_id: lead.id,
+          lead_name: lead.nome,
+          available_fields: Object.keys(lead || {}),
+          missing_required_fields: ["nome", "cidade/nicho/contato"],
+          search_context_available: !!searchContext && Object.keys(searchContext).length > 0,
+          normalized_lead_preview: {
+            nome: lead.nome || null,
+            cidade: lead.cidade || null,
+            nicho: lead.nicho || null,
+            telefone: lead.telefone || null,
+            website: lead.website || null,
+          }
+        });
+      } else {
+        const failedMetadata = {
+          lead_id: lead.id,
+          lead_name: lead.nome,
+          user_plan: normalizedPlanName,
+          ai_used_before: aiUsedBefore,
+          ai_used_after: errorPayload?.ai_used_after ?? aiUsedBefore,
+          ai_available_before: aiAvailableBefore,
+          ai_available_after: errorPayload?.ai_available_after ?? aiAvailableBefore,
+          source,
+          path: window.location.pathname,
+          error_message: errorMsg,
+          error_code: errorPayload?.error_code || error?.code || null,
+          debug_message: errorPayload?.debug_message || null,
+          error_type: errorPayload?.error_type || error?.name || "UnknownError",
+          deducted_credit: errorPayload?.deducted_credit ?? false,
+          request_id: errorPayload?.request_id || null,
+          edge_function: "analisar-lead-ia",
+          provider: "gemini",
+          duration_ms: errorPayload?.duration_ms ?? durationMs,
+          retry_count: errorPayload?.retry_count ?? 0,
+        };
+
+        trackEvent("AI_Analysis_Failed", failedMetadata);
+
+        trackMetaCustomEvent("AI_Analysis_Failed", {
+          lead_id: lead.id,
+          error_message: errorMsg,
+        });
+        
+        trackEvent("ai_analysis_failed", { 
+          lead_id: lead.id, 
+          lead_name: lead.nome, 
+          city: lead.cidade, 
+          niche: lead.nicho, 
+          error: errorMsg, 
+          source 
+        });
+      }
       
       toast({
         variant: "destructive",
@@ -952,7 +985,7 @@ export const LeadsList = () => {
         description: isBalanceError 
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
-          ? "Esse lead não tem dados suficientes para análise. Tente outro lead."
+          ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
       });
     } finally {

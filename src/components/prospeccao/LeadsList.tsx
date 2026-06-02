@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck, Sparkles } from "lucide-react";
+import { Loader2, ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck, Sparkles } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
@@ -26,6 +26,17 @@ import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import type { UpgradeSource } from "@/lib/funnelContext";
 
+const normalizeLeadsResponse = (response: any): any[] => {
+  if (!response) return [];
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response.leads)) return response.leads;
+  if (Array.isArray(response.data)) return response.data;
+  if (Array.isArray(response.data?.leads)) return response.data.leads;
+  if (Array.isArray(response.results)) return response.results;
+  if (Array.isArray(response.empresas)) return response.empresas;
+  return [];
+};
+
 export const LeadsList = () => {
   const { toast } = useToast();
   const { subscription, isAdmin: subscriptionIsAdmin } = useSubscription();
@@ -35,6 +46,9 @@ export const LeadsList = () => {
   const [lockedLeads, setLockedLeads] = useState<LeadProspeccao[]>([]);
   const [totalLocked, setTotalLocked] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchCompleted, setSearchCompleted] = useState(false);
+  const [searchErrorState, setSearchErrorState] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
@@ -285,7 +299,15 @@ export const LeadsList = () => {
         throw new Error(data.error);
       }
       
-      const leadsFormatted: LeadProspeccao[] = (data.data?.leads || []).map(transformLeadFromDb);
+      const rawLeads = normalizeLeadsResponse(data);
+      
+      // Se count > 0 mas array vazio, loga erro no console
+      const count = data?.data?.pagination?.total ?? data?.leadsCount ?? data?.count ?? 0;
+      if (count > 0 && rawLeads.length === 0) {
+        console.error("Formato inesperado de resposta da busca.", data);
+      }
+      
+      const leadsFormatted: LeadProspeccao[] = rawLeads.map(transformLeadFromDb);
       
       setLeads(leadsFormatted);
       
@@ -309,6 +331,34 @@ export const LeadsList = () => {
     // Carrega leads ao montar o componente (sem filtro por searchRunId = pega todos não salvos)
     loadLeads();
     
+    // Listener para iniciar busca
+    const handleSearchStarted = () => {
+      setIsSearching(true);
+      setSearchCompleted(false);
+      setSearchErrorState(null);
+      setLeads([]);
+      setLockedLeads([]);
+    };
+    window.addEventListener("searchStarted", handleSearchStarted);
+
+    // Listener para terminar busca com sucesso
+    const handleSearchFinished = (event: CustomEvent<{ searchRunId?: string }>) => {
+      setIsSearching(false);
+      setSearchCompleted(true);
+      const searchRunId = event.detail?.searchRunId;
+      loadLeads(searchRunId);
+    };
+    window.addEventListener("searchFinished", handleSearchFinished as EventListener);
+
+    // Listener para falha na busca
+    const handleSearchFailed = (event: CustomEvent<{ error: string }>) => {
+      setIsSearching(false);
+      setSearchCompleted(true);
+      setSearchErrorState(event.detail?.error || "Erro na busca");
+      loadLeads(); // Restaura a lista de leads anteriores para que a tela não fique congelada em loading
+    };
+    window.addEventListener("searchFailed", handleSearchFailed as EventListener);
+
     // Listener para recarregar quando novos leads são adicionados
     // Agora recebe searchRunId do evento para filtrar apenas leads da busca atual
     const handleReload = (event: CustomEvent<{ searchRunId?: string }>) => {
@@ -426,6 +476,9 @@ export const LeadsList = () => {
       .subscribe();
     
     return () => {
+      window.removeEventListener("searchStarted", handleSearchStarted);
+      window.removeEventListener("searchFinished", handleSearchFinished as EventListener);
+      window.removeEventListener("searchFailed", handleSearchFailed as EventListener);
       window.removeEventListener("reloadLeads", handleReload as EventListener);
       window.removeEventListener("clearLeads", handleClear);
       window.removeEventListener("setLockedLeads", handleSetLockedLeads as EventListener);
@@ -679,6 +732,7 @@ export const LeadsList = () => {
       return;
     }
 
+    const startTime = Date.now();
     const pLimit = usage.leads_limit || 20;
     const pUsed = usage.leads_used || 0;
     const aiUsedBefore = usage.ai_used || 0;
@@ -828,30 +882,64 @@ export const LeadsList = () => {
     } catch (error: any) {
       console.error("Erro ao reanalisar:", error);
       
-      trackEvent("AI_Analysis_Failed", {
+      let errorPayload: any = null;
+      let errorMsg = error?.message || "ai_analysis_error";
+      
+      const contextResponse = error?.context;
+      if (contextResponse instanceof Response) {
+        try {
+          const text = await contextResponse.clone().text();
+          errorPayload = text ? JSON.parse(text) : null;
+          errorMsg = errorPayload?.error_message || errorPayload?.details || errorPayload?.error || errorMsg;
+        } catch (e) {
+          console.error("Erro ao parsear resposta de erro da Edge Function:", e);
+        }
+      }
+
+      const durationMs = Date.now() - startTime;
+      
+      const failedMetadata = {
         lead_id: lead.id,
         lead_name: lead.nome,
         user_plan: normalizedPlanName,
         ai_used_before: aiUsedBefore,
-        ai_used_after: aiUsedBefore,
+        ai_used_after: errorPayload?.ai_used_after ?? aiUsedBefore,
         ai_available_before: aiAvailableBefore,
-        ai_available_after: aiAvailableBefore,
+        ai_available_after: errorPayload?.ai_available_after ?? aiAvailableBefore,
         source,
         path: window.location.pathname,
-        error_message: error.message || "ai_analysis_error",
-      });
+        error_message: errorMsg,
+        error_code: errorPayload?.error_code || error?.code || null,
+        error_type: errorPayload?.error_type || error?.name || "UnknownError",
+        deducted_credit: errorPayload?.deducted_credit ?? false,
+        request_id: errorPayload?.request_id || null,
+        edge_function: "analisar-lead-ia",
+        provider: "gemini",
+        duration_ms: errorPayload?.duration_ms ?? durationMs,
+        retry_count: errorPayload?.retry_count ?? 0,
+      };
+
+      trackEvent("AI_Analysis_Failed", failedMetadata);
 
       trackMetaCustomEvent("AI_Analysis_Failed", {
         lead_id: lead.id,
-        error_message: error.message || "ai_analysis_error",
+        error_message: errorMsg,
       });
       
-      trackEvent("ai_analysis_failed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: error.message || "ai_analysis_error", source });
+      trackEvent("ai_analysis_failed", { 
+        lead_id: lead.id, 
+        lead_name: lead.nome, 
+        city: lead.cidade, 
+        niche: lead.nicho, 
+        error: errorMsg, 
+        source 
+      });
       
-      const isBalanceError = (error.message || "").toLowerCase().includes("limite") || 
-                             (error.message || "").toLowerCase().includes("crédito") || 
-                             (error.message || "").toLowerCase().includes("saldo") ||
-                             (error.message || "").includes("402");
+      const isBalanceError = errorMsg.toLowerCase().includes("limite") || 
+                             errorMsg.toLowerCase().includes("crédito") || 
+                             errorMsg.toLowerCase().includes("saldo") ||
+                             errorMsg.toLowerCase().includes("402") ||
+                             (errorPayload?.error_code === "AI_LIMIT_REACHED");
       
       toast({
         variant: "destructive",
@@ -870,17 +958,43 @@ export const LeadsList = () => {
     }
   };
 
+  if (isSearching) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center flex flex-col items-center justify-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground font-semibold">Buscando leads...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (loading) {
     return (
       <Card>
-        <CardContent className="py-8 text-center">
+        <CardContent className="py-8 text-center flex flex-col items-center justify-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-muted-foreground">Carregando leads...</p>
         </CardContent>
       </Card>
     );
   }
 
-  if (leads.length === 0) {
+  if (searchErrorState) {
+    return (
+      <Card className="border-destructive/30 bg-destructive/5">
+        <CardContent className="py-8 text-center flex flex-col items-center justify-center gap-3">
+          <p className="text-destructive font-semibold">Não conseguimos carregar os leads encontrados.</p>
+          <p className="text-xs text-muted-foreground">{searchErrorState}</p>
+          <Button onClick={() => loadLeads(currentSearchRunId || undefined)} variant="outline" size="sm" className="mt-2">
+            Tentar novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (leads.length === 0 && lockedLeads.length === 0) {
     return (
       <Card>
         <CardContent className="py-8 text-center">

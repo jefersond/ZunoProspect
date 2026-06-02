@@ -199,7 +199,7 @@ export const BehaviorEmailsDashboard = () => {
     }
   };
 
-  const currentTemplate = BEHAVIOR_TEMPLATES[selectedKey];
+  const currentTemplate = BEHAVIOR_TEMPLATES[selectedKey] || BEHAVIOR_TEMPLATES["signup_no_search_1h"];
 
   const getHtmlPreviewContent = (template: BehaviorTemplate) => {
     const mockUnsubscribeUrl = `https://zunopropect.com.br/unsubscribe?email_hash=mock_hash_12345`;
@@ -518,12 +518,12 @@ https://zunopropect.com.br/unsubscribe?email_hash=mock_hash_12345`;
                         {getAutomationLabel(item.automation_key)}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {new Date(item.scheduled_for).toLocaleString("pt-BR", {
+                        {item.scheduled_for ? new Date(item.scheduled_for).toLocaleString("pt-BR", {
                           day: "2-digit",
                           month: "2-digit",
                           hour: "2-digit",
                           minute: "2-digit"
-                        })}
+                        }) : "-"}
                       </TableCell>
                       <TableCell className="text-xs">
                         {getStatusBadge(item.status, item.skip_reason)}

@@ -56,6 +56,24 @@ type AdminUserSummary = {
   leads_used_this_month: number;
   ai_limit: number;
   ai_used_this_month: number;
+  first_utm_source?: string | null;
+  first_utm_medium?: string | null;
+  first_utm_campaign?: string | null;
+  first_utm_content?: string | null;
+  first_referrer?: string | null;
+  first_landing_page?: string | null;
+  first_seen_at?: string | null;
+  first_event_source_type?: string | null;
+  first_creative_name?: string | null;
+  last_utm_source?: string | null;
+  last_utm_medium?: string | null;
+  last_utm_campaign?: string | null;
+  last_utm_content?: string | null;
+  last_referrer?: string | null;
+  last_landing_page?: string | null;
+  last_seen_at?: string | null;
+  last_event_source_type?: string | null;
+  last_creative_name?: string | null;
 };
 
 type SegmentKey =
@@ -151,7 +169,7 @@ function sourceBadge(event: AppEvent) {
 }
 
 interface AiFailureClassification {
-  type: "api_error" | "timeout" | "no_balance" | "duplicate_event" | "multiple_clicks" | "recovered" | "unknown";
+  type: "timeout" | "no_balance" | "cors_or_edge_error" | "provider_error" | "duplicate_click" | "duplicate_event" | "recovered" | "api_error" | "unknown";
   label: string;
   severity: "low" | "medium" | "high";
   explanation: string;
@@ -219,14 +237,14 @@ function classifyAiFailure(event: any, eventsForSameLead: any[]): AiFailureClass
   if (duplicateEvent) {
     return {
       type: "duplicate_event",
-      label: "Possível duplicação",
+      label: "Falha duplicada",
       severity: "low",
       explanation: "Falha duplicada detectada em menos de 5 segundos."
     };
   }
 
-  // 4. Detectar múltiplos cliques concorrentes em menos de 5 segundos
-  const multipleClicks = eventsForSameLead.find(e => {
+  // 4. Detectar múltiplos cliques concorrentes em menos de 5 segundos (duplicate_click)
+  const duplicateClick = eventsForSameLead.find(e => {
     if (e.id === event.id) return false;
     const isFailed = ["AI_Analysis_Failed", "ai_analysis_failed"].includes(eventKey(e));
     const sameLead = (metadata(e).lead_id || metadata(e).leadId) === leadId && leadId;
@@ -236,9 +254,9 @@ function classifyAiFailure(event: any, eventsForSameLead: any[]): AiFailureClass
     return diffSeconds <= 5;
   });
   
-  if (multipleClicks) {
+  if (duplicateClick) {
     return {
-      type: "multiple_clicks",
+      type: "duplicate_click",
       label: "Múltiplos cliques",
       severity: "medium",
       explanation: "Tentativas concorrentes enviadas em poucos segundos."
@@ -247,7 +265,8 @@ function classifyAiFailure(event: any, eventsForSameLead: any[]): AiFailureClass
 
   // 5. Detectar sem saldo
   const isNoBalance = errMsg.includes("limite") || errMsg.includes("saldo") || errMsg.includes("crédito") || 
-                      errCode.includes("limit") || errCode === "402" || meta.ai_available_before === 0;
+                      errMsg.includes("insuficiente") || errCode.includes("limit") || errCode === "402" || 
+                      errCode === "no_balance" || meta.ai_available_before === 0;
   if (isNoBalance) {
     return {
       type: "no_balance",
@@ -259,7 +278,8 @@ function classifyAiFailure(event: any, eventsForSameLead: any[]): AiFailureClass
 
   // 6. Detectar timeouts
   const isTimeout = errMsg.includes("timeout") || errMsg.includes("aborted") || errMsg.includes("deadline") || 
-                    errMsg.includes("gateway") || errMsg.includes("demorou") || errCode.includes("timeout");
+                    errMsg.includes("gateway") || errMsg.includes("demorou") || errCode.includes("timeout") || 
+                    errCode === "504";
   if (isTimeout) {
     return {
       type: "timeout",
@@ -269,15 +289,42 @@ function classifyAiFailure(event: any, eventsForSameLead: any[]): AiFailureClass
     };
   }
 
-  // 7. Erros de rede ou API Gemini
-  const isApiError = errMsg.includes("api") || errMsg.includes("gemini") || errMsg.includes("model") || 
-                     errMsg.includes("fetch") || errMsg.includes("network") || errCode !== "";
+  // 7. CORS or Edge Error
+  const isCorsOrEdge = errMsg.includes("cors") || errMsg.includes("failed to fetch") || 
+                       errMsg.includes("network error") || errMsg.includes("edge function") || 
+                       errMsg.includes("load resource") || errCode === "cors";
+  if (isCorsOrEdge) {
+    return {
+      type: "cors_or_edge_error",
+      label: "Erro CORS/Edge",
+      severity: "high",
+      explanation: "Falha de rede, CORS ou inicialização na Edge Function."
+    };
+  }
+
+  // 8. Provider Error (Gemini-specific safety or generation block)
+  const isProviderError = errMsg.includes("gemini") || errMsg.includes("model") || 
+                          errMsg.includes("safety") || errMsg.includes("blocked") || 
+                          errMsg.includes("generation") || errMsg.includes("google") ||
+                          errCode === "provider_error";
+  if (isProviderError) {
+    return {
+      type: "provider_error",
+      label: "Erro do Provedor (Gemini)",
+      severity: "high",
+      explanation: "O provedor de IA (Gemini) barrou a solicitação ou falhou."
+    };
+  }
+
+  // 9. Erros de rede ou API
+  const isApiError = errMsg.includes("api") || errCode !== "" || errMsg.includes("status 500") || 
+                     errMsg.includes("server error") || errMsg.includes("database");
   if (isApiError) {
     return {
       type: "api_error",
       label: "Falha real de API",
       severity: "high",
-      explanation: "O provedor Gemini ou o backend retornaram erro técnico na execução."
+      explanation: "O provedor ou o backend retornaram erro técnico na execução."
     };
   }
 
@@ -605,6 +652,19 @@ export default function AdminRealtime() {
           (segment === "hot_free_users" && plan === "free" && eventCount(sorted, ["search_completed"]) >= 2 && hasAiCompleted && !purchaseDone) ||
           (segment === "first_ai_cta_seen_no_click" && hasEvent(sorted, ["First_AI_CTA_Shown"]) && !hasEvent(sorted, ["First_AI_CTA_Clicked"]));
 
+        let rowCountIaRealFailures = 0;
+        sorted.forEach((e) => {
+          const key = eventKey(e);
+          if (["AI_Analysis_Failed", "ai_analysis_failed"].includes(key)) {
+            const cl = classifyAiFailure(e, sorted);
+            if (cl.type !== "no_balance" && cl.type !== "recovered" && cl.type !== "duplicate_event" && cl.type !== "duplicate_click") {
+              rowCountIaRealFailures++;
+            }
+          }
+        });
+        const rowIsPaid = sorted.some(e => e.event_source_type === "paid") || sourceBadge(last) === "paid";
+        const hasCriticalAiBlock = rowIsPaid && rowCountIaRealFailures >= 3 && !hasAiCompleted;
+
         return {
           key,
           matchesSegment,
@@ -629,6 +689,7 @@ export default function AdminRealtime() {
           checkoutUtmCampaign: lastCheckout?.utm_campaign || null,
           sessionId: lastCheckout?.session_id || null,
           isAbandoned: checkoutStarted.length > 0 && !purchaseDone,
+          hasCriticalAiBlock,
         };
       })
       .filter((row) => row.matchesSegment)
@@ -742,7 +803,7 @@ export default function AdminRealtime() {
         if (!cl) cl = classifyAiFailure(e, sorted);
         if (cl.type === "recovered") {
           countIaRecovered++;
-        } else if (cl.type === "duplicate_event" || cl.type === "multiple_clicks") {
+        } else if (cl.type === "duplicate_event" || cl.type === "duplicate_click") {
           countIaDuplicates++;
         } else {
           countIaRealFailures++;
@@ -864,25 +925,67 @@ export default function AdminRealtime() {
     }
 
     // Extrair atribuição detalhada do profile do usuário (Multi-Touch Attribution)
-    const firstUtmSource = user?.first_utm_source || null;
-    const firstUtmMedium = user?.first_utm_medium || null;
-    const firstUtmCampaign = user?.first_utm_campaign || null;
-    const firstUtmContent = user?.first_utm_content || null;
-    const firstReferrer = user?.first_referrer || null;
-    const firstLandingPage = user?.first_landing_page || null;
-    const firstSeenAt = user?.first_seen_at || null;
-    const firstEventSourceType = user?.first_event_source_type || null;
-    const firstCreativeName = user?.first_creative_name || null;
+    let firstUtmSource = user?.first_utm_source || null;
+    let firstUtmMedium = user?.first_utm_medium || null;
+    let firstUtmCampaign = user?.first_utm_campaign || null;
+    let firstUtmContent = user?.first_utm_content || null;
+    let firstReferrer = user?.first_referrer || null;
+    let firstLandingPage = user?.first_landing_page || null;
+    let firstSeenAt = user?.first_seen_at || null;
+    let firstEventSourceType = user?.first_event_source_type || null;
+    let firstCreativeName = user?.first_creative_name || null;
 
-    const lastUtmSource = user?.last_utm_source || null;
-    const lastUtmMedium = user?.last_utm_medium || null;
-    const lastUtmCampaign = user?.last_utm_campaign || null;
-    const lastUtmContent = user?.last_utm_content || null;
-    const lastReferrer = user?.last_referrer || null;
-    const lastLandingPage = user?.last_landing_page || null;
-    const lastSeenAt = user?.last_seen_at || null;
-    const lastEventSourceType = user?.last_event_source_type || null;
-    const lastCreativeName = user?.last_creative_name || null;
+    let lastUtmSource = user?.last_utm_source || null;
+    let lastUtmMedium = user?.last_utm_medium || null;
+    let lastUtmCampaign = user?.last_utm_campaign || null;
+    let lastUtmContent = user?.last_utm_content || null;
+    let lastReferrer = user?.last_referrer || null;
+    let lastLandingPage = user?.last_landing_page || null;
+    let lastSeenAt = user?.last_seen_at || null;
+    let lastEventSourceType = user?.last_event_source_type || null;
+    let lastCreativeName = user?.last_creative_name || null;
+
+    let firstTouchInferred = false;
+    let lastTouchInferred = false;
+
+    // Se os dados do profile vierem nulos, inferimos dos eventos
+    if (!firstUtmSource && sorted.length > 0) {
+      firstTouchInferred = true;
+      const firstWithUtm = sorted.find(e => e.utm_source);
+      const firstWithRef = sorted.find(e => e.referrer);
+      const firstWithLp = sorted.find(e => e.pathname || e.path || e.page_url);
+      const firstWithSrcType = sorted.find(e => e.event_source_type && e.event_source_type !== "unknown");
+      
+      firstUtmSource = firstWithUtm?.utm_source || sorted[0].utm_source || null;
+      firstUtmMedium = firstWithUtm?.utm_medium || sorted[0].utm_medium || null;
+      firstUtmCampaign = firstWithUtm?.utm_campaign || sorted[0].utm_campaign || null;
+      firstUtmContent = firstWithUtm?.utm_content || sorted[0].utm_content || null;
+      firstReferrer = firstWithRef?.referrer || sorted[0].referrer || null;
+      firstLandingPage = firstWithLp?.pathname || firstWithLp?.path || firstWithLp?.page_url || sorted[0].pathname || sorted[0].path || sorted[0].page_url || null;
+      firstSeenAt = sorted[0].created_at;
+      firstEventSourceType = firstWithSrcType?.event_source_type || sorted[0].event_source_type || null;
+      firstCreativeName = firstUtmContent ? normalizeCreativeName(firstUtmContent) : null;
+    }
+
+    if (!lastUtmSource && sorted.length > 0) {
+      lastTouchInferred = true;
+      // Varrer de trás para frente
+      const reversed = [...sorted].reverse();
+      const lastWithUtm = reversed.find(e => e.utm_source);
+      const lastWithRef = reversed.find(e => e.referrer);
+      const lastWithLp = reversed.find(e => e.pathname || e.path || e.page_url);
+      const lastWithSrcType = reversed.find(e => e.event_source_type && e.event_source_type !== "unknown");
+
+      lastUtmSource = lastWithUtm?.utm_source || last.utm_source || null;
+      lastUtmMedium = lastWithUtm?.utm_medium || last.utm_medium || null;
+      lastUtmCampaign = lastWithUtm?.utm_campaign || last.utm_campaign || null;
+      lastUtmContent = lastWithUtm?.utm_content || last.utm_content || null;
+      lastReferrer = lastWithRef?.referrer || last.referrer || null;
+      lastLandingPage = lastWithLp?.pathname || lastWithLp?.path || lastWithLp?.page_url || last.pathname || last.path || last.page_url || null;
+      lastSeenAt = last.created_at;
+      lastEventSourceType = lastWithSrcType?.event_source_type || last.event_source_type || null;
+      lastCreativeName = lastUtmContent ? normalizeCreativeName(lastUtmContent) : null;
+    }
 
     // Calcular Diagnóstico Automático de Atribuição
     let attributionDiagnostic = "Origem inicial desconhecida. Verificar tracking.";
@@ -906,6 +1009,9 @@ export default function AdminRealtime() {
     } else if (utmSourceVal) {
       attributionDiagnostic = "Origem detectada por UTM do evento. Sincronização do perfil pendente.";
     }
+
+    const isPaid = trafficSource === "paid" || firstEventSourceType === "paid" || lastEventSourceType === "paid" || sorted.some(e => e.event_source_type === "paid");
+    const showCriticalPaidAlert = isPaid && countIaRealFailures >= 3 && countIaCompleted === 0;
     
     return {
       email,
@@ -920,6 +1026,7 @@ export default function AdminRealtime() {
       bottleneck,
       failureRate,
       alerts,
+      showCriticalPaidAlert,
       firstTouch: {
         utmSource: firstUtmSource,
         utmMedium: firstUtmMedium,
@@ -930,6 +1037,7 @@ export default function AdminRealtime() {
         seenAt: firstSeenAt,
         eventSourceType: firstEventSourceType,
         creativeName: firstCreativeName,
+        isInferred: firstTouchInferred,
       },
       lastTouch: {
         utmSource: lastUtmSource,
@@ -941,6 +1049,7 @@ export default function AdminRealtime() {
         seenAt: lastSeenAt,
         eventSourceType: lastEventSourceType,
         creativeName: lastCreativeName,
+        isInferred: lastTouchInferred,
       },
       attributionDiagnostic,
       counts: {
@@ -1124,6 +1233,12 @@ export default function AdminRealtime() {
                             Checkout Abandonado
                           </div>
                         )}
+                        {row.hasCriticalAiBlock && (
+                          <div className="mt-1 flex items-center gap-1 text-[9px] text-red-450 dark:text-red-400 font-bold bg-red-500/10 w-fit px-1.5 py-0.5 rounded border border-red-500/20 animate-pulse">
+                            <AlertTriangle className="h-2.5 w-2.5 text-red-500" />
+                            Bloqueio IA (Tráfego Pago)
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>{row.plan}</TableCell>
@@ -1291,6 +1406,34 @@ export default function AdminRealtime() {
 
           {selectedJourneySummary && (
             <div className="space-y-6">
+              {/* Alerta Crítico Vermelho de Tráfego Pago */}
+              {selectedJourneySummary.showCriticalPaidAlert && (
+                <div className="bg-red-500/15 border-2 border-red-500/50 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 animate-pulse">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-red-500/20 text-red-500 shrink-0 mt-0.5">
+                      <AlertTriangle className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-red-400">Bloqueio Técnico Crítico (IA não funciona)</span>
+                        <Badge className="bg-red-500/20 text-red-400 border border-red-500/40 text-[9px] font-extrabold uppercase">Prejuízo potencial</Badge>
+                      </div>
+                      <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                        Usuário vindo de tráfego pago tentou usar IA {selectedJourneySummary.counts.iaFailedReal} vezes sem sucesso. Risco de churn e desperdício de ad spend.
+                      </p>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    className="shrink-0 bg-red-600 hover:bg-red-700 text-white font-bold"
+                    onClick={() => setJourneyViewMode("failures")}
+                  >
+                    Ver falhas IA
+                  </Button>
+                </div>
+              )}
+
               {/* Painel do Resumo Executivo */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-[#111816] rounded-xl border border-emerald-500/10 p-4 space-y-2 md:col-span-2">
@@ -1354,7 +1497,7 @@ export default function AdminRealtime() {
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold text-[#10d98a] flex items-center gap-1">
                         <ArrowUpRight className="h-3.5 w-3.5" />
-                        PRIMEIRO CONTATO (First Touch)
+                        PRIMEIRO CONTATO (First Touch) {selectedJourneySummary.firstTouch.isInferred && <span className="text-amber-500 text-[10px] font-medium ml-1">(Inferido)</span>}
                       </span>
                       {selectedJourneySummary.firstTouch.eventSourceType && (
                         <Badge variant="outline" className="text-[9px] uppercase px-1.5 h-4.5 border-emerald-500/30 text-[#10d98a] bg-emerald-500/5">
@@ -1384,7 +1527,7 @@ export default function AdminRealtime() {
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold text-[#10d98a] flex items-center gap-1">
                         <ArrowDownRight className="h-3.5 w-3.5" />
-                        CONTATO MAIS RECENTE (Last Touch)
+                        CONTATO MAIS RECENTE (Last Touch) {selectedJourneySummary.lastTouch.isInferred && <span className="text-amber-500 text-[10px] font-medium ml-1">(Inferido)</span>}
                       </span>
                       {selectedJourneySummary.lastTouch.eventSourceType && (
                         <Badge variant="outline" className="text-[9px] uppercase px-1.5 h-4.5 border-emerald-500/30 text-[#10d98a] bg-emerald-500/5">
@@ -1571,12 +1714,12 @@ export default function AdminRealtime() {
                           const hasRecovery = g.successes.length > 0;
                           
                           let hasDuplication = false;
-                          let hasMultipleClicks = false;
+                          let hasDuplicateClick = false;
                           
                           g.failures.forEach(f => {
                             const cl = classifyAiFailure(f, selectedJourney);
                             if (cl.type === "duplicate_event") hasDuplication = true;
-                            if (cl.type === "multiple_clicks") hasMultipleClicks = true;
+                            if (cl.type === "duplicate_click") hasDuplicateClick = true;
                           });
 
                           let statusLabel = "Falha Não Recuperada";
@@ -1600,7 +1743,7 @@ export default function AdminRealtime() {
                           } else if (hasDuplication) {
                             statusLabel = "Possível duplicação";
                             statusColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
-                          } else if (hasMultipleClicks) {
+                          } else if (hasDuplicateClick) {
                             statusLabel = "Múltiplos cliques";
                             statusColor = "bg-violet-500/10 text-violet-400 border-violet-500/20";
                           }
@@ -1670,6 +1813,16 @@ export default function AdminRealtime() {
                                                         metadata(f).ai_used_before !== undefined && 
                                                         Number(metadata(f).ai_used_after) > Number(metadata(f).ai_used_before));
                                     
+                                    const renderFailureField = (label: string, value: any, isCode = false) => {
+                                      const formatted = (value !== null && value !== undefined && String(value).trim() !== "") ? String(value) : "não informado";
+                                      return (
+                                        <div className="bg-slate-900/40 p-2 rounded border border-slate-800/40">
+                                          <span className="text-slate-550 block font-semibold text-[9px] uppercase tracking-wider">{label}</span>
+                                          <span className={`block mt-0.5 break-all ${isCode && formatted !== "não informado" ? "font-mono text-slate-300 text-[10px]" : "text-slate-400"}`}>{formatted}</span>
+                                        </div>
+                                      );
+                                    };
+
                                     return (
                                       <div key={fIdx} className="space-y-2 relative">
                                         <div className="absolute -left-[19.5px] top-1.5 h-2 w-2 rounded-full bg-red-500 border border-[#0b0f0e]" />
@@ -1680,13 +1833,29 @@ export default function AdminRealtime() {
                                           <span className="text-[10px] text-slate-500 font-mono">{formatTime(f.created_at)}</span>
                                         </div>
                                         <p className="text-[11px] text-slate-300 font-mono bg-black/60 p-2.5 rounded border border-slate-800 max-h-24 overflow-y-auto break-words whitespace-pre-wrap">{metadata(f).error_message || metadata(f).error || "Nenhum log de erro fornecido pelo backend"}</p>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] text-slate-550">
-                                          {metadata(f).error_code && <p><span className="text-slate-500 font-medium">Código do Erro:</span> <span className="font-mono text-slate-300">{String(metadata(f).error_code)}</span></p>}
-                                          {metadata(f).error_type && <p><span className="text-slate-500 font-medium">Tipo de Erro:</span> <span className="font-mono text-slate-300">{String(metadata(f).error_type)}</span></p>}
-                                          <p><span className="text-slate-500 font-medium">Duração:</span> <span className="text-slate-300">{metadata(f).duration_ms !== undefined ? `${metadata(f).duration_ms} ms` : "não informado"}</span></p>
-                                          <p><span className="text-slate-500 font-medium">Tentativas (Retries):</span> <span className="text-slate-300">{metadata(f).retry_count !== undefined ? metadata(f).retry_count : "não informado"}</span></p>
-                                          {metadata(f).request_id && <p className="sm:col-span-2"><span className="text-slate-500 font-mono font-medium">Request ID:</span> <span className="font-mono text-slate-300 break-all">{String(metadata(f).request_id)}</span></p>}
-                                          <p className="sm:col-span-2"><span className="text-slate-500 font-medium">Crédito Descontado:</span> <span className={isDeducted ? "text-red-400 font-bold" : "text-slate-400"}>{isDeducted ? "Sim (ANOMALIA DE DADO)" : "Não (Correto)"}</span></p>
+                                        
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 text-[10px] text-slate-300 mt-2">
+                                          {renderFailureField("Código do Erro", metadata(f).error_code || metadata(f).code, true)}
+                                          {renderFailureField("Tipo de Erro", metadata(f).error_type)}
+                                          {renderFailureField("Duração", metadata(f).duration_ms !== undefined ? `${metadata(f).duration_ms} ms` : null)}
+                                          {renderFailureField("Tentativas (Retries)", metadata(f).retry_count)}
+                                          {renderFailureField("ID do Lead", metadata(f).lead_id || metadata(f).leadId, true)}
+                                          {renderFailureField("Nome do Lead", metadata(f).lead_name || metadata(f).leadName)}
+                                          {renderFailureField("E-mail do Lead", metadata(f).lead_email || metadata(f).leadEmail)}
+                                          {renderFailureField("Empresa do Lead", metadata(f).lead_company || metadata(f).leadCompany)}
+                                          {renderFailureField("Créditos Antes", metadata(f).ai_available_before)}
+                                          {renderFailureField("Créditos Depois", metadata(f).ai_available_after)}
+                                          {renderFailureField("Débito de Crédito", isDeducted ? "Sim (ANOMALIA DE DADO)" : "Não (Correto)")}
+                                          {renderFailureField("Plano do Usuário", metadata(f).user_plan || selectedJourneySummary?.plan)}
+                                          {renderFailureField("ID do Usuário", f.user_id, true)}
+                                          {renderFailureField("E-mail do Usuário", f.email || f.user_email)}
+                                          {renderFailureField("ID da Sessão", f.session_id, true)}
+                                          {renderFailureField("ID Anônimo", f.anonymous_id, true)}
+                                          {renderFailureField("Origem do Evento", sourceBadge(f))}
+                                          {renderFailureField("URL do Evento", f.page_url)}
+                                          {renderFailureField("Caminho (Path)", f.pathname || f.path)}
+                                          {renderFailureField("Request ID", metadata(f).request_id, true)}
+                                          {renderFailureField("Data/Hora", formatTime(f.created_at))}
                                         </div>
                                       </div>
                                     );

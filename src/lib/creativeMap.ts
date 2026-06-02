@@ -1,6 +1,7 @@
 export const CREATIVE_NAME_MAP: Record<string, string> = {
   "120246631612400725": "quem_abordar",
   "120246630603260725": "o_que_falar",
+  "120248028635250725": "abordagens_ia",
 
   "leads_conversas": "leads_conversas",
   "quem_abordar": "quem_abordar",

@@ -260,6 +260,7 @@ export const ProspeccaoForm = () => {
     setUpgradeIncentive(null); // Limpa incentivo anterior
     
     // Reseta estados de progresso
+    window.dispatchEvent(new CustomEvent("searchStarted"));
     setLoading(true);
     setCurrentStep(1);
     setProgressMessage("Iniciando busca...");
@@ -538,6 +539,9 @@ export const ProspeccaoForm = () => {
 
       // Recarrega a lista de leads com o searchRunId da busca atual
       const searchRunIdFromResponse = responseData?.searchRunId;
+      window.dispatchEvent(new CustomEvent("searchFinished", { 
+        detail: { searchRunId: searchRunIdFromResponse } 
+      }));
       window.dispatchEvent(new CustomEvent("reloadLeads", { 
         detail: { searchRunId: searchRunIdFromResponse } 
       }));
@@ -584,6 +588,9 @@ export const ProspeccaoForm = () => {
       }
       
       setSearchError(errorMessage);
+      window.dispatchEvent(new CustomEvent("searchFailed", { 
+        detail: { error: errorMessage } 
+      }));
       trackMetaCustomEvent("Search_Failed", {
         city: data.cidade,
         niche: data.nicho,

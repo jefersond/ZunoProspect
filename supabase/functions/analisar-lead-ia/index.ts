@@ -724,6 +724,7 @@ leadNameForCatch = lead.nome;
     return jsonResponse(analise as unknown as Record<string, unknown>);
   } catch (error: any) {
     console.error("Erro analisar-lead-ia:", error);
+    const duration = Date.now() - startTime;
     if (supabaseAdminForCatch && userIdForCatch) {
       await logAppEvent(supabaseAdminForCatch, {
         userId: userIdForCatch,
@@ -744,7 +745,7 @@ leadNameForCatch = lead.nome;
           request_id: requestId,
           edge_function: "analisar-lead-ia",
           provider: "gemini",
-          duration_ms: Date.now() - startTime,
+          duration_ms: duration,
           retry_count: retryCountForCatch
         },
         ipAddress: req.headers.get("x-forwarded-for"),
@@ -752,6 +753,20 @@ leadNameForCatch = lead.nome;
       });
     }
     return jsonResponse({
+      success: false,
+      error_code: error?.code || "AI_ANALYSIS_ERROR",
+      error_message: error instanceof Error ? error.message : String(error),
+      error_type: error?.name || "UnknownError",
+      request_id: requestId,
+      duration_ms: duration,
+      retry_count: retryCountForCatch,
+      ai_used_before: aiUsedForCatch,
+      ai_used_after: aiUsedForCatch,
+      ai_available_before: aiRemainingForCatch,
+      ai_available_after: aiRemainingForCatch,
+      deducted_credit: false,
+      provider: "gemini",
+      edge_function: "analisar-lead-ia",
       error: "Erro ao analisar lead",
       details: error instanceof Error ? error.message : String(error),
     }, 500);

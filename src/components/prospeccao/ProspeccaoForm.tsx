@@ -148,17 +148,19 @@ export const ProspeccaoForm = () => {
   const canaisProspeccao = watch("canaisProspeccao");
   const quantidade = watch("quantidade");
 
-  const isAtLimit = !usageLoading && !isAdmin && !canSearchLeads;
+  const isAtLimit = !usageLoading && !subscriptionLoading && !isAdmin && !canSearchLeads;
   const availableLeads = isAdmin
     ? 100
-    : Math.max(1, Math.min(100, leadsAvailableTotal || 0));
-  const quantityAvailabilityText = usage
-    ? (isAdmin
-        ? "Leads ilimitados"
-        : (Math.max(0, leadsAvailableTotal) === 0
-            ? "nenhum disponível"
-            : `${Math.max(0, leadsAvailableTotal)} ${Math.max(0, leadsAvailableTotal) === 1 ? "disponível" : "disponíveis"}`))
-    : null;
+    : Math.max(1, Math.min(100, (usageLoading || subscriptionLoading) ? 100 : (leadsAvailableTotal || 0)));
+  const quantityAvailabilityText = (usageLoading || subscriptionLoading)
+    ? "carregando..."
+    : (usage
+        ? (isAdmin
+            ? "Leads ilimitados"
+            : (Math.max(0, leadsAvailableTotal) === 0
+                ? "nenhum disponível"
+                : `${Math.max(0, leadsAvailableTotal)} ${Math.max(0, leadsAvailableTotal) === 1 ? "disponível" : "disponíveis"}`))
+        : null);
 
   // Calcula tempo estimado baseado na quantidade de leads
   const calculateEstimatedTime = (qty: number): number => {
@@ -681,7 +683,7 @@ export const ProspeccaoForm = () => {
           </div>
         )}
 
-        {!subscriptionLoading && !usageLoading && (subscriptionError || usageError) && (
+        {!subscriptionLoading && !usageLoading && (subscriptionError && usageError) && !subscription && !usage && (
           <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
             Não foi possível atualizar os dados do plano agora. Você ainda pode tentar buscar leads.
           </div>
@@ -886,6 +888,7 @@ export const ProspeccaoForm = () => {
                 type="number"
                 min="1"
                 max={availableLeads}
+                disabled={usageLoading || subscriptionLoading}
                 {...register("quantidade", { valueAsNumber: true })}
               />
               {errors.quantidade && (

@@ -499,7 +499,10 @@ serve(async (req) => {
       hasNome: !!(payloadLead.nome || payloadLead.name),
     });
 
-    const GOOGLE_GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("Gemini_API");
+    let GOOGLE_GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("Gemini_API");
+    if (GOOGLE_GEMINI_API_KEY) {
+      GOOGLE_GEMINI_API_KEY = GOOGLE_GEMINI_API_KEY.trim().replace(/^["']|["']$/g, "");
+    }
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
@@ -671,13 +674,41 @@ leadNameForCatch = lead.nome;
 
     leadNameForCatch = leadData.nome;
 
-    console.log("🤖 Analisando:", leadData.nome, "| Canais detectados:", 
-      [leadData.whatsapp_number && "WhatsApp", leadData.email && "Email", leadData.instagram_url && "Instagram"].filter(Boolean).join(", ") || "Nenhum");
+    // Validação de dados mínimos do lead (INVALID_LEAD_PAYLOAD)
+    const hasNome = !!leadData.nome && leadData.nome.trim() !== "" && leadData.nome.toLowerCase() !== "não informado" && leadData.nome.toLowerCase() !== "nao informado";
+    const hasNicho = !!leadData.nicho && leadData.nicho.trim() !== "" && leadData.nicho.toLowerCase() !== "não informado" && leadData.nicho.toLowerCase() !== "nao informado";
+    
+    // Canais selecionados para a validação de contato
+    const canaisSelecionados = leadData.canaisProspeccao?.length ? leadData.canaisProspeccao : ["email", "whatsapp", "instagram"] as const;
+    const canaisDisponiveis = getAvailableChannels(leadData, [...canaisSelecionados]);
+    const hasContact = canaisDisponiveis.length > 0;
 
-    console.log("🚀 Usando Gemini 2.0 Flash para análise manual...");
-    const analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY, () => {
-      retryCountForCatch += 1;
-    });
+    if (!hasNome || !hasNicho || !hasContact) {
+      console.warn("🚫 Lead sem dados suficientes para análise:", { leadId, nome: leadData.nome, nicho: leadData.nicho, hasContact });
+      const payloadError = new Error("Esse lead não tem dados suficientes para análise. Tente outro lead.");
+      (payloadError as any).code = "INVALID_LEAD_PAYLOAD";
+      throw payloadError;
+    }
+
+    console.log("🤖 Analisando:", leadData.nome, "| Canais detectados:", 
+      canaisDisponiveis.join(", ") || "Nenhum");
+
+    let analise: AnaliseResult;
+    try {
+      console.log("🚀 Usando Gemini 2.0 Flash para análise manual...");
+      analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY, () => {
+        retryCountForCatch += 1;
+      });
+    } catch (geminiError: any) {
+      console.error("⚠️ Falha na chamada direta ao Gemini:", geminiError.message || geminiError);
+      console.log("🔄 Tentando fallback com Lovable AI Gateway...");
+      try {
+        analise = await analyzeWithLovableAI(leadData);
+      } catch (lovableError: any) {
+        console.error("❌ Falha no fallback da Lovable AI:", lovableError.message || lovableError);
+        throw geminiError;
+      }
+    }
 
     // Save analysis to DB
     if (leadId) {
@@ -725,6 +756,26 @@ leadNameForCatch = lead.nome;
   } catch (error: any) {
     console.error("Erro analisar-lead-ia:", error);
     const duration = Date.now() - startTime;
+    
+    // Normalizar o código de erro, a mensagem amigável para o usuário e a de debug técnico seguro
+    let errorCode = error?.code || "AI_ANALYSIS_ERROR";
+    let errorMessage = "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.";
+    let debugMessage = error instanceof Error ? error.message : String(error);
+    
+    if (error?.name === "AbortError" || debugMessage.toLowerCase().includes("timeout") || debugMessage.toLowerCase().includes("deadline")) {
+      errorCode = "GEMINI_TIMEOUT";
+      errorMessage = "A análise demorou mais que o esperado.";
+    } else if (errorCode === "INVALID_LEAD_PAYLOAD" || debugMessage.toLowerCase().includes("suficientes") || debugMessage.toLowerCase().includes("payload")) {
+      errorCode = "INVALID_LEAD_PAYLOAD";
+      errorMessage = "Esse lead não tem dados suficientes para análise. Tente outro lead.";
+    } else if (errorCode === "AI_LIMIT_REACHED" || debugMessage.toLowerCase().includes("limite") || debugMessage.toLowerCase().includes("crédito") || debugMessage.toLowerCase().includes("saldo") || debugMessage.toLowerCase().includes("402")) {
+      errorCode = "AI_LIMIT_REACHED";
+      errorMessage = "Você atingiu seu limite de análises com IA.";
+    }
+    
+    // Garantir que não retornamos dados sensíveis no debugMessage
+    debugMessage = debugMessage.replace(/AIzaSy[A-Za-z0-9_-]{35}/g, "AIzaSy[SECRET_REDACTED]");
+    
     if (supabaseAdminForCatch && userIdForCatch) {
       await logAppEvent(supabaseAdminForCatch, {
         userId: userIdForCatch,
@@ -734,9 +785,10 @@ leadNameForCatch = lead.nome;
           lead_name: leadNameForCatch || null,
           source: sourceForCatch,
           path: pathForCatch,
-          error_message: error?.message || String(error),
-          error_code: error?.code || null,
-          error_type: error?.name || null,
+          error_message: errorMessage,
+          error_code: errorCode,
+          debug_message: debugMessage,
+          error_type: error?.name || "UnknownError",
           ai_used_before: aiUsedForCatch,
           ai_used_after: aiUsedForCatch,
           ai_available_before: aiRemainingForCatch,
@@ -754,8 +806,9 @@ leadNameForCatch = lead.nome;
     }
     return jsonResponse({
       success: false,
-      error_code: error?.code || "AI_ANALYSIS_ERROR",
-      error_message: error instanceof Error ? error.message : String(error),
+      error_code: errorCode,
+      error_message: errorMessage,
+      debug_message: debugMessage,
       error_type: error?.name || "UnknownError",
       request_id: requestId,
       duration_ms: duration,
@@ -767,8 +820,8 @@ leadNameForCatch = lead.nome;
       deducted_credit: false,
       provider: "gemini",
       edge_function: "analisar-lead-ia",
-      error: "Erro ao analisar lead",
-      details: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
+      details: debugMessage,
     }, 500);
   }
 });

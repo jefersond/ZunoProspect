@@ -910,6 +910,7 @@ export const LeadsList = () => {
         path: window.location.pathname,
         error_message: errorMsg,
         error_code: errorPayload?.error_code || error?.code || null,
+        debug_message: errorPayload?.debug_message || null,
         error_type: errorPayload?.error_type || error?.name || "UnknownError",
         deducted_credit: errorPayload?.deducted_credit ?? false,
         request_id: errorPayload?.request_id || null,
@@ -940,12 +941,18 @@ export const LeadsList = () => {
                              errorMsg.toLowerCase().includes("saldo") ||
                              errorMsg.toLowerCase().includes("402") ||
                              (errorPayload?.error_code === "AI_LIMIT_REACHED");
+
+      const isPayloadError = errorPayload?.error_code === "INVALID_LEAD_PAYLOAD" || 
+                             errorMsg.toLowerCase().includes("suficientes") ||
+                             errorMsg.toLowerCase().includes("payload");
       
       toast({
         variant: "destructive",
         title: "Erro na análise",
         description: isBalanceError 
           ? "Você não tem análises IA disponíveis." 
+          : isPayloadError
+          ? "Esse lead não tem dados suficientes para análise. Tente outro lead."
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
       });
     } finally {
@@ -1418,7 +1425,7 @@ export const LeadsList = () => {
                                     ) : (
                                       <Zap className="h-3 w-3 mr-1" />
                                     )}
-                                    {canAnalyzeAI ? "Gerar abordagem com IA" : "Liberar mais análises"}
+                                    {reanalyzingLeads.has(lead.id) ? "Analisando lead com IA..." : (canAnalyzeAI ? "Gerar abordagem com IA" : "Liberar mais análises")}
                                   </Button>
                                   {isFree && aiUsed === 0 && lead.id === firstAnalyzableLead?.id && (
                                     <span className="text-[10px] text-emerald-600 font-medium whitespace-nowrap bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 animate-pulse">

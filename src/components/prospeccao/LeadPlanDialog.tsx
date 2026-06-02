@@ -330,18 +330,43 @@ export const LeadPlanDialog = ({
       });
     } catch (error: any) {
       console.error('Erro ao reanalisar lead:', error);
+      
+      let errorMsg = error?.message || "ai_analysis_error";
+      let errorPayload: any = null;
+      
+      const contextResponse = error?.context;
+      if (contextResponse instanceof Response) {
+        try {
+          const text = await contextResponse.clone().text();
+          errorPayload = text ? JSON.parse(text) : null;
+          errorMsg = errorPayload?.error_message || errorPayload?.details || errorPayload?.error || errorMsg;
+        } catch (e) {
+          console.error("Erro ao parsear resposta de erro da Edge Function:", e);
+        }
+      }
+
       trackMetaCustomEvent("AI_Analysis_Failed", {
         lead_id: lead.id,
-        error_message: error.message || "ai_analysis_error",
+        error_message: errorMsg,
       });
-      trackEvent("ai_analysis_failed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: error.message || "ai_analysis_error", source: "lead_dialog" });
+      trackEvent("ai_analysis_failed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: errorMsg, source: "lead_dialog" });
+
+      const isBalanceError = errorMsg.toLowerCase().includes("limite") || 
+                             errorMsg.toLowerCase().includes("crédito") || 
+                             errorMsg.toLowerCase().includes("saldo") ||
+                             errorMsg.toLowerCase().includes("402") ||
+                             (errorPayload?.error_code === "AI_LIMIT_REACHED");
+
+      const isPayloadError = errorPayload?.error_code === "INVALID_LEAD_PAYLOAD" || 
+                             errorMsg.toLowerCase().includes("suficientes") ||
+                             errorMsg.toLowerCase().includes("payload");
+
       toast({
         title: "Erro ao reanalisar",
-        description: ((error.message || "").toLowerCase().includes("limite") || 
-                     (error.message || "").toLowerCase().includes("crédito") || 
-                     (error.message || "").toLowerCase().includes("saldo") ||
-                     (error.message || "").includes("402")) 
+        description: isBalanceError 
           ? "Você não tem análises IA disponíveis." 
+          : isPayloadError
+          ? "Esse lead não tem dados suficientes para análise. Tente outro lead."
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
         variant: "destructive",
       });

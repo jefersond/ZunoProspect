@@ -107,7 +107,7 @@ export function useUsage(): UseUsageReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isFetchingRef = useRef(false);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const fetchUsage = useCallback(async () => {
     if (isFetchingRef.current) return;
@@ -144,14 +144,132 @@ export function useUsage(): UseUsageReturn {
         return;
       }
 
-      const { data, error: usageError } = await supabase.rpc("get_current_user_usage", {});
+      // Executa consulta RPC e tenta ler direto do banco em paralelo para maior tolerância a falhas
+      const [usageResponse, subResponse] = await Promise.all([
+        supabase.rpc("get_current_user_usage", {}).catch(err => {
+          console.warn("[useUsage] RPC get_current_user_usage falhou:", err);
+          return { data: null, error: err };
+        }),
+        supabase
+          .from("user_subscriptions")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle()
+      ]);
 
-      if (usageError) throw usageError;
+      const { data: usageData, error: usageError } = usageResponse;
+      const { data: directSub } = subResponse;
 
-      const currentUsage = data?.[0]
-        ? { ...data[0], plan_name: data[0].plan, ai_remaining: data[0].ai_available_total }
-        : null;
-      setUsage(normalizeUsage(currentUsage, user.email));
+      // Se ambos falharem de verdade
+      if (usageError && !directSub) {
+        throw usageError || new Error("Falha ao recuperar assinatura direta");
+      }
+
+      let planName = "free";
+      let leadsLimit = 20;
+      let aiLimit = 3;
+      let leadsUsed = 0;
+      let aiUsed = 0;
+      let leadsBonus = 0;
+      let billingPeriodEnd = DEFAULT_USAGE.billing_period_end;
+      let isAdmin = false;
+
+      // Mapeamento e limites oficiais
+      const limitsMap = {
+        free: { leads_limit: 20, ai_limit: 3 },
+        starter: { leads_limit: 300, ai_limit: 30 },
+        pro: { leads_limit: 800, ai_limit: 100 },
+        agency: { leads_limit: 2000, ai_limit: 300 },
+        admin: { leads_limit: 999999, ai_limit: 999999 }
+      };
+
+      const normalizeName = (name: string) => {
+        const lowerName = String(name || "").trim().toLowerCase();
+        if (lowerName === "iniciante" || lowerName === "starter" || lowerName === "basic") return "starter";
+        if (lowerName === "agency" || lowerName === "agencia" || lowerName === "agência") return "agency";
+        if (lowerName === "pro") return "pro";
+        if (lowerName === "admin") return "admin";
+        return "free";
+      };
+
+      const isSubActive = directSub && ["active", "trialing"].includes(directSub.subscription_status?.toLowerCase());
+
+      if (directSub) {
+        planName = normalizeName(directSub.plan_name);
+        leadsUsed = directSub.leads_used_this_month ?? 0;
+        aiUsed = directSub.ai_used_this_month ?? 0;
+        billingPeriodEnd = directSub.billing_period_end || directSub.current_period_end || billingPeriodEnd;
+
+        // Se a assinatura estiver cancelada/inativa, cai para free
+        if (!isSubActive && planName !== "admin") {
+          planName = "free";
+        }
+
+        const planLimits = limitsMap[planName as keyof typeof limitsMap] || limitsMap.free;
+        leadsLimit = planLimits.leads_limit;
+        aiLimit = planLimits.ai_limit;
+      }
+
+      const subInfo = usageData?.[0];
+      if (subInfo) {
+        const rpcPlan = normalizeName(subInfo.plan || subInfo.plan_name);
+        // Só aceita o plano da RPC se a assinatura direta não disser que está cancelada
+        if (!directSub || isSubActive || rpcPlan === "admin") {
+          planName = rpcPlan;
+          leadsLimit = subInfo.leads_limit || leadsLimit;
+          aiLimit = subInfo.ai_limit || aiLimit;
+        }
+        leadsUsed = subInfo.leads_used ?? leadsUsed;
+        aiUsed = subInfo.ai_used ?? aiUsed;
+        leadsBonus = subInfo.leads_bonus_balance ?? leadsBonus;
+        billingPeriodEnd = subInfo.billing_period_end || billingPeriodEnd;
+        isAdmin = subInfo.is_admin || isAdmin;
+      }
+
+      // Se for admin
+      if (isAdmin || planName === "admin") {
+        setUsage({
+          plan_name: "admin",
+          leads_limit: 999999,
+          leads_used: 0,
+          leads_remaining: 999999,
+          ai_limit: 999999,
+          ai_used: 0,
+          ai_remaining: 999999,
+          ai_available_total: 999999,
+          leads_bonus_balance: 999999,
+          leads_available_total: 999999,
+          billing_period_end: billingPeriodEnd,
+          is_admin: true,
+        });
+        return;
+      }
+
+      // Garantir limites oficiais
+      const limits = limitsMap[planName as keyof typeof limitsMap] || limitsMap.free;
+      const finalLeadsLimit = leadsLimit || limits.leads_limit;
+      const finalAiLimit = aiLimit || limits.ai_limit;
+
+      const leadsRemaining = Math.max(0, finalLeadsLimit - leadsUsed);
+      const aiRemaining = Math.max(0, finalAiLimit - aiUsed);
+      const bonusSaldo = Math.max(0, leadsBonus);
+      const effectiveRemaining = leadsRemaining + bonusSaldo;
+
+      setUsage({
+        plan_name: planName,
+        leads_limit: finalLeadsLimit,
+        leads_used: leadsUsed,
+        leads_remaining: leadsRemaining,
+        ai_limit: finalAiLimit,
+        ai_used: aiUsed,
+        ai_remaining: aiRemaining,
+        ai_available_total: aiRemaining,
+        leads_bonus_balance: bonusSaldo,
+        leads_available_total: effectiveRemaining,
+        billing_period_end: billingPeriodEnd,
+        is_admin: false,
+      });
+
     } catch (err: any) {
       console.error("Erro ao buscar uso do plano:", err);
       setError(err.message || "Erro ao buscar uso do plano");
@@ -159,15 +277,15 @@ export function useUsage(): UseUsageReturn {
       if (isUserAdmin) {
         setUsage({
           plan_name: "admin",
-          leads_limit: 99999,
+          leads_limit: 999999,
           leads_used: 0,
-          leads_remaining: 99999,
-          ai_limit: 99999,
+          leads_remaining: 999999,
+          ai_limit: 999999,
           ai_used: 0,
-          ai_remaining: 99999,
-          ai_available_total: 99999,
-          leads_bonus_balance: 99999,
-          leads_available_total: 99999,
+          ai_remaining: 999999,
+          ai_available_total: 999999,
+          leads_bonus_balance: 999999,
+          leads_available_total: 999999,
           billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           is_admin: true,
         });
@@ -181,6 +299,13 @@ export function useUsage(): UseUsageReturn {
   }, [user]);
 
   useEffect(() => {
+    // Se o auth ainda está carregando a sessão, mantemos o loading do plano ativo
+    // e evitamos fazer requisições precoces ao Supabase
+    if (authLoading) {
+      setLoading(true);
+      return;
+    }
+
     if (!user?.id) {
       setUsage(DEFAULT_USAGE);
       setLoading(false);
@@ -204,7 +329,7 @@ export function useUsage(): UseUsageReturn {
     return () => {
       clearTimeout(safetyTimeout);
     };
-  }, [user?.id, fetchUsage]);
+  }, [user?.id, authLoading, fetchUsage]);
 
   const derived = useMemo(() => {
     const isAdmin = usage.is_admin || usage.leads_limit >= 999999 || usage.ai_limit >= 999999;

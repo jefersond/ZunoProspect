@@ -3,6 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { ADMIN_LEADS_LIMIT, isAdminEmail, isAdminUser } from "@/config/admin";
 import { useAuth } from "@/hooks/useAuth";
 
+const defaultPeriodEnd = () =>
+  new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
 export const PLAN_LIMITS = {
   free: { leads_limit: 20, ai_limit: 3 },
   starter: { leads_limit: 300, ai_limit: 30 },

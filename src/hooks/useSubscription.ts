@@ -3,81 +3,62 @@ import { supabase } from "@/integrations/supabase/client";
 import { ADMIN_LEADS_LIMIT, isAdminEmail, isAdminUser } from "@/config/admin";
 import { useAuth } from "@/hooks/useAuth";
 
-const FREE_PLAN_LIMIT = 20;
+export const PLAN_LIMITS = {
+  free: { leads_limit: 20, ai_limit: 3 },
+  starter: { leads_limit: 300, ai_limit: 30 },
+  pro: { leads_limit: 800, ai_limit: 100 },
+  agency: { leads_limit: 2000, ai_limit: 300 },
+  admin: { leads_limit: 999999, ai_limit: 999999 }
+} as const;
 
-interface SubscriptionInfo {
-  plan?: string;
-  plan_name: string;
-  leads_limit: number;
-  leads_used: number;
-  leads_remaining: number;
-  billing_period_end: string;
-  ai_limit?: number;
-  ai_used?: number;
-  ai_remaining?: number;
-  ai_available_total?: number;
-  is_admin?: boolean;
-  usa_addon?: boolean;
-  usa_addon_active_until?: string | null;
-  us_prospecting_addon_status?: string | null;
-  leads_bonus_balance?: number;
-  leads_available_total?: number;
+export function normalizePlanName(value: unknown): string {
+  const key = String(value || "").trim().toLowerCase();
+
+  if (key === "iniciante" || key === "starter" || key === "basic") return "starter";
+  if (key === "agency" || key === "agencia" || key === "agência") return "agency";
+  if (key === "pro") return "pro";
+  if (key === "admin") return "admin";
+  return "free";
 }
-
-interface UseSubscriptionReturn {
-  subscription: SubscriptionInfo | null;
-  loading: boolean;
-  error: string | null;
-  isAdmin: boolean;
-  refetch: () => Promise<void>;
-  canUseLeads: (count: number) => boolean;
-  incrementLeadsUsed: (count: number) => Promise<boolean>;
-  getPlanDisplayName: () => string;
-  getUsagePercentage: () => number;
-  hasUsaAddon: boolean;
-  canUseUsaProspecting: () => boolean;
-}
-
-const defaultPeriodEnd = () =>
-  new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
 const starterFallback = (isAdmin: boolean): SubscriptionInfo => {
   if (isAdmin) {
     return {
       plan_name: "admin",
-      leads_limit: -1,
+      leads_limit: 999999,
       leads_used: 0,
-      leads_remaining: ADMIN_LEADS_LIMIT,
-      ai_limit: ADMIN_LEADS_LIMIT,
+      leads_remaining: 999999,
+      ai_limit: 999999,
       ai_used: 0,
-      ai_remaining: ADMIN_LEADS_LIMIT,
-      ai_available_total: ADMIN_LEADS_LIMIT,
+      ai_remaining: 999999,
+      ai_available_total: 999999,
       billing_period_end: defaultPeriodEnd(),
       is_admin: true,
       usa_addon: true,
       usa_addon_active_until: null,
       us_prospecting_addon_status: "active",
-      leads_bonus_balance: ADMIN_LEADS_LIMIT,
-      leads_available_total: ADMIN_LEADS_LIMIT,
+      leads_bonus_balance: 999999,
+      leads_available_total: 999999,
     };
   }
 
+  const limits = PLAN_LIMITS.free;
   return {
     plan_name: "free",
-    leads_limit: FREE_PLAN_LIMIT,
+    leads_limit: limits.leads_limit,
     leads_used: 0,
-    leads_remaining: FREE_PLAN_LIMIT,
-    ai_limit: 3,
+    leads_remaining: limits.leads_limit,
+    ai_limit: limits.ai_limit,
     ai_used: 0,
-    ai_remaining: 3,
-    ai_available_total: 3,
+    ai_remaining: limits.ai_limit,
+    ai_available_total: limits.ai_limit,
     billing_period_end: defaultPeriodEnd(),
     is_admin: false,
     usa_addon: false,
     usa_addon_active_until: null,
     us_prospecting_addon_status: null,
     leads_bonus_balance: 0,
-    leads_available_total: FREE_PLAN_LIMIT,
+    leads_available_total: limits.leads_limit,
   };
 };
 
@@ -87,7 +68,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const isFetchingRef = useRef(false);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const fetchSubscription = useCallback(async () => {
     if (isFetchingRef.current) return;
@@ -96,7 +77,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
     if (user && isAdminUser(user)) {
       setSubscription({
         plan_name: "admin",
-        leads_limit: -1,
+        leads_limit: 999999,
         leads_used: 0,
         leads_remaining: 999999,
         ai_limit: 999999,
@@ -137,10 +118,13 @@ export const useSubscription = (): UseSubscriptionReturn => {
         addonResponse
       ] = await Promise.all([
         supabase.rpc("is_admin", { _user_id: user.id }),
-        supabase.rpc("get_current_user_usage", {}),
+        supabase.rpc("get_current_user_usage", {}).catch(err => {
+          console.warn("[useSubscription] RPC get_current_user_usage falhou:", err);
+          return { data: null, error: err };
+        }),
         supabase
           .from("user_subscriptions")
-          .select("usa_addon, usa_addon_active_until")
+          .select("*")
           .eq("user_id", user.id)
           .maybeSingle(),
         supabase
@@ -152,8 +136,8 @@ export const useSubscription = (): UseSubscriptionReturn => {
       ]);
 
       const { data: adminCheck, error: adminError } = adminResponse;
-      const { data, error: fetchError } = usageResponse;
-      const { data: subData } = subResponse;
+      const { data: usageData, error: fetchError } = usageResponse;
+      const { data: directSub } = subResponse;
       const { data: addonData, error: addonError } = addonResponse;
 
       const admin = isAdminUser(user, { is_admin: adminCheck === true });
@@ -167,54 +151,84 @@ export const useSubscription = (): UseSubscriptionReturn => {
         console.warn("Erro ao buscar add-on EUA:", addonError.message);
       }
 
-      if (fetchError) {
-        console.error("Erro ao buscar assinatura via RPC:", fetchError);
-        setError(fetchError.message);
-        setSubscription(starterFallback(admin));
-        return;
+      // RESOLVER PLANO CONFORME REGRA 3 E 4
+      let rawPlanName = "free";
+      let billingEnd = defaultPeriodEnd();
+      let leadsUsed = 0;
+      let aiUsed = 0;
+      let leadsBonus = 0;
+
+      // Verificar se existe assinatura ativa/trialing em user_subscriptions
+      const isSubActive = directSub && ["active", "trialing"].includes(directSub.subscription_status?.toLowerCase());
+
+      if (directSub) {
+        rawPlanName = directSub.plan_name || "free";
+        billingEnd = directSub.billing_period_end || directSub.current_period_end || defaultPeriodEnd();
+        leadsUsed = directSub.leads_used_this_month ?? 0;
+        aiUsed = directSub.ai_used_this_month ?? 0;
       }
 
-      const subInfo = data?.[0];
-      if (!subInfo) {
-        setSubscription(starterFallback(admin));
-        return;
+      // Se a RPC de uso retornou dados, enriquecemos as variáveis
+      const subInfo = usageData?.[0];
+      if (subInfo) {
+        rawPlanName = subInfo.plan || subInfo.plan_name || rawPlanName;
+        leadsUsed = subInfo.leads_used ?? leadsUsed;
+        aiUsed = subInfo.ai_used ?? aiUsed;
+        leadsBonus = subInfo.leads_bonus_balance ?? leadsBonus;
+        billingEnd = subInfo.billing_period_end || billingEnd;
       }
+
+      // Regra 4: Normalização
+      let normalizedPlan = normalizePlanName(rawPlanName);
+
+      // Regra A/B: Se não existir assinatura ativa/trialing, reverte para Free
+      // (a menos que seja admin)
+      if (directSub && !isSubActive && normalizedPlan !== "free" && normalizedPlan !== "admin") {
+        console.warn(`[useSubscription] Assinatura ${normalizedPlan} inativa (${directSub.subscription_status}). Revertendo para Free.`);
+        normalizedPlan = "free";
+      }
+
+      // Regra 5: Limites oficiais
+      const limits = PLAN_LIMITS[normalizedPlan as keyof typeof PLAN_LIMITS] || PLAN_LIMITS.free;
 
       if (admin) {
         setSubscription({
-          ...subInfo,
           plan_name: "admin",
-          leads_limit: -1,
-          leads_remaining: ADMIN_LEADS_LIMIT,
+          leads_limit: 999999,
+          leads_used: 0,
+          leads_remaining: 999999,
+          ai_limit: 999999,
+          ai_used: 0,
+          ai_remaining: 999999,
+          ai_available_total: 999999,
+          billing_period_end: billingEnd,
           is_admin: true,
           usa_addon: true,
-          usa_addon_active_until: subData?.usa_addon_active_until ?? null,
+          usa_addon_active_until: directSub?.usa_addon_active_until ?? null,
           us_prospecting_addon_status: "active",
-          ai_limit: ADMIN_LEADS_LIMIT,
-          ai_used: 0,
-          ai_remaining: ADMIN_LEADS_LIMIT,
-          ai_available_total: ADMIN_LEADS_LIMIT,
-          leads_bonus_balance: ADMIN_LEADS_LIMIT,
-          leads_available_total: ADMIN_LEADS_LIMIT,
+          leads_bonus_balance: 999999,
+          leads_available_total: 999999,
         });
         return;
       }
 
-      const planRemaining = subInfo.leads_limit === -1
-        ? ADMIN_LEADS_LIMIT
-        : Math.max(0, (subInfo.leads_limit ?? FREE_PLAN_LIMIT) - (subInfo.leads_used ?? 0));
-      const bonusSaldo = Math.max(0, subInfo.leads_bonus_balance ?? 0);
-      const effectiveRemaining = Math.max(0, subInfo.leads_available_total ?? planRemaining + bonusSaldo);
+      const planRemaining = Math.max(0, limits.leads_limit - leadsUsed);
+      const bonusSaldo = Math.max(0, leadsBonus);
+      const effectiveRemaining = planRemaining + bonusSaldo;
 
       setSubscription({
-        ...subInfo,
-        plan_name: subInfo.plan ?? subInfo.plan_name ?? "free",
-        leads_limit: subInfo.leads_limit === 0 ? FREE_PLAN_LIMIT : subInfo.leads_limit,
+        plan_name: normalizedPlan,
+        leads_limit: limits.leads_limit,
+        leads_used: leadsUsed,
         leads_remaining: effectiveRemaining,
-        ai_remaining: Math.max(0, subInfo.ai_available_total ?? subInfo.ai_remaining ?? 0),
+        ai_limit: limits.ai_limit,
+        ai_used: aiUsed,
+        ai_remaining: Math.max(0, limits.ai_limit - aiUsed),
+        ai_available_total: Math.max(0, limits.ai_limit - aiUsed),
+        billing_period_end: billingEnd,
         is_admin: false,
-        usa_addon: addonData?.status === "active" || subData?.usa_addon === true,
-        usa_addon_active_until: subData?.usa_addon_active_until ?? null,
+        usa_addon: addonData?.status === "active" || directSub?.usa_addon === true,
+        usa_addon_active_until: directSub?.usa_addon_active_until ?? null,
         us_prospecting_addon_status: addonData?.status ?? null,
         leads_bonus_balance: bonusSaldo,
         leads_available_total: effectiveRemaining,
@@ -231,6 +245,13 @@ export const useSubscription = (): UseSubscriptionReturn => {
   }, [user]);
 
   useEffect(() => {
+    // Se o auth ainda está carregando a sessão, mantemos o loading do plano ativo
+    // e evitamos fazer requisições precoces ao Supabase
+    if (authLoading) {
+      setLoading(true);
+      return;
+    }
+
     if (!user?.id) {
       setSubscription(null);
       setIsAdmin(false);
@@ -255,7 +276,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
     return () => {
       clearTimeout(safetyTimeout);
     };
-  }, [user?.id, fetchSubscription]);
+  }, [user?.id, authLoading, fetchSubscription]);
 
   const canUseLeads = useCallback((count: number): boolean => {
     if (loading) return true;
@@ -295,17 +316,13 @@ export const useSubscription = (): UseSubscriptionReturn => {
     if (isAdmin) return "Admin (Ilimitado)";
     if (!subscription) return "Carregando...";
 
-    if (subscription.plan_name === "pro") {
-      if (subscription.leads_limit === 100) return "Iniciante";
-      return "Pro";
-    }
-
     const names: Record<string, string> = {
       free: "Free",
       iniciante: "Iniciante",
       starter: "Iniciante",
       pro: "Pro",
       agencia: "Agência",
+      agency: "Agência",
       admin: "Admin (Ilimitado)",
     };
     return names[subscription.plan_name] || subscription.plan_name;

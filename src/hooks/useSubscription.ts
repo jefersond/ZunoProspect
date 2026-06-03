@@ -251,7 +251,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
       setLoading(false);
       isFetchingRef.current = false;
     }
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     // Se o auth ainda está carregando a sessão, mantemos o loading do plano ativo
@@ -285,7 +285,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
     return () => {
       clearTimeout(safetyTimeout);
     };
-  }, [user?.id, authLoading, fetchSubscription]);
+  }, [user?.id, authLoading]);
 
   const canUseLeads = useCallback((count: number): boolean => {
     if (loading) return true;
@@ -351,12 +351,12 @@ export const useSubscription = (): UseSubscriptionReturn => {
     if (!subscription.usa_addon) return false;
     if (!subscription.usa_addon_active_until) return true;
     return new Date(subscription.usa_addon_active_until) > new Date();
-  }, [subscription])();
+  }, [subscription]);
 
   const canUseUsaProspecting = useCallback((): boolean => {
     if (isAdmin) return true;
-    return hasUsaAddon;
-  }, [subscription, isAdmin, hasUsaAddon]);
+    return hasUsaAddon();
+  }, [isAdmin, hasUsaAddon]);
 
   return {
     subscription,

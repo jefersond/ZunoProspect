@@ -223,8 +223,8 @@ export function useUsage(): UseUsageReturn {
         // Só aceita o plano da RPC se a assinatura direta não disser que está cancelada
         if (!directSub || isSubActive || rpcPlan === "admin") {
           planName = rpcPlan;
-          leadsLimit = subInfo.leads_limit || leadsLimit;
-          aiLimit = subInfo.ai_limit || aiLimit;
+          leadsLimit = subInfo.leads_limit ?? leadsLimit;
+          aiLimit = subInfo.ai_limit ?? aiLimit;
         }
         leadsUsed = subInfo.leads_used ?? leadsUsed;
         aiUsed = subInfo.ai_used ?? aiUsed;
@@ -303,7 +303,7 @@ export function useUsage(): UseUsageReturn {
       setLoading(false);
       isFetchingRef.current = false;
     }
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     // Se o auth ainda está carregando a sessão, mantemos o loading do plano ativo
@@ -336,7 +336,7 @@ export function useUsage(): UseUsageReturn {
     return () => {
       clearTimeout(safetyTimeout);
     };
-  }, [user?.id, authLoading, fetchUsage]);
+  }, [user?.id, authLoading]);
 
   const derived = useMemo(() => {
     const isAdmin = usage.is_admin || usage.leads_limit >= 999999 || usage.ai_limit >= 999999;

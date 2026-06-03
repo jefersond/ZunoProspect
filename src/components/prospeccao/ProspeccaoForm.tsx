@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -101,6 +101,7 @@ export const ProspeccaoForm = () => {
     formState: { errors },
     setValue,
     watch,
+    getValues,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -112,10 +113,17 @@ export const ProspeccaoForm = () => {
     },
   });
 
+  // Ref para cleanup do poll de progresso ao desmontar
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
+
   // Get user info for upsell
   useEffect(() => {
-    console.log("[ProspeccaoForm] render: country selector enabled");
-
     const fetchUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
@@ -135,14 +143,14 @@ export const ProspeccaoForm = () => {
   useEffect(() => {
     if (usage) {
       const maxAllowed = isAdmin ? 100 : leadsAvailableTotal;
-      const currentQuantidade = watch("quantidade");
-      
+      const currentQuantidade = getValues("quantidade");
       // Se quantidade atual é maior que o permitido, ajusta
       if (currentQuantidade > maxAllowed && maxAllowed > 0) {
         setValue("quantidade", Math.min(20, maxAllowed));
       }
     }
-  }, [usage, isAdmin, leadsAvailableTotal, setValue, watch]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usage?.plan_name, isAdmin, leadsAvailableTotal, setValue]);
 
   const foco = watch("foco");
   const canaisProspeccao = watch("canaisProspeccao");
@@ -284,7 +292,7 @@ export const ProspeccaoForm = () => {
     
     console.log(`[Busca] Iniciando busca de ${effectiveQuantidade} leads em ${data.cidade}/${data.estado} - ${data.nicho}`);
 
-    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    // pollIntervalRef.current será limpo pelo useEffect de cleanup ao desmontar
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -324,7 +332,7 @@ export const ProspeccaoForm = () => {
       trackEvent("search_started", searchEventData);
 
       // Inicia polling de progresso
-      pollInterval = await startProgressPolling(user.id, startTime, effectiveQuantidade);
+      pollIntervalRef.current = await startProgressPolling(user.id, startTime, effectiveQuantidade);
       
       // Buscar google_place_ids já existentes para evitar duplicatas
       let existingPlaceIds: string[] = [];
@@ -565,10 +573,11 @@ export const ProspeccaoForm = () => {
       console.error("[Busca] Erro:", error);
       
       // Para o polling
-      if (pollInterval) {
-        clearInterval(pollInterval);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
-      
+
       // Extrai a mensagem de erro mais específica
       let errorMessage = "Não foi possível buscar os leads";
       let isTimeoutError = false;

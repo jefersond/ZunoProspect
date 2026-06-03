@@ -27,6 +27,7 @@ import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { isAdminUser } from "@/config/admin";
 
 const ZUNO_INTERNAL_PROSPECTING_FOCUS = "zuno_internal_prospecting";
+const SEARCH_TIMEOUT_MS = 60_000;
 
 const focusOptions = [
   { label: "Full Service", value: "Full Service" },
@@ -39,6 +40,37 @@ const focusOptions = [
   { label: "CRM", value: "CRM" },
   { label: "Prospecção para a Zuno", value: ZUNO_INTERNAL_PROSPECTING_FOCUS, adminOnly: true },
 ];
+
+const withSearchTimeout = async <T,>(promise: Promise<T>): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error("Essa busca demorou mais que o esperado. Tente novamente com menos leads ou filtros mais específicos."));
+    }, SEARCH_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
+
+const safeTrackEvent = (eventName: string, eventData: Record<string, unknown>) => {
+  try {
+    trackEvent(eventName, eventData);
+  } catch (trackingError) {
+    console.warn("[Tracking] Falhou, mas não bloqueia UI", trackingError);
+  }
+};
+
+const safeTrackMetaCustomEvent = (eventName: string, eventData: Record<string, unknown>) => {
+  try {
+    trackMetaCustomEvent(eventName, eventData);
+  } catch (trackingError) {
+    console.warn("[Tracking] Falhou, mas não bloqueia UI", trackingError);
+  }
+};
 
 const formSchema = z.object({
   pais: z.enum(["BR", "US"]).default("BR"),
@@ -363,14 +395,14 @@ export const ProspeccaoForm = () => {
           : {}),
       };
 
-      trackMetaCustomEvent("Search_Started", {
+      safeTrackMetaCustomEvent("Search_Started", {
         country: searchEventData.country,
         state: searchEventData.state,
         city: searchEventData.city,
         niche: searchEventData.niche,
         requested_quantity: searchEventData.requested_quantity,
       });
-      trackEvent("search_started", searchEventData);
+      safeTrackEvent("search_started", searchEventData);
 
       // Inicia polling de progresso
       pollIntervalRef.current = await startProgressPolling(user.id, startTime, effectiveQuantidade);
@@ -404,20 +436,22 @@ export const ProspeccaoForm = () => {
 
       console.log(`[Busca] Chamando edge function buscar-leads...`);
 
-      const { data: responseData, error } = await supabase.functions.invoke("buscar-leads", {
-        body: {
-          cidade: data.cidade,
-          estado: data.estado,
-          nicho: data.nicho,
-          quantidade: effectiveQuantidade,
-          foco: data.foco,
-          proximidadeAtiva: data.proximidadeAtiva,
-          raioKm: data.raioKm,
-          canaisProspeccao: data.canaisProspeccao,
-          excludePlaceIds: existingPlaceIds,
-          pais: data.pais || "BR",
-        },
-      });
+      const { data: responseData, error } = await withSearchTimeout(
+        supabase.functions.invoke("buscar-leads", {
+          body: {
+            cidade: data.cidade,
+            estado: data.estado,
+            nicho: data.nicho,
+            quantidade: effectiveQuantidade,
+            foco: data.foco,
+            proximidadeAtiva: data.proximidadeAtiva,
+            raioKm: data.raioKm,
+            canaisProspeccao: data.canaisProspeccao,
+            excludePlaceIds: existingPlaceIds,
+            pais: data.pais || "BR",
+          },
+        })
+      );
 
       // Para o polling
       if (pollIntervalRef.current) {
@@ -465,16 +499,24 @@ export const ProspeccaoForm = () => {
       setLeadsAnalyzed(0);
       setEstimatedTimeSeconds(0);
 
+      const searchRunIdFromResponse = responseData?.searchRunId;
+      window.dispatchEvent(new CustomEvent("searchFinished", {
+        detail: { searchRunId: searchRunIdFromResponse, response: responseData }
+      }));
+      setLoading(false);
+      setCurrentStep(0);
+      setShowRepeatButton(true);
+
       console.log(`[Busca] Concluída! ${leadsCount} leads processados (${newLeadsCount} novos, ${updatedLeadsCount} atualizados)`);
 
-      trackEvent("search_completed", {
+      safeTrackEvent("search_completed", {
         ...searchEventData,
         returned_quantity: leadsCount,
         new_leads_count: newLeadsCount,
         updated_leads_count: updatedLeadsCount,
         duration_ms: durationMs,
       });
-      trackMetaCustomEvent("Search_Completed", {
+      safeTrackMetaCustomEvent("Search_Completed", {
         country: searchEventData.country,
         state: searchEventData.state,
         city: searchEventData.city,
@@ -486,12 +528,12 @@ export const ProspeccaoForm = () => {
       const firstSearchKey = `zuno_first_search_completed_${user.id}`;
       if (!localStorage.getItem(firstSearchKey)) {
         localStorage.setItem(firstSearchKey, new Date().toISOString());
-        trackMetaCustomEvent("First_Search_Completed", {
+        safeTrackMetaCustomEvent("First_Search_Completed", {
           city: searchEventData.city,
           niche: searchEventData.niche,
           leads_count: leadsCount,
         });
-        trackEvent("first_search_completed", {
+        safeTrackEvent("first_search_completed", {
           ...searchEventData,
           returned_quantity: leadsCount,
           new_leads_count: newLeadsCount,
@@ -595,21 +637,6 @@ export const ProspeccaoForm = () => {
         console.error("Erro ao salvar no histórico:", error);
       }
 
-      // Recarrega a lista de leads com o searchRunId da busca atual
-      const searchRunIdFromResponse = responseData?.searchRunId;
-      window.dispatchEvent(new CustomEvent("searchFinished", { 
-        detail: { searchRunId: searchRunIdFromResponse } 
-      }));
-      window.dispatchEvent(new CustomEvent("reloadLeads", { 
-        detail: { searchRunId: searchRunIdFromResponse } 
-      }));
-      
-      // Aguarda um pouco antes de resetar o progresso
-      setTimeout(() => {
-        setLoading(false);
-        setCurrentStep(0);
-        setShowRepeatButton(true);
-      }, 1500);
     } catch (error: any) {
       console.error("[Busca] Erro:", error);
       
@@ -626,9 +653,9 @@ export const ProspeccaoForm = () => {
       if (error.message) {
         errorMessage = error.message;
         // Detecta timeout/conexão
-        if (error.message.includes('timeout') || error.message.includes('504') || error.message.includes('FunctionsHttpError')) {
+        if (error.message.includes('timeout') || error.message.includes('demorou mais que o esperado') || error.message.includes('504') || error.message.includes('FunctionsHttpError')) {
           isTimeoutError = true;
-          errorMessage = "A busca demorou mais que o esperado. Os leads podem ter sido salvos mesmo assim.";
+          errorMessage = "Essa busca demorou mais que o esperado. Tente novamente com menos leads ou filtros mais específicos.";
         }
       } else if (error.context?.body) {
         try {
@@ -641,21 +668,16 @@ export const ProspeccaoForm = () => {
         }
       }
       
-      // Se foi timeout, recarrega os leads (podem ter sido salvos)
-      if (isTimeoutError) {
-        window.dispatchEvent(new CustomEvent("reloadLeads"));
-      }
-      
       setSearchError(errorMessage);
       window.dispatchEvent(new CustomEvent("searchFailed", { 
         detail: { error: errorMessage } 
       }));
-      trackMetaCustomEvent("Search_Failed", {
+      safeTrackMetaCustomEvent("Search_Failed", {
         city: data.cidade,
         niche: data.nicho,
         error_message: errorMessage,
       });
-      trackEvent("search_failed", {
+      safeTrackEvent("search_failed", {
         country: data.pais || "BR",
         state: data.estado,
         city: data.cidade,
@@ -667,13 +689,17 @@ export const ProspeccaoForm = () => {
       
       toast({
         variant: "destructive",
-        title: isTimeoutError ? "Busca parcialmente concluída" : "Erro na busca",
-        description: isTimeoutError 
-          ? "Recarregue para ver os leads encontrados. A análise IA pode estar em andamento."
-          : errorMessage,
+        title: isTimeoutError ? "Busca demorou demais" : "Erro na busca",
+        description: errorMessage,
       });
       setLoading(false);
       setCurrentStep(0);
+    } finally {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      setLoading(false);
     }
   };
 

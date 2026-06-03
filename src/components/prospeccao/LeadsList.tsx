@@ -35,6 +35,7 @@ const normalizeLeadsResponse = (response: any): any[] => {
   if (Array.isArray(response.data?.leads)) return response.data.leads;
   if (Array.isArray(response.results)) return response.results;
   if (Array.isArray(response.empresas)) return response.empresas;
+  if (Array.isArray(response.items)) return response.items;
   return [];
 };
 
@@ -240,8 +241,12 @@ export const LeadsList = () => {
     };
   };
 
-  const loadLeads = async (searchRunId?: string) => {
+  const loadLeads = async (searchRunId?: string, options?: { preserveExistingLeads?: boolean; searchCompletedLoad?: boolean }) => {
     try {
+      if (!options?.preserveExistingLeads) {
+        setLoading(true);
+      }
+      setSearchErrorState(null);
       const functionName = 'get-leads-secure';
       const payload = {
         action: 'list',
@@ -301,11 +306,19 @@ export const LeadsList = () => {
       }
       
       const rawLeads = normalizeLeadsResponse(data);
+      if (import.meta.env.DEV) {
+        console.log("[LeadSearch] response", data);
+        console.log("[LeadSearch] normalizedLeads", rawLeads);
+      }
       
       // Se count > 0 mas array vazio, loga erro no console
       const count = data?.data?.pagination?.total ?? data?.leadsCount ?? data?.count ?? 0;
       if (count > 0 && rawLeads.length === 0) {
-        console.error("Formato inesperado de resposta da busca.", data);
+        const message = "Busca finalizada, mas não conseguimos interpretar os leads retornados.";
+        console.error(message, data);
+        if (options?.searchCompletedLoad && !options?.preserveExistingLeads) {
+          setSearchErrorState(message);
+        }
       }
       
       const leadsFormatted: LeadProspeccao[] = rawLeads.map(transformLeadFromDb);
@@ -318,11 +331,18 @@ export const LeadsList = () => {
       }
     } catch (error: any) {
       console.error("Erro ao carregar leads:", error);
-      toast({
-        variant: "destructive",
-        title: "Erro ao carregar leads",
-        description: error.message,
-      });
+      const message = error?.message || "Não foi possível carregar os leads.";
+      if (options?.preserveExistingLeads) {
+        // A busca já exibiu leads pela resposta direta; falha no reload seguro não deve bloquear a UI.
+      } else if (options?.searchCompletedLoad) {
+        setSearchErrorState(message);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Erro ao carregar leads",
+          description: message,
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -335,6 +355,7 @@ export const LeadsList = () => {
     // Listener para iniciar busca
     const handleSearchStarted = () => {
       setIsSearching(true);
+      setLoading(false);
       setSearchCompleted(false);
       setSearchErrorState(null);
       setLeads([]);
@@ -343,11 +364,29 @@ export const LeadsList = () => {
     window.addEventListener("searchStarted", handleSearchStarted);
 
     // Listener para terminar busca com sucesso
-    const handleSearchFinished = (event: CustomEvent<{ searchRunId?: string }>) => {
+    const handleSearchFinished = (event: CustomEvent<{ searchRunId?: string; response?: any }>) => {
       setIsSearching(false);
       setSearchCompleted(true);
       const searchRunId = event.detail?.searchRunId;
-      loadLeads(searchRunId);
+      const response = event.detail?.response;
+      const rawLeads = normalizeLeadsResponse(response);
+      if (import.meta.env.DEV) {
+        console.log("[LeadSearch] response", response);
+        console.log("[LeadSearch] normalizedLeads", rawLeads);
+      }
+
+      if (rawLeads.length > 0) {
+        setLeads(rawLeads.map(transformLeadFromDb));
+        setSearchErrorState(null);
+        setLoading(false);
+        if (searchRunId) setCurrentSearchRunId(searchRunId);
+      } else if (response && (response.success === true || response.leadsCount === 0 || response.newLeadsCount === 0)) {
+        setLeads([]);
+        setSearchErrorState(null);
+        setLoading(false);
+      }
+
+      loadLeads(searchRunId, { preserveExistingLeads: rawLeads.length > 0, searchCompletedLoad: true });
     };
     window.addEventListener("searchFinished", handleSearchFinished as EventListener);
 
@@ -356,7 +395,7 @@ export const LeadsList = () => {
       setIsSearching(false);
       setSearchCompleted(true);
       setSearchErrorState(event.detail?.error || "Erro na busca");
-      loadLeads(); // Restaura a lista de leads anteriores para que a tela não fique congelada em loading
+      setLoading(false);
     };
     window.addEventListener("searchFailed", handleSearchFailed as EventListener);
 
@@ -372,7 +411,7 @@ export const LeadsList = () => {
     const handleClear = () => {
       setLeads([]);
       setLockedLeads([]);
-      setLoading(true);
+      setLoading(false);
     };
     window.addEventListener("clearLeads", handleClear);
     
@@ -1009,7 +1048,21 @@ export const LeadsList = () => {
     );
   }
 
-  if (loading) {
+  if (searchErrorState) {
+    return (
+      <Card className="border-destructive/30 bg-destructive/5">
+        <CardContent className="py-8 text-center flex flex-col items-center justify-center gap-3">
+          <p className="text-destructive font-semibold">Não foi possível carregar os leads.</p>
+          <p className="text-xs text-muted-foreground">{searchErrorState}</p>
+          <Button onClick={() => loadLeads(currentSearchRunId || undefined, { searchCompletedLoad: searchCompleted })} variant="outline" size="sm" className="mt-2">
+            Tentar novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (loading && !searchCompleted) {
     return (
       <Card>
         <CardContent className="py-8 text-center flex flex-col items-center justify-center gap-3">
@@ -1020,26 +1073,12 @@ export const LeadsList = () => {
     );
   }
 
-  if (searchErrorState) {
-    return (
-      <Card className="border-destructive/30 bg-destructive/5">
-        <CardContent className="py-8 text-center flex flex-col items-center justify-center gap-3">
-          <p className="text-destructive font-semibold">Não conseguimos carregar os leads encontrados.</p>
-          <p className="text-xs text-muted-foreground">{searchErrorState}</p>
-          <Button onClick={() => loadLeads(currentSearchRunId || undefined)} variant="outline" size="sm" className="mt-2">
-            Tentar novamente
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
   if (leads.length === 0 && lockedLeads.length === 0) {
     return (
       <Card>
         <CardContent className="py-8 text-center">
           <p className="text-muted-foreground">
-            Nenhum lead encontrado. Faça uma busca para começar!
+            {searchCompleted ? "Nenhum lead encontrado para esses filtros." : "Nenhum lead encontrado. Faça uma busca para começar!"}
           </p>
         </CardContent>
       </Card>

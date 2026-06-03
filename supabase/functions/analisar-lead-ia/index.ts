@@ -296,6 +296,48 @@ interface AnaliseResult {
   }>;
 }
 
+const FORBIDDEN_ZUNO_DISCLOSURE_TERMS = [
+  "encontrei você usando a Zuno",
+  "achei você pela Zuno",
+  "a própria Zuno encontrou",
+  "usando a própria Zuno",
+  "se ela me ajudou a encontrar você",
+  "se a Zuno me ajudou a encontrar você",
+  "usei a Zuno para encontrar",
+  "fui até você usando a Zuno",
+  "fui até você usando a ferramenta",
+];
+
+function normalizeDisclosureText(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function containsForbiddenZunoDisclosure(text?: string | null): boolean {
+  if (!text) return false;
+  const normalizedText = normalizeDisclosureText(text);
+  return FORBIDDEN_ZUNO_DISCLOSURE_TERMS
+    .map(normalizeDisclosureText)
+    .some((term) => normalizedText.includes(term));
+}
+
+function analysisContainsForbiddenZunoDisclosure(analise: AnaliseResult): boolean {
+  const texts = [
+    ...(analise.diagnostico_bullets || []),
+    ...(analise.plano_prospeccao_7dias || []).flatMap((dia) => [
+      dia.acao_sugerida,
+      dia.mensagem,
+      dia.objecao_provavel,
+      dia.resposta_sugerida,
+      dia.cta,
+    ]),
+  ];
+
+  return texts.some(containsForbiddenZunoDisclosure);
+}
+
 async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
   const signals: SiteSignals = {
     whatsapp_on_site: false,
@@ -786,6 +828,11 @@ serve(async (req) => {
       }
     }
 
+    if (isZunoInternalProspectingFocus(leadData.foco) && analysisContainsForbiddenZunoDisclosure(analise)) {
+      console.warn("🚫 Análise da Zuno continha disclosure proibido; aplicando fallback seguro.");
+      analise = generateZunoInternalMockAnalise(leadData);
+    }
+
     // Save analysis to DB
     if (leadId) {
       const { error: updateError } = await supabaseAdmin.from("leads").update({
@@ -1239,16 +1286,21 @@ Sua tarefa é analisar se o lead pode ser um bom possível cliente para a própr
 
 A Zuno Propect é uma plataforma de prospecção B2B com IA que ajuda profissionais e empresas a encontrar empresas por cidade e nicho, analisar oportunidades e gerar abordagens prontas para WhatsApp, Instagram e e-mail.
 
-Mensagem central permitida para este foco interno de admin:
-"Eu encontrei você usando a própria Zuno. Se ela me ajudou a encontrar você, ela também pode ajudar você a encontrar clientes para o seu negócio."
+IMPORTANTE:
+A mensagem final nunca deve dizer que o lead foi encontrado usando a Zuno ou qualquer ferramenta. Use o contexto da Zuno apenas internamente para montar a abordagem.
 
 Regras obrigatórias:
 - Este prompt só existe para uso interno/admin da Zuno.
 - A abordagem deve vender/convidar o lead a conhecer a Zuno.
+- Comece pelo contexto do lead, pela dor provável do nicho ou por uma pergunta consultiva.
+- Apresente a ideia de melhorar prospecção B2B com IA.
+- Não revele o método de descoberta do lead.
+- Não pareça robótico e não comece vendendo agressivamente.
 - Use o nicho e a cidade como contexto, sem inventar dados.
 - Se faltar site, Instagram, telefone ou e-mail, não mencione a ausência como certeza.
 - A mensagem precisa parecer humana, curta, direta e consultiva.
 - O objetivo é gerar conversa, não vender de forma agressiva.
+- Frases proibidas: "encontrei você usando a Zuno", "achei você pela Zuno", "a própria Zuno encontrou", "usando a própria Zuno", "se ela me ajudou a encontrar você", "usei a Zuno para encontrar", "fui até você usando a Zuno".
 - Retorne somente dados compatíveis com a função gerar_analise_lead.
 - diagnostico_bullets deve explicar fit, dor provável e motivo de interesse pela Zuno.
 - probabilidade_conversao deve ser um score de 0 a 100.
@@ -2397,11 +2449,15 @@ TAREFA
 8. Crie follow-ups curtos até completar 7 dias.
 
 REGRAS DAS MENSAGENS
-- Use esta ideia no primeiro contato quando fizer sentido: "Eu encontrei você usando a própria Zuno. Se ela me ajudou a encontrar você, ela também pode ajudar você a encontrar clientes para o seu negócio."
-- Adapte a frase para soar natural, sem parecer robótica.
+- Nunca diga que o lead foi encontrado usando a Zuno ou qualquer ferramenta.
+- Comece pelo contexto ou dor provável do lead.
+- Exemplo seguro: "${lead.nome}, tudo bem? Vi que vocês atuam com ${lead.nicho} e imaginei que prospecção de novos clientes faça parte da rotina. Estou trabalhando com uma solução que ajuda a encontrar empresas com potencial e criar abordagens mais contextualizadas com IA. Faz sentido eu te mostrar um exemplo prático?"
+- Alternativa consultiva: "${lead.nome}, tudo bem? Hoje vocês têm algum processo ativo para encontrar empresas com potencial e iniciar conversas comerciais de forma mais previsível? Estou trabalhando com uma solução que ajuda nessa parte: encontrar empresas por cidade e nicho e gerar abordagens com IA."
+- As mensagens devem soar naturais, curtas e humanas.
 - Não invente nome de responsável, resultados, faturamento, clientes, métricas ou presença em redes.
 - Não use tom agressivo, pressão ou promessa garantida.
 - Use o nicho "${lead.nicho}" e a cidade "${lead.cidade}" como contexto comercial.
+- Frases proibidas: "encontrei você usando a Zuno", "achei você pela Zuno", "a própria Zuno encontrou", "usando a própria Zuno", "se ela me ajudou a encontrar você", "usei a Zuno para encontrar", "fui até você usando a Zuno".
 - Retorne a análise usando somente diagnostico_bullets, probabilidade_conversao e plano_prospeccao_7dias.`;
 }
 
@@ -2780,9 +2836,9 @@ function generateZunoInternalMockAnalise(lead: LeadData): AnaliseResult {
       `Fit médio/alto: ${lead.nome} atua em ${lead.nicho}${cityContext}, perfil que pode depender de prospecção recorrente.`,
       "Dor provável: encontrar novos clientes com consistência sem gastar tempo montando listas e mensagens manualmente.",
       "A Zuno pode gerar valor ao localizar empresas por cidade/nicho e transformar a busca em abordagens prontas.",
-      "A mensagem deve ser consultiva, curta e focada em mostrar como a própria busca vira exemplo prático.",
+      "A mensagem deve ser consultiva, curta e focada na dor de prospecção, sem revelar como o lead foi descoberto.",
       "Evitar promessas de resultado garantido; posicionar como ferramenta para acelerar prospecção B2B.",
-      "Primeiro contato recomendado: mencionar a própria Zuno de forma simples e convidar para ver como funcionaria no nicho do lead.",
+      "Primeiro contato recomendado: começar pelo nicho, perguntar sobre processo comercial e convidar para ver um exemplo prático.",
     ],
     probabilidade_conversao: lead.website || lead.instagram_url || lead.whatsapp_number || lead.email ? 68 : 52,
     plano_prospeccao_7dias: [
@@ -2790,16 +2846,16 @@ function generateZunoInternalMockAnalise(lead: LeadData): AnaliseResult {
         dia: 1,
         canal: "whatsapp",
         acao_sugerida: "Enviar mensagem curta de abertura",
-        mensagem: `${contactName}, tudo bem? Eu encontrei você usando a própria Zuno. Se ela me ajudou a encontrar você, ela também pode ajudar você a encontrar clientes para o seu negócio. Faz sentido eu te mostrar em 5 minutos como isso funcionaria para ${lead.nicho}${cityContext}?`,
+        mensagem: `${contactName}, tudo bem? Vi que vocês atuam com ${lead.nicho}${cityContext} e imaginei que prospecção de novos clientes seja uma parte importante da rotina de vocês. Estou trabalhando com uma solução que ajuda a encontrar empresas com potencial e criar abordagens mais contextualizadas com IA. Faz sentido eu te mostrar um exemplo prático?`,
         objecao_provavel: "Não tenho interesse agora",
-        resposta_sugerida: "Sem problema. A ideia não é te vender nada na marra, só mostrar como a busca por cidade e nicho vira uma lista prática de oportunidades.",
+        resposta_sugerida: "Sem problema. A ideia não é te vender nada na marra, só mostrar como uma rotina de prospecção por cidade e nicho pode ficar mais prática.",
         cta: "Posso te mandar um exemplo simples?",
       },
       {
         dia: 2,
         canal: "instagram",
         acao_sugerida: "Enviar DM leve e direta",
-        mensagem: `Oi, ${contactName}. Vi que vocês atuam com ${lead.nicho}${cityContext}. A Zuno ajuda a encontrar empresas por nicho/cidade e já montar abordagens para WhatsApp, Instagram e e-mail. Quer ver um exemplo rápido aplicado ao seu mercado?`,
+        mensagem: `Oi, ${contactName}. Queria te fazer uma pergunta rápida: hoje vocês têm algum processo ativo para encontrar empresas com potencial e iniciar conversas comerciais de forma mais previsível? Tenho trabalhado com uma solução de prospecção com IA que ajuda nessa parte. Quer ver um exemplo rápido aplicado ao seu mercado?`,
         objecao_provavel: "Como isso funciona?",
         resposta_sugerida: "Você informa cidade, nicho e quantidade. A Zuno busca empresas, analisa oportunidades e sugere mensagens prontas para abordar.",
         cta: "Quer que eu te mostre um exemplo?",
@@ -2817,7 +2873,7 @@ function generateZunoInternalMockAnalise(lead: LeadData): AnaliseResult {
         dia: 4,
         canal: "whatsapp",
         acao_sugerida: "Follow-up com dor provável",
-        mensagem: `${contactName}, só complementando: muita empresa perde tempo procurando contatos e pensando no que escrever. A Zuno tenta resolver exatamente essa parte: encontrar oportunidades e sugerir abordagens prontas. Quer ver como ficaria para ${lead.nicho}?`,
+        mensagem: `${contactName}, só complementando: muita empresa perde tempo procurando contatos e pensando no que escrever. A solução que estou apresentando ajuda exatamente nessa parte: encontrar oportunidades e sugerir abordagens prontas. Quer ver como ficaria para ${lead.nicho}?`,
         objecao_provavel: "Estou sem tempo",
         resposta_sugerida: "Justamente por isso pensei em te mostrar de forma objetiva. Em poucos minutos dá para entender se faz sentido.",
         cta: "Pode ser ainda essa semana?",
@@ -2826,7 +2882,7 @@ function generateZunoInternalMockAnalise(lead: LeadData): AnaliseResult {
         dia: 5,
         canal: "instagram",
         acao_sugerida: "Follow-up leve",
-        mensagem: `Passando rapidinho, ${contactName}: a Zuno pode ajudar a montar listas de empresas e abordagens por nicho/cidade, sem começar do zero toda vez. Quer que eu envie um exemplo em texto?`,
+        mensagem: `Passando rapidinho, ${contactName}: a ideia é ajudar a montar listas de empresas e abordagens por nicho/cidade, sem começar do zero toda vez. Quer que eu envie um exemplo em texto?`,
         objecao_provavel: "Manda mais informações",
         resposta_sugerida: "Claro. Ela busca leads por região e segmento, analisa o perfil e cria mensagens para canais como WhatsApp, Instagram e e-mail.",
         cta: "Te envio um exemplo agora?",

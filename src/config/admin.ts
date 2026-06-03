@@ -15,6 +15,7 @@ type AdminUserLike = {
 } | null | undefined;
 
 type AdminProfileLike = {
+  email?: string | null;
   role?: string | null;
   is_admin?: boolean | null;
 } | null | undefined;
@@ -26,6 +27,7 @@ export const isAdminUser = (
   return Boolean(
     profile?.role === "admin" ||
     profile?.is_admin === true ||
-    isAdminEmail(user?.email),
+    isAdminEmail(user?.email) ||
+    isAdminEmail(profile?.email),
   );
 };

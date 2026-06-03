@@ -90,6 +90,11 @@ const ADMIN_EMAILS = new Set([
   "jeferson.zanotell@gmail.com",
   "jefeson.zanotell@gmail.com",
 ]);
+const ZUNO_INTERNAL_PROSPECTING_FOCUS = "zuno_internal_prospecting";
+
+function isZunoInternalProspectingFocus(foco?: string | null): boolean {
+  return foco === ZUNO_INTERNAL_PROSPECTING_FOCUS;
+}
 
 const BRAZILIAN_STATE_NAMES: Record<string, string> = {
   "acre": "AC",
@@ -387,6 +392,7 @@ serve(async (req) => {
     const isAdminUser = ADMIN_EMAILS.has(normalizedEmail) || adminCheck === true;
 
     const body: ProspeccaoRequest = await req.json();
+    body.foco = body.foco || (body as any).focus;
     const requestedCountry = String(body.pais || "BR").trim().toUpperCase();
     const requestedQuantity = Math.max(1, Math.min(100, Number(body.quantidade) || 10));
     const receivedCidade = body.cidade || "";
@@ -406,7 +412,36 @@ serve(async (req) => {
       niche: body.nicho,
       focus: body.foco,
       requested_quantity: requestedQuantity,
+      ...(isZunoInternalProspectingFocus(body.foco) && isAdminUser
+        ? {
+            internal_zuno_prospecting: true,
+            admin_only: true,
+            is_internal_event: true,
+            event_source_type: "admin",
+          }
+        : {}),
     };
+
+    if (isZunoInternalProspectingFocus(body.foco) && !isAdminUser) {
+      await logAppEvent(supabaseAdmin, {
+        userId: user.id,
+        eventType: "admin_only_focus_blocked",
+        eventData: {
+          attempted_focus: ZUNO_INTERNAL_PROSPECTING_FOCUS,
+          user_id: user.id,
+          user_email: normalizedEmail,
+        },
+        ipAddress: req.headers.get("x-forwarded-for"),
+        userAgent: req.headers.get("user-agent"),
+      });
+      return errorResponse(
+        corsHeaders,
+        403,
+        "Este foco está disponível apenas para administradores.",
+        "A opção Prospecção para a Zuno é exclusiva para administradores.",
+        "ADMIN_ONLY_FOCUS",
+      );
+    }
 
     await upsertSearchLog(supabaseAdmin, {
       search_run_id: searchRunId,

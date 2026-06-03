@@ -108,11 +108,17 @@ export const useOAuthCallback = () => {
             // Already on checkout page
             return;
           } else if (localStorage.getItem("checkout_pending")) {
-            const pendingData = JSON.parse(localStorage.getItem("checkout_pending") || "{}");
-            const plano = pendingData.plano?.toLowerCase() || "pro";
-            const isAnual = pendingData.isAnual || false;
-            const leadsQty = pendingData.leadsQty || pendingData.selectedLeads || "";
-            navigate(appendReferralToPath(`/checkout?plano=${plano}&anual=${isAnual}&google_auth=true${leadsQty ? `&leadsQty=${encodeURIComponent(String(leadsQty))}` : ""}`, pendingData.referralCode || getCurrentReferralCode()), { replace: true });
+            try {
+              const pendingData = JSON.parse(localStorage.getItem("checkout_pending") || "{}");
+              const plano = pendingData.plano?.toLowerCase() || "pro";
+              const isAnual = pendingData.isAnual || false;
+              const leadsQty = pendingData.leadsQty || pendingData.selectedLeads || "";
+              navigate(appendReferralToPath(`/checkout?plano=${plano}&anual=${isAnual}&google_auth=true${leadsQty ? `&leadsQty=${encodeURIComponent(String(leadsQty))}` : ""}`, pendingData.referralCode || getCurrentReferralCode()), { replace: true });
+            } catch (parseError) {
+              console.warn("Checkout pendente inválido no localStorage:", parseError);
+              localStorage.removeItem("checkout_pending");
+              navigate("/prospeccao", { replace: true });
+            }
             return;
           }
 

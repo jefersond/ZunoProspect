@@ -6,7 +6,8 @@ export type Foco =
   | "Social" 
   | "SEO" 
   | "Sites/Landing" 
-  | "CRM";
+  | "CRM"
+  | "zuno_internal_prospecting";
 
 export interface SinaisDigitais {
   has_whatsapp_on_site: boolean;

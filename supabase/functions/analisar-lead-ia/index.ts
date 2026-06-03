@@ -11,6 +11,11 @@ const ADMIN_EMAILS = new Set([
   "jeferson.zanotell@gmail.com",
   "jefeson.zanotell@gmail.com",
 ]);
+const ZUNO_INTERNAL_PROSPECTING_FOCUS = "zuno_internal_prospecting";
+
+function isZunoInternalProspectingFocus(foco?: string | null): boolean {
+  return foco === ZUNO_INTERNAL_PROSPECTING_FOCUS;
+}
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -175,7 +180,7 @@ function normalizeLeadForAI(lead: any, searchContext: any = {}): LeadData {
     nicho: nicho ? String(nicho).trim() : "Não informado",
     cidade: city ? String(city).trim() : "Não informada",
     website: website ? String(website).trim() : null,
-    foco: lead.foco || searchContext.focus || "Full Service",
+    foco: lead.foco || lead.focus || searchContext.focus || "Full Service",
     whatsapp_on_site: !!has_whatsapp_on_site,
     whatsapp_number: phone ? String(phone).trim() : null,
     email: lead.email || null,
@@ -614,7 +619,8 @@ serve(async (req) => {
     aiLimitForCatch = Number(usageInfo?.ai_limit ?? 3);
     aiUsedForCatch = Number(usageInfo?.ai_used_this_month ?? 0);
     const isEmailAdmin = ADMIN_EMAILS.has((user.email || "").trim().toLowerCase());
-    const isUnlimited = isEmailAdmin || usageInfo?.is_admin === true || Number(usageInfo?.ai_limit ?? 0) >= 999999;
+    const isAdminUser = isEmailAdmin || usageInfo?.is_admin === true;
+    const isUnlimited = isAdminUser || Number(usageInfo?.ai_limit ?? 0) >= 999999;
 
     if (!isUnlimited && aiRemaining <= 0) {
       console.log(`🚫 Bloqueio de Limite de IA preventivo para o usuário ${user.email} (ai_remaining: ${aiRemaining})`);
@@ -711,6 +717,25 @@ serve(async (req) => {
 
     leadNameForCatch = leadData.nome;
 
+    if (isZunoInternalProspectingFocus(leadData.foco) && !isAdminUser) {
+      await logAppEvent(supabaseAdmin, {
+        userId,
+        eventType: "admin_only_focus_blocked",
+        eventData: {
+          attempted_focus: ZUNO_INTERNAL_PROSPECTING_FOCUS,
+          user_id: userId,
+          user_email: user.email || null,
+        },
+        ipAddress: req.headers.get("x-forwarded-for"),
+        userAgent: req.headers.get("user-agent"),
+      });
+      return jsonResponse({
+        success: false,
+        error_code: "ADMIN_ONLY_FOCUS",
+        error_message: "Este foco está disponível apenas para administradores.",
+      }, 403);
+    }
+
     // Validação de dados mínimos do lead (INVALID_LEAD_PAYLOAD)
     const hasNome = !!leadData.nome && leadData.nome.trim() !== "" && leadData.nome.toLowerCase() !== "não informado" && leadData.nome.toLowerCase() !== "nao informado";
     
@@ -798,6 +823,15 @@ serve(async (req) => {
         leadName: leadData.nome,
         model: "Gemini Flash",
         score: analise.probabilidade_conversao,
+        ...(isZunoInternalProspectingFocus(leadData.foco)
+          ? {
+              focus: ZUNO_INTERNAL_PROSPECTING_FOCUS,
+              internal_zuno_prospecting: true,
+              admin_only: true,
+              is_internal_event: true,
+              event_source_type: "admin",
+            }
+          : {}),
       },
       ipAddress: req.headers.get("x-forwarded-for"),
       userAgent: req.headers.get("user-agent"),
@@ -868,6 +902,15 @@ serve(async (req) => {
           provider: "gemini",
           duration_ms: duration,
           retry_count: retryCountForCatch,
+          ...((leadData as any) && isZunoInternalProspectingFocus((leadData as any).foco)
+            ? {
+                focus: ZUNO_INTERNAL_PROSPECTING_FOCUS,
+                internal_zuno_prospecting: true,
+                admin_only: true,
+                is_internal_event: true,
+                event_source_type: "admin",
+              }
+            : {}),
           
           // Metadados seguros do lead
           available_fields,
@@ -920,8 +963,13 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string, onRetry?:
   }
   
   const isUS = isUSLead(lead);
-  const systemPrompt = buildEliteCopywriterSystemPrompt(isUS);
-  const userPrompt = buildEliteUserPrompt(lead, canaisDisponiveis, isUS);
+  const isZunoInternal = isZunoInternalProspectingFocus(lead.foco);
+  const systemPrompt = isZunoInternal
+    ? buildZunoInternalProspectingSystemPrompt()
+    : buildEliteCopywriterSystemPrompt(isUS);
+  const userPrompt = isZunoInternal
+    ? buildZunoInternalProspectingUserPrompt(lead, canaisDisponiveis)
+    : buildEliteUserPrompt(lead, canaisDisponiveis, isUS);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
@@ -1066,8 +1114,13 @@ async function analyzeWithLovableAI(lead: LeadData): Promise<AnaliseResult> {
   }
   
   const isUS = isUSLead(lead);
-  const systemPrompt = buildEliteCopywriterSystemPrompt(isUS);
-  const userPrompt = buildEliteUserPrompt(lead, canaisDisponiveis, isUS);
+  const isZunoInternal = isZunoInternalProspectingFocus(lead.foco);
+  const systemPrompt = isZunoInternal
+    ? buildZunoInternalProspectingSystemPrompt()
+    : buildEliteCopywriterSystemPrompt(isUS);
+  const userPrompt = isZunoInternal
+    ? buildZunoInternalProspectingUserPrompt(lead, canaisDisponiveis)
+    : buildEliteUserPrompt(lead, canaisDisponiveis, isUS);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
@@ -1177,6 +1230,29 @@ function buildEliteCopywriterSystemPrompt(isUS: boolean = false): string {
     return buildUSSystemPrompt();
   }
   return buildBRSystemPrompt();
+}
+
+function buildZunoInternalProspectingSystemPrompt(): string {
+  return `Você é um especialista em prospecção B2B da Zuno Propect.
+
+Sua tarefa é analisar se o lead pode ser um bom possível cliente para a própria Zuno Propect.
+
+A Zuno Propect é uma plataforma de prospecção B2B com IA que ajuda profissionais e empresas a encontrar empresas por cidade e nicho, analisar oportunidades e gerar abordagens prontas para WhatsApp, Instagram e e-mail.
+
+Mensagem central permitida para este foco interno de admin:
+"Eu encontrei você usando a própria Zuno. Se ela me ajudou a encontrar você, ela também pode ajudar você a encontrar clientes para o seu negócio."
+
+Regras obrigatórias:
+- Este prompt só existe para uso interno/admin da Zuno.
+- A abordagem deve vender/convidar o lead a conhecer a Zuno.
+- Use o nicho e a cidade como contexto, sem inventar dados.
+- Se faltar site, Instagram, telefone ou e-mail, não mencione a ausência como certeza.
+- A mensagem precisa parecer humana, curta, direta e consultiva.
+- O objetivo é gerar conversa, não vender de forma agressiva.
+- Retorne somente dados compatíveis com a função gerar_analise_lead.
+- diagnostico_bullets deve explicar fit, dor provável e motivo de interesse pela Zuno.
+- probabilidade_conversao deve ser um score de 0 a 100.
+- plano_prospeccao_7dias deve conter mensagens prontas para WhatsApp, Instagram, e-mail e follow-ups.`;
 }
 
 function buildBRSystemPrompt(): string {
@@ -2286,6 +2362,49 @@ function buildEliteUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "wha
   return buildBRUserPrompt(lead, canaisDisponiveis);
 }
 
+function buildZunoInternalProspectingUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsapp" | "instagram")[]): string {
+  const canalTexto = canaisDisponiveis.length > 0
+    ? canaisDisponiveis.map(c => c === "email" ? "Email" : c === "whatsapp" ? "WhatsApp" : "Instagram DM").join(", ")
+    : "Nenhum canal detectado";
+
+  return `DADOS DO LEAD
+
+Empresa: ${lead.nome}
+Nicho buscado: ${lead.nicho}
+Cidade/estado da busca: ${lead.cidade}
+Site: ${lead.website || "Não informado"}
+Instagram: ${lead.instagram_url || "Não informado"}
+Email: ${lead.email || "Não informado"}
+WhatsApp/telefone: ${lead.whatsapp_number || "Não informado"}
+Canais detectados/selecionados: ${canalTexto}
+
+CONTEXTO INTERNO DA OFERTA
+A Zuno Propect ajuda empresas e profissionais a:
+- encontrar empresas por cidade e nicho;
+- analisar oportunidades com IA;
+- gerar mensagens prontas para WhatsApp, Instagram e e-mail;
+- economizar tempo na prospecção;
+- organizar leads e follow-ups.
+
+TAREFA
+1. Dê um score de 0 a 100 em probabilidade_conversao.
+2. Nos diagnostico_bullets, classifique o fit como alto, médio ou baixo.
+3. Explique por que esse lead pode se interessar pela Zuno.
+4. Identifique a dor provável do lead em prospecção comercial.
+5. Crie uma abordagem curta para WhatsApp.
+6. Crie uma abordagem leve para Instagram.
+7. Crie um e-mail curto.
+8. Crie follow-ups curtos até completar 7 dias.
+
+REGRAS DAS MENSAGENS
+- Use esta ideia no primeiro contato quando fizer sentido: "Eu encontrei você usando a própria Zuno. Se ela me ajudou a encontrar você, ela também pode ajudar você a encontrar clientes para o seu negócio."
+- Adapte a frase para soar natural, sem parecer robótica.
+- Não invente nome de responsável, resultados, faturamento, clientes, métricas ou presença em redes.
+- Não use tom agressivo, pressão ou promessa garantida.
+- Use o nicho "${lead.nicho}" e a cidade "${lead.cidade}" como contexto comercial.
+- Retorne a análise usando somente diagnostico_bullets, probabilidade_conversao e plano_prospeccao_7dias.`;
+}
+
 function buildBRUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsapp" | "instagram")[]): string {
   const canalTexto = canaisDisponiveis.length > 0 
     ? canaisDisponiveis.map(c => c === "email" ? "Email" : c === "whatsapp" ? "WhatsApp" : "Instagram DM").join(", ")
@@ -2652,7 +2771,93 @@ function getFocoArguments(foco: string): string {
   return args[foco] || `• Foque nos benefícios específicos de ${foco}`;
 }
 
+function generateZunoInternalMockAnalise(lead: LeadData): AnaliseResult {
+  const contactName = lead.nome_responsavel || lead.nome;
+  const cityContext = lead.cidade && lead.cidade !== "Não informada" ? ` em ${lead.cidade}` : "";
+
+  return {
+    diagnostico_bullets: [
+      `Fit médio/alto: ${lead.nome} atua em ${lead.nicho}${cityContext}, perfil que pode depender de prospecção recorrente.`,
+      "Dor provável: encontrar novos clientes com consistência sem gastar tempo montando listas e mensagens manualmente.",
+      "A Zuno pode gerar valor ao localizar empresas por cidade/nicho e transformar a busca em abordagens prontas.",
+      "A mensagem deve ser consultiva, curta e focada em mostrar como a própria busca vira exemplo prático.",
+      "Evitar promessas de resultado garantido; posicionar como ferramenta para acelerar prospecção B2B.",
+      "Primeiro contato recomendado: mencionar a própria Zuno de forma simples e convidar para ver como funcionaria no nicho do lead.",
+    ],
+    probabilidade_conversao: lead.website || lead.instagram_url || lead.whatsapp_number || lead.email ? 68 : 52,
+    plano_prospeccao_7dias: [
+      {
+        dia: 1,
+        canal: "whatsapp",
+        acao_sugerida: "Enviar mensagem curta de abertura",
+        mensagem: `${contactName}, tudo bem? Eu encontrei você usando a própria Zuno. Se ela me ajudou a encontrar você, ela também pode ajudar você a encontrar clientes para o seu negócio. Faz sentido eu te mostrar em 5 minutos como isso funcionaria para ${lead.nicho}${cityContext}?`,
+        objecao_provavel: "Não tenho interesse agora",
+        resposta_sugerida: "Sem problema. A ideia não é te vender nada na marra, só mostrar como a busca por cidade e nicho vira uma lista prática de oportunidades.",
+        cta: "Posso te mandar um exemplo simples?",
+      },
+      {
+        dia: 2,
+        canal: "instagram",
+        acao_sugerida: "Enviar DM leve e direta",
+        mensagem: `Oi, ${contactName}. Vi que vocês atuam com ${lead.nicho}${cityContext}. A Zuno ajuda a encontrar empresas por nicho/cidade e já montar abordagens para WhatsApp, Instagram e e-mail. Quer ver um exemplo rápido aplicado ao seu mercado?`,
+        objecao_provavel: "Como isso funciona?",
+        resposta_sugerida: "Você informa cidade, nicho e quantidade. A Zuno busca empresas, analisa oportunidades e sugere mensagens prontas para abordar.",
+        cta: "Quer que eu te mostre um exemplo?",
+      },
+      {
+        dia: 3,
+        canal: "email",
+        acao_sugerida: "Enviar e-mail curto",
+        mensagem: `Assunto: Prospecção para ${lead.nicho}${cityContext}\n\nOlá, ${contactName}.\n\nA Zuno Propect ajuda negócios a encontrar empresas por cidade e nicho, analisar oportunidades com IA e gerar mensagens prontas para WhatsApp, Instagram e e-mail.\n\nA ideia é economizar tempo e transformar prospecção em um processo mais organizado. Posso te mostrar um exemplo aplicado ao seu segmento?`,
+        objecao_provavel: "Já tenho uma forma de prospectar",
+        resposta_sugerida: "Ótimo. A Zuno pode complementar seu processo atual, principalmente na etapa de localizar leads e criar a primeira abordagem.",
+        cta: "Faz sentido comparar com seu processo atual?",
+      },
+      {
+        dia: 4,
+        canal: "whatsapp",
+        acao_sugerida: "Follow-up com dor provável",
+        mensagem: `${contactName}, só complementando: muita empresa perde tempo procurando contatos e pensando no que escrever. A Zuno tenta resolver exatamente essa parte: encontrar oportunidades e sugerir abordagens prontas. Quer ver como ficaria para ${lead.nicho}?`,
+        objecao_provavel: "Estou sem tempo",
+        resposta_sugerida: "Justamente por isso pensei em te mostrar de forma objetiva. Em poucos minutos dá para entender se faz sentido.",
+        cta: "Pode ser ainda essa semana?",
+      },
+      {
+        dia: 5,
+        canal: "instagram",
+        acao_sugerida: "Follow-up leve",
+        mensagem: `Passando rapidinho, ${contactName}: a Zuno pode ajudar a montar listas de empresas e abordagens por nicho/cidade, sem começar do zero toda vez. Quer que eu envie um exemplo em texto?`,
+        objecao_provavel: "Manda mais informações",
+        resposta_sugerida: "Claro. Ela busca leads por região e segmento, analisa o perfil e cria mensagens para canais como WhatsApp, Instagram e e-mail.",
+        cta: "Te envio um exemplo agora?",
+      },
+      {
+        dia: 6,
+        canal: "email",
+        acao_sugerida: "Follow-up consultivo",
+        mensagem: `Assunto: Exemplo rápido da Zuno\n\nOlá, ${contactName}.\n\nPensei no seu segmento porque a prospecção costuma depender de volume, organização e boa primeira mensagem.\n\nA Zuno ajuda nessa rotina: encontrar empresas, analisar oportunidades e gerar abordagens prontas. Posso te mostrar um fluxo simples?`,
+        objecao_provavel: "Qual o custo?",
+        resposta_sugerida: "Depende do plano e do volume de uso. Antes de falar de preço, vale validar se o fluxo resolve uma dor real para você.",
+        cta: "Quer ver o fluxo primeiro?",
+      },
+      {
+        dia: 7,
+        canal: "whatsapp",
+        acao_sugerida: "Último toque respeitoso",
+        mensagem: `${contactName}, última mensagem sobre isso. Se prospecção não for prioridade agora, tudo bem. Se quiser testar uma forma mais rápida de encontrar empresas e montar abordagens, posso te apresentar a Zuno sem compromisso.`,
+        objecao_provavel: "Vou ver depois",
+        resposta_sugerida: "Combinado. Quando quiser avaliar, posso te mostrar em poucos minutos com um nicho e cidade reais.",
+        cta: "Quer que eu deixe um exemplo preparado?",
+      },
+    ],
+  };
+}
+
 function generateMockAnalise(lead: LeadData): AnaliseResult {
+  if (isZunoInternalProspectingFocus(lead.foco)) {
+    return generateZunoInternalMockAnalise(lead);
+  }
+
   const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
   const canais = getAvailableChannels(lead, [...canaisSelecionados]);
   

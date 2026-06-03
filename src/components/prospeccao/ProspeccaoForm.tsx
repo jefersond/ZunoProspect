@@ -24,7 +24,21 @@ import { UsaAddonUpsell } from "./UsaAddonUpsell";
 import { COUNTRIES, getStatesByCountry, getCityPlaceholder, type Country } from "@/data/locations";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
+import { isAdminUser } from "@/config/admin";
 
+const ZUNO_INTERNAL_PROSPECTING_FOCUS = "zuno_internal_prospecting";
+
+const focusOptions = [
+  { label: "Full Service", value: "Full Service" },
+  { label: "Tráfego", value: "Tráfego" },
+  { label: "Automação", value: "Automação" },
+  { label: "Design", value: "Design" },
+  { label: "Social", value: "Social" },
+  { label: "SEO", value: "SEO" },
+  { label: "Sites/Landing", value: "Sites/Landing" },
+  { label: "CRM", value: "CRM" },
+  { label: "Prospecção para a Zuno", value: ZUNO_INTERNAL_PROSPECTING_FOCUS, adminOnly: true },
+];
 
 const formSchema = z.object({
   pais: z.enum(["BR", "US"]).default("BR"),
@@ -43,6 +57,8 @@ type FormData = z.infer<typeof formSchema>;
 export const ProspeccaoForm = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [userEmail, setUserEmail] = useState<string | undefined>();
+  const [userName, setUserName] = useState<string | undefined>();
   const {
     subscription,
     loading: subscriptionLoading,
@@ -60,7 +76,10 @@ export const ProspeccaoForm = () => {
     isAdmin: usageIsAdmin,
     refetch: refetchUsage,
   } = useUsage();
-  const isAdmin = subscriptionIsAdmin || usageIsAdmin;
+  const isAdmin = isAdminUser(
+    { email: userEmail },
+    { is_admin: subscriptionIsAdmin || usageIsAdmin, role: subscriptionIsAdmin || usageIsAdmin ? "admin" : null },
+  );
   const normalizedPlanName = String(subscription?.plan_name || "free").toLowerCase();
   const hasPaidPlan = isAdmin || ["starter", "iniciante", "pro", "agency", "agencia"].includes(normalizedPlanName);
   const [loading, setLoading] = useState(false);
@@ -89,8 +108,6 @@ export const ProspeccaoForm = () => {
   // Estado para upsell do add-on EUA
   const [showUsaUpsell, setShowUsaUpsell] = useState(false);
   const [showUsaInlinePromo, setShowUsaInlinePromo] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | undefined>();
-  const [userName, setUserName] = useState<string | undefined>();
 
   // Selected country
   const [selectedCountry, setSelectedCountry] = useState<Country>("BR");
@@ -155,6 +172,13 @@ export const ProspeccaoForm = () => {
   const foco = watch("foco");
   const canaisProspeccao = watch("canaisProspeccao");
   const quantidade = watch("quantidade");
+  const visibleFocusOptions = focusOptions.filter((option) => !option.adminOnly || isAdmin);
+
+  useEffect(() => {
+    if (!isAdmin && foco === ZUNO_INTERNAL_PROSPECTING_FOCUS) {
+      setValue("foco", "Full Service");
+    }
+  }, [foco, isAdmin, setValue]);
 
   const isAtLimit = !usageLoading && !subscriptionLoading && !isAdmin && !canSearchLeads;
   const availableLeads = isAdmin
@@ -250,6 +274,15 @@ export const ProspeccaoForm = () => {
       return;
     }
 
+    if (data.foco === ZUNO_INTERNAL_PROSPECTING_FOCUS && !isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Foco exclusivo para administradores",
+        description: "Este foco está disponível apenas para administradores.",
+      });
+      return;
+    }
+
     // Verifica se tem pelo menos 1 lead disponível
     if (!canSearchLeads) {
       toast({
@@ -320,6 +353,14 @@ export const ProspeccaoForm = () => {
         requested_quantity: effectiveQuantidade,
         focus: data.foco,
         incremental: isIncrementalSearch,
+        ...(data.foco === ZUNO_INTERNAL_PROSPECTING_FOCUS && isAdmin
+          ? {
+              internal_zuno_prospecting: true,
+              admin_only: true,
+              is_internal_event: true,
+              event_source_type: "admin",
+            }
+          : {}),
       };
 
       trackMetaCustomEvent("Search_Started", {
@@ -379,9 +420,9 @@ export const ProspeccaoForm = () => {
       });
 
       // Para o polling
-      if (pollInterval) {
-        clearInterval(pollInterval);
-        pollInterval = null;
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
 
       if (error) {
@@ -912,14 +953,11 @@ export const ProspeccaoForm = () => {
                   <SelectValue placeholder="Selecione o foco" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Full Service">Full Service</SelectItem>
-                  <SelectItem value="Tráfego">Tráfego</SelectItem>
-                  <SelectItem value="Automação">Automação</SelectItem>
-                  <SelectItem value="Design">Design</SelectItem>
-                  <SelectItem value="Social">Social</SelectItem>
-                  <SelectItem value="SEO">SEO</SelectItem>
-                  <SelectItem value="Sites/Landing">Sites/Landing</SelectItem>
-                  <SelectItem value="CRM">CRM</SelectItem>
+                  {visibleFocusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {errors.foco && (

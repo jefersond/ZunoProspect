@@ -193,10 +193,12 @@ export function useUsage(): UseUsageReturn {
       };
 
       // Verificar se existe assinatura ativa/trialing em user_subscriptions ou se o status é null/não-cancelado com data no futuro
+      const CANCELLED_STATUSES_U = ["cancelled", "canceled", "unpaid", "incomplete_expired", "past_due"];
+      const subStatusNorm = (directSub?.subscription_status ?? "").toLowerCase();
+      const subPEnd = new Date(directSub?.billing_period_end || directSub?.current_period_end || 0);
       const isSubActive = !!directSub && (
-        ["active", "trialing"].includes(directSub.subscription_status?.toLowerCase() || "") ||
-        ((!directSub.subscription_status || !["cancelled", "canceled", "unpaid", "incomplete_expired", "past_due"].includes(directSub.subscription_status.toLowerCase())) &&
-         new Date(directSub.billing_period_end || directSub.current_period_end || 0) > new Date())
+        ["active", "trialing"].includes(subStatusNorm) ||
+        (!CANCELLED_STATUSES_U.includes(subStatusNorm) && subPEnd > new Date())
       );
 
       if (directSub) {

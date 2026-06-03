@@ -162,10 +162,12 @@ export const useSubscription = (): UseSubscriptionReturn => {
       let leadsBonus = 0;
 
       // Verificar se existe assinatura ativa/trialing em user_subscriptions ou se o status é null/não-cancelado com data no futuro
+      const CANCELLED_STATUSES = ["cancelled", "canceled", "unpaid", "incomplete_expired", "past_due"];
+      const subStatusNormalized = (directSub?.subscription_status ?? "").toLowerCase();
+      const subPeriodEnd = new Date(directSub?.billing_period_end || directSub?.current_period_end || 0);
       const isSubActive = !!directSub && (
-        ["active", "trialing"].includes(directSub.subscription_status?.toLowerCase() || "") ||
-        ((!directSub.subscription_status || !["cancelled", "canceled", "unpaid", "incomplete_expired", "past_due"].includes(directSub.subscription_status.toLowerCase())) &&
-         new Date(directSub.billing_period_end || directSub.current_period_end || 0) > new Date())
+        ["active", "trialing"].includes(subStatusNormalized) ||
+        (!CANCELLED_STATUSES.includes(subStatusNormalized) && subPeriodEnd > new Date())
       );
 
       if (directSub) {

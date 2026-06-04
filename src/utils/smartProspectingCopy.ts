@@ -147,6 +147,7 @@ export function generateSmartProspectingCopy({
   const cityText = effectiveCity ? ` em ${effectiveCity}` : "";
   const angleSentence = getAngleSentence(approach_angle, context);
   const isZunoInternal = effectiveFocus === ZUNO_INTERNAL_PROSPECTING_FOCUS;
+  const isTrafficFocus = normalizeKey(effectiveFocus).includes("trafego") || normalizeKey(effectiveFocus).includes("traf");
   const cta =
     goal === "agendar_conversa"
       ? "Faz sentido conversarmos por 10 minutos?"
@@ -159,6 +160,23 @@ export function generateSmartProspectingCopy({
       approach_angle,
       context,
       message: `${companyName}, tudo bem?\n\nVi que voces atuam com ${effectiveNiche}${cityText} e imaginei que encontrar novos clientes seja uma parte importante da rotina.\n\nEstou trabalhando com uma solucao que ajuda a encontrar empresas com potencial e criar abordagens mais contextualizadas com IA.\n\n${cta}`,
+    };
+  }
+
+  if (isTrafficFocus) {
+    const trackingSignals = [
+      lead?.sinais?.has_meta_pixel ? "Meta Pixel" : null,
+      lead?.sinais?.has_gtag ? "Google Analytics" : null,
+      lead?.sinais?.has_gtm ? "Google Tag Manager" : null,
+    ].filter(Boolean).join(", ");
+    const trackingLine = trackingSignals
+      ? `Vi sinais de mensuracao no site (${trackingSignals}), entao parece que voces ja tem alguma estrutura para acompanhar campanhas.`
+      : "Nos dados que analisei, nao ficou claro se a mensuracao de campanhas ja esta preparada.";
+
+    return {
+      approach_angle,
+      context,
+      message: `${companyName}, tudo bem?\n\nAnalisei alguns sinais digitais de voces${cityText} pensando em trafego pago.\n\n${trackingLine}\n\nHoje voces ja rodam campanhas ou ainda estao ajustando pagina, Instagram e WhatsApp para receber leads mais qualificados?\n\nPosso te mandar uma sugestao rapida do que eu olharia primeiro?`,
     };
   }
 

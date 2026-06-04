@@ -448,20 +448,26 @@ function buildLeadDataSignals(lead?: LeadData): string[] {
 
 function normalizeCommercialDiagnosisForStorage(analise: AnaliseResult, lead?: LeadData): AnaliseResult {
   const dataSignals = analise.data_signals?.length ? analise.data_signals : buildLeadDataSignals(lead);
+  const focus = lead?.foco || "foco selecionado";
+  const trackingSignals = [
+    lead?.has_meta_pixel ? "Meta Pixel" : null,
+    lead?.has_gtag ? "Google Analytics" : null,
+    lead?.has_gtm ? "Google Tag Manager" : null,
+  ].filter(Boolean).join(", ");
+  const trackingContext = trackingSignals
+    ? `Foram encontrados sinais de mensuracao no site (${trackingSignals}), o que sugere uma estrutura mais preparada para medir campanhas.`
+    : "Nos dados disponiveis, nao detectei Meta Pixel, Google Analytics ou GTM; se a empresa roda trafego, vale validar a mensuracao antes de escalar midia.";
   const commercialBullets = [
-    ["O que encontramos", analise.company_reading || analise.diagnostic],
-    ["Sinais analisados", dataSignals.join("; ")],
-    ["Conclusao pelo foco", analise.commercial_opportunity || analise.why_good_lead],
-    ["Pontos fortes", analise.best_angle || analise.commercial_angle || analise.approach_angle],
-    ["Pontos de atencao", analise.probable_pain || analise.pain_point],
-    ["Oportunidade de melhoria", analise.approach_gap],
+    ["Leitura comercial", analise.company_reading || analise.diagnostic || `${lead?.nome || "A empresa"} foi analisada pelos sinais digitais disponiveis: ${dataSignals.join("; ")}.`],
+    ["Foco da abordagem", analise.commercial_opportunity || analise.why_good_lead || `Com foco em ${focus}, o SDR deve conectar os sinais encontrados com uma conversa pratica sobre melhoria comercial.`],
+    ["Ponto para puxar conversa", analise.best_angle || analise.commercial_angle || analise.approach_angle || trackingContext],
     [
-      "Como apresentar ao lead",
+      "Como abordar",
       [analise.recommended_offer?.type || analise.recommended_offer?.plan ? `Proposta: ${analise.recommended_offer.type || analise.recommended_offer.plan}` : "", analise.recommended_offer?.reason || ""]
         .filter(Boolean)
         .join(": "),
     ],
-    ["Proximo passo", analise.conversion_strategy || analise.conversion_path || analise.cta],
+    ["Proximo passo", analise.conversion_strategy || analise.conversion_path || analise.cta || "Entrar com uma mensagem curta citando o achado principal e perguntar como a empresa esta trabalhando esse ponto hoje."],
   ]
     .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
     .map(([label, value]) => `${label}: ${value}`);
@@ -552,7 +558,7 @@ function buildFallbackWhatsappMessage(lead: LeadData): string {
   }
 
   if (String(lead.foco || "").toLowerCase().includes("tr")) {
-    return `Ola, ${company}, tudo bem?\n\nEstava olhando alguns sinais digitais de voces em ${niche}${city} e queria te fazer uma pergunta rapida: hoje a pagina/site e o Instagram ja estao preparados para receber trafego e transformar visitas em conversas?\n\nA ideia seria te mostrar um ponto simples de melhoria com base no que encontrei, sem compromisso.\n\nFaz sentido eu te mandar uma sugestao rapida?`;
+    return `Ola, ${company}, tudo bem?\n\nAnalisei alguns sinais digitais de voces em ${niche}${city} e vi pontos importantes para quem recebe trafego pago.\n\nQueria entender uma coisa: hoje voces ja estao rodando campanhas ou ainda estao ajustando site, Instagram e WhatsApp para transformar visitas em conversas?\n\nPosso te mandar uma sugestao rapida do que eu olharia primeiro?`;
   }
 
   return `Ola, ${company}, tudo bem?\n\nVi que voces atuam com ${niche}${city} e queria te fazer uma pergunta rapida: hoje voces ja tem algum processo ativo para atrair novos clientes de forma previsivel?\n\nTrabalho com uma solucao que ajuda a identificar oportunidades e criar abordagens mais direcionadas para iniciar conversas comerciais.\n\nFaz sentido eu te mostrar uma ideia rapida?`;
@@ -583,28 +589,28 @@ function applyQualityFallbackIfNeeded(analise: AnaliseResult, lead: LeadData): A
   firstDay.variations = {
     ...(firstDay.variations || {}),
     direct: fallbackMessage,
-    consultative: `Ola, ${lead.nome || "tudo bem"}, tudo bem? Hoje voces tem uma rotina clara para encontrar empresas com potencial e iniciar conversas comerciais com contexto? Posso te mostrar um exemplo simples aplicado a ${lead.nicho || "seu segmento"}?`,
+    consultative: `Ola, ${lead.nome || "tudo bem"}, tudo bem? Analisei os sinais digitais de voces e queria entender como estao trabalhando ${lead.foco || "essa frente"} hoje. Posso te mandar uma observacao pratica sobre ${lead.nicho || "o segmento"}?`,
   };
-  firstDay.cta = "Faz sentido eu te mostrar um exemplo pratico?";
+  firstDay.cta = "Posso te mandar uma sugestao rapida?";
 
   if (!analise.data_signals?.length) {
     analise.data_signals = buildLeadDataSignals(lead);
   }
   if (!analise.company_reading) {
-    analise.company_reading = `Com base nos dados disponiveis, ${lead.nome} parece atuar em ${lead.nicho} ${lead.cidade ? `em ${lead.cidade}` : ""}. A analise abaixo considera principalmente o foco ${lead.foco}.`;
+    analise.company_reading = `${lead.nome} parece atuar em ${lead.nicho} ${lead.cidade ? `em ${lead.cidade}` : ""}. Para o SDR, a leitura deve partir dos sinais digitais encontrados e virar uma conversa sobre ${lead.foco || "a prioridade comercial"} sem parecer abordagem generica.`;
   }
   if (!analise.commercial_opportunity && !analise.why_good_lead) {
     if (String(lead.foco || "").toLowerCase().includes("tr")) {
-      analise.commercial_opportunity = `Para trafego, os sinais principais sao site/pagina, medicao por pixel/tag, WhatsApp claro e presenca social. Esses pontos indicam se a empresa esta pronta para receber campanhas ou se precisa preparar melhor a estrutura antes de investir em midia.`;
+      analise.commercial_opportunity = `Com foco em trafego, site/pagina, pixel/tag, WhatsApp e Instagram mostram se a empresa ja tem estrutura para receber visitas e transformar isso em conversa. O SDR deve usar esse ponto para perguntar como campanhas e mensuracao estao funcionando hoje.`;
     } else {
-      analise.commercial_opportunity = `A conclusao deve partir dos sinais digitais encontrados e mostrar o que ja parece pronto, o que esta fraco e qual melhoria faz mais sentido para o foco ${lead.foco || "selecionado"}.`;
+      analise.commercial_opportunity = `Com foco em ${lead.foco || "selecionado"}, o SDR deve transformar os sinais encontrados em uma pergunta especifica sobre o que ja esta funcionando e o que ainda trava resultado.`;
     }
   }
   if (!analise.probable_pain && !analise.pain_point) {
-    analise.probable_pain = "A empresa pode estar perdendo conversoes se site, Instagram, canais de contato ou medicao nao estiverem claros o suficiente para transformar visitas em conversas.";
+    analise.probable_pain = "A dor provavel e perder conversas comerciais quando site, Instagram, contato ou mensuracao nao deixam claro o proximo passo do cliente.";
   }
   if (!analise.approach_gap) {
-    analise.approach_gap = "Entrar mostrando um achado especifico dos sinais digitais e perguntar se faz sentido enviar uma ideia rapida de melhoria.";
+    analise.approach_gap = "Entrar com um achado simples, fazer uma pergunta de validacao e oferecer uma sugestao curta, sem vender de cara.";
   }
   if (!analise.best_angle && !analise.commercial_angle) {
     analise.best_angle = String(lead.foco || "").toLowerCase().includes("tr")
@@ -1681,20 +1687,26 @@ function buildPremiumCopyOutputRules(): string {
   return `FORMATO PREMIUM OBRIGATORIO
 - Alem de diagnostico_bullets, probabilidade_conversao e plano_prospeccao_7dias, retorne no mesmo JSON:
   score, fit_level, company_reading, data_signals, commercial_opportunity, probable_pain, approach_gap, best_angle, recommended_offer, likely_objection, objection_response, conversion_strategy, messages e warnings.
-- O diagnostico deve parecer uma mini auditoria que o usuario poderia mostrar ao lead, nao um resumo interno da busca.
+- O diagnostico deve parecer um closer experiente explicando para um SDR o que encontrou e como usar isso na abordagem.
+- Nao escreva como relatorio tecnico, checklist de ferramenta, busca interna ou texto para mostrar diretamente ao lead.
+- diagnostico_bullets deve ter de 3 a 5 bullets, no maximo. Cada bullet deve ter uma conclusao comercial curta, com base nos sinais reais analisados.
+- Use este estilo: "A avaliacao X sugere Y", "Com foco em Trafego, o achado Z indica W", "O gancho para o SDR e perguntar...".
+- Nao despeje todos os dados. Escolha os sinais mais uteis para o SDR abordar a empresa.
 - Nao escreva "busca", "lead encontrado", "nicho pesquisado", "prospect" ou bastidores da ferramenta no diagnostico/copy final.
 - data_signals deve listar sinais concretos analisados: segmento, cidade, site informado/nao informado, Instagram informado/nao informado, WhatsApp, rating, reviews, Meta Pixel, Google Analytics, GTM, qualidade aparente do site/Instagram quando houver contexto.
 - recommended_offer deve ter type, plan ("free", "starter", "pro" ou "agency") quando fizer sentido, e reason.
 - messages deve conter whatsapp_primary, whatsapp_alternative, instagram, email_subject, email_body e follow_up.
-- O diagnostico deve ser especifico ao foco escolhido e responder: o que foi encontrado, qual conclusao isso permite, o que esta bom, o que pode melhorar e qual proximo passo sugerir.
-- Se foco for Trafego: avalie se site/pagina, WhatsApp, Meta Pixel, Google Analytics/GTM e Instagram parecem prontos para receber trafego. Se tiver pixel/tag, diga o que isso indica. Se nao tiver, diga apenas "nos dados disponiveis nao detectei".
+- O diagnostico deve ser especifico ao foco escolhido e responder para o SDR: o que foi observado, que leitura comercial isso permite, qual gancho usar e qual pergunta fazer.
+- Se foco for Trafego: avalie site/pagina, WhatsApp, Meta Pixel, Google Analytics/GTM e Instagram como preparo para receber trafego. Se tiver pixel/tag, diga que isso sugere mais maturidade para medir campanhas. Se nao tiver, diga apenas "nos dados disponiveis nao detectei" e transforme isso em pergunta de validacao.
 - Se foco for Design: avalie percepcao visual, marca, site, presenca digital e clareza de contato com base nos dados disponiveis.
 - Se foco for Social/Social media: avalie Instagram informado, presenca social, clareza de bio/contato apenas se houver dados; caso contrario, use sinais locais/Google.
 - Se foco for SEO ou Sites/Landing: avalie site informado, estrutura aparente, CTA, medicao e oportunidade de converter melhor.
 - Se foco for CRM/Automacao/Gestao interna: avalie sinais de atendimento, WhatsApp, canais, organizacao e oportunidade de processo.
 - Se foco for Full Service: combine site, redes, tracking, presenca local e clareza comercial.
 - Use dados disponiveis: nome, nicho, cidade, endereco, site informado, telefone, rating, reviews, WhatsApp, Instagram, foco e canais. Nao invente dados. Se algo nao veio nos dados, diga "nos dados disponiveis, nao ha X informado" quando isso for relevante.
-- A copy deve comecar com saudacao natural, citar contexto real (nicho/cidade/tipo de empresa), conectar com dor provavel e terminar com CTA simples.
+- A copy deve falar direto com a empresa, sem "sou agencia de marketing" nem apresentacao generica. Comece com saudacao natural, cite um achado real, conecte com uma pergunta comercial e termine com CTA simples.
+- Exemplo de direcao para Trafego: "Ola, [empresa], tudo bem? Analisei o site de voces e vi alguns sinais de estrutura para campanhas. Queria entender: hoje voces estao rodando trafego pago ou ainda estao ajustando a pagina para receber leads qualificados?"
+- Evite "igual agencia", "somos uma agencia", "trabalho com marketing digital" e qualquer abertura focada em quem esta vendendo. A primeira linha deve ser sobre a empresa.
 - Evite frases vagas como "pode se beneficiar", "tem potencial", "gerar valor", "a mensagem deve ser consultiva", "evitar promessas" ou "primeiro contato recomendado" sem explicar exatamente como e por que.
 - Retorne variations com exatamente 3 abordagens: direct, consultative e light_provocation.
 - Gere as 3 variacoes na mesma chamada, sem pedir nova analise.
@@ -3352,27 +3364,32 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
 
   const temMarketing = lead.has_meta_pixel || lead.has_gtag || lead.has_gtm;
   const temContato = canais.length > 0;
+  const trackingTools = [
+    lead.has_meta_pixel ? "Meta Pixel" : null,
+    lead.has_gtag ? "Google Analytics" : null,
+    lead.has_gtm ? "Google Tag Manager" : null,
+  ].filter(Boolean).join(", ");
+  const isTrafficFocus = String(lead.foco || "").toLowerCase().includes("tr");
+  const fallbackDiagnosisBullets = [
+    `Leitura comercial: ${lead.nome} atua em ${lead.nicho} ${lead.cidade ? `em ${lead.cidade}` : ""}; a abordagem deve soar como uma observacao especifica sobre a presenca digital, nao como uma oferta generica.`,
+    isTrafficFocus
+      ? `Foco da abordagem: para trafego, ${temMarketing ? `a presenca de ${trackingTools} sugere que ja existe alguma estrutura de mensuracao para campanhas` : "nos dados disponiveis nao detectei Meta Pixel, Google Analytics ou GTM, entao vale validar se a mensuracao esta pronta antes de escalar midia"}.`
+      : `Foco da abordagem: com foco em ${lead.foco}, o SDR deve conectar os sinais encontrados com uma pergunta pratica sobre resultado comercial.`,
+    temContato
+      ? `Ponto para puxar conversa: existem canais de contato disponiveis (${canais.join(", ")}), entao o gancho pode ser como transformar interesse em conversa qualificada.`
+      : "Ponto para puxar conversa: como nao apareceu um canal direto claro nos dados, o gancho pode ser a facilidade do cliente chegar ate a empresa.",
+    "Proximo passo: entrar com uma mensagem curta citando o achado principal e perguntar como eles estao trabalhando esse ponto hoje.",
+  ];
 
   return {
-    diagnostico_bullets: [
-      `${lead.nome} atua no segmento de ${lead.nicho} em ${lead.cidade}`,
-      temMarketing 
-        ? "Presença digital intermediária com ferramentas de tracking instaladas" 
-        : "Baixa maturidade digital - sem ferramentas de análise detectadas",
-      temContato
-        ? `Canais de contato ativos: ${canais.join(", ")}`
-        : "Nenhum canal de contato direto identificado - oportunidade de estruturação",
-      `Foco em ${lead.foco} alinhado com tendências do mercado`,
-      "Potencial de crescimento com estratégia bem estruturada",
-      "Recomendação: abordagem consultiva focada em resultados mensuráveis",
-    ],
+    diagnostico_bullets: fallbackDiagnosisBullets,
     probabilidade_conversao: temMarketing && temContato ? 65 : temContato ? 45 : 25,
     plano_prospeccao_7dias: [
       {
         dia: 1,
         canal: getCanal(1),
         acao_sugerida: getCanal(1) === "whatsapp" ? "Enviar ÁUDIO de 30-45 segundos se apresentando" : getCanal(1) === "instagram" ? "1) Curtir 2-3 posts recentes 2) Reagir a 1 story 3) Enviar DM" : "Enviar email com assunto personalizado",
-        mensagem: `${lead.nome_responsavel || lead.nome}, analisei o setor de ${lead.nicho} em ${lead.cidade}. Identifiquei uma oportunidade em ${lead.foco} que poucas empresas estão explorando. Vale uma conversa de 5 min?`,
+        mensagem: `${lead.nome_responsavel || lead.nome}, tudo bem?\n\nAnalisei alguns sinais digitais de voces em ${lead.nicho}${lead.cidade ? ` em ${lead.cidade}` : ""} e vi um ponto ligado a ${lead.foco}.\n\nComo voces estao trabalhando isso hoje?\n\nPosso te mandar uma sugestao rapida?`,
         objecao_provavel: "Quem é você e como conseguiu meu contato?",
         resposta_sugerida: "Justo. Sou especialista em ${lead.foco} e faço análises de mercado regularmente. Encontrei dados públicos da empresa e identifiquei uma oportunidade real. Posso mostrar em 5 minutos.",
         cta: "Faz sentido uma conversa rápida ou prefere que eu envie por escrito?"

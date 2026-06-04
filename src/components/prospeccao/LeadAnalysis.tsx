@@ -29,13 +29,10 @@ const variationLabels: Record<keyof NonNullable<PlanoProspeccaoDia["variations"]
 };
 
 const commercialDiagnosisLabels = [
-  "O que encontramos",
-  "Sinais analisados",
-  "Conclusao pelo foco",
-  "Pontos fortes",
-  "Pontos de atencao",
-  "Oportunidade de melhoria",
-  "Como apresentar ao lead",
+  "Leitura comercial",
+  "Foco da abordagem",
+  "Ponto para puxar conversa",
+  "Como abordar",
   "Proximo passo",
 ];
 
@@ -190,16 +187,17 @@ export const LeadAnalysis = ({
           </CardHeader>
           <CardContent>
             {commercialDiagnosis.length > 0 ? (
-              <div className="grid gap-3">
+              <ul className="space-y-3">
                 {commercialDiagnosis.map((item) => (
-                  <div key={item.label} className="rounded-md border bg-muted/20 p-3">
-                    <p className="text-xs font-semibold uppercase text-muted-foreground">
-                      {item.label}
-                    </p>
-                    <p className="mt-1 text-sm leading-relaxed">{item.value}</p>
-                  </div>
+                  <li key={item.label} className="flex items-start gap-2 text-sm leading-relaxed">
+                    <span className="text-primary mt-0.5">-</span>
+                    <span>
+                      <span className="font-semibold">{item.label}: </span>
+                      {item.value}
+                    </span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             ) : (
               <ul className="space-y-2">
                 {diagnostico.map((bullet, idx) => (

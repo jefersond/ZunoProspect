@@ -29,15 +29,14 @@ const variationLabels: Record<keyof NonNullable<PlanoProspeccaoDia["variations"]
 };
 
 const commercialDiagnosisLabels = [
-  "Leitura da empresa",
-  "Sinais encontrados",
-  "Oportunidade comercial",
-  "Dor provavel",
-  "Brecha de abordagem",
-  "Melhor angulo",
-  "Oferta indicada",
-  "Objecao provavel",
-  "Como converter",
+  "O que encontramos",
+  "Sinais analisados",
+  "Conclusao pelo foco",
+  "Pontos fortes",
+  "Pontos de atencao",
+  "Oportunidade de melhoria",
+  "Como apresentar ao lead",
+  "Proximo passo",
 ];
 
 const parseCommercialDiagnosis = (diagnostico: string[]) => {

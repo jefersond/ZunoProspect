@@ -428,7 +428,7 @@ function buildLeadDataSignals(lead?: LeadData): string[] {
   if (!lead) return [];
 
   const signals = [
-    lead.nicho ? `Nicho pesquisado: ${lead.nicho}` : null,
+    lead.nicho ? `Segmento analisado: ${lead.nicho}` : null,
     lead.cidade ? `Cidade: ${lead.cidade}` : null,
     lead.endereco ? `Endereco informado: ${lead.endereco}` : null,
     lead.website ? `Site informado: ${lead.website}` : "Nos dados disponiveis, nao ha site informado",
@@ -438,9 +438,9 @@ function buildLeadDataSignals(lead?: LeadData): string[] {
     lead.rating !== undefined && lead.rating !== null ? `Nota media no Google: ${lead.rating}` : null,
     lead.reviews !== undefined && lead.reviews !== null ? `Avaliacoes no Google: ${lead.reviews}` : null,
     lead.has_meta_pixel ? "Meta Pixel detectado no site" : null,
-    lead.has_gtag ? "Google Analytics detectado" : null,
-    lead.has_gtm ? "Google Tag Manager detectado" : null,
-    lead.foco ? `Foco selecionado: ${lead.foco}` : null,
+    lead.has_gtag ? "Google Analytics detectado no site" : null,
+    lead.has_gtm ? "Google Tag Manager detectado no site" : null,
+    lead.foco ? `Analise feita com foco em: ${lead.foco}` : null,
   ].filter((signal): signal is string => !!signal);
 
   return signals.slice(0, 10);
@@ -449,20 +449,19 @@ function buildLeadDataSignals(lead?: LeadData): string[] {
 function normalizeCommercialDiagnosisForStorage(analise: AnaliseResult, lead?: LeadData): AnaliseResult {
   const dataSignals = analise.data_signals?.length ? analise.data_signals : buildLeadDataSignals(lead);
   const commercialBullets = [
-    ["Leitura da empresa", analise.company_reading || analise.diagnostic],
-    ["Sinais encontrados", dataSignals.join("; ")],
-    ["Oportunidade comercial", analise.commercial_opportunity || analise.why_good_lead],
-    ["Dor provavel", analise.probable_pain || analise.pain_point],
-    ["Brecha de abordagem", analise.approach_gap],
-    ["Melhor angulo", analise.best_angle || analise.commercial_angle || analise.approach_angle],
+    ["O que encontramos", analise.company_reading || analise.diagnostic],
+    ["Sinais analisados", dataSignals.join("; ")],
+    ["Conclusao pelo foco", analise.commercial_opportunity || analise.why_good_lead],
+    ["Pontos fortes", analise.best_angle || analise.commercial_angle || analise.approach_angle],
+    ["Pontos de atencao", analise.probable_pain || analise.pain_point],
+    ["Oportunidade de melhoria", analise.approach_gap],
     [
-      "Oferta indicada",
+      "Como apresentar ao lead",
       [analise.recommended_offer?.type || analise.recommended_offer?.plan ? `Proposta: ${analise.recommended_offer.type || analise.recommended_offer.plan}` : "", analise.recommended_offer?.reason || ""]
         .filter(Boolean)
         .join(": "),
     ],
-    ["Objecao provavel", analise.likely_objection],
-    ["Como converter", analise.conversion_strategy || analise.conversion_path || analise.cta],
+    ["Proximo passo", analise.conversion_strategy || analise.conversion_path || analise.cta],
   ]
     .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
     .map(([label, value]) => `${label}: ${value}`);
@@ -552,6 +551,10 @@ function buildFallbackWhatsappMessage(lead: LeadData): string {
     return `Ola, ${company}, tudo bem?\n\nVi que voces atuam com ${niche}${city} e imaginei que encontrar novos clientes seja uma parte importante da rotina.\n\nEstou trabalhando com uma solucao de prospeccao com IA que ajuda a encontrar empresas por cidade e nicho e criar abordagens mais contextualizadas.\n\nFaz sentido eu te mostrar um exemplo pratico?`;
   }
 
+  if (String(lead.foco || "").toLowerCase().includes("tr")) {
+    return `Ola, ${company}, tudo bem?\n\nEstava olhando alguns sinais digitais de voces em ${niche}${city} e queria te fazer uma pergunta rapida: hoje a pagina/site e o Instagram ja estao preparados para receber trafego e transformar visitas em conversas?\n\nA ideia seria te mostrar um ponto simples de melhoria com base no que encontrei, sem compromisso.\n\nFaz sentido eu te mandar uma sugestao rapida?`;
+  }
+
   return `Ola, ${company}, tudo bem?\n\nVi que voces atuam com ${niche}${city} e queria te fazer uma pergunta rapida: hoje voces ja tem algum processo ativo para atrair novos clientes de forma previsivel?\n\nTrabalho com uma solucao que ajuda a identificar oportunidades e criar abordagens mais direcionadas para iniciar conversas comerciais.\n\nFaz sentido eu te mostrar uma ideia rapida?`;
 }
 
@@ -588,19 +591,25 @@ function applyQualityFallbackIfNeeded(analise: AnaliseResult, lead: LeadData): A
     analise.data_signals = buildLeadDataSignals(lead);
   }
   if (!analise.company_reading) {
-    analise.company_reading = `${lead.nome} parece atuar em ${lead.nicho} ${lead.cidade ? `em ${lead.cidade}` : ""}. A leitura deve considerar apenas os dados disponiveis e o foco ${lead.foco}.`;
+    analise.company_reading = `Com base nos dados disponiveis, ${lead.nome} parece atuar em ${lead.nicho} ${lead.cidade ? `em ${lead.cidade}` : ""}. A analise abaixo considera principalmente o foco ${lead.foco}.`;
   }
   if (!analise.commercial_opportunity && !analise.why_good_lead) {
-    analise.commercial_opportunity = `A oportunidade esta em iniciar uma conversa ligada a ${lead.foco || "crescimento comercial"}, usando ${lead.nicho || "o nicho"} como contexto e oferecendo um exemplo pratico em vez de venda direta.`;
+    if (String(lead.foco || "").toLowerCase().includes("tr")) {
+      analise.commercial_opportunity = `Para trafego, os sinais principais sao site/pagina, medicao por pixel/tag, WhatsApp claro e presenca social. Esses pontos indicam se a empresa esta pronta para receber campanhas ou se precisa preparar melhor a estrutura antes de investir em midia.`;
+    } else {
+      analise.commercial_opportunity = `A conclusao deve partir dos sinais digitais encontrados e mostrar o que ja parece pronto, o que esta fraco e qual melhoria faz mais sentido para o foco ${lead.foco || "selecionado"}.`;
+    }
   }
   if (!analise.probable_pain && !analise.pain_point) {
-    analise.probable_pain = "Manter uma rotina constante de aquisicao de clientes, montar listas e iniciar conversas com contexto sem perder tempo.";
+    analise.probable_pain = "A empresa pode estar perdendo conversoes se site, Instagram, canais de contato ou medicao nao estiverem claros o suficiente para transformar visitas em conversas.";
   }
   if (!analise.approach_gap) {
-    analise.approach_gap = "Entrar com uma pergunta curta sobre como a empresa encontra oportunidades hoje e oferecer um exemplo aplicado ao segmento.";
+    analise.approach_gap = "Entrar mostrando um achado especifico dos sinais digitais e perguntar se faz sentido enviar uma ideia rapida de melhoria.";
   }
   if (!analise.best_angle && !analise.commercial_angle) {
-    analise.best_angle = "previsibilidade e economia de tempo";
+    analise.best_angle = String(lead.foco || "").toLowerCase().includes("tr")
+      ? "preparar site, tracking e Instagram para receber trafego com mais seguranca"
+      : "melhorar presenca digital e clareza comercial com base nos sinais encontrados";
   }
   if (!analise.likely_objection) {
     analise.likely_objection = "Nao tenho tempo para testar outra ferramenta agora.";
@@ -609,7 +618,7 @@ function applyQualityFallbackIfNeeded(analise: AnaliseResult, lead: LeadData): A
     analise.objection_response = "Entendo. A ideia nao e tomar seu tempo, e te mostrar em poucos minutos um exemplo pronto para voce avaliar se faz sentido.";
   }
   if (!analise.conversion_strategy && !analise.conversion_path) {
-    analise.conversion_strategy = "Enviar a mensagem curta, oferecer um exemplo aplicado ao nicho e conduzir para uma demonstracao rapida de 5 minutos.";
+    analise.conversion_strategy = "Enviar uma mensagem curta citando o achado principal, oferecer uma sugestao pratica e conduzir para uma conversa rapida.";
   }
 
   return analise;
@@ -1672,10 +1681,18 @@ function buildPremiumCopyOutputRules(): string {
   return `FORMATO PREMIUM OBRIGATORIO
 - Alem de diagnostico_bullets, probabilidade_conversao e plano_prospeccao_7dias, retorne no mesmo JSON:
   score, fit_level, company_reading, data_signals, commercial_opportunity, probable_pain, approach_gap, best_angle, recommended_offer, likely_objection, objection_response, conversion_strategy, messages e warnings.
-- data_signals deve listar sinais concretos usados: nicho, cidade, endereco, telefone, site informado/nao informado, Instagram informado/nao informado, rating, reviews, WhatsApp, pixels/tags e foco selecionado quando disponiveis.
+- O diagnostico deve parecer uma mini auditoria que o usuario poderia mostrar ao lead, nao um resumo interno da busca.
+- Nao escreva "busca", "lead encontrado", "nicho pesquisado", "prospect" ou bastidores da ferramenta no diagnostico/copy final.
+- data_signals deve listar sinais concretos analisados: segmento, cidade, site informado/nao informado, Instagram informado/nao informado, WhatsApp, rating, reviews, Meta Pixel, Google Analytics, GTM, qualidade aparente do site/Instagram quando houver contexto.
 - recommended_offer deve ter type, plan ("free", "starter", "pro" ou "agency") quando fizer sentido, e reason.
 - messages deve conter whatsapp_primary, whatsapp_alternative, instagram, email_subject, email_body e follow_up.
-- O diagnostico deve ser comercial, especifico e orientado a conversao. Responda: vale abordar, por que, qual dor explorar, qual angulo usar, qual oferta sugerir e qual proximo passo.
+- O diagnostico deve ser especifico ao foco escolhido e responder: o que foi encontrado, qual conclusao isso permite, o que esta bom, o que pode melhorar e qual proximo passo sugerir.
+- Se foco for Trafego: avalie se site/pagina, WhatsApp, Meta Pixel, Google Analytics/GTM e Instagram parecem prontos para receber trafego. Se tiver pixel/tag, diga o que isso indica. Se nao tiver, diga apenas "nos dados disponiveis nao detectei".
+- Se foco for Design: avalie percepcao visual, marca, site, presenca digital e clareza de contato com base nos dados disponiveis.
+- Se foco for Social/Social media: avalie Instagram informado, presenca social, clareza de bio/contato apenas se houver dados; caso contrario, use sinais locais/Google.
+- Se foco for SEO ou Sites/Landing: avalie site informado, estrutura aparente, CTA, medicao e oportunidade de converter melhor.
+- Se foco for CRM/Automacao/Gestao interna: avalie sinais de atendimento, WhatsApp, canais, organizacao e oportunidade de processo.
+- Se foco for Full Service: combine site, redes, tracking, presenca local e clareza comercial.
 - Use dados disponiveis: nome, nicho, cidade, endereco, site informado, telefone, rating, reviews, WhatsApp, Instagram, foco e canais. Nao invente dados. Se algo nao veio nos dados, diga "nos dados disponiveis, nao ha X informado" quando isso for relevante.
 - A copy deve comecar com saudacao natural, citar contexto real (nicho/cidade/tipo de empresa), conectar com dor provavel e terminar com CTA simples.
 - Evite frases vagas como "pode se beneficiar", "tem potencial", "gerar valor", "a mensagem deve ser consultiva", "evitar promessas" ou "primeiro contato recomendado" sem explicar exatamente como e por que.

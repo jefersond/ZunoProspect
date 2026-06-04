@@ -8,7 +8,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useToast } from "@/hooks/use-toast";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { copyToClipboard } from "@/utils/templateUtils";
-import { SmartCopyCard } from "./SmartCopyCard";
 import type { LeadProspeccao, PlanoProspeccaoDia } from "@/types/lead";
 
 interface LeadAnalysisProps {
@@ -85,14 +84,6 @@ export const LeadAnalysis = ({
   if (!diagnostico || !probabilidade || !plano) {
     return (
       <div className="space-y-4 mt-4">
-        {lead && (
-          <SmartCopyCard
-            lead={lead}
-            onRefineWithAI={onReanalyze}
-            isRefining={isReanalyzing}
-            canAnalyzeAI={canAnalyzeAI}
-          />
-        )}
         <Card>
           <CardContent className="py-6 text-center space-y-3">
             <p className="text-muted-foreground">Analise premium de IA ainda nao gerada para este lead</p>
@@ -111,15 +102,6 @@ export const LeadAnalysis = ({
 
   return (
     <div className="space-y-4 mt-4">
-      {lead && (
-        <SmartCopyCard
-          lead={lead}
-          onRefineWithAI={onReanalyze}
-          isRefining={isReanalyzing}
-          canAnalyzeAI={canAnalyzeAI}
-        />
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader>

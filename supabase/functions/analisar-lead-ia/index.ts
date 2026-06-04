@@ -292,14 +292,28 @@ interface AnaliseResult {
   approach_angle?: string;
   company_reading?: string;
   why_good_lead?: string;
+  data_signals?: string[];
+  commercial_opportunity?: string;
   probable_pain?: string;
   approach_gap?: string;
   commercial_angle?: string;
+  best_angle?: string;
   recommended_offer?: {
     plan?: "free" | "starter" | "pro" | "agency";
+    type?: string;
     reason?: string;
   };
   conversion_path?: string;
+  conversion_strategy?: string;
+  messages?: {
+    whatsapp_primary?: string;
+    whatsapp_alternative?: string;
+    instagram?: string;
+    email_subject?: string;
+    email_body?: string;
+    follow_up?: string;
+  };
+  warnings?: string[];
   whatsapp_message?: string;
   instagram_message?: string;
   email_subject?: string;
@@ -365,12 +379,24 @@ function analysisContainsForbiddenZunoDisclosure(analise: AnaliseResult): boolea
     analise.approach_angle,
     analise.company_reading,
     analise.why_good_lead,
+    ...(analise.data_signals || []),
+    analise.commercial_opportunity,
     analise.probable_pain,
     analise.approach_gap,
     analise.commercial_angle,
+    analise.best_angle,
     analise.recommended_offer?.plan,
+    analise.recommended_offer?.type,
     analise.recommended_offer?.reason,
     analise.conversion_path,
+    analise.conversion_strategy,
+    analise.messages?.whatsapp_primary,
+    analise.messages?.whatsapp_alternative,
+    analise.messages?.instagram,
+    analise.messages?.email_subject,
+    analise.messages?.email_body,
+    analise.messages?.follow_up,
+    ...(analise.warnings || []),
     analise.whatsapp_message,
     analise.instagram_message,
     analise.email_subject,
@@ -398,21 +424,45 @@ function analysisContainsForbiddenZunoDisclosure(analise: AnaliseResult): boolea
   return texts.some(containsForbiddenZunoDisclosure);
 }
 
-function normalizeCommercialDiagnosisForStorage(analise: AnaliseResult): AnaliseResult {
+function buildLeadDataSignals(lead?: LeadData): string[] {
+  if (!lead) return [];
+
+  const signals = [
+    lead.nicho ? `Nicho pesquisado: ${lead.nicho}` : null,
+    lead.cidade ? `Cidade: ${lead.cidade}` : null,
+    lead.endereco ? `Endereco informado: ${lead.endereco}` : null,
+    lead.website ? `Site informado: ${lead.website}` : "Nos dados disponiveis, nao ha site informado",
+    lead.instagram_url ? `Instagram informado: ${lead.instagram_url}` : "Nos dados disponiveis, nao ha Instagram informado",
+    lead.whatsapp_number || lead.whatsapp_on_site ? "Telefone/WhatsApp disponivel" : null,
+    lead.email ? `Email disponivel: ${lead.email}` : null,
+    lead.rating !== undefined && lead.rating !== null ? `Nota media no Google: ${lead.rating}` : null,
+    lead.reviews !== undefined && lead.reviews !== null ? `Avaliacoes no Google: ${lead.reviews}` : null,
+    lead.has_meta_pixel ? "Meta Pixel detectado no site" : null,
+    lead.has_gtag ? "Google Analytics detectado" : null,
+    lead.has_gtm ? "Google Tag Manager detectado" : null,
+    lead.foco ? `Foco selecionado: ${lead.foco}` : null,
+  ].filter((signal): signal is string => !!signal);
+
+  return signals.slice(0, 10);
+}
+
+function normalizeCommercialDiagnosisForStorage(analise: AnaliseResult, lead?: LeadData): AnaliseResult {
+  const dataSignals = analise.data_signals?.length ? analise.data_signals : buildLeadDataSignals(lead);
   const commercialBullets = [
     ["Leitura da empresa", analise.company_reading || analise.diagnostic],
-    ["Por que vale abordar", analise.why_good_lead],
+    ["Sinais encontrados", dataSignals.join("; ")],
+    ["Oportunidade comercial", analise.commercial_opportunity || analise.why_good_lead],
     ["Dor provavel", analise.probable_pain || analise.pain_point],
     ["Brecha de abordagem", analise.approach_gap],
-    ["Melhor angulo", analise.commercial_angle || analise.approach_angle],
+    ["Melhor angulo", analise.best_angle || analise.commercial_angle || analise.approach_angle],
     [
       "Oferta indicada",
-      [analise.recommended_offer?.plan ? `Plano ${analise.recommended_offer.plan}` : "", analise.recommended_offer?.reason || ""]
+      [analise.recommended_offer?.type || analise.recommended_offer?.plan ? `Proposta: ${analise.recommended_offer.type || analise.recommended_offer.plan}` : "", analise.recommended_offer?.reason || ""]
         .filter(Boolean)
         .join(": "),
     ],
     ["Objecao provavel", analise.likely_objection],
-    ["Como converter", analise.conversion_path || analise.cta],
+    ["Como converter", analise.conversion_strategy || analise.conversion_path || analise.cta],
   ]
     .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
     .map(([label, value]) => `${label}: ${value}`);
@@ -430,28 +480,136 @@ function normalizePremiumCopyForStorage(analise: AnaliseResult): AnaliseResult {
   }
 
   const firstDay = analise.plano_prospeccao_7dias[0];
-  if (analise.whatsapp_message) firstDay.mensagem = analise.whatsapp_message;
+  const whatsappPrimary = analise.messages?.whatsapp_primary || analise.whatsapp_message;
+  if (whatsappPrimary) firstDay.mensagem = whatsappPrimary;
   if (analise.likely_objection) firstDay.objecao_provavel = analise.likely_objection;
   if (analise.objection_response) firstDay.resposta_sugerida = analise.objection_response;
   if (analise.cta) firstDay.cta = analise.cta;
-  if (analise.variations) firstDay.variations = analise.variations;
+  if (analise.messages?.whatsapp_alternative) {
+    firstDay.variations = {
+      ...(analise.variations || {}),
+      consultative: analise.messages.whatsapp_alternative,
+    };
+  } else if (analise.variations) {
+    firstDay.variations = analise.variations;
+  }
 
   const instagramDay = analise.plano_prospeccao_7dias.find((dia) => dia.canal === "instagram");
-  if (instagramDay && analise.instagram_message) {
-    instagramDay.mensagem = analise.instagram_message;
+  const instagramMessage = analise.messages?.instagram || analise.instagram_message;
+  if (instagramDay && instagramMessage) {
+    instagramDay.mensagem = instagramMessage;
   }
 
   const emailDay = analise.plano_prospeccao_7dias.find((dia) => dia.canal === "email");
-  if (emailDay && (analise.email_subject || analise.email_body)) {
-    emailDay.mensagem = [analise.email_subject ? `Assunto: ${analise.email_subject}` : "", analise.email_body || ""]
+  const emailSubject = analise.messages?.email_subject || analise.email_subject;
+  const emailBody = analise.messages?.email_body || analise.email_body;
+  if (emailDay && (emailSubject || emailBody)) {
+    emailDay.mensagem = [emailSubject ? `Assunto: ${emailSubject}` : "", emailBody || ""]
       .filter(Boolean)
       .join("\n\n");
   }
 
   const followUpDay = analise.plano_prospeccao_7dias.find((dia) => dia.dia > 1);
-  const followUpMessage = analise.follow_up_message || analise.follow_up;
+  const followUpMessage = analise.messages?.follow_up || analise.follow_up_message || analise.follow_up;
   if (followUpDay && followUpMessage) {
     followUpDay.mensagem = followUpMessage;
+  }
+
+  return analise;
+}
+
+const GENERIC_ANALYSIS_TERMS = [
+  "pode se beneficiar",
+  "tem potencial",
+  "a mensagem deve ser consultiva",
+  "evitar promessas",
+  "gerar valor",
+];
+
+function hasGreeting(message: string): boolean {
+  const normalized = normalizeDisclosureText(message.trim());
+  return /^(ola|oi|tudo bem|bom dia|boa tarde|boa noite)/.test(normalized);
+}
+
+function hasContext(message: string, lead: LeadData): boolean {
+  const normalized = normalizeDisclosureText(message);
+  return [lead.nome, lead.nicho, lead.cidade, lead.foco]
+    .filter(Boolean)
+    .some((value) => normalizeDisclosureText(String(value)).split(" ")[0] && normalized.includes(normalizeDisclosureText(String(value)).split(" ")[0]));
+}
+
+function hasSimpleCta(message: string): boolean {
+  const normalized = normalizeDisclosureText(message);
+  return normalized.includes("?") || normalized.includes("faz sentido") || normalized.includes("posso") || normalized.includes("quer");
+}
+
+function buildFallbackWhatsappMessage(lead: LeadData): string {
+  const company = lead.nome && lead.nome !== "NÃ£o informado" ? lead.nome : "tudo bem";
+  const niche = lead.nicho && lead.nicho !== "NÃ£o informado" ? lead.nicho : "seu segmento";
+  const city = lead.cidade && lead.cidade !== "NÃ£o informada" ? ` em ${lead.cidade}` : "";
+
+  if (isZunoInternalProspectingFocus(lead.foco)) {
+    return `Ola, ${company}, tudo bem?\n\nVi que voces atuam com ${niche}${city} e imaginei que encontrar novos clientes seja uma parte importante da rotina.\n\nEstou trabalhando com uma solucao de prospeccao com IA que ajuda a encontrar empresas por cidade e nicho e criar abordagens mais contextualizadas.\n\nFaz sentido eu te mostrar um exemplo pratico?`;
+  }
+
+  return `Ola, ${company}, tudo bem?\n\nVi que voces atuam com ${niche}${city} e queria te fazer uma pergunta rapida: hoje voces ja tem algum processo ativo para atrair novos clientes de forma previsivel?\n\nTrabalho com uma solucao que ajuda a identificar oportunidades e criar abordagens mais direcionadas para iniciar conversas comerciais.\n\nFaz sentido eu te mostrar uma ideia rapida?`;
+}
+
+function applyQualityFallbackIfNeeded(analise: AnaliseResult, lead: LeadData): AnaliseResult {
+  if (!Array.isArray(analise.plano_prospeccao_7dias) || analise.plano_prospeccao_7dias.length === 0) {
+    return analise;
+  }
+
+  const firstDay = analise.plano_prospeccao_7dias[0];
+  const message = firstDay.mensagem || "";
+  const diagnosisText = (analise.diagnostico_bullets || []).join(" ");
+  const hasGenericDiagnosis = GENERIC_ANALYSIS_TERMS.some((term) => normalizeDisclosureText(diagnosisText).includes(normalizeDisclosureText(term)));
+  const badMessage =
+    !hasGreeting(message) ||
+    !hasContext(message, lead) ||
+    !hasSimpleCta(message) ||
+    containsForbiddenZunoDisclosure(message) ||
+    GENERIC_ANALYSIS_TERMS.some((term) => normalizeDisclosureText(message).includes(normalizeDisclosureText(term)));
+
+  if (!badMessage && !hasGenericDiagnosis) {
+    return analise;
+  }
+
+  const fallbackMessage = buildFallbackWhatsappMessage(lead);
+  firstDay.mensagem = fallbackMessage;
+  firstDay.variations = {
+    ...(firstDay.variations || {}),
+    direct: fallbackMessage,
+    consultative: `Ola, ${lead.nome || "tudo bem"}, tudo bem? Hoje voces tem uma rotina clara para encontrar empresas com potencial e iniciar conversas comerciais com contexto? Posso te mostrar um exemplo simples aplicado a ${lead.nicho || "seu segmento"}?`,
+  };
+  firstDay.cta = "Faz sentido eu te mostrar um exemplo pratico?";
+
+  if (!analise.data_signals?.length) {
+    analise.data_signals = buildLeadDataSignals(lead);
+  }
+  if (!analise.company_reading) {
+    analise.company_reading = `${lead.nome} parece atuar em ${lead.nicho} ${lead.cidade ? `em ${lead.cidade}` : ""}. A leitura deve considerar apenas os dados disponiveis e o foco ${lead.foco}.`;
+  }
+  if (!analise.commercial_opportunity && !analise.why_good_lead) {
+    analise.commercial_opportunity = `A oportunidade esta em iniciar uma conversa ligada a ${lead.foco || "crescimento comercial"}, usando ${lead.nicho || "o nicho"} como contexto e oferecendo um exemplo pratico em vez de venda direta.`;
+  }
+  if (!analise.probable_pain && !analise.pain_point) {
+    analise.probable_pain = "Manter uma rotina constante de aquisicao de clientes, montar listas e iniciar conversas com contexto sem perder tempo.";
+  }
+  if (!analise.approach_gap) {
+    analise.approach_gap = "Entrar com uma pergunta curta sobre como a empresa encontra oportunidades hoje e oferecer um exemplo aplicado ao segmento.";
+  }
+  if (!analise.best_angle && !analise.commercial_angle) {
+    analise.best_angle = "previsibilidade e economia de tempo";
+  }
+  if (!analise.likely_objection) {
+    analise.likely_objection = "Nao tenho tempo para testar outra ferramenta agora.";
+  }
+  if (!analise.objection_response) {
+    analise.objection_response = "Entendo. A ideia nao e tomar seu tempo, e te mostrar em poucos minutos um exemplo pronto para voce avaliar se faz sentido.";
+  }
+  if (!analise.conversion_strategy && !analise.conversion_path) {
+    analise.conversion_strategy = "Enviar a mensagem curta, oferecer um exemplo aplicado ao nicho e conduzir para uma demonstracao rapida de 5 minutos.";
   }
 
   return analise;
@@ -947,11 +1105,17 @@ serve(async (req) => {
       }
     }
 
-    analise = normalizeCommercialDiagnosisForStorage(normalizePremiumCopyForStorage(analise));
+    analise = normalizeCommercialDiagnosisForStorage(
+      applyQualityFallbackIfNeeded(normalizePremiumCopyForStorage(analise), leadData),
+      leadData,
+    );
 
     if (isZunoInternalProspectingFocus(leadData.foco) && analysisContainsForbiddenZunoDisclosure(analise)) {
       console.warn("🚫 Análise da Zuno continha disclosure proibido; aplicando fallback seguro.");
-      analise = normalizeCommercialDiagnosisForStorage(normalizePremiumCopyForStorage(generateZunoInternalMockAnalise(leadData)));
+      analise = normalizeCommercialDiagnosisForStorage(
+        applyQualityFallbackIfNeeded(normalizePremiumCopyForStorage(generateZunoInternalMockAnalise(leadData)), leadData),
+        leadData,
+      );
     }
 
     // Save analysis to DB
@@ -1180,17 +1344,34 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string, onRetry?:
                   approach_angle: { type: "string" },
                   company_reading: { type: "string" },
                   why_good_lead: { type: "string" },
+                  data_signals: { type: "array", items: { type: "string" } },
+                  commercial_opportunity: { type: "string" },
                   probable_pain: { type: "string" },
                   approach_gap: { type: "string" },
                   commercial_angle: { type: "string" },
+                  best_angle: { type: "string" },
                   recommended_offer: {
                     type: "object",
                     properties: {
                       plan: { type: "string", enum: ["free", "starter", "pro", "agency"] },
+                      type: { type: "string" },
                       reason: { type: "string" }
                     }
                   },
                   conversion_path: { type: "string" },
+                  conversion_strategy: { type: "string" },
+                  messages: {
+                    type: "object",
+                    properties: {
+                      whatsapp_primary: { type: "string" },
+                      whatsapp_alternative: { type: "string" },
+                      instagram: { type: "string" },
+                      email_subject: { type: "string" },
+                      email_body: { type: "string" },
+                      follow_up: { type: "string" }
+                    }
+                  },
+                  warnings: { type: "array", items: { type: "string" } },
                   whatsapp_message: { type: "string" },
                   instagram_message: { type: "string" },
                   email_subject: { type: "string" },
@@ -1361,17 +1542,34 @@ async function analyzeWithLovableAI(lead: LeadData): Promise<AnaliseResult> {
                   approach_angle: { type: "string" },
                   company_reading: { type: "string" },
                   why_good_lead: { type: "string" },
+                  data_signals: { type: "array", items: { type: "string" } },
+                  commercial_opportunity: { type: "string" },
                   probable_pain: { type: "string" },
                   approach_gap: { type: "string" },
                   commercial_angle: { type: "string" },
+                  best_angle: { type: "string" },
                   recommended_offer: {
                     type: "object",
                     properties: {
                       plan: { type: "string", enum: ["free", "starter", "pro", "agency"] },
+                      type: { type: "string" },
                       reason: { type: "string" }
                     }
                   },
                   conversion_path: { type: "string" },
+                  conversion_strategy: { type: "string" },
+                  messages: {
+                    type: "object",
+                    properties: {
+                      whatsapp_primary: { type: "string" },
+                      whatsapp_alternative: { type: "string" },
+                      instagram: { type: "string" },
+                      email_subject: { type: "string" },
+                      email_body: { type: "string" },
+                      follow_up: { type: "string" }
+                    }
+                  },
+                  warnings: { type: "array", items: { type: "string" } },
                   whatsapp_message: { type: "string" },
                   instagram_message: { type: "string" },
                   email_subject: { type: "string" },
@@ -1473,11 +1671,14 @@ function buildEliteCopywriterSystemPrompt(isUS: boolean = false): string {
 function buildPremiumCopyOutputRules(): string {
   return `FORMATO PREMIUM OBRIGATORIO
 - Alem de diagnostico_bullets, probabilidade_conversao e plano_prospeccao_7dias, retorne no mesmo JSON:
-  score, fit_level, company_reading, why_good_lead, probable_pain, approach_gap, commercial_angle, recommended_offer, likely_objection, objection_response, conversion_path, whatsapp_message, instagram_message, email_subject, email_body, follow_up_message, cta.
-- recommended_offer deve ter plan ("free", "starter", "pro" ou "agency") e reason.
+  score, fit_level, company_reading, data_signals, commercial_opportunity, probable_pain, approach_gap, best_angle, recommended_offer, likely_objection, objection_response, conversion_strategy, messages e warnings.
+- data_signals deve listar sinais concretos usados: nicho, cidade, endereco, telefone, site informado/nao informado, Instagram informado/nao informado, rating, reviews, WhatsApp, pixels/tags e foco selecionado quando disponiveis.
+- recommended_offer deve ter type, plan ("free", "starter", "pro" ou "agency") quando fizer sentido, e reason.
+- messages deve conter whatsapp_primary, whatsapp_alternative, instagram, email_subject, email_body e follow_up.
 - O diagnostico deve ser comercial, especifico e orientado a conversao. Responda: vale abordar, por que, qual dor explorar, qual angulo usar, qual oferta sugerir e qual proximo passo.
 - Use dados disponiveis: nome, nicho, cidade, endereco, site informado, telefone, rating, reviews, WhatsApp, Instagram, foco e canais. Nao invente dados. Se algo nao veio nos dados, diga "nos dados disponiveis, nao ha X informado" quando isso for relevante.
-- Evite frases vagas como "pode se beneficiar", "tem potencial", "gerar valor" ou "abordagem consultiva" sem explicar exatamente como e por que.
+- A copy deve comecar com saudacao natural, citar contexto real (nicho/cidade/tipo de empresa), conectar com dor provavel e terminar com CTA simples.
+- Evite frases vagas como "pode se beneficiar", "tem potencial", "gerar valor", "a mensagem deve ser consultiva", "evitar promessas" ou "primeiro contato recomendado" sem explicar exatamente como e por que.
 - Retorne variations com exatamente 3 abordagens: direct, consultative e light_provocation.
 - Gere as 3 variacoes na mesma chamada, sem pedir nova analise.
 - As mensagens devem ser curtas, humanas, contextualizadas pelo nicho/cidade/sinais e sem frase generica.

@@ -30,7 +30,8 @@ const variationLabels: Record<keyof NonNullable<PlanoProspeccaoDia["variations"]
 
 const commercialDiagnosisLabels = [
   "Leitura da empresa",
-  "Por que vale abordar",
+  "Sinais encontrados",
+  "Oportunidade comercial",
   "Dor provavel",
   "Brecha de abordagem",
   "Melhor angulo",
@@ -157,7 +158,7 @@ export const LeadAnalysis = ({
               <div>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Brain className="h-5 w-5 text-primary" />
-                  Diagnostico Comercial
+                  Diagnostico Comercial IA
                 </CardTitle>
                 {geradoEm && (
                   <CardDescription className="text-xs mt-1">
@@ -237,10 +238,10 @@ export const LeadAnalysis = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-primary" />
-            Plano de abordagem
+            Copies prontas
           </CardTitle>
           <CardDescription>
-            WhatsApp, Instagram, e-mail e follow-ups gerados na mesma chamada de IA
+            WhatsApp, Instagram, e-mail, follow-up e resposta para objecao gerados na mesma chamada de IA
           </CardDescription>
         </CardHeader>
         <CardContent>

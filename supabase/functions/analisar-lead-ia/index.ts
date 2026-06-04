@@ -290,11 +290,22 @@ interface AnaliseResult {
   diagnostic?: string;
   pain_point?: string;
   approach_angle?: string;
+  company_reading?: string;
+  why_good_lead?: string;
+  probable_pain?: string;
+  approach_gap?: string;
+  commercial_angle?: string;
+  recommended_offer?: {
+    plan?: "free" | "starter" | "pro" | "agency";
+    reason?: string;
+  };
+  conversion_path?: string;
   whatsapp_message?: string;
   instagram_message?: string;
   email_subject?: string;
   email_body?: string;
   follow_up?: string;
+  follow_up_message?: string;
   likely_objection?: string;
   objection_response?: string;
   cta?: string;
@@ -352,11 +363,20 @@ function analysisContainsForbiddenZunoDisclosure(analise: AnaliseResult): boolea
     analise.diagnostic,
     analise.pain_point,
     analise.approach_angle,
+    analise.company_reading,
+    analise.why_good_lead,
+    analise.probable_pain,
+    analise.approach_gap,
+    analise.commercial_angle,
+    analise.recommended_offer?.plan,
+    analise.recommended_offer?.reason,
+    analise.conversion_path,
     analise.whatsapp_message,
     analise.instagram_message,
     analise.email_subject,
     analise.email_body,
     analise.follow_up,
+    analise.follow_up_message,
     analise.likely_objection,
     analise.objection_response,
     analise.cta,
@@ -376,6 +396,32 @@ function analysisContainsForbiddenZunoDisclosure(analise: AnaliseResult): boolea
   ];
 
   return texts.some(containsForbiddenZunoDisclosure);
+}
+
+function normalizeCommercialDiagnosisForStorage(analise: AnaliseResult): AnaliseResult {
+  const commercialBullets = [
+    ["Leitura da empresa", analise.company_reading || analise.diagnostic],
+    ["Por que vale abordar", analise.why_good_lead],
+    ["Dor provavel", analise.probable_pain || analise.pain_point],
+    ["Brecha de abordagem", analise.approach_gap],
+    ["Melhor angulo", analise.commercial_angle || analise.approach_angle],
+    [
+      "Oferta indicada",
+      [analise.recommended_offer?.plan ? `Plano ${analise.recommended_offer.plan}` : "", analise.recommended_offer?.reason || ""]
+        .filter(Boolean)
+        .join(": "),
+    ],
+    ["Objecao provavel", analise.likely_objection],
+    ["Como converter", analise.conversion_path || analise.cta],
+  ]
+    .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
+    .map(([label, value]) => `${label}: ${value}`);
+
+  if (commercialBullets.length >= 4) {
+    analise.diagnostico_bullets = commercialBullets;
+  }
+
+  return analise;
 }
 
 function normalizePremiumCopyForStorage(analise: AnaliseResult): AnaliseResult {
@@ -403,8 +449,9 @@ function normalizePremiumCopyForStorage(analise: AnaliseResult): AnaliseResult {
   }
 
   const followUpDay = analise.plano_prospeccao_7dias.find((dia) => dia.dia > 1);
-  if (followUpDay && analise.follow_up) {
-    followUpDay.mensagem = analise.follow_up;
+  const followUpMessage = analise.follow_up_message || analise.follow_up;
+  if (followUpDay && followUpMessage) {
+    followUpDay.mensagem = followUpMessage;
   }
 
   return analise;
@@ -900,11 +947,11 @@ serve(async (req) => {
       }
     }
 
-    analise = normalizePremiumCopyForStorage(analise);
+    analise = normalizeCommercialDiagnosisForStorage(normalizePremiumCopyForStorage(analise));
 
     if (isZunoInternalProspectingFocus(leadData.foco) && analysisContainsForbiddenZunoDisclosure(analise)) {
       console.warn("🚫 Análise da Zuno continha disclosure proibido; aplicando fallback seguro.");
-      analise = normalizePremiumCopyForStorage(generateZunoInternalMockAnalise(leadData));
+      analise = normalizeCommercialDiagnosisForStorage(normalizePremiumCopyForStorage(generateZunoInternalMockAnalise(leadData)));
     }
 
     // Save analysis to DB
@@ -1131,11 +1178,25 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string, onRetry?:
                   diagnostic: { type: "string" },
                   pain_point: { type: "string" },
                   approach_angle: { type: "string" },
+                  company_reading: { type: "string" },
+                  why_good_lead: { type: "string" },
+                  probable_pain: { type: "string" },
+                  approach_gap: { type: "string" },
+                  commercial_angle: { type: "string" },
+                  recommended_offer: {
+                    type: "object",
+                    properties: {
+                      plan: { type: "string", enum: ["free", "starter", "pro", "agency"] },
+                      reason: { type: "string" }
+                    }
+                  },
+                  conversion_path: { type: "string" },
                   whatsapp_message: { type: "string" },
                   instagram_message: { type: "string" },
                   email_subject: { type: "string" },
                   email_body: { type: "string" },
                   follow_up: { type: "string" },
+                  follow_up_message: { type: "string" },
                   likely_objection: { type: "string" },
                   objection_response: { type: "string" },
                   cta: { type: "string" },
@@ -1298,11 +1359,25 @@ async function analyzeWithLovableAI(lead: LeadData): Promise<AnaliseResult> {
                   diagnostic: { type: "string" },
                   pain_point: { type: "string" },
                   approach_angle: { type: "string" },
+                  company_reading: { type: "string" },
+                  why_good_lead: { type: "string" },
+                  probable_pain: { type: "string" },
+                  approach_gap: { type: "string" },
+                  commercial_angle: { type: "string" },
+                  recommended_offer: {
+                    type: "object",
+                    properties: {
+                      plan: { type: "string", enum: ["free", "starter", "pro", "agency"] },
+                      reason: { type: "string" }
+                    }
+                  },
+                  conversion_path: { type: "string" },
                   whatsapp_message: { type: "string" },
                   instagram_message: { type: "string" },
                   email_subject: { type: "string" },
                   email_body: { type: "string" },
                   follow_up: { type: "string" },
+                  follow_up_message: { type: "string" },
                   likely_objection: { type: "string" },
                   objection_response: { type: "string" },
                   cta: { type: "string" },
@@ -1398,11 +1473,16 @@ function buildEliteCopywriterSystemPrompt(isUS: boolean = false): string {
 function buildPremiumCopyOutputRules(): string {
   return `FORMATO PREMIUM OBRIGATORIO
 - Alem de diagnostico_bullets, probabilidade_conversao e plano_prospeccao_7dias, retorne no mesmo JSON:
-  score, fit_level, diagnostic, pain_point, approach_angle, whatsapp_message, instagram_message, email_subject, email_body, follow_up, likely_objection, objection_response, cta.
+  score, fit_level, company_reading, why_good_lead, probable_pain, approach_gap, commercial_angle, recommended_offer, likely_objection, objection_response, conversion_path, whatsapp_message, instagram_message, email_subject, email_body, follow_up_message, cta.
+- recommended_offer deve ter plan ("free", "starter", "pro" ou "agency") e reason.
+- O diagnostico deve ser comercial, especifico e orientado a conversao. Responda: vale abordar, por que, qual dor explorar, qual angulo usar, qual oferta sugerir e qual proximo passo.
+- Use dados disponiveis: nome, nicho, cidade, endereco, site informado, telefone, rating, reviews, WhatsApp, Instagram, foco e canais. Nao invente dados. Se algo nao veio nos dados, diga "nos dados disponiveis, nao ha X informado" quando isso for relevante.
+- Evite frases vagas como "pode se beneficiar", "tem potencial", "gerar valor" ou "abordagem consultiva" sem explicar exatamente como e por que.
 - Retorne variations com exatamente 3 abordagens: direct, consultative e light_provocation.
 - Gere as 3 variacoes na mesma chamada, sem pedir nova analise.
 - As mensagens devem ser curtas, humanas, contextualizadas pelo nicho/cidade/sinais e sem frase generica.
 - Ajuste o plano de 7 dias para reaproveitar essas mensagens premium nos canais corretos.
+- Para zuno_internal_prospecting, avalie se a empresa provavelmente precisa prospectar, se vende servico, se depende de clientes recorrentes, se usaria individual/Pro/Agencia e se o fit e baixo, medio ou alto.
 - Se o foco for zuno_internal_prospecting, venda a Zuno sem dizer ou sugerir que o lead foi encontrado usando Zuno ou qualquer ferramenta.`;
 }
 
@@ -1429,7 +1509,7 @@ Regras obrigatórias:
 - O objetivo é gerar conversa, não vender de forma agressiva.
 - Frases proibidas: "encontrei você usando a Zuno", "achei você pela Zuno", "a própria Zuno encontrou", "usando a própria Zuno", "se ela me ajudou a encontrar você", "usei a Zuno para encontrar", "fui até você usando a Zuno".
 - Retorne somente dados compatíveis com a função gerar_analise_lead.
-- diagnostico_bullets deve explicar fit, dor provável e motivo de interesse pela Zuno.
+- diagnostico_bullets deve refletir os blocos comerciais: leitura da empresa, por que vale abordar, dor provavel, brecha, angulo, oferta indicada, objecao e como converter.
 - probabilidade_conversao deve ser um score de 0 a 100.
 - plano_prospeccao_7dias deve conter mensagens prontas para WhatsApp, Instagram, e-mail e follow-ups.`;
 }

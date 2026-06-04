@@ -28,6 +28,28 @@ const variationLabels: Record<keyof NonNullable<PlanoProspeccaoDia["variations"]
   light_provocation: "Provocacao leve",
 };
 
+const commercialDiagnosisLabels = [
+  "Leitura da empresa",
+  "Por que vale abordar",
+  "Dor provavel",
+  "Brecha de abordagem",
+  "Melhor angulo",
+  "Oferta indicada",
+  "Objecao provavel",
+  "Como converter",
+];
+
+const parseCommercialDiagnosis = (diagnostico: string[]) => {
+  const blocks = commercialDiagnosisLabels
+    .map((label) => {
+      const item = diagnostico.find((bullet) => bullet.toLowerCase().startsWith(`${label.toLowerCase()}:`));
+      return item ? { label, value: item.slice(label.length + 1).trim() } : null;
+    })
+    .filter((item): item is { label: string; value: string } => !!item && item.value.length > 0);
+
+  return blocks.length >= 4 ? blocks : [];
+};
+
 export const LeadAnalysis = ({
   diagnostico,
   probabilidade,
@@ -115,6 +137,8 @@ export const LeadAnalysis = ({
     return "text-red-600 bg-red-50 border-red-200";
   };
 
+  const commercialDiagnosis = parseCommercialDiagnosis(diagnostico);
+
   return (
     <div className="space-y-4 mt-4">
       {lead && (
@@ -133,7 +157,7 @@ export const LeadAnalysis = ({
               <div>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Brain className="h-5 w-5 text-primary" />
-                  Diagnostico Digital
+                  Diagnostico Comercial
                 </CardTitle>
                 {geradoEm && (
                   <CardDescription className="text-xs mt-1">
@@ -165,14 +189,27 @@ export const LeadAnalysis = ({
             </div>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-2">
-              {diagnostico.map((bullet, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-sm">
-                  <span className="text-primary mt-0.5">-</span>
-                  <span>{bullet}</span>
-                </li>
-              ))}
-            </ul>
+            {commercialDiagnosis.length > 0 ? (
+              <div className="grid gap-3">
+                {commercialDiagnosis.map((item) => (
+                  <div key={item.label} className="rounded-md border bg-muted/20 p-3">
+                    <p className="text-xs font-semibold uppercase text-muted-foreground">
+                      {item.label}
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {diagnostico.map((bullet, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm">
+                    <span className="text-primary mt-0.5">-</span>
+                    <span>{bullet}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
 
@@ -200,10 +237,10 @@ export const LeadAnalysis = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-primary" />
-            Plano de Prospeccao 7 Dias
+            Plano de abordagem
           </CardTitle>
           <CardDescription>
-            Cadencia multicanal otimizada com copy pronta, variacoes e respostas para objecoes
+            WhatsApp, Instagram, e-mail e follow-ups gerados na mesma chamada de IA
           </CardDescription>
         </CardHeader>
         <CardContent>

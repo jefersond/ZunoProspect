@@ -12,6 +12,7 @@ import { useOAuthCallback } from "@/hooks/useOAuthCallback";
 import LandingProspeccaoIA from "./pages/LandingProspeccaoIA";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AdminRoute } from "@/components/AdminRoute";
 import { initTracking } from "@/lib/tracking";
 
 initTracking();
@@ -83,10 +84,10 @@ const AppContent = () => {
           <Route path="/pipeline" element={<ProtectedRoute><Pipeline /></ProtectedRoute>} />
           <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
           <Route path="/admin" element={<Navigate to="/admin/email" replace />} />
-          <Route path="/admin/email" element={<ProtectedRoute><AdminErrorBoundary><AdminEmail /></AdminErrorBoundary></ProtectedRoute>} />
-          <Route path="/admin/realtime" element={<ProtectedRoute><AdminErrorBoundary><AdminRealtime /></AdminErrorBoundary></ProtectedRoute>} />
-          <Route path="/admin/checkouts-abandonados" element={<ProtectedRoute><AdminErrorBoundary><AdminAbandonedCheckouts /></AdminErrorBoundary></ProtectedRoute>} />
-          <Route path="/admin/system-health" element={<ProtectedRoute><AdminErrorBoundary><AdminSystemHealth /></AdminErrorBoundary></ProtectedRoute>} />
+          <Route path="/admin/email" element={<AdminRoute><AdminErrorBoundary><AdminEmail /></AdminErrorBoundary></AdminRoute>} />
+          <Route path="/admin/realtime" element={<AdminRoute><AdminErrorBoundary><AdminRealtime /></AdminErrorBoundary></AdminRoute>} />
+          <Route path="/admin/checkouts-abandonados" element={<AdminRoute><AdminErrorBoundary><AdminAbandonedCheckouts /></AdminErrorBoundary></AdminRoute>} />
+          <Route path="/admin/system-health" element={<AdminRoute><AdminErrorBoundary><AdminSystemHealth /></AdminErrorBoundary></AdminRoute>} />
           <Route path="/api-docs" element={<ProtectedRoute><ApiDocs /></ProtectedRoute>} />
           <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
           

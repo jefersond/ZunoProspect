@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
 
 // Auxiliar para Promises com timeout seguro
 const withTimeout = <T extends unknown>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {
@@ -34,8 +35,7 @@ type DiagnosticsItem = {
 export default function AdminSystemHealth() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loadingAdminCheck, setLoadingAdminCheck] = useState(true);
+  const { isAdmin, refreshPermissions, profileError } = useAuth();
   const [running, setRunning] = useState(false);
   const [diagnostics, setDiagnostics] = useState<DiagnosticsItem[]>([
     { id: "auth_conn", name: "Supabase Auth Conectividade", category: "auth", status: "PENDENTE" },
@@ -51,64 +51,6 @@ export default function AdminSystemHealth() {
     { id: "env_stripe_wh", name: "Variável STRIPE_WEBHOOK_SECRET", category: "env", status: "PENDENTE" },
     { id: "env_resend", name: "Variável RESEND_API_KEY", category: "env", status: "PENDENTE" },
   ]);
-
-  // 1. Verificar privilégios de Admin
-  useEffect(() => {
-    const verifyAdmin = async () => {
-      try {
-        const {
-          data: { user },
-          error: userError,
-        } = await withTimeout(
-          supabase.auth.getUser(),
-          6000,
-          "Timeout ao obter usuário"
-        );
-
-        if (userError || !user) {
-          navigate("/auth?tab=login");
-          return;
-        }
-
-        // Bypass imediato por e-mail
-        if (isAdminEmail(user.email)) {
-          setIsAdmin(true);
-          return;
-        }
-
-        const { data: adminCheck, error: rpcError } = await withTimeout(
-          supabase.rpc("is_admin", { _user_id: user.id }),
-          6000,
-          "Timeout ao validar privilégios"
-        );
-        if (rpcError) throw rpcError;
-
-        if (!adminCheck) {
-          toast({
-            variant: "destructive",
-            title: "Acesso restrito",
-            description: "Esta página é exclusiva para administradores.",
-          });
-          navigate("/prospeccao");
-          return;
-        }
-
-        setIsAdmin(true);
-      } catch (err: any) {
-        console.error("Erro ao verificar privilégios de administrador:", err);
-        toast({
-          variant: "destructive",
-          title: "Erro de autenticação",
-          description: "Não foi possível verificar seus privilégios de administrador.",
-        });
-        navigate("/prospeccao");
-      } finally {
-        setLoadingAdminCheck(false);
-      }
-    };
-
-    verifyAdmin();
-  }, [navigate, toast]);
 
   // 2. Orquestrar Diagnósticos
   const runDiagnostics = async () => {
@@ -361,14 +303,6 @@ export default function AdminSystemHealth() {
     }
   };
 
-  if (loadingAdminCheck) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0b0f0e]">
-        <Loader2 className="h-8 w-8 animate-spin text-[#10d98a]" />
-      </div>
-    );
-  }
-
   if (!isAdmin) {
     return null;
   }
@@ -390,15 +324,30 @@ export default function AdminSystemHealth() {
             </p>
           </div>
 
-          <Button
-            onClick={runDiagnostics}
-            disabled={running}
-            className="bg-[#111816] border border-[#1f2d29] text-[#f4f4f5] hover:bg-[#1f2d29] hover:text-[#10d98a] gap-2 shrink-0"
-          >
-            <RefreshCw className={`h-4 w-4 ${running ? "animate-spin text-[#10d98a]" : ""}`} />
-            Rodar Diagnósticos
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              onClick={refreshPermissions}
+              variant="outline"
+              className="bg-[#111816] border-[#1f2d29] text-[#f4f4f5] hover:bg-[#1f2d29] hover:text-[#10d98a] gap-2 shrink-0"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Recarregar permissoes
+            </Button>
+            <Button
+              onClick={runDiagnostics}
+              disabled={running}
+              className="bg-[#111816] border border-[#1f2d29] text-[#f4f4f5] hover:bg-[#1f2d29] hover:text-[#10d98a] gap-2 shrink-0"
+            >
+              <RefreshCw className={`h-4 w-4 ${running ? "animate-spin text-[#10d98a]" : ""}`} />
+              Rodar Diagnosticos
+            </Button>
+          </div>
         </div>
+        {profileError && (
+          <div className="rounded border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+            Profile indisponivel agora; o admin principal continua liberado pelo e-mail autenticado.
+          </div>
+        )}
 
         {/* Diagnostic Results Card */}
         <Card className="bg-[#111816] border-[#1f2d29]">

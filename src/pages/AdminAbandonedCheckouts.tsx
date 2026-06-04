@@ -6,7 +6,6 @@ import {
   CheckCircle2, RefreshCw, BarChart3, HelpCircle, ArrowRight
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { isAdminEmail } from "@/config/admin";
 import { AppHeader } from "@/components/AppHeader";
 import { AdminLoadingState, AdminErrorState, AdminEmptyState } from "@/components/admin/AdminStates";
 import { normalizeCreativeName, CREATIVE_NAME_MAP } from "@/lib/creativeMap";
@@ -17,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 type AppEvent = {
   id: string;
@@ -86,7 +86,7 @@ const rangeHours = {
 export default function AdminAbandonedCheckouts() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
   const [events, setEvents] = useState<AppEvent[]>([]);
@@ -110,54 +110,6 @@ export default function AdminAbandonedCheckouts() {
 
   const usersById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
   const usersByEmail = useMemo(() => new Map(users.map((user) => [user.email?.toLowerCase(), user])), [users]);
-
-  // 1. Verificar privilégios de Admin
-  useEffect(() => {
-    const verifyAdmin = async () => {
-      try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (userError || !user) {
-          navigate("/auth?tab=login");
-          return;
-        }
-
-        // Bypass imediato para o email de admin principal
-        if (isAdminEmail(user.email)) {
-          setIsAdmin(true);
-          return;
-        }
-
-        const { data: adminCheck, error: rpcError } = await supabase.rpc("is_admin", { _user_id: user.id });
-        if (rpcError) throw rpcError;
-
-        if (!adminCheck) {
-          toast({
-            variant: "destructive",
-            title: "Acesso restrito",
-            description: "Esta página é exclusiva para administradores.",
-          });
-          navigate("/prospeccao");
-          return;
-        }
-
-        setIsAdmin(true);
-      } catch (err: any) {
-        console.error("Erro ao verificar privilégios de administrador:", err);
-        toast({
-          variant: "destructive",
-          title: "Erro de conexão",
-          description: "Não foi possível verificar seus privilégios de administrador. Tente novamente.",
-        });
-        setLoading(false); // Desligar o loading para evitar tela preta infinita
-      }
-    };
-
-    verifyAdmin();
-  }, [navigate, toast]);
 
   // 2. Carregar dados de usuários do SaaS para enriquecimento
   useEffect(() => {

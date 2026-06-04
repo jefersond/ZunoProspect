@@ -25,9 +25,9 @@ export const isAdminUser = (
   profile?: AdminProfileLike,
 ): boolean => {
   return Boolean(
-    profile?.role === "admin" ||
-    profile?.is_admin === true ||
     isAdminEmail(user?.email) ||
-    isAdminEmail(profile?.email),
+    isAdminEmail(profile?.email) ||
+    profile?.role === "admin" ||
+    profile?.is_admin === true,
   );
 };

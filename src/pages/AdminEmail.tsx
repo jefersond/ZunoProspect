@@ -21,7 +21,7 @@ import { WelcomeEmailsDashboard } from "@/components/admin/WelcomeEmailsDashboar
 import { EmailTestCard } from "@/components/admin/EmailTestCard";
 import { UsersDashboard } from "@/components/admin/UsersDashboard";
 import { BehaviorEmailsDashboard } from "@/components/admin/BehaviorEmailsDashboard";
-import { isAdminEmail } from "@/config/admin";
+import { useAuth } from "@/hooks/useAuth";
 import { createFounderAccessCampaignTemplate } from "../../supabase/functions/_shared/emailTemplates";
 
 // Auxiliar para Promises com timeout seguro
@@ -82,9 +82,9 @@ interface Campaign {
 const AdminEmail = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [sending, setSending] = useState<string | null>(null);
   const [testingCampaign, setTestingCampaign] = useState<string | null>(null);
@@ -106,62 +106,8 @@ const AdminEmail = () => {
   const [previewCampaign, setPreviewCampaign] = useState<Campaign | null>(null);
 
   useEffect(() => {
-    checkAdminAndLoad();
+    loadCampaigns();
   }, []);
-
-  const checkAdminAndLoad = async () => {
-    try {
-      const { data: { user }, error: userError } = await withTimeout(
-        supabase.auth.getUser(),
-        6000,
-        "Tempo limite excedido ao obter usuário."
-      );
-      if (userError) throw userError;
-      
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
-
-      // Bypass imediato para o email de admin principal
-      if (isAdminEmail(user.email)) {
-        setIsAdmin(true);
-        await loadCampaigns();
-        return;
-      }
-
-      // Check if user is admin
-      const { data: adminCheck, error: rpcError } = await withTimeout(
-        supabase.rpc("is_admin", { _user_id: user.id }),
-        6000,
-        "Tempo limite excedido ao validar administrador."
-      );
-      if (rpcError) throw rpcError;
-      
-      if (!adminCheck) {
-        toast({
-          variant: "destructive",
-          title: "Acesso negado",
-          description: "Esta página é restrita a administradores.",
-        });
-        navigate("/prospeccao");
-        return;
-      }
-
-      setIsAdmin(true);
-      await loadCampaigns();
-    } catch (error: any) {
-      console.error("Erro ao verificar privilégios de administrador:", error);
-      toast({
-        variant: "destructive",
-        title: "Erro de conexão",
-        description: "Não foi possível verificar seus privilégios de administrador. Tente novamente.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const loadCampaigns = async () => {
     setLoading(true);
     setError(null);

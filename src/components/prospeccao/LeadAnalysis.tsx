@@ -28,25 +28,6 @@ const variationLabels: Record<keyof NonNullable<PlanoProspeccaoDia["variations"]
   light_provocation: "Provocacao leve",
 };
 
-const commercialDiagnosisLabels = [
-  "Leitura comercial",
-  "Foco da abordagem",
-  "Ponto para puxar conversa",
-  "Como abordar",
-  "Proximo passo",
-];
-
-const parseCommercialDiagnosis = (diagnostico: string[]) => {
-  const blocks = commercialDiagnosisLabels
-    .map((label) => {
-      const item = diagnostico.find((bullet) => bullet.toLowerCase().startsWith(`${label.toLowerCase()}:`));
-      return item ? { label, value: item.slice(label.length + 1).trim() } : null;
-    })
-    .filter((item): item is { label: string; value: string } => !!item && item.value.length > 0);
-
-  return blocks.length >= 4 ? blocks : [];
-};
-
 export const LeadAnalysis = ({
   diagnostico,
   probabilidade,
@@ -134,8 +115,6 @@ export const LeadAnalysis = ({
     return "text-red-600 bg-red-50 border-red-200";
   };
 
-  const commercialDiagnosis = parseCommercialDiagnosis(diagnostico);
-
   return (
     <div className="space-y-4 mt-4">
       {lead && (
@@ -186,28 +165,14 @@ export const LeadAnalysis = ({
             </div>
           </CardHeader>
           <CardContent>
-            {commercialDiagnosis.length > 0 ? (
-              <ul className="space-y-3">
-                {commercialDiagnosis.map((item) => (
-                  <li key={item.label} className="flex items-start gap-2 text-sm leading-relaxed">
-                    <span className="text-primary mt-0.5">-</span>
-                    <span>
-                      <span className="font-semibold">{item.label}: </span>
-                      {item.value}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <ul className="space-y-2">
-                {diagnostico.map((bullet, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-sm">
-                    <span className="text-primary mt-0.5">-</span>
-                    <span>{bullet}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <ul className="space-y-3">
+              {diagnostico.map((bullet, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-sm leading-relaxed">
+                  <span className="text-primary mt-0.5">-</span>
+                  <span>{bullet}</span>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
 

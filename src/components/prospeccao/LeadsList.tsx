@@ -358,6 +358,28 @@ export const LeadsList = () => {
     }
   };
 
+  const updateLeadLocally = (updatedLead: LeadProspeccao) => {
+    setLeads((prev) => prev.map((lead) => (lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead)));
+    setSelectedLead((prev) => (prev?.id === updatedLead.id ? { ...prev, ...updatedLead } : prev));
+  };
+
+  const refreshSingleLead = async (leadId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("id", leadId)
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        updateLeadLocally(transformLeadFromDb(data));
+      }
+    } catch (error) {
+      console.warn("Nao foi possivel atualizar o lead localmente:", error);
+    }
+  };
+
   useEffect(() => {
     // Carrega leads ao montar o componente (sem filtro por searchRunId = pega todos não salvos)
     loadLeads();
@@ -943,7 +965,7 @@ export const LeadsList = () => {
       }
       
       trackEvent("ai_analysis_completed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source });
-      loadLeads();
+      await refreshSingleLead(lead.id);
     } catch (error: any) {
       console.error("Erro ao reanalisar:", error);
       
@@ -1030,7 +1052,7 @@ export const LeadsList = () => {
       
       toast({
         variant: "destructive",
-        title: "Erro na análise",
+        title: "Nao foi possivel refinar essa copy agora.",
         description: isBalanceError 
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
@@ -1135,6 +1157,7 @@ export const LeadsList = () => {
               </div>
               <div className="flex flex-wrap gap-2 shrink-0">
                 <Button
+                  type="button"
                   onClick={scrollToLeadsTable}
                   variant="outline"
                   className="h-10 text-xs font-medium"
@@ -1142,6 +1165,7 @@ export const LeadsList = () => {
                   Ver Lista
                 </Button>
                 <Button
+                  type="button"
                   onClick={handleFirstAiCtaClick}
                   disabled={reanalyzingLeads.has(firstAnalyzableLead.id)}
                   className="h-10 bg-emerald-600 text-white hover:bg-emerald-500 shadow-md font-semibold text-xs transition-transform active:scale-95"
@@ -1490,6 +1514,7 @@ export const LeadsList = () => {
                               <TooltipTrigger asChild>
                                 <div className="flex flex-col items-center gap-1">
                                   <Button
+                                    type="button"
                                     variant="outline"
                                     size="sm"
                                     onClick={() => reanalyzeLead(lead, "leads_list")}
@@ -1724,9 +1749,11 @@ export const LeadsList = () => {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onLeadUpdate={() => {
-          // Recarrega os leads após reanálise
-          window.location.reload();
+          if (selectedLead?.id) {
+            refreshSingleLead(selectedLead.id);
+          }
         }}
+        onLeadRefined={updateLeadLocally}
       />
       
       <UpgradePlanDialog 

@@ -46,6 +46,7 @@ interface LeadPlanDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onLeadUpdate?: () => void;
+  onLeadRefined?: (lead: LeadProspeccao) => void;
   onStatusChange?: (leadId: string, newStatus: string) => void;
 }
 
@@ -54,6 +55,7 @@ export const LeadPlanDialog = ({
   open, 
   onOpenChange, 
   onLeadUpdate,
+  onLeadRefined,
   onStatusChange 
 }: LeadPlanDialogProps) => {
   const [isReanalyzing, setIsReanalyzing] = useState(false);
@@ -319,7 +321,7 @@ export const LeadPlanDialog = ({
 
       setCurrentLead(transformedLead);
       await refetchUsage();
-      onLeadUpdate?.();
+      onLeadRefined?.(transformedLead);
       trackMetaCustomEvent("AI_Analysis_Completed", {
         lead_id: lead.id,
         lead_name: lead.nome,
@@ -396,7 +398,7 @@ export const LeadPlanDialog = ({
       }
 
       toast({
-        title: "Erro ao reanalisar",
+        title: "Nao foi possivel refinar essa copy agora.",
         description: isBalanceError 
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError

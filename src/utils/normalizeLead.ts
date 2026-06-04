@@ -27,10 +27,11 @@ export interface NormalizedLead {
 }
 
 const ZUNO_INTERNAL_PROSPECTING_FOCUS = "zuno_internal_prospecting";
+const ZUNO_COMMERCIAL_FOCUS_LABEL = "Oportunidade comercial";
 
 function getSafeFocusLabel(foco?: string | null): string {
   if (!foco || foco === ZUNO_INTERNAL_PROSPECTING_FOCUS) {
-    return "prospeccao comercial";
+    return ZUNO_COMMERCIAL_FOCUS_LABEL;
   }
   return foco;
 }

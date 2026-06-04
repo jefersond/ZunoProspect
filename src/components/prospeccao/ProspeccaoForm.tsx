@@ -38,7 +38,7 @@ const focusOptions = [
   { label: "SEO", value: "SEO" },
   { label: "Sites/Landing", value: "Sites/Landing" },
   { label: "CRM", value: "CRM" },
-  { label: "Prospecção para a Zuno", value: ZUNO_INTERNAL_PROSPECTING_FOCUS, adminOnly: true },
+  { label: "Oportunidade comercial", value: ZUNO_INTERNAL_PROSPECTING_FOCUS, adminOnly: true },
 ];
 
 const withSearchTimeout = async <T,>(promise: Promise<T>): Promise<T> => {

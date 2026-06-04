@@ -66,6 +66,7 @@ const FALLBACK_CONTEXT: NicheCopyContext = {
 };
 
 const ZUNO_INTERNAL_PROSPECTING_FOCUS = "zuno_internal_prospecting";
+const ZUNO_COMMERCIAL_FOCUS_LABEL = "oportunidade comercial";
 
 function normalizeKey(value?: string | null) {
   return (value || "")
@@ -98,7 +99,7 @@ export function selectApproachAngle({
   const normalizedFocus = normalizeKey(focus);
 
   if (normalizedFocus.includes("crm")) return "organizacao";
-  if (normalizedFocus.includes("zuno")) return "teste_pratico";
+  if (focus === ZUNO_INTERNAL_PROSPECTING_FOCUS || normalizedFocus.includes(ZUNO_COMMERCIAL_FOCUS_LABEL)) return "qualificacao";
   if (["agencia", "consultor", "consultoria", "gestor"].some((term) => normalizedNiche.includes(term))) {
     return context.angle || "previsibilidade";
   }
@@ -159,7 +160,7 @@ export function generateSmartProspectingCopy({
     return {
       approach_angle,
       context,
-      message: `${companyName}, tudo bem?\n\nVi que voces atuam com ${effectiveNiche}${cityText} e imaginei que encontrar novos clientes seja uma parte importante da rotina.\n\nEstou trabalhando com uma solucao que ajuda a encontrar empresas com potencial e criar abordagens mais contextualizadas com IA.\n\n${cta}`,
+      message: `${companyName}, tudo bem?\n\nVi que voces atuam com ${effectiveNiche}${cityText} e fiquei com uma duvida rapida.\n\nHoje voces ja tem um processo mais previsivel para gerar novas conversas comerciais ou isso ainda depende muito de indicacao e tentativa manual?\n\nPosso te mandar uma observacao objetiva sobre isso?`,
     };
   }
 

@@ -12,6 +12,7 @@ const ADMIN_EMAILS = new Set([
   "jefeson.zanotell@gmail.com",
 ]);
 const ZUNO_INTERNAL_PROSPECTING_FOCUS = "zuno_internal_prospecting";
+const ZUNO_COMMERCIAL_FOCUS_LABEL = "Oportunidade comercial";
 
 function isZunoInternalProspectingFocus(foco?: string | null): boolean {
   return foco === ZUNO_INTERNAL_PROSPECTING_FOCUS;
@@ -19,7 +20,7 @@ function isZunoInternalProspectingFocus(foco?: string | null): boolean {
 
 function getSafeFocusLabel(foco?: string | null): string {
   if (!foco || isZunoInternalProspectingFocus(foco)) {
-    return "prospeccao comercial";
+    return ZUNO_COMMERCIAL_FOCUS_LABEL;
   }
   return foco;
 }
@@ -447,7 +448,7 @@ function buildLeadDataSignals(lead?: LeadData): string[] {
     lead.has_meta_pixel ? "Meta Pixel detectado no site" : null,
     lead.has_gtag ? "Google Analytics detectado no site" : null,
     lead.has_gtm ? "Google Tag Manager detectado no site" : null,
-    lead.foco ? `Analise feita com foco em: ${lead.foco}` : null,
+    lead.foco ? `Analise feita com foco em: ${getSafeFocusLabel(lead.foco)}` : null,
   ].filter((signal): signal is string => !!signal);
 
   return signals.slice(0, 10);
@@ -491,6 +492,21 @@ function buildStrategicDiagnosisBullets(lead?: LeadData): string[] {
   const bullets = [
     `${company} apresenta sinais de atuacao em ${niche}${city}.${ratingText} ${presenceText}`,
   ];
+
+  if (isZunoInternalProspectingFocus(lead?.foco)) {
+    bullets.push(
+      hasSite || hasInstagram || hasContact
+        ? "Com foco em oportunidade comercial, a leitura principal e entender se essa presenca digital ja esta sendo bem aproveitada para abrir conversas ou se ainda existe espaco para transformar interesse em demanda mais previsivel."
+        : "Com foco em oportunidade comercial, a leitura principal e validar se a empresa depende mais de indicacoes e esforco manual do que de uma rotina previsivel para gerar novas conversas."
+    );
+    bullets.push(
+      hasTracking
+        ? "Os sinais de mensuracao e canais ativos sugerem que ja existe alguma base para organizar melhor abordagem, priorizacao e acompanhamento do que chama atencao do mercado."
+        : "Nos dados disponiveis, a oportunidade parece estar menos em ferramenta isolada e mais em ganhar clareza sobre onde estao as melhores oportunidades e como abordar com mais contexto."
+    );
+    bullets.push("A melhor abertura e uma observacao objetiva sobre a presenca comercial da empresa e uma pergunta simples sobre como novas conversas entram hoje, sem apresentar produto de forma apressada.");
+    return bullets;
+  }
 
   if (normalizedFocus.includes("trafego") || normalizedFocus.includes("traf")) {
     bullets.push(
@@ -566,7 +582,7 @@ function replaceLeadPlaceholders(text: string, lead: LeadData): string {
   return text
     .replace(/\$\{lead\.nome\}/g, lead.nome || "a empresa")
     .replace(/\$\{lead\.nicho\}/g, lead.nicho || "o segmento")
-    .replace(/\$\{lead\.foco\}/g, lead.foco || "essa frente")
+    .replace(/\$\{lead\.foco\}/g, getSafeFocusLabel(lead.foco) || "essa frente")
     .replace(/\$\{lead\.cidade\}/g, lead.cidade || "a cidade");
 }
 
@@ -574,6 +590,7 @@ function softenWhatsappCopy(text: string, lead: LeadData): string {
   let result = replaceLeadPlaceholders(text, lead);
 
   result = result
+    .replace(/zuno_internal_prospecting/gi, ZUNO_COMMERCIAL_FOCUS_LABEL)
     .replace(/framework simples de 3 passos/gi, "ponto simples")
     .replace(/quer que eu compartilhe\?/gi, "Quer que eu te mande esse ponto?")
     .replace(/sou especialista em .*? regularmente\./gi, "Peguei o contato pelos canais publicos da empresa e achei que valia te mandar uma observacao rapida.")
@@ -673,7 +690,7 @@ function hasGreeting(message: string): boolean {
 
 function hasContext(message: string, lead: LeadData): boolean {
   const normalized = normalizeDisclosureText(message);
-  return [lead.nome, lead.nicho, lead.cidade, lead.foco]
+  return [lead.nome, lead.nicho, lead.cidade, getSafeFocusLabel(lead.foco)]
     .filter(Boolean)
     .some((value) => normalizeDisclosureText(String(value)).split(" ")[0] && normalized.includes(normalizeDisclosureText(String(value)).split(" ")[0]));
 }
@@ -689,7 +706,7 @@ function buildFallbackWhatsappMessage(lead: LeadData): string {
   const city = lead.cidade && lead.cidade !== "NÃ£o informada" ? ` em ${lead.cidade}` : "";
 
   if (isZunoInternalProspectingFocus(lead.foco)) {
-    return `Ola, ${company}, tudo bem?\n\nVi que voces atuam com ${niche}${city} e imaginei que encontrar novos clientes seja uma parte importante da rotina.\n\nEstou trabalhando com uma solucao de prospeccao com IA que ajuda a encontrar empresas por cidade e nicho e criar abordagens mais contextualizadas.\n\nFaz sentido eu te mostrar um exemplo pratico?`;
+    return `Ola, ${company}, tudo bem?\n\nVi que voces atuam com ${niche}${city} e fiquei com uma duvida rapida.\n\nHoje voces ja tem um processo previsivel para gerar novas conversas comerciais ou isso ainda depende mais de indicacao e tentativa manual?\n\nPosso te mandar uma observacao objetiva do que eu olharia primeiro?`;
   }
 
   if (String(lead.foco || "").toLowerCase().includes("tr")) {
@@ -703,8 +720,9 @@ function buildFallbackProspectingPlan(lead: LeadData): AnaliseResult["plano_pros
   const company = isFilledLeadValue(lead.nome) ? lead.nome : "pessoal";
   const niche = isFilledLeadValue(lead.nicho) ? lead.nicho : "seu segmento";
   const city = isFilledLeadValue(lead.cidade) ? ` em ${lead.cidade}` : "";
-  const focus = isFilledLeadValue(lead.foco) ? lead.foco : "presenca digital";
+  const focus = isFilledLeadValue(lead.foco) ? getSafeFocusLabel(lead.foco) : "presenca digital";
   const normalizedFocus = normalizeDisclosureText(focus);
+  const isCommercialFocus = isZunoInternalProspectingFocus(lead.foco);
   const isTrafficFocus = normalizedFocus.includes("trafego") || normalizedFocus.includes("traf");
   const trackingTools = [
     lead.has_meta_pixel ? "Meta Pixel" : null,
@@ -718,12 +736,80 @@ function buildFallbackProspectingPlan(lead: LeadData): AnaliseResult["plano_pros
     ? `Para uma empresa de ${niche}, o ponto nao e so gerar visita; e fazer a pessoa chegar no WhatsApp ja interessada.`
     : `Para uma empresa de ${niche}, o ponto e transformar presenca digital em conversa comercial mais qualificada.`;
 
+  if (isCommercialFocus) {
+    return [
+      {
+        dia: 1,
+        canal: "whatsapp",
+        acao_sugerida: "Enviar texto curto primeiro. Se responder, aprofundar com um audio curto ou mais contexto.",
+        mensagem: `Ola, ${company}, tudo bem?\n\nVi que voces atuam com ${niche}${city} e fiquei com uma duvida rapida.\n\nHoje a entrada de novas conversas comerciais acontece de forma previsivel ou ainda depende muito de indicacao e tentativa manual?\n\nPosso te mandar 1 observacao objetiva sobre isso?`,
+        objecao_provavel: "Quem e voce e como conseguiu meu contato?",
+        resposta_sugerida: "Justo. Peguei o contato pelos canais publicos da empresa. Vi alguns sinais da presenca digital de voces e achei que valia te mandar uma observacao curta, sem compromisso.",
+        cta: "Posso te mandar essa observacao em 2 linhas?",
+      },
+      {
+        dia: 2,
+        canal: "instagram",
+        acao_sugerida: "Curtir 2 posts recentes, reagir a 1 story se houver e depois enviar uma DM curta.",
+        mensagem: `Oi, ${company}. Passei pelo perfil de voces e me chamou atencao que a empresa ja passa uma boa presenca inicial.\n\nFiquei com a duvida se isso hoje esta virando conversa comercial com frequencia ou se o perfil funciona mais como vitrine.\n\nSe fizer sentido, te mando o ponto que observei.`,
+        objecao_provavel: "Manda por aqui.",
+        resposta_sugerida: "Claro. O ponto principal e entender se quem encontra voces online sabe rapido qual o proximo passo para conversar e virar oportunidade real.",
+        cta: "Quer que eu te mande esse ponto agora?",
+      },
+      {
+        dia: 3,
+        canal: "whatsapp",
+        acao_sugerida: "Enviar follow-up curto, sem repetir a abertura do Dia 1.",
+        mensagem: `${company}, so complementando a mensagem anterior.\n\nO que mais me chamou atencao foi a chance de existir demanda, mas sem uma rotina clara para aproveitar melhor essas oportunidades.\n\nEm ${niche}, isso costuma aparecer quando a empresa ate gera interesse, mas nao transforma isso em conversa com consistencia.`,
+        objecao_provavel: "Ja temos alguem cuidando disso.",
+        resposta_sugerida: "Perfeito. Nao e para substituir ninguem. A ideia e so te mostrar um ponto para comparar com o que ja esta sendo feito e ver se existe espaco para melhorar.",
+        cta: "Posso te mandar esse ponto para voce comparar internamente?",
+      },
+      {
+        dia: 4,
+        canal: "email",
+        acao_sugerida: "Enviar e-mail curto, direto ao ponto e sem anexo.",
+        mensagem: `Assunto: Ponto rapido sobre novas oportunidades na ${company}\n\nOla, ${company}.\n\nOlhando os sinais publicos da empresa${city}, vi uma oportunidade simples: ganhar mais previsibilidade na entrada de novas conversas comerciais.\n\n${isFilledLeadValue(lead.website) || isFilledLeadValue(lead.instagram_url) || !!(lead.whatsapp_number || lead.whatsapp_on_site || lead.telefone) ? "A empresa ja passa sinais de presenca digital e canal aberto, o que sugere base para melhorar abordagem e conversao." : "Mesmo com poucos sinais publicos, a leitura sugere espaco para organizar melhor a forma de abrir e aproveitar novas conversas."}\n\nSe fizer sentido, posso te responder este e-mail com uma observacao objetiva sobre onde eu olharia primeiro.`,
+        objecao_provavel: "Pode mandar por e-mail.",
+        resposta_sugerida: "Perfeito. Vou resumir em um ponto pratico, sem teoria e sem proposta longa.",
+        cta: "Posso responder este e-mail com esse ponto?",
+      },
+      {
+        dia: 5,
+        canal: "whatsapp",
+        acao_sugerida: "Enviar pergunta diagnostica curta para abrir conversa.",
+        mensagem: `${company}, uma pergunta direta:\n\nHoje voces sabem de onde costumam vir as melhores conversas comerciais ou isso ainda fica meio espalhado entre indicacao, Instagram, WhatsApp e outros canais?\n\nPergunto porque, quando existe base digital, o maior ganho costuma estar em priorizar melhor o que realmente vira oportunidade.`,
+        objecao_provavel: "Nao sei te dizer agora.",
+        resposta_sugerida: "Sem problema. So essa resposta ja costuma mostrar uma oportunidade: organizar melhor a origem e a qualidade das conversas para nao investir energia onde nao retorna.",
+        cta: "Faz sentido eu te mostrar como eu avaliaria isso?",
+      },
+      {
+        dia: 6,
+        canal: "instagram",
+        acao_sugerida: "Interagir com um story ou post recente antes da DM de follow-up.",
+        mensagem: `Passando rapidinho, ${company}.\n\nA ideia aqui nao e te mandar pitch pronto, e sim uma leitura curta sobre onde a empresa pode estar deixando conversa na mesa.\n\nSe fizer sentido, te mando o ponto principal e voce ve se vale aprofundar.`,
+        objecao_provavel: "Agora nao e prioridade.",
+        resposta_sugerida: "Entendo. Pode ser algo para depois. O ponto que pensei e simples e ajuda ate a decidir se vale mexer nisso agora ou em outro momento.",
+        cta: "Quer que eu te mande mesmo assim para deixar registrado?",
+      },
+      {
+        dia: 7,
+        canal: "whatsapp",
+        acao_sugerida: "Enviar ultimo toque respeitoso, curto e com porta aberta.",
+        mensagem: `${company}, ultima mensagem sobre isso.\n\nSo te chamei porque vi sinais de que voces ja tem uma base que pode render conversas melhores com um pouco mais de clareza e rotina comercial.\n\nSe nao for prioridade agora, tudo certo. Fico por aqui para nao insistir.`,
+        objecao_provavel: "Nao tenho interesse.",
+        resposta_sugerida: "Tranquilo, obrigado por responder. Se em outro momento fizer sentido revisar essa frente, posso te mandar uma observacao objetiva sem compromisso.",
+        cta: "Posso deixar meu contato caso voces queiram olhar isso depois?",
+      },
+    ];
+  }
+
   return [
     {
       dia: 1,
       canal: "whatsapp",
       acao_sugerida: "Enviar texto curto primeiro. Se responder, mandar audio explicando o ponto principal.",
-      mensagem: `Ola, ${company}, tudo bem?\n\nVi que voces tem uma estrutura digital interessante para ${niche}${city}. ${trackingLine}\n\n${isTrafficFocus ? "Voces ja estao rodando trafego pago hoje?" : `Como voces estao trabalhando ${focus} hoje?`}\n\n${commercialContext}\n\nPosso te mandar 1 ponto que eu olharia antes de investir mais nessa frente?`,
+      mensagem: `Ola, ${company}, tudo bem?\n\nVi que voces tem uma estrutura digital interessante para ${niche}${city}. ${trackingLine}\n\n${isTrafficFocus ? "Voces ja estao rodando trafego pago hoje?" : `Hoje essa frente de ${focus} ja esta ajudando a gerar conversas melhores ou ainda esta em ajuste?`}\n\n${commercialContext}\n\nPosso te mandar 1 ponto que eu olharia antes de investir mais nessa frente?`,
       objecao_provavel: "Quem e voce e como conseguiu meu contato?",
       resposta_sugerida: "Justo. Peguei o contato pelos canais publicos da empresa. Vi alguns pontos na presenca digital de voces e achei que valia te mandar uma observacao rapida, sem compromisso.",
       cta: "Posso te mandar 1 ponto que eu olharia?",
@@ -1941,34 +2027,34 @@ function buildPremiumCopyOutputRules(): string {
 - O plano_prospeccao_7dias deve ter exatamente 7 dias e cada dia deve conter canal, acao_sugerida, mensagem, objecao_provavel, resposta_sugerida e cta.
 - Os 7 dias devem evoluir a conversa: abertura, DM leve, follow-up, email objetivo, pergunta diagnostica, follow-up final leve e ultimo toque respeitoso.
 - As mensagens devem ser curtas, humanas, contextualizadas pelo nicho/cidade/sinais e sem frase generica.
-- Para zuno_internal_prospecting, avalie se a empresa provavelmente precisa prospectar, se vende servico, se depende de clientes recorrentes, se usaria individual/Pro/Agencia e se o fit e baixo, medio ou alto.
-- Se o foco for zuno_internal_prospecting, venda a Zuno sem dizer ou sugerir que o lead foi encontrado usando Zuno ou qualquer ferramenta.`;
+- Se o foco for zuno_internal_prospecting, trate-o como um modo de oportunidade comercial.
+- Nesse modo, o diagnostico deve ler a empresa como um especialista comercial: onde ha sinais de demanda, onde pode existir perda de oportunidade, qual dor de captacao ou previsibilidade parece mais provavel e qual pergunta abre melhor a conversa.
+- Nesse modo, nunca escreva "zuno_internal_prospecting", "Zuno interno", "foco interno" ou qualquer termo tecnico no texto final.
+- Nesse modo, os primeiros contatos devem abrir pela observacao e pela pergunta; apresente produto ou ferramenta apenas se a conversa evoluir, sem pitch apressado.`;
 }
 
 function buildZunoInternalProspectingSystemPrompt(): string {
-  return `Você é um especialista em prospecção B2B da Zuno Propect.
+  return `Voce e um especialista comercial analisando leads com foco em oportunidade comercial.
 
-Sua tarefa é analisar se o lead pode ser um bom possível cliente para a própria Zuno Propect.
+Sua tarefa e produzir um diagnostico comercial e um plano de prospeccao consultivo para a equipe interna da Zuno, sem deixar a copy com cara de ferramenta, pitch apressado ou nome interno do sistema.
 
-A Zuno Propect é uma plataforma de prospecção B2B com IA que ajuda profissionais e empresas a encontrar empresas por cidade e nicho, analisar oportunidades e gerar abordagens prontas para WhatsApp, Instagram e e-mail.
+Objetivo:
+- ler os sinais da empresa como alguem experiente em vendas consultivas;
+- identificar onde pode existir espaco comercial real;
+- transformar essa leitura em mensagens humanas para WhatsApp, Instagram e e-mail;
+- abrir conversa antes de tentar vender qualquer produto.
 
-IMPORTANTE:
-A mensagem final nunca deve dizer que o lead foi encontrado usando a Zuno ou qualquer ferramenta. Use o contexto da Zuno apenas internamente para montar a abordagem.
-
-Regras obrigatórias:
-- Este prompt só existe para uso interno/admin da Zuno.
-- A abordagem deve vender/convidar o lead a conhecer a Zuno.
-- Comece pelo contexto do lead, pela dor provável do nicho ou por uma pergunta consultiva.
-- Apresente a ideia de melhorar prospecção B2B com IA.
-- Não revele o método de descoberta do lead.
-- Não pareça robótico e não comece vendendo agressivamente.
-- Use o nicho e a cidade como contexto, sem inventar dados.
-- Se faltar site, Instagram, telefone ou e-mail, não mencione a ausência como certeza.
-- A mensagem precisa parecer humana, curta, direta e consultiva.
-- O objetivo é gerar conversa, não vender de forma agressiva.
-- Frases proibidas: "encontrei você usando a Zuno", "achei você pela Zuno", "a própria Zuno encontrou", "usando a própria Zuno", "se ela me ajudou a encontrar você", "usei a Zuno para encontrar", "fui até você usando a Zuno".
-- Retorne somente dados compatíveis com a função gerar_analise_lead.
-- diagnostico_bullets deve refletir os blocos comerciais: leitura da empresa, por que vale abordar, dor provavel, brecha, angulo, oferta indicada, objecao e como converter.
+Regras obrigatorias:
+- Nunca escreva "zuno_internal_prospecting", "Zuno interno" ou qualquer termo tecnico no texto final.
+- O diagnostico deve parecer uma leitura comercial pronta, nao uma instrucao operacional.
+- As mensagens devem soar humanas, curtas, contextuais e apropriadas para o canal.
+- Nos primeiros contatos, abra pela observacao e pela pergunta. Nao comece vendendo agressivamente.
+- Se houver espaco, a ideia de ferramenta, processo ou solucao pode aparecer de forma leve depois, nunca na primeira linha.
+- Use nicho, cidade, site, Instagram, WhatsApp, rating e sinais reais apenas quando existirem.
+- Nao invente responsavel, numeros, resultados ou dores especificas sem base.
+- Frases proibidas: "encontrei voce usando a Zuno", "achei voce pela Zuno", "a propria Zuno encontrou", "usei a Zuno para encontrar", "fui ate voce usando a Zuno".
+- Retorne somente dados compativeis com a funcao gerar_analise_lead.
+- diagnostico_bullets deve refletir leitura da empresa, oportunidade percebida, dor provavel e melhor angulo de conversa.
 - probabilidade_conversao deve ser um score de 0 a 100.
 - plano_prospeccao_7dias deve conter mensagens prontas para WhatsApp, Instagram, e-mail e follow-ups.`;
 }
@@ -3090,40 +3176,42 @@ function buildZunoInternalProspectingUserPrompt(lead: LeadData, canaisDisponivei
 Empresa: ${lead.nome}
 Nicho buscado: ${lead.nicho}
 Cidade/estado da busca: ${lead.cidade}
-Site: ${lead.website || "Não informado"}
-Instagram: ${lead.instagram_url || "Não informado"}
-Email: ${lead.email || "Não informado"}
-WhatsApp/telefone: ${lead.whatsapp_number || "Não informado"}
+Site: ${lead.website || "Nao informado"}
+Instagram: ${lead.instagram_url || "Nao informado"}
+Email: ${lead.email || "Nao informado"}
+WhatsApp/telefone: ${lead.whatsapp_number || "Nao informado"}
 Canais detectados/selecionados: ${canalTexto}
 
-CONTEXTO INTERNO DA OFERTA
-A Zuno Propect ajuda empresas e profissionais a:
-- encontrar empresas por cidade e nicho;
-- analisar oportunidades com IA;
-- gerar mensagens prontas para WhatsApp, Instagram e e-mail;
-- economizar tempo na prospecção;
-- organizar leads e follow-ups.
+CONTEXTO DO MODO
+Este foco representa oportunidade comercial.
+A leitura deve identificar:
+- se a empresa parece depender de indicacao, esforco manual ou demanda pouco previsivel;
+- se a presenca digital atual sugere base para abrir mais conversas;
+- qual pergunta faz mais sentido para iniciar uma conversa consultiva;
+- qual dor comercial vale explorar sem parecer pitch pronto.
 
 TAREFA
-1. Dê um score de 0 a 100 em probabilidade_conversao.
-2. Nos diagnostico_bullets, classifique o fit como alto, médio ou baixo.
-3. Explique por que esse lead pode se interessar pela Zuno.
-4. Identifique a dor provável do lead em prospecção comercial.
+1. De um score de 0 a 100 em probabilidade_conversao.
+2. Nos diagnostico_bullets, escreva 3 ou 4 bullets curtos com leitura comercial do lead.
+3. Identifique onde parece existir oportunidade comercial, gargalo de previsibilidade ou perda de conversa.
+4. Identifique a dor provavel do lead na entrada, qualificacao ou aproveitamento de novas conversas.
 5. Crie uma abordagem curta para WhatsApp.
 6. Crie uma abordagem leve para Instagram.
 7. Crie um e-mail curto.
-8. Crie follow-ups curtos até completar 7 dias.
+8. Crie follow-ups curtos ate completar 7 dias.
 
 REGRAS DAS MENSAGENS
 - Nunca diga que o lead foi encontrado usando a Zuno ou qualquer ferramenta.
-- Comece pelo contexto ou dor provável do lead.
-- Exemplo seguro: "${lead.nome}, tudo bem? Vi que vocês atuam com ${lead.nicho} e imaginei que prospecção de novos clientes faça parte da rotina. Estou trabalhando com uma solução que ajuda a encontrar empresas com potencial e criar abordagens mais contextualizadas com IA. Faz sentido eu te mostrar um exemplo prático?"
-- Alternativa consultiva: "${lead.nome}, tudo bem? Hoje vocês têm algum processo ativo para encontrar empresas com potencial e iniciar conversas comerciais de forma mais previsível? Estou trabalhando com uma solução que ajuda nessa parte: encontrar empresas por cidade e nicho e gerar abordagens com IA."
+- Nunca escreva "zuno_internal_prospecting" no texto final.
+- Comece pelo contexto, por um achado real ou por uma pergunta comercial plausivel.
+- Exemplo seguro: "${lead.nome}, tudo bem? Vi que voces atuam com ${lead.nicho} e fiquei com uma duvida rapida: hoje a entrada de novas conversas comerciais acontece de forma previsivel ou ainda depende muito de indicacao e tentativa manual?"
+- Alternativa consultiva: "${lead.nome}, tudo bem? Olhando a presenca digital de voces, fiquei com a impressao de que existe base para gerar mais conversa comercial. Queria entender se isso hoje ja acontece com consistencia."
 - As mensagens devem soar naturais, curtas e humanas.
-- Não invente nome de responsável, resultados, faturamento, clientes, métricas ou presença em redes.
-- Não use tom agressivo, pressão ou promessa garantida.
+- Nao invente nome de responsavel, resultados, faturamento, clientes, metricas ou presenca em redes.
+- Nao use tom agressivo, pressao ou promessa garantida.
 - Use o nicho "${lead.nicho}" e a cidade "${lead.cidade}" como contexto comercial.
-- Frases proibidas: "encontrei você usando a Zuno", "achei você pela Zuno", "a própria Zuno encontrou", "usando a própria Zuno", "se ela me ajudou a encontrar você", "usei a Zuno para encontrar", "fui até você usando a Zuno".
+- Nos primeiros contatos, nao apresente a Zuno logo de cara. Primeiro gere contexto e interesse.
+- Frases proibidas: "encontrei voce usando a Zuno", "achei voce pela Zuno", "a propria Zuno encontrou", "usando a propria Zuno", "se ela me ajudou a encontrar voce", "usei a Zuno para encontrar", "fui ate voce usando a Zuno".
 ${buildPremiumCopyOutputRules()}
 - Retorne a analise estruturada pela funcao gerar_analise_lead.`;
 }

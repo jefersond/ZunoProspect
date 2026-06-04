@@ -17,6 +17,13 @@ function isZunoInternalProspectingFocus(foco?: string | null): boolean {
   return foco === ZUNO_INTERNAL_PROSPECTING_FOCUS;
 }
 
+function getSafeFocusLabel(foco?: string | null): string {
+  if (!foco || isZunoInternalProspectingFocus(foco)) {
+    return "prospeccao comercial";
+  }
+  return foco;
+}
+
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -152,7 +159,7 @@ function normalizeLeadForAI(lead: any, searchContext: any = {}): LeadData {
   const city = lead.city || lead.cidade || (lead.location && typeof lead.location === 'object' ? lead.location.city : null) || (lead.searchParams && typeof lead.searchParams === 'object' ? lead.searchParams.city : null) || (lead.filtros && typeof lead.filtros === 'object' ? lead.filtros.cidade : null) || searchContext.city || searchContext.cidade || null;
 
   // 6. Nicho/categoria
-  let nicho = lead.category || lead.categoria || lead.niche || lead.segmento || (lead.searchParams && typeof lead.searchParams === 'object' ? lead.searchParams.niche : null) || (lead.filtros && typeof lead.filtros === 'object' ? lead.filtros.nicho : null) || searchContext.niche || searchContext.nicho || null;
+  let nicho = lead.nicho || lead.category || lead.categoria || lead.niche || lead.segmento || (lead.searchParams && typeof lead.searchParams === 'object' ? lead.searchParams.niche : null) || (lead.filtros && typeof lead.filtros === 'object' ? lead.filtros.nicho : null) || searchContext.niche || searchContext.nicho || null;
   if (!nicho && Array.isArray(lead.types) && lead.types.length > 0) {
     nicho = lead.types[0];
   }
@@ -180,7 +187,7 @@ function normalizeLeadForAI(lead: any, searchContext: any = {}): LeadData {
     nicho: nicho ? String(nicho).trim() : "Não informado",
     cidade: city ? String(city).trim() : "Não informada",
     website: website ? String(website).trim() : null,
-    foco: lead.foco || lead.focus || searchContext.focus || "Full Service",
+    foco: getSafeFocusLabel(lead.foco || lead.focus || searchContext.focus || "Full Service"),
     whatsapp_on_site: !!has_whatsapp_on_site,
     whatsapp_number: phone ? String(phone).trim() : null,
     email: lead.email || null,
@@ -456,7 +463,7 @@ function buildStrategicDiagnosisBullets(lead?: LeadData): string[] {
   const company = isFilledLeadValue(lead?.nome) ? lead!.nome : "A empresa";
   const niche = isFilledLeadValue(lead?.nicho) ? lead!.nicho : "seu segmento";
   const city = isFilledLeadValue(lead?.cidade) ? ` em ${lead!.cidade}` : "";
-  const focus = isFilledLeadValue(lead?.foco) ? lead!.foco : "o foco selecionado";
+  const focus = isFilledLeadValue(lead?.foco) ? getSafeFocusLabel(lead!.foco) : "o foco selecionado";
   const normalizedFocus = normalizeDisclosureText(focus);
   const trackingTools = [
     lead?.has_meta_pixel ? "Meta Pixel" : null,

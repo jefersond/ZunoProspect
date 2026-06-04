@@ -26,6 +26,15 @@ export interface NormalizedLead {
   endereco?: string | null;
 }
 
+const ZUNO_INTERNAL_PROSPECTING_FOCUS = "zuno_internal_prospecting";
+
+function getSafeFocusLabel(foco?: string | null): string {
+  if (!foco || foco === ZUNO_INTERNAL_PROSPECTING_FOCUS) {
+    return "prospeccao comercial";
+  }
+  return foco;
+}
+
 export function normalizeLeadForAI(lead: any, searchContext: any = {}): NormalizedLead {
   if (!lead) return {} as NormalizedLead;
 
@@ -45,7 +54,7 @@ export function normalizeLeadForAI(lead: any, searchContext: any = {}): Normaliz
   const city = lead.city || lead.cidade || (lead.location && typeof lead.location === 'object' ? lead.location.city : null) || (lead.searchParams && typeof lead.searchParams === 'object' ? lead.searchParams.city : null) || (lead.filtros && typeof lead.filtros === 'object' ? lead.filtros.cidade : null) || searchContext.city || searchContext.cidade || null;
 
   // 6. Nicho/categoria
-  let nicho = lead.category || lead.categoria || lead.niche || lead.segmento || (lead.searchParams && typeof lead.searchParams === 'object' ? lead.searchParams.niche : null) || (lead.filtros && typeof lead.filtros === 'object' ? lead.filtros.nicho : null) || searchContext.niche || searchContext.nicho || null;
+  let nicho = lead.nicho || lead.category || lead.categoria || lead.niche || lead.segmento || (lead.searchParams && typeof lead.searchParams === 'object' ? lead.searchParams.niche : null) || (lead.filtros && typeof lead.filtros === 'object' ? lead.filtros.nicho : null) || searchContext.niche || searchContext.nicho || null;
   if (!nicho && Array.isArray(lead.types) && lead.types.length > 0) {
     nicho = lead.types[0];
   }
@@ -73,7 +82,7 @@ export function normalizeLeadForAI(lead: any, searchContext: any = {}): Normaliz
     nicho: nicho ? String(nicho).trim() : "Não informado",
     cidade: city ? String(city).trim() : "Não informada",
     website: website ? String(website).trim() : null,
-    foco: lead.foco || searchContext.focus || "Full Service",
+    foco: getSafeFocusLabel(lead.foco || searchContext.focus || "Full Service"),
     whatsapp_on_site: !!has_whatsapp_on_site,
     whatsapp_number: phone ? String(phone).trim() : null,
     email: lead.email || null,

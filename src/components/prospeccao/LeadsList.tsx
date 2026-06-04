@@ -1577,14 +1577,9 @@ export const LeadsList = () => {
                             </p>
                           </div>
                         ) : (
-                          <div className="space-y-2">
-                            <Badge variant="outline" className="w-fit border-emerald-500/30 text-xs text-emerald-700">
-                              Copy base sem IA
-                            </Badge>
-                            <p className="line-clamp-2 text-xs text-muted-foreground">
-                              {getSmartCopyPreview(lead)}
-                            </p>
-                          </div>
+                          <p className="line-clamp-2 text-xs text-muted-foreground">
+                            {getSmartCopyPreview(lead)}
+                          </p>
                         )}
                       </div>
                     </TableCell>

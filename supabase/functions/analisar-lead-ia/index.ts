@@ -555,6 +555,59 @@ function normalizeCommercialDiagnosisForStorage(analise: AnaliseResult, lead?: L
   return analise;
 }
 
+function replaceLeadPlaceholders(text: string, lead: LeadData): string {
+  return text
+    .replace(/\$\{lead\.nome\}/g, lead.nome || "a empresa")
+    .replace(/\$\{lead\.nicho\}/g, lead.nicho || "o segmento")
+    .replace(/\$\{lead\.foco\}/g, lead.foco || "essa frente")
+    .replace(/\$\{lead\.cidade\}/g, lead.cidade || "a cidade");
+}
+
+function softenWhatsappCopy(text: string, lead: LeadData): string {
+  let result = replaceLeadPlaceholders(text, lead);
+
+  result = result
+    .replace(/framework simples de 3 passos/gi, "ponto simples")
+    .replace(/quer que eu compartilhe\?/gi, "Quer que eu te mande esse ponto?")
+    .replace(/sou especialista em .*? regularmente\./gi, "Peguei o contato pelos canais publicos da empresa e achei que valia te mandar uma observacao rapida.")
+    .replace(/nao vim substituir ninguem\./gi, "Nao e para substituir ninguem.")
+    .replace(/vale conhecer mesmo que seja so para comparar\?/gi, "Faz sentido comparar com o que voces ja fazem hoje?")
+    .replace(/posso mostrar em 5 minutos\./gi, "Se fizer sentido, te mando isso de forma objetiva.")
+    .replace(/proposta complementar/gi, "observacao complementar")
+    .replace(/metodologia/gi, "forma de olhar")
+    .replace(/quero te mostrar como funciona/gi, "posso te mandar um ponto pratico");
+
+  return result.replace(/\s{2,}/g, " ").trim();
+}
+
+function sanitizeProspectingPlan(analise: AnaliseResult, lead: LeadData): AnaliseResult {
+  if (!Array.isArray(analise.plano_prospeccao_7dias)) {
+    return analise;
+  }
+
+  analise.plano_prospeccao_7dias = analise.plano_prospeccao_7dias.map((dia) => {
+    const cleanMensagem = replaceLeadPlaceholders(dia.mensagem || "", lead);
+    const cleanObjecao = replaceLeadPlaceholders(dia.objecao_provavel || "", lead);
+    const cleanRespostaBase = replaceLeadPlaceholders(dia.resposta_sugerida || "", lead);
+    const cleanCta = replaceLeadPlaceholders(dia.cta || "", lead);
+    const cleanAcao = replaceLeadPlaceholders(dia.acao_sugerida || "", lead)
+      .replace(/Enviar mensagem de TEXTO com framework/gi, "Enviar mensagem curta com um ponto objetivo")
+      .replace(/Enviar ÁUDIO de 30-45 segundos se apresentando/gi, "Enviar texto curto primeiro; se responder, mandar audio")
+      .trim();
+
+    return {
+      ...dia,
+      acao_sugerida: dia.canal === "whatsapp" ? cleanAcao : cleanAcao,
+      mensagem: dia.canal === "whatsapp" ? softenWhatsappCopy(cleanMensagem, lead) : cleanMensagem,
+      objecao_provavel: dia.canal === "whatsapp" ? softenWhatsappCopy(cleanObjecao, lead) : cleanObjecao,
+      resposta_sugerida: dia.canal === "whatsapp" ? softenWhatsappCopy(cleanRespostaBase, lead) : cleanRespostaBase,
+      cta: dia.canal === "whatsapp" ? softenWhatsappCopy(cleanCta, lead) : cleanCta,
+    };
+  });
+
+  return analise;
+}
+
 function normalizePremiumCopyForStorage(analise: AnaliseResult): AnaliseResult {
   if (!Array.isArray(analise.plano_prospeccao_7dias) || analise.plano_prospeccao_7dias.length === 0) {
     return analise;
@@ -1283,14 +1336,20 @@ serve(async (req) => {
     }
 
     analise = normalizeCommercialDiagnosisForStorage(
-      applyQualityFallbackIfNeeded(normalizePremiumCopyForStorage(analise), leadData),
+      applyQualityFallbackIfNeeded(
+        sanitizeProspectingPlan(normalizePremiumCopyForStorage(analise), leadData),
+        leadData,
+      ),
       leadData,
     );
 
     if (isZunoInternalProspectingFocus(leadData.foco) && analysisContainsForbiddenZunoDisclosure(analise)) {
       console.warn("🚫 Análise da Zuno continha disclosure proibido; aplicando fallback seguro.");
       analise = normalizeCommercialDiagnosisForStorage(
-        applyQualityFallbackIfNeeded(normalizePremiumCopyForStorage(generateZunoInternalMockAnalise(leadData)), leadData),
+        applyQualityFallbackIfNeeded(
+          sanitizeProspectingPlan(normalizePremiumCopyForStorage(generateZunoInternalMockAnalise(leadData)), leadData),
+          leadData,
+        ),
         leadData,
       );
     }

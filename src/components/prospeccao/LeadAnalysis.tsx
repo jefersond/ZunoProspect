@@ -22,12 +22,6 @@ interface LeadAnalysisProps {
   lead?: LeadProspeccao | null;
 }
 
-const variationLabels: Record<keyof NonNullable<PlanoProspeccaoDia["variations"]>, string> = {
-  direct: "Direta",
-  consultative: "Consultiva",
-  light_provocation: "Provocacao leve",
-};
-
 export const LeadAnalysis = ({
   diagnostico,
   probabilidade,
@@ -259,26 +253,6 @@ export const LeadAnalysis = ({
                     </div>
                     <p className="whitespace-pre-wrap pr-6">{dia.mensagem}</p>
                   </div>
-
-                  {dia.variations && (
-                    <div className="rounded-md border border-emerald-500/20 bg-emerald-500/[0.04] p-3">
-                      <p className="font-medium text-emerald-700 dark:text-emerald-300 text-xs mb-2">
-                        Variacoes premium geradas na mesma chamada IA:
-                      </p>
-                      <div className="space-y-2">
-                        {(Object.entries(dia.variations) as Array<[keyof NonNullable<PlanoProspeccaoDia["variations"]>, string | undefined]>)
-                          .filter(([, text]) => !!text)
-                          .map(([key, text]) => (
-                            <div key={key}>
-                              <p className="text-[11px] font-semibold uppercase text-muted-foreground">
-                                {variationLabels[key]}
-                              </p>
-                              <p className="text-xs whitespace-pre-wrap">{text}</p>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded border border-orange-200 dark:border-orange-800">

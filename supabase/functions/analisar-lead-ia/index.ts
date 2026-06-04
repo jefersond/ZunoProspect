@@ -566,14 +566,7 @@ function normalizePremiumCopyForStorage(analise: AnaliseResult): AnaliseResult {
   if (analise.likely_objection) firstDay.objecao_provavel = analise.likely_objection;
   if (analise.objection_response) firstDay.resposta_sugerida = analise.objection_response;
   if (analise.cta) firstDay.cta = analise.cta;
-  if (analise.messages?.whatsapp_alternative) {
-    firstDay.variations = {
-      ...(analise.variations || {}),
-      consultative: analise.messages.whatsapp_alternative,
-    };
-  } else if (analise.variations) {
-    firstDay.variations = analise.variations;
-  }
+  delete firstDay.variations;
 
   const instagramDay = analise.plano_prospeccao_7dias.find((dia) => dia.canal === "instagram");
   const instagramMessage = analise.messages?.instagram || analise.instagram_message;
@@ -595,6 +588,12 @@ function normalizePremiumCopyForStorage(analise: AnaliseResult): AnaliseResult {
   if (followUpDay && followUpMessage) {
     followUpDay.mensagem = followUpMessage;
   }
+
+  analise.plano_prospeccao_7dias = analise.plano_prospeccao_7dias.map((dia) => {
+    const { variations, ...cleanDay } = dia;
+    return cleanDay;
+  });
+  delete analise.variations;
 
   return analise;
 }
@@ -640,16 +639,106 @@ function buildFallbackWhatsappMessage(lead: LeadData): string {
   return `Ola, ${company}, tudo bem?\n\nVi que voces atuam com ${niche}${city} e queria te fazer uma pergunta rapida: hoje voces ja tem algum processo ativo para atrair novos clientes de forma previsivel?\n\nTrabalho com uma solucao que ajuda a identificar oportunidades e criar abordagens mais direcionadas para iniciar conversas comerciais.\n\nFaz sentido eu te mostrar uma ideia rapida?`;
 }
 
+function buildFallbackProspectingPlan(lead: LeadData): AnaliseResult["plano_prospeccao_7dias"] {
+  const company = isFilledLeadValue(lead.nome) ? lead.nome : "pessoal";
+  const niche = isFilledLeadValue(lead.nicho) ? lead.nicho : "seu segmento";
+  const city = isFilledLeadValue(lead.cidade) ? ` em ${lead.cidade}` : "";
+  const focus = isFilledLeadValue(lead.foco) ? lead.foco : "presenca digital";
+  const normalizedFocus = normalizeDisclosureText(focus);
+  const isTrafficFocus = normalizedFocus.includes("trafego") || normalizedFocus.includes("traf");
+  const trackingTools = [
+    lead.has_meta_pixel ? "Meta Pixel" : null,
+    lead.has_gtag ? "Google Analytics" : null,
+    lead.has_gtm ? "Google Tag Manager" : null,
+  ].filter(Boolean).join(", ");
+  const trackingLine = trackingTools
+    ? `Vi que o site ja tem sinais de mensuracao (${trackingTools}), entao parece existir uma base para acompanhar campanhas.`
+    : "Nos dados que analisei, nao ficou claro se a mensuracao de campanhas ja esta preparada.";
+  const commercialContext = isTrafficFocus
+    ? `Para uma empresa de ${niche}, o ponto nao e so gerar visita; e fazer a pessoa chegar no WhatsApp ja interessada.`
+    : `Para uma empresa de ${niche}, o ponto e transformar presenca digital em conversa comercial mais qualificada.`;
+
+  return [
+    {
+      dia: 1,
+      canal: "whatsapp",
+      acao_sugerida: "Enviar texto curto primeiro. Se responder, mandar audio explicando o ponto principal.",
+      mensagem: `Ola, ${company}, tudo bem?\n\nVi que voces tem uma estrutura digital interessante para ${niche}${city}. ${trackingLine}\n\n${isTrafficFocus ? "Voces ja estao rodando trafego pago hoje?" : `Como voces estao trabalhando ${focus} hoje?`}\n\n${commercialContext}\n\nPosso te mandar 1 ponto que eu olharia antes de investir mais nessa frente?`,
+      objecao_provavel: "Quem e voce e como conseguiu meu contato?",
+      resposta_sugerida: "Justo. Peguei o contato pelos canais publicos da empresa. Vi alguns pontos na presenca digital de voces e achei que valia te mandar uma observacao rapida, sem compromisso.",
+      cta: "Posso te mandar 1 ponto que eu olharia?",
+    },
+    {
+      dia: 2,
+      canal: "instagram",
+      acao_sugerida: "Curtir 2 posts recentes, reagir a 1 story se houver e enviar uma DM curta.",
+      mensagem: `Oi, ${company}. Passei pelo perfil de voces e fiquei com uma duvida rapida.\n\nHoje o Instagram ajuda a gerar conversas de clientes ou funciona mais como vitrine?\n\nPergunto porque, olhando junto com site e canais de contato, parece ter espaco para transformar mais interesse em chamada no WhatsApp.`,
+      objecao_provavel: "Manda por aqui.",
+      resposta_sugerida: "Claro. O ponto principal e revisar se quem chega pelo Instagram ou anuncio encontra rapido o caminho para falar com voces e pedir informacao sem friccao.",
+      cta: "Quer que eu te mande esse ponto em 2 linhas?",
+    },
+    {
+      dia: 3,
+      canal: "whatsapp",
+      acao_sugerida: "Enviar follow-up curto em texto, sem repetir a primeira mensagem.",
+      mensagem: `${company}, passando so para complementar.\n\nQuando olhei a estrutura digital de voces, o que me chamou atencao foi a chance de melhorar a passagem entre visita e conversa.\n\nEm ${niche}, muita oportunidade se perde quando a pessoa visita, olha, mas nao chama no WhatsApp com clareza do proximo passo.`,
+      objecao_provavel: "Ja temos alguem cuidando disso.",
+      resposta_sugerida: "Perfeito. Nao e para substituir ninguem. A ideia e te mostrar um ponto especifico para comparar com o que ja esta sendo feito e ver se faz sentido ajustar.",
+      cta: "Posso te mandar esse ponto para voce comparar internamente?",
+    },
+    {
+      dia: 4,
+      canal: "email",
+      acao_sugerida: "Enviar e-mail curto com assunto especifico e sem anexo.",
+      mensagem: `Assunto: Ponto rapido sobre ${focus} na ${company}\n\nOla, ${company}.\n\nAnalisei alguns sinais digitais de voces${city} e vi uma oportunidade simples: melhorar a conexao entre quem chega pelos canais online e quem realmente chama para conversar.\n\n${trackingTools ? `Como existe sinal de mensuracao (${trackingTools}), vale entender se esses dados estao mostrando contatos qualificados ou apenas acessos.` : "Como nao ficou claro se existe mensuracao pronta, vale entender se hoje voces conseguem saber quais canais geram os melhores contatos."}\n\nPosso te enviar uma sugestao objetiva sobre isso?`,
+      objecao_provavel: "Pode mandar por e-mail.",
+      resposta_sugerida: "Envio sim. Para nao te mandar algo generico, vou resumir em um ponto pratico: onde eu olharia primeiro para melhorar a chegada de contatos qualificados.",
+      cta: "Posso responder este e-mail com esse ponto?",
+    },
+    {
+      dia: 5,
+      canal: "whatsapp",
+      acao_sugerida: "Enviar mensagem consultiva com uma pergunta de diagnostico.",
+      mensagem: `${company}, uma pergunta direta:\n\nHoje voces sabem qual canal traz os melhores contatos: Google, Instagram, anuncio ou indicacao?\n\nPergunto porque, quando a empresa ja tem alguma base digital, o maior ganho costuma estar em medir melhor e ajustar o caminho ate o WhatsApp.`,
+      objecao_provavel: "Nao sei te dizer agora.",
+      resposta_sugerida: "Sem problema. Essa resposta ja mostra uma oportunidade: organizar a origem dos contatos para investir mais no que traz cliente bom e cortar o que so gera volume.",
+      cta: "Faz sentido eu te mostrar como eu avaliaria isso?",
+    },
+    {
+      dia: 6,
+      canal: "instagram",
+      acao_sugerida: "Reagir a um story ou interagir com post recente antes da DM de follow-up.",
+      mensagem: `Passando rapidinho, ${company}.\n\nA ideia nao e mandar uma proposta do nada. E te mostrar uma leitura simples sobre como a presenca digital de voces pode gerar conversas melhores.\n\nSe fizer sentido, eu te mando o ponto principal e voce ve se vale aprofundar.`,
+      objecao_provavel: "Agora nao e prioridade.",
+      resposta_sugerida: "Entendo. Pode ser algo para depois. O ponto que pensei e simples e ajuda justamente a decidir se vale mexer nisso agora ou deixar para outro momento.",
+      cta: "Quer que eu te mande mesmo assim para ficar registrado?",
+    },
+    {
+      dia: 7,
+      canal: "whatsapp",
+      acao_sugerida: "Enviar ultimo toque respeitoso, curto e com porta aberta.",
+      mensagem: `${company}, ultima mensagem sobre isso.\n\nSe ${focus} nao for prioridade agora, tudo certo. So quis te chamar porque vi sinais de que voces ja tem uma base digital que pode ser melhor aproveitada para gerar conversas mais qualificadas.\n\nFico por aqui para nao insistir.`,
+      objecao_provavel: "Nao tenho interesse.",
+      resposta_sugerida: "Tranquilo, obrigado por responder. Se em outro momento fizer sentido revisar essa parte, posso te mandar uma analise objetiva sem compromisso.",
+      cta: "Posso deixar meu contato caso voces queiram olhar isso depois?",
+    },
+  ];
+}
+
 function applyQualityFallbackIfNeeded(analise: AnaliseResult, lead: LeadData): AnaliseResult {
   if (!Array.isArray(analise.plano_prospeccao_7dias) || analise.plano_prospeccao_7dias.length === 0) {
+    analise.plano_prospeccao_7dias = buildFallbackProspectingPlan(lead);
     return analise;
   }
 
-  const firstDay = analise.plano_prospeccao_7dias[0];
-  const message = firstDay.mensagem || "";
+  const message = analise.plano_prospeccao_7dias[0]?.mensagem || "";
   const diagnosisText = (analise.diagnostico_bullets || []).join(" ");
+  const hasIncompletePlan =
+    analise.plano_prospeccao_7dias.length < 7 ||
+    analise.plano_prospeccao_7dias.some((dia) => !dia.acao_sugerida || !dia.mensagem || !dia.objecao_provavel || !dia.resposta_sugerida || !dia.cta);
   const hasGenericDiagnosis = GENERIC_ANALYSIS_TERMS.some((term) => normalizeDisclosureText(diagnosisText).includes(normalizeDisclosureText(term)));
   const badMessage =
+    hasIncompletePlan ||
     !hasGreeting(message) ||
     !hasContext(message, lead) ||
     !hasSimpleCta(message) ||
@@ -657,17 +746,14 @@ function applyQualityFallbackIfNeeded(analise: AnaliseResult, lead: LeadData): A
     GENERIC_ANALYSIS_TERMS.some((term) => normalizeDisclosureText(message).includes(normalizeDisclosureText(term)));
 
   if (!badMessage && !hasGenericDiagnosis) {
+    analise.plano_prospeccao_7dias = analise.plano_prospeccao_7dias.map((dia) => {
+      const { variations, ...cleanDay } = dia;
+      return cleanDay;
+    });
     return analise;
   }
 
-  const fallbackMessage = buildFallbackWhatsappMessage(lead);
-  firstDay.mensagem = fallbackMessage;
-  firstDay.variations = {
-    ...(firstDay.variations || {}),
-    direct: fallbackMessage,
-    consultative: `Ola, ${lead.nome || "tudo bem"}, tudo bem? Analisei os sinais digitais de voces e queria entender como estao trabalhando ${lead.foco || "essa frente"} hoje. Posso te mandar uma observacao pratica sobre ${lead.nicho || "o segmento"}?`,
-  };
-  firstDay.cta = "Posso te mandar uma sugestao rapida?";
+  analise.plano_prospeccao_7dias = buildFallbackProspectingPlan(lead);
 
   if (!analise.data_signals?.length) {
     analise.data_signals = buildLeadDataSignals(lead);
@@ -1772,7 +1858,7 @@ function buildPremiumCopyOutputRules(): string {
 - Nao escreva no diagnostico: "SDR", "foco da abordagem", "ponto para puxar conversa", "como abordar", "proximo passo" ou qualquer rotulo parecido.
 - data_signals deve listar sinais concretos analisados: segmento, cidade, site informado/nao informado, Instagram informado/nao informado, WhatsApp, rating, reviews, Meta Pixel, Google Analytics, GTM, qualidade aparente do site/Instagram quando houver contexto.
 - recommended_offer deve ter type, plan ("free", "starter", "pro" ou "agency") quando fizer sentido, e reason.
-- messages deve conter whatsapp_primary, whatsapp_alternative, instagram, email_subject, email_body e follow_up.
+- messages deve conter whatsapp_primary, instagram, email_subject, email_body e follow_up. Nao use whatsapp_alternative para criar variacoes.
 - O diagnostico deve ser especifico ao foco escolhido e responder: o que parece estar acontecendo, o que os sinais indicam, onde existe oportunidade e qual conversa comercial isso abre.
 - Se foco for Trafego: avalie site/pagina, WhatsApp, Meta Pixel, Google Analytics/GTM e Instagram como preparo para receber trafego. Se tiver pixel/tag, diga que isso sugere mais maturidade para medir campanhas. Se nao tiver, diga apenas "nos dados disponiveis nao detectei" e transforme isso em pergunta de validacao.
 - Se foco for Design: avalie percepcao visual, marca, site, presenca digital e clareza de contato com base nos dados disponiveis.
@@ -1785,10 +1871,10 @@ function buildPremiumCopyOutputRules(): string {
 - Exemplo de direcao para Trafego: "Ola, [empresa], tudo bem? Analisei o site de voces e vi alguns sinais de estrutura para campanhas. Queria entender: hoje voces estao rodando trafego pago ou ainda estao ajustando a pagina para receber leads qualificados?"
 - Evite "igual agencia", "somos uma agencia", "trabalho com marketing digital" e qualquer abertura focada em quem esta vendendo. A primeira linha deve ser sobre a empresa.
 - Evite frases vagas como "pode se beneficiar", "tem potencial", "gerar valor", "a mensagem deve ser consultiva", "evitar promessas" ou "primeiro contato recomendado" sem explicar exatamente como e por que.
-- Retorne variations com exatamente 3 abordagens: direct, consultative e light_provocation.
-- Gere as 3 variacoes na mesma chamada, sem pedir nova analise.
+- Nao retorne variations. O usuario nao precisa de variacoes soltas; concentre a qualidade no plano_prospeccao_7dias.
+- O plano_prospeccao_7dias deve ter exatamente 7 dias e cada dia deve conter canal, acao_sugerida, mensagem, objecao_provavel, resposta_sugerida e cta.
+- Os 7 dias devem evoluir a conversa: abertura, DM leve, follow-up, email objetivo, pergunta diagnostica, follow-up final leve e ultimo toque respeitoso.
 - As mensagens devem ser curtas, humanas, contextualizadas pelo nicho/cidade/sinais e sem frase generica.
-- Ajuste o plano de 7 dias para reaproveitar essas mensagens premium nos canais corretos.
 - Para zuno_internal_prospecting, avalie se a empresa provavelmente precisa prospectar, se vende servico, se depende de clientes recorrentes, se usaria individual/Pro/Agencia e se o fit e baixo, medio ou alto.
 - Se o foco for zuno_internal_prospecting, venda a Zuno sem dizer ou sugerir que o lead foi encontrado usando Zuno ou qualquer ferramenta.`;
 }
@@ -1891,7 +1977,7 @@ Sua missão: criar mensagens que fazem o prospect PARAR, LER e RESPONDER.
 
    📱 WHATSAPP - Ações possíveis:
    ─────────────────────────────
-   • Dia 1: "Enviar ÁUDIO de 30-45 segundos se apresentando"
+   • Dia 1: "Enviar texto curto primeiro; se responder, mandar áudio explicando o ponto principal"
    • Dias 2-4: Alternar entre "Enviar mensagem de TEXTO" e "Enviar ÁUDIO curto (20-30s)"
    • Dia 5-6: "Enviar mensagem de TEXTO com case/resultado"
    • Dia 7: "Enviar ÁUDIO de despedida respeitoso (30s)"
@@ -3430,85 +3516,12 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
     return generateZunoInternalMockAnalise(lead);
   }
 
-  const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp"] as const;
-  const canais = getAvailableChannels(lead, [...canaisSelecionados]);
-  
-  const getCanal = (dia: number): "whatsapp" | "email" | "instagram" => {
-    if (canais.length === 0) return "whatsapp";
-    if (canais.length === 1) return canais[0];
-    return canais[(dia - 1) % canais.length];
-  };
-
   const temMarketing = lead.has_meta_pixel || lead.has_gtag || lead.has_gtm;
-  const temContato = canais.length > 0;
+  const temContato = !!(lead.whatsapp_number || lead.whatsapp_on_site || lead.telefone || lead.email || lead.instagram_url);
 
   return {
     diagnostico_bullets: buildStrategicDiagnosisBullets(lead),
     probabilidade_conversao: temMarketing && temContato ? 65 : temContato ? 45 : 25,
-    plano_prospeccao_7dias: [
-      {
-        dia: 1,
-        canal: getCanal(1),
-        acao_sugerida: getCanal(1) === "whatsapp" ? "Enviar ÁUDIO de 30-45 segundos se apresentando" : getCanal(1) === "instagram" ? "1) Curtir 2-3 posts recentes 2) Reagir a 1 story 3) Enviar DM" : "Enviar email com assunto personalizado",
-        mensagem: `${lead.nome_responsavel || lead.nome}, tudo bem?\n\nAnalisei alguns sinais digitais de voces em ${lead.nicho}${lead.cidade ? ` em ${lead.cidade}` : ""} e vi um ponto ligado a ${lead.foco}.\n\nComo voces estao trabalhando isso hoje?\n\nPosso te mandar uma sugestao rapida?`,
-        objecao_provavel: "Quem é você e como conseguiu meu contato?",
-        resposta_sugerida: "Justo. Sou especialista em ${lead.foco} e faço análises de mercado regularmente. Encontrei dados públicos da empresa e identifiquei uma oportunidade real. Posso mostrar em 5 minutos.",
-        cta: "Faz sentido uma conversa rápida ou prefere que eu envie por escrito?"
-      },
-      {
-        dia: 2,
-        canal: getCanal(2),
-        acao_sugerida: getCanal(2) === "whatsapp" ? "Enviar mensagem de TEXTO" : getCanal(2) === "instagram" ? "Comentar no último post com insight + esperar 1h + enviar DM" : "Enviar email com case de sucesso anexo",
-        mensagem: `Assunto: Oportunidade identificada - ${lead.nome}\n\nAnalisei empresas de ${lead.nicho} em ${lead.cidade} e notei que muitas estão perdendo clientes por não otimizar ${lead.foco}. Preparei um diagnóstico rápido para vocês - posso enviar?`,
-        objecao_provavel: "Já trabalhamos com alguém",
-        resposta_sugerida: "Faz sentido. Não vim substituir ninguém. Vim mostrar uma oportunidade complementar que identificamos especificamente para ${lead.nicho}. Vale conhecer mesmo que seja só para comparar?",
-        cta: "Posso enviar o diagnóstico por aqui ou prefere por email?"
-      },
-      {
-        dia: 3,
-        canal: getCanal(3),
-        acao_sugerida: getCanal(3) === "whatsapp" ? "Enviar ÁUDIO curto (20-30 segundos)" : getCanal(3) === "instagram" ? "Reagir aos últimos 2 stories + enviar DM" : "Enviar email com dados do mercado",
-        mensagem: `Empresas de ${lead.nicho} em cidades similares estão usando uma estratégia específica de ${lead.foco} que está gerando resultados. ${lead.nome} pode aplicar o mesmo. Posso mostrar como funciona?`,
-        objecao_provavel: "Não tenho orçamento agora",
-        resposta_sugerida: "Compreendo. E se eu mostrar quanto vocês podem estar deixando de faturar por não explorar essa oportunidade? Muitas vezes o 'orçamento' aparece quando o ROI fica claro.",
-        cta: "Posso enviar uma análise rápida de potencial?"
-      },
-      {
-        dia: 4,
-        canal: getCanal(4),
-        acao_sugerida: getCanal(4) === "whatsapp" ? "Enviar mensagem de TEXTO com framework" : getCanal(4) === "instagram" ? "Curtir 2 posts + enviar DM com proposta de valor" : "Enviar email com framework em PDF",
-        mensagem: `Preparei um framework simples de 3 passos que empresas de ${lead.nicho} usam para melhorar ${lead.foco}. Funciona bem para negócios do porte de vocês em ${lead.cidade}. Quer que eu compartilhe?`,
-        objecao_provavel: "Preciso falar com meu sócio",
-        resposta_sugerida: "Claro. Posso preparar um resumo executivo de 1 página para facilitar a conversa. Assim vocês avaliam com as informações certas em mãos.",
-        cta: "Envio o resumo por aqui ou prefere por email?"
-      },
-      {
-        dia: 5,
-        canal: getCanal(5),
-        acao_sugerida: getCanal(5) === "whatsapp" ? "Enviar ÁUDIO de 30 segundos com case de sucesso" : getCanal(5) === "instagram" ? "Comentar em post recente + enviar DM com resultado" : "Enviar email com vídeo curto (Loom 2min)",
-        mensagem: `Última semana analisando o setor de ${lead.nicho}. ${lead.nome} tem um perfil que combina bem com nossa metodologia de ${lead.foco}. 15 minutos para mostrar a proposta?`,
-        objecao_provavel: "Me manda proposta por email",
-        resposta_sugerida: "Posso enviar. Mas antes de algo genérico, preciso de 5 min para entender 2-3 pontos do negócio. Assim a proposta já vem personalizada com projeção de retorno.",
-        cta: "Amanhã às 10h ou às 15h funciona melhor?"
-      },
-      {
-        dia: 6,
-        canal: getCanal(6),
-        acao_sugerida: getCanal(6) === "whatsapp" ? "Enviar mensagem de TEXTO com urgência sutil" : getCanal(6) === "instagram" ? "Reagir a story + enviar DM com escassez" : "Enviar email com proposta personalizada",
-        mensagem: `${lead.nome}, estou fechando a agenda do mês para novos projetos de ${lead.foco}. Guardei um espaço para vocês caso faça sentido. Conseguimos alinhar essa semana?`,
-        objecao_provavel: "Vou analisar e retorno",
-        resposta_sugerida: "Combinado. Deixo um lembrete: cada semana sem otimizar ${lead.foco} é oportunidade que passa. Se preferir, posso mostrar um teste piloto de baixo investimento para validar.",
-        cta: "Qual dia funciona para uma conversa final?"
-      },
-      {
-        dia: 7,
-        canal: getCanal(7),
-        acao_sugerida: getCanal(7) === "whatsapp" ? "Enviar ÁUDIO de despedida respeitoso (30 segundos)" : getCanal(7) === "instagram" ? "Enviar DM final com porta aberta" : "Enviar email final de despedida",
-        mensagem: `Última mensagem sobre isso. Se ${lead.foco} não é prioridade agora, entendo perfeitamente. Fico à disposição quando fizer sentido. Sucesso com a ${lead.nome}!`,
-        objecao_provavel: "Não tenho interesse",
-        resposta_sugerida: "Entendido, agradeço a clareza. Se em algum momento fizer sentido revisitar, estou à disposição. Sucesso com os projetos atuais.",
-        cta: "Salva meu contato caso mude de ideia no futuro"
-      }
-    ]
+    plano_prospeccao_7dias: buildFallbackProspectingPlan(lead),
   };
 }

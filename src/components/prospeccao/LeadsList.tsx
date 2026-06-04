@@ -26,6 +26,7 @@ import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import type { UpgradeSource } from "@/lib/funnelContext";
 import { normalizeLeadForAI } from "@/utils/normalizeLead";
+import { generateSmartProspectingCopy } from "@/utils/smartProspectingCopy";
 
 const normalizeLeadsResponse = (response: any): any[] => {
   if (!response) return [];
@@ -70,6 +71,15 @@ export const LeadsList = () => {
   const aiUsed = usage.ai_used || 0;
   const aiRemaining = usage.ai_remaining ?? Math.max(0, 3 - aiUsed);
   const aiLimit = usage.ai_limit ?? 3;
+
+  const getSmartCopyPreview = (lead: LeadProspeccao) =>
+    generateSmartProspectingCopy({
+      lead,
+      channel: "whatsapp",
+      focus: lead.foco,
+      niche: lead.nicho,
+      city: lead.cidade,
+    }).message;
   
   // Estado 1: Onboarding Pós-Busca (Free, 0 IA usada, tem saldo, tem leads)
   const isEstado1Onboarding = isFree && aiUsed === 0 && aiRemaining > 0 && leads.length > 0 && !isAdmin;
@@ -1497,7 +1507,7 @@ export const LeadsList = () => {
                                     ) : (
                                       <Zap className="h-3 w-3 mr-1" />
                                     )}
-                                    {reanalyzingLeads.has(lead.id) ? "Analisando lead com IA..." : (canAnalyzeAI ? "Gerar abordagem com IA" : "Liberar mais análises")}
+                                    {reanalyzingLeads.has(lead.id) ? "Refinando com IA..." : (canAnalyzeAI ? "Refinar com IA" : "Liberar mais análises")}
                                   </Button>
                                   {isFree && aiUsed === 0 && lead.id === firstAnalyzableLead?.id && (
                                     <span className="text-[10px] text-emerald-600 font-medium whitespace-nowrap bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 animate-pulse">
@@ -1542,9 +1552,14 @@ export const LeadsList = () => {
                             </p>
                           </div>
                         ) : (
-                          <span className="line-clamp-2 text-xs text-muted-foreground">
-                            Clique em Gerar abordagem com IA para gerar o plano.
-                          </span>
+                          <div className="space-y-2">
+                            <Badge variant="outline" className="w-fit border-emerald-500/30 text-xs text-emerald-700">
+                              Copy base sem IA
+                            </Badge>
+                            <p className="line-clamp-2 text-xs text-muted-foreground">
+                              {getSmartCopyPreview(lead)}
+                            </p>
+                          </div>
                         )}
                       </div>
                     </TableCell>
@@ -1555,7 +1570,6 @@ export const LeadsList = () => {
                           variant="outline"
                           size="sm"
                           onClick={() => openPlanDialog(lead)}
-                          disabled={lead.plano_prospecao_7dias.length === 0}
                           className="h-8 whitespace-nowrap px-2.5"
                         >
                           <Eye className="h-4 w-4 mr-1" />

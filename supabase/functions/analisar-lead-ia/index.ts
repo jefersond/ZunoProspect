@@ -285,6 +285,24 @@ async function fetchCNPJData(cnpj: string): Promise<CNPJData | null> {
 interface AnaliseResult {
   diagnostico_bullets: string[];
   probabilidade_conversao: number;
+  score?: number;
+  fit_level?: "alto" | "medio" | "baixo";
+  diagnostic?: string;
+  pain_point?: string;
+  approach_angle?: string;
+  whatsapp_message?: string;
+  instagram_message?: string;
+  email_subject?: string;
+  email_body?: string;
+  follow_up?: string;
+  likely_objection?: string;
+  objection_response?: string;
+  cta?: string;
+  variations?: {
+    direct?: string;
+    consultative?: string;
+    light_provocation?: string;
+  };
   plano_prospeccao_7dias: Array<{
     dia: number;
     canal: "whatsapp" | "email" | "instagram";
@@ -293,6 +311,11 @@ interface AnaliseResult {
     objecao_provavel: string;
     resposta_sugerida: string;
     cta: string;
+    variations?: {
+      direct?: string;
+      consultative?: string;
+      light_provocation?: string;
+    };
   }>;
 }
 
@@ -326,16 +349,65 @@ function containsForbiddenZunoDisclosure(text?: string | null): boolean {
 function analysisContainsForbiddenZunoDisclosure(analise: AnaliseResult): boolean {
   const texts = [
     ...(analise.diagnostico_bullets || []),
+    analise.diagnostic,
+    analise.pain_point,
+    analise.approach_angle,
+    analise.whatsapp_message,
+    analise.instagram_message,
+    analise.email_subject,
+    analise.email_body,
+    analise.follow_up,
+    analise.likely_objection,
+    analise.objection_response,
+    analise.cta,
+    analise.variations?.direct,
+    analise.variations?.consultative,
+    analise.variations?.light_provocation,
     ...(analise.plano_prospeccao_7dias || []).flatMap((dia) => [
       dia.acao_sugerida,
       dia.mensagem,
       dia.objecao_provavel,
       dia.resposta_sugerida,
       dia.cta,
+      dia.variations?.direct,
+      dia.variations?.consultative,
+      dia.variations?.light_provocation,
     ]),
   ];
 
   return texts.some(containsForbiddenZunoDisclosure);
+}
+
+function normalizePremiumCopyForStorage(analise: AnaliseResult): AnaliseResult {
+  if (!Array.isArray(analise.plano_prospeccao_7dias) || analise.plano_prospeccao_7dias.length === 0) {
+    return analise;
+  }
+
+  const firstDay = analise.plano_prospeccao_7dias[0];
+  if (analise.whatsapp_message) firstDay.mensagem = analise.whatsapp_message;
+  if (analise.likely_objection) firstDay.objecao_provavel = analise.likely_objection;
+  if (analise.objection_response) firstDay.resposta_sugerida = analise.objection_response;
+  if (analise.cta) firstDay.cta = analise.cta;
+  if (analise.variations) firstDay.variations = analise.variations;
+
+  const instagramDay = analise.plano_prospeccao_7dias.find((dia) => dia.canal === "instagram");
+  if (instagramDay && analise.instagram_message) {
+    instagramDay.mensagem = analise.instagram_message;
+  }
+
+  const emailDay = analise.plano_prospeccao_7dias.find((dia) => dia.canal === "email");
+  if (emailDay && (analise.email_subject || analise.email_body)) {
+    emailDay.mensagem = [analise.email_subject ? `Assunto: ${analise.email_subject}` : "", analise.email_body || ""]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  const followUpDay = analise.plano_prospeccao_7dias.find((dia) => dia.dia > 1);
+  if (followUpDay && analise.follow_up) {
+    followUpDay.mensagem = analise.follow_up;
+  }
+
+  return analise;
 }
 
 async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
@@ -828,9 +900,11 @@ serve(async (req) => {
       }
     }
 
+    analise = normalizePremiumCopyForStorage(analise);
+
     if (isZunoInternalProspectingFocus(leadData.foco) && analysisContainsForbiddenZunoDisclosure(analise)) {
       console.warn("🚫 Análise da Zuno continha disclosure proibido; aplicando fallback seguro.");
-      analise = generateZunoInternalMockAnalise(leadData);
+      analise = normalizePremiumCopyForStorage(generateZunoInternalMockAnalise(leadData));
     }
 
     // Save analysis to DB
@@ -1052,6 +1126,27 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string, onRetry?:
                     type: "number",
                     description: "Probabilidade de conversão de 0-100"
                   },
+                  score: { type: "number", description: "Score de conversao de 0 a 100" },
+                  fit_level: { type: "string", enum: ["alto", "medio", "baixo"] },
+                  diagnostic: { type: "string" },
+                  pain_point: { type: "string" },
+                  approach_angle: { type: "string" },
+                  whatsapp_message: { type: "string" },
+                  instagram_message: { type: "string" },
+                  email_subject: { type: "string" },
+                  email_body: { type: "string" },
+                  follow_up: { type: "string" },
+                  likely_objection: { type: "string" },
+                  objection_response: { type: "string" },
+                  cta: { type: "string" },
+                  variations: {
+                    type: "object",
+                    properties: {
+                      direct: { type: "string" },
+                      consultative: { type: "string" },
+                      light_provocation: { type: "string" }
+                    }
+                  },
                   plano_prospeccao_7dias: {
                     type: "array",
                     items: {
@@ -1198,6 +1293,27 @@ async function analyzeWithLovableAI(lead: LeadData): Promise<AnaliseResult> {
                 properties: {
                   diagnostico_bullets: { type: "array", items: { type: "string" } },
                   probabilidade_conversao: { type: "number" },
+                  score: { type: "number", description: "Score de conversao de 0 a 100" },
+                  fit_level: { type: "string", enum: ["alto", "medio", "baixo"] },
+                  diagnostic: { type: "string" },
+                  pain_point: { type: "string" },
+                  approach_angle: { type: "string" },
+                  whatsapp_message: { type: "string" },
+                  instagram_message: { type: "string" },
+                  email_subject: { type: "string" },
+                  email_body: { type: "string" },
+                  follow_up: { type: "string" },
+                  likely_objection: { type: "string" },
+                  objection_response: { type: "string" },
+                  cta: { type: "string" },
+                  variations: {
+                    type: "object",
+                    properties: {
+                      direct: { type: "string" },
+                      consultative: { type: "string" },
+                      light_provocation: { type: "string" }
+                    }
+                  },
                   plano_prospeccao_7dias: {
                     type: "array",
                     items: {
@@ -1277,6 +1393,17 @@ function buildEliteCopywriterSystemPrompt(isUS: boolean = false): string {
     return buildUSSystemPrompt();
   }
   return buildBRSystemPrompt();
+}
+
+function buildPremiumCopyOutputRules(): string {
+  return `FORMATO PREMIUM OBRIGATORIO
+- Alem de diagnostico_bullets, probabilidade_conversao e plano_prospeccao_7dias, retorne no mesmo JSON:
+  score, fit_level, diagnostic, pain_point, approach_angle, whatsapp_message, instagram_message, email_subject, email_body, follow_up, likely_objection, objection_response, cta.
+- Retorne variations com exatamente 3 abordagens: direct, consultative e light_provocation.
+- Gere as 3 variacoes na mesma chamada, sem pedir nova analise.
+- As mensagens devem ser curtas, humanas, contextualizadas pelo nicho/cidade/sinais e sem frase generica.
+- Ajuste o plano de 7 dias para reaproveitar essas mensagens premium nos canais corretos.
+- Se o foco for zuno_internal_prospecting, venda a Zuno sem dizer ou sugerir que o lead foi encontrado usando Zuno ou qualquer ferramenta.`;
 }
 
 function buildZunoInternalProspectingSystemPrompt(): string {
@@ -2458,7 +2585,8 @@ REGRAS DAS MENSAGENS
 - Não use tom agressivo, pressão ou promessa garantida.
 - Use o nicho "${lead.nicho}" e a cidade "${lead.cidade}" como contexto comercial.
 - Frases proibidas: "encontrei você usando a Zuno", "achei você pela Zuno", "a própria Zuno encontrou", "usando a própria Zuno", "se ela me ajudou a encontrar você", "usei a Zuno para encontrar", "fui até você usando a Zuno".
-- Retorne a análise usando somente diagnostico_bullets, probabilidade_conversao e plano_prospeccao_7dias.`;
+${buildPremiumCopyOutputRules()}
+- Retorne a analise estruturada pela funcao gerar_analise_lead.`;
 }
 
 function buildBRUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsapp" | "instagram")[]): string {
@@ -2601,6 +2729,7 @@ Os exemplos acima são REFERÊNCIA - adapte para os dados REAIS:
 • Cidade: ${lead.cidade}
 • Nicho: ${lead.nicho}
 • Foco: ${lead.foco}
+${buildPremiumCopyOutputRules()}
 ${lead.nome_responsavel ? `• Responsável: ${lead.nome_responsavel}` : ""}`;
 }
 

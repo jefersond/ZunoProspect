@@ -24,6 +24,11 @@ export interface PlanoProspeccaoDia {
   objecao_provavel: string;
   resposta_sugerida: string;
   cta: string;
+  variations?: {
+    direct?: string;
+    consultative?: string;
+    light_provocation?: string;
+  };
 }
 
 export interface LeadProspeccao {

@@ -534,6 +534,7 @@ export const LeadPlanDialog = ({
 
           <TabsContent value="analise">
             <LeadAnalysis
+              lead={displayLead}
               diagnostico={displayLead.diagnostico_bullets}
               probabilidade={displayLead.probabilidade_conversao}
               plano={displayLead.plano_prospecao_7dias}

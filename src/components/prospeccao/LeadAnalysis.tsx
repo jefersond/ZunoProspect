@@ -1,23 +1,15 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Brain, Check, Copy, Instagram, Mail, MessageSquare, RefreshCw, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Brain, TrendingUp, MessageSquare, Mail, RefreshCw, Instagram, Copy, Check } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
-import { copyToClipboard } from "@/utils/templateUtils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
-
-interface PlanoProspeccaoDia {
-  dia: number;
-  canal: "whatsapp" | "email" | "instagram";
-  acao_sugerida: string;
-  mensagem: string;
-  objecao_provavel: string;
-  resposta_sugerida: string;
-  cta: string;
-}
+import { copyToClipboard } from "@/utils/templateUtils";
+import { SmartCopyCard } from "./SmartCopyCard";
+import type { LeadProspeccao, PlanoProspeccaoDia } from "@/types/lead";
 
 interface LeadAnalysisProps {
   diagnostico: string[] | null;
@@ -27,59 +19,93 @@ interface LeadAnalysisProps {
   onReanalyze?: () => void;
   isReanalyzing?: boolean;
   canAnalyzeAI?: boolean;
+  lead?: LeadProspeccao | null;
 }
 
-export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onReanalyze, isReanalyzing, canAnalyzeAI = true }: LeadAnalysisProps) => {
+const variationLabels: Record<keyof NonNullable<PlanoProspeccaoDia["variations"]>, string> = {
+  direct: "Direta",
+  consultative: "Consultiva",
+  light_provocation: "Provocacao leve",
+};
+
+export const LeadAnalysis = ({
+  diagnostico,
+  probabilidade,
+  plano,
+  geradoEm,
+  onReanalyze,
+  isReanalyzing,
+  canAnalyzeAI = true,
+  lead,
+}: LeadAnalysisProps) => {
   const [copiedDia, setCopiedDia] = useState<number | null>(null);
   const { toast } = useToast();
 
   const handleCopyMessage = async (dia: number, mensagem: string, channel: PlanoProspeccaoDia["canal"]) => {
     const success = await copyToClipboard(mensagem);
-    if (success) {
-      setCopiedDia(dia);
-      trackMetaCustomEvent("AI_Message_Copied", {
-        channel,
-      });
-      toast({
-        title: "Copiado!",
-        description: `Mensagem do Dia ${dia} copiada`,
-      });
-      setTimeout(() => setCopiedDia(null), 2000);
-    }
+    if (!success) return;
+
+    setCopiedDia(dia);
+    trackMetaCustomEvent("AI_Message_Copied", { channel });
+    toast({
+      title: "Copiado!",
+      description: `Mensagem do Dia ${dia} copiada`,
+    });
+    setTimeout(() => setCopiedDia(null), 2000);
+  };
+
+  const renderAiLimitTooltip = () => (
+    !canAnalyzeAI ? (
+      <TooltipContent>
+        <p>Voce usou todas as analises IA gratis. Escolha um plano para continuar gerando abordagens.</p>
+      </TooltipContent>
+    ) : null
+  );
+
+  const renderFallbackRefineButton = () => {
+    if (!onReanalyze || lead) return null;
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button
+                onClick={onReanalyze}
+                disabled={isReanalyzing}
+                variant="outline"
+                size="sm"
+                className={!canAnalyzeAI ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 font-semibold transition-all duration-200" : ""}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? "animate-spin" : ""}`} />
+                {isReanalyzing ? "Refinando..." : canAnalyzeAI ? "Refinar com IA" : "Liberar analises IA"}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          {renderAiLimitTooltip()}
+        </Tooltip>
+      </TooltipProvider>
+    );
   };
 
   if (!diagnostico || !probabilidade || !plano) {
     return (
-      <Card className="mt-4">
-        <CardContent className="py-6 text-center space-y-3">
-          <p className="text-muted-foreground">Análise de IA ainda não gerada para este lead</p>
-          {onReanalyze && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button
-                      onClick={onReanalyze}
-                      disabled={isReanalyzing}
-                      variant="outline"
-                      size="sm"
-                      className={!canAnalyzeAI ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 font-semibold transition-all duration-200" : ""}
-                    >
-                      <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? 'animate-spin' : ''}`} />
-                      {isReanalyzing ? 'Analisando...' : (canAnalyzeAI ? 'Analisar com IA' : 'Liberar análises IA')}
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                {!canAnalyzeAI && (
-                  <TooltipContent>
-                    <p>Você usou todas as análises IA grátis. Escolha um plano para continuar gerando abordagens.</p>
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </CardContent>
-      </Card>
+      <div className="space-y-4 mt-4">
+        {lead && (
+          <SmartCopyCard
+            lead={lead}
+            onRefineWithAI={onReanalyze}
+            isRefining={isReanalyzing}
+            canAnalyzeAI={canAnalyzeAI}
+          />
+        )}
+        <Card>
+          <CardContent className="py-6 text-center space-y-3">
+            <p className="text-muted-foreground">Analise premium de IA ainda nao gerada para este lead</p>
+            {renderFallbackRefineButton()}
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -91,7 +117,15 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
 
   return (
     <div className="space-y-4 mt-4">
-      {/* Diagnóstico e Probabilidade */}
+      {lead && (
+        <SmartCopyCard
+          lead={lead}
+          onRefineWithAI={onReanalyze}
+          isRefining={isReanalyzing}
+          canAnalyzeAI={canAnalyzeAI}
+        />
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
@@ -99,11 +133,11 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
               <div>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Brain className="h-5 w-5 text-primary" />
-                  Diagnóstico Digital
+                  Diagnostico Digital
                 </CardTitle>
                 {geradoEm && (
                   <CardDescription className="text-xs mt-1">
-                    Gerado em {new Date(geradoEm).toLocaleDateString('pt-BR')}
+                    Gerado em {new Date(geradoEm).toLocaleDateString("pt-BR")}
                   </CardDescription>
                 )}
               </div>
@@ -119,16 +153,12 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
                           size="sm"
                           className={!canAnalyzeAI ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 font-semibold transition-all duration-200" : ""}
                         >
-                          <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? 'animate-spin' : ''}`} />
-                          {isReanalyzing ? 'Analisando...' : (canAnalyzeAI ? 'Reanalisar' : 'Liberar análises IA')}
+                          <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? "animate-spin" : ""}`} />
+                          {isReanalyzing ? "Refinando..." : canAnalyzeAI ? "Refinar com IA" : "Liberar analises IA"}
                         </Button>
                       </span>
                     </TooltipTrigger>
-                    {!canAnalyzeAI && (
-                      <TooltipContent>
-                        <p>Você usou todas as análises IA grátis. Escolha um plano para continuar gerando abordagens.</p>
-                      </TooltipContent>
-                    )}
+                    {renderAiLimitTooltip()}
                   </Tooltip>
                 </TooltipProvider>
               )}
@@ -138,7 +168,7 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
             <ul className="space-y-2">
               {diagnostico.map((bullet, idx) => (
                 <li key={idx} className="flex items-start gap-2 text-sm">
-                  <span className="text-primary mt-0.5">•</span>
+                  <span className="text-primary mt-0.5">-</span>
                   <span>{bullet}</span>
                 </li>
               ))}
@@ -150,40 +180,30 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <TrendingUp className="h-5 w-5 text-primary" />
-              Probabilidade de Conversão
+              Probabilidade de Conversao
             </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-center py-8">
             <div className="text-center">
-              <div
-                className={`text-6xl font-bold ${getProbabilidadeColor(probabilidade).split(' ')[0]}`}
-              >
+              <div className={`text-6xl font-bold ${getProbabilidadeColor(probabilidade).split(" ")[0]}`}>
                 {probabilidade}%
               </div>
-              <Badge
-                className={`mt-3 ${getProbabilidadeColor(probabilidade)}`}
-                variant="outline"
-              >
-                {probabilidade >= 70
-                  ? "Alta Probabilidade"
-                  : probabilidade >= 40
-                  ? "Probabilidade Média"
-                  : "Baixa Probabilidade"}
+              <Badge className={`mt-3 ${getProbabilidadeColor(probabilidade)}`} variant="outline">
+                {probabilidade >= 70 ? "Alta Probabilidade" : probabilidade >= 40 ? "Probabilidade Media" : "Baixa Probabilidade"}
               </Badge>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Plano de Prospecção 7 Dias */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-primary" />
-            Plano de Prospecção 7 Dias
+            Plano de Prospeccao 7 Dias
           </CardTitle>
           <CardDescription>
-            Cadência multicanal otimizada com copy pronta e respostas para objeções
+            Cadencia multicanal otimizada com copy pronta, variacoes e respostas para objecoes
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -210,11 +230,10 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
                 </div>
 
                 <div className="pl-4 space-y-2 text-sm">
-                  {/* Ação Sugerida */}
                   {dia.acao_sugerida && (
                     <div className="bg-purple-50 dark:bg-purple-950/30 p-3 rounded-md border border-purple-200 dark:border-purple-800">
-                      <p className="font-semibold text-purple-700 dark:text-purple-400 text-xs mb-1 flex items-center gap-1.5">
-                        🎯 Ação Sugerida:
+                      <p className="font-semibold text-purple-700 dark:text-purple-400 text-xs mb-1">
+                        Acao sugerida:
                       </p>
                       <p className="text-sm text-purple-900 dark:text-purple-300 font-medium">
                         {dia.acao_sugerida}
@@ -241,10 +260,30 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
                     <p className="whitespace-pre-wrap pr-6">{dia.mensagem}</p>
                   </div>
 
+                  {dia.variations && (
+                    <div className="rounded-md border border-emerald-500/20 bg-emerald-500/[0.04] p-3">
+                      <p className="font-medium text-emerald-700 dark:text-emerald-300 text-xs mb-2">
+                        Variacoes premium geradas na mesma chamada IA:
+                      </p>
+                      <div className="space-y-2">
+                        {(Object.entries(dia.variations) as Array<[keyof NonNullable<PlanoProspeccaoDia["variations"]>, string | undefined]>)
+                          .filter(([, text]) => !!text)
+                          .map(([key, text]) => (
+                            <div key={key}>
+                              <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+                                {variationLabels[key]}
+                              </p>
+                              <p className="text-xs whitespace-pre-wrap">{text}</p>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded border border-orange-200 dark:border-orange-800">
                       <p className="font-medium text-orange-700 dark:text-orange-400 text-xs mb-1">
-                        Objeção Provável:
+                        Objecao provavel:
                       </p>
                       <p className="text-xs text-orange-900 dark:text-orange-300">
                         {dia.objecao_provavel}
@@ -253,7 +292,7 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
 
                     <div className="bg-green-50 dark:bg-green-950/20 p-2 rounded border border-green-200 dark:border-green-800">
                       <p className="font-medium text-green-700 dark:text-green-400 text-xs mb-1">
-                        Resposta Sugerida:
+                        Resposta sugerida:
                       </p>
                       <p className="text-xs text-green-900 dark:text-green-300">
                         {dia.resposta_sugerida}
@@ -262,9 +301,7 @@ export const LeadAnalysis = ({ diagnostico, probabilidade, plano, geradoEm, onRe
                   </div>
 
                   <div className="bg-blue-50 dark:bg-blue-950/20 p-2 rounded border border-blue-200 dark:border-blue-800">
-                    <p className="font-medium text-blue-700 dark:text-blue-400 text-xs mb-1">
-                      CTA:
-                    </p>
+                    <p className="font-medium text-blue-700 dark:text-blue-400 text-xs mb-1">CTA:</p>
                     <p className="text-xs text-blue-900 dark:text-blue-300">{dia.cta}</p>
                   </div>
                 </div>

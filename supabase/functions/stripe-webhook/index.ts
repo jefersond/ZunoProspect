@@ -8,6 +8,12 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
 
 const endpointSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
+
 // Limites oficiais conforme especificação
 const PLAN_LIMITS: Record<string, { plan: string; leadsLimit: number; aiLimit: number }> = {
   free: { plan: "free", leadsLimit: 20, aiLimit: 3 },
@@ -571,10 +577,46 @@ async function updateAddonFromSubscription(
 }
 
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  if (req.method === "GET") {
+    return new Response(JSON.stringify({
+      ok: true,
+      function: "stripe-webhook",
+      message: "Webhook function deployed. POST requires Stripe signature.",
+      env: {
+        STRIPE_WEBHOOK_SECRET: Boolean(endpointSecret),
+        STRIPE_SECRET_KEY: Boolean(Deno.env.get("STRIPE_SECRET_KEY")),
+        SUPABASE_SERVICE_ROLE_KEY: Boolean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")),
+      },
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({
+      ok: false,
+      error: "Method not allowed. Use GET for health or POST for Stripe events.",
+    }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const signature = req.headers.get("stripe-signature");
 
   if (!signature) {
-    return new Response("No signature", { status: 400 });
+    return new Response(JSON.stringify({
+      ok: false,
+      error: "No Stripe signature. POST requires a valid Stripe-Signature header.",
+    }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const body = await req.text();
@@ -584,7 +626,10 @@ serve(async (req) => {
     event = await stripe.webhooks.constructEventAsync(body, signature, endpointSecret);
   } catch (err: any) {
     console.error(`Webhook signature verification failed: ${err.message}`);
-    return new Response(`Webhook Error: ${err.message}`, { status: 400 });
+    return new Response(JSON.stringify({ ok: false, error: `Webhook Error: ${err.message}` }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const supabaseAdmin = createClient(
@@ -969,11 +1014,11 @@ serve(async (req) => {
     
     return new Response(JSON.stringify({ error: "Webhook processing failed" }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   return new Response(JSON.stringify({ received: true }), {
-    headers: { "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });

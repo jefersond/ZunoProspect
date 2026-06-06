@@ -4,10 +4,13 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
 // ============= CONFIGURATION =============
+const SCAN_USER_LIMIT = 25;
+const PROCESS_BATCH_SIZE = 5;
+const RESEND_TIMEOUT_MS = 8000;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "Zuno Propect <contato@zunopropect.com.br>";
 const RESEND_REPLY_TO_EMAIL = Deno.env.get("RESEND_REPLY_TO_EMAIL") || "contato@zunopropect.com.br";
@@ -205,10 +208,14 @@ async function sendEmailViaResend(payload: {
   text?: string;
   reply_to?: string;
 }): Promise<{ success: boolean; data?: any; error?: any }> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
     if (!RESEND_API_KEY) {
       return { success: false, error: "RESEND_API_KEY não configurada no ambiente." };
     }
+
+    const controller = new AbortController();
+    timeoutId = setTimeout(() => controller.abort(), RESEND_TIMEOUT_MS);
 
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -217,7 +224,9 @@ async function sendEmailViaResend(payload: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     const responseText = await response.text();
     let data: any = null;
@@ -236,6 +245,10 @@ async function sendEmailViaResend(payload: {
 
     return { success: true, data };
   } catch (error: any) {
+    if (timeoutId) clearTimeout(timeoutId);
+    if (error?.name === "AbortError") {
+      return { success: false, error: `Timeout ao chamar Resend apos ${RESEND_TIMEOUT_MS}ms` };
+    }
     return { success: false, error: error.message || String(error) };
   }
 }
@@ -252,7 +265,34 @@ const hashEmail = async (email: string): Promise<string> => {
 // ============= HANDLER PRINCIPAL =============
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  if (req.method === "GET") {
+    return new Response(JSON.stringify({
+      ok: true,
+      function: "process-behavior-emails",
+      message: "Behavior email processor deployed. POST processes a limited batch.",
+      batchSize: PROCESS_BATCH_SIZE,
+      resendTimeoutMs: RESEND_TIMEOUT_MS,
+      env: {
+        RESEND_API_KEY: Boolean(RESEND_API_KEY),
+        SUPABASE_SERVICE_ROLE_KEY: Boolean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")),
+      },
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({
+      ok: false,
+      error: "Method not allowed. Use GET for health or POST for processing.",
+    }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
@@ -269,6 +309,23 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const { action = "cron", email: targetTestEmail, automation_key: testAutomationKey } = body;
+
+    if (action === "ping" || action === "health") {
+      return new Response(JSON.stringify({
+        ok: true,
+        function: "process-behavior-emails",
+        message: "Health check only. No emails were queued or sent.",
+        batchSize: PROCESS_BATCH_SIZE,
+        resendTimeoutMs: RESEND_TIMEOUT_MS,
+        env: {
+          RESEND_API_KEY: Boolean(RESEND_API_KEY),
+          SUPABASE_SERVICE_ROLE_KEY: Boolean(supabaseServiceKey),
+        },
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // ==========================================
     // FLUXO DE DISPARO DE TESTE (ADMIN ONLY)
@@ -330,7 +387,10 @@ serve(async (req: Request): Promise<Response> => {
     // Este bloco descobre usuários qualificados e enfileira na behavior_email_queue
     const scanBehaviorAutomations = async () => {
       console.log("[Scanner] Iniciando varredura comportamental...");
-      const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers();
+      const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: SCAN_USER_LIMIT,
+      });
       if (listError) throw listError;
 
       const now = new Date();
@@ -517,16 +577,20 @@ serve(async (req: Request): Promise<Response> => {
     // Este bloco busca itens na fila pendentes cujo scheduled_for <= now()
     const processPendingBehaviorEmails = async () => {
       console.log("[Processor] Buscando emails pendentes programados...");
+      const stats = { processed: 0, sent: 0, failed: 0, skipped: 0 };
       const { data: pendingItems, error: fetchError } = await supabase
         .from("behavior_email_queue")
         .select("*")
         .eq("status", "pending")
-        .lte("scheduled_for", new Date().toISOString());
+        .lte("scheduled_for", new Date().toISOString())
+        .order("scheduled_for", { ascending: true })
+        .limit(PROCESS_BATCH_SIZE);
 
       if (fetchError) throw fetchError;
       console.log(`[Processor] Encontrados ${pendingItems?.length || 0} e-mails pendentes.`);
 
       for (const item of pendingItems || []) {
+        stats.processed += 1;
         let skipReason: string | null = null;
 
         // 1. Verificação de Unsubscribe
@@ -629,11 +693,31 @@ serve(async (req: Request): Promise<Response> => {
           });
 
           await trackBehaviorEvent(item.user_id, item.email, item.automation_key, item.id, "Behavior_Email_Skipped", { reason: skipReason });
+          stats.skipped += 1;
         } else {
           // Despachar e-mail
           const templateGenerator = emailTemplates[item.automation_key];
           if (!templateGenerator) {
             console.error(`[Processor] Template não encontrado para a chave: ${item.automation_key}`);
+            const errorMsg = `Template nao encontrado: ${item.automation_key}`;
+            await supabase
+              .from("behavior_email_queue")
+              .update({
+                status: "failed",
+                failed_at: new Date().toISOString(),
+                skip_reason: errorMsg
+              })
+              .eq("id", item.id);
+
+            await supabase.from("behavior_email_logs").insert({
+              queue_id: item.id,
+              user_id: item.user_id,
+              email: item.email,
+              automation_key: item.automation_key,
+              status: "failed",
+              error_message: errorMsg
+            });
+            stats.failed += 1;
             continue;
           }
 
@@ -679,6 +763,7 @@ serve(async (req: Request): Promise<Response> => {
 
             await trackBehaviorEvent(item.user_id, item.email, item.automation_key, item.id, "Behavior_Email_Sent", { resend_message_id: messageId });
             console.log(`[Processor] E-mail ${item.automation_key} enviado com sucesso para ${item.email}.`);
+            stats.sent += 1;
           } else {
             console.error(`[Processor] Falha ao enviar e-mail via Resend:`, resendResult.error);
             const errorMsg = String(resendResult.error);
@@ -701,16 +786,24 @@ serve(async (req: Request): Promise<Response> => {
             });
 
             await trackBehaviorEvent(item.user_id, item.email, item.automation_key, item.id, "Behavior_Email_Failed", { error_message: errorMsg });
+            stats.failed += 1;
           }
         }
       }
+      return stats;
     };
 
     // Rodar sequencialmente o Scanner e o Processor
     await scanBehaviorAutomations();
-    await processPendingBehaviorEmails();
+    const stats = await processPendingBehaviorEmails();
 
-    return new Response(JSON.stringify({ success: true, message: "Varredura e envio comportamental concluídos com sucesso." }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      success: true,
+      message: stats.processed === 0 ? "Nenhum e-mail pendente." : "Varredura e envio comportamental concluidos.",
+      batchSize: PROCESS_BATCH_SIZE,
+      ...stats,
+    }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -188,16 +188,16 @@ export default function AdminSystemHealth() {
       try {
         const response = await withTimeout(
           fetch("https://ihtltqxxlvbsxbiacbpr.supabase.co/functions/v1/stripe-webhook", {
-            method: "POST",
+            method: "GET",
             headers: { "Content-Type": "application/json" }
           }),
           5000,
           "Timeout ao contatar webhook"
         );
         const webhookLatency = Date.now() - webhookStart;
-        const text = await response.text();
+        const data = await response.json().catch(async () => ({ ok: false, error: await response.text() }));
         
-        if (response.status === 400 && text.includes("No signature")) {
+        if (response.ok && data?.ok) {
           updateItem("func_webhook", { 
             status: "OK", 
             latencyMs: webhookLatency, 
@@ -207,7 +207,7 @@ export default function AdminSystemHealth() {
           updateItem("func_webhook", { 
             status: "ERRO", 
             latencyMs: webhookLatency, 
-            details: `Código HTTP ${response.status}: ${text || "Resposta inválida."}` 
+            details: `Codigo HTTP ${response.status}: ${JSON.stringify(data) || "Resposta invalida."}` 
           });
         }
       } catch (err: any) {
@@ -219,22 +219,24 @@ export default function AdminSystemHealth() {
       updateItem("func_email", { status: "PENDENTE" });
       const emailStart = Date.now();
       try {
-        const { data, error } = await withTimeout(
-          supabase.functions.invoke("process-behavior-emails", {
-            body: { action: "ping" }
+        const response = await withTimeout(
+          fetch("https://ihtltqxxlvbsxbiacbpr.supabase.co/functions/v1/process-behavior-emails", {
+            method: "GET",
+            headers: { "Content-Type": "application/json" }
           }),
           5000,
           "Timeout na invocação"
         );
         const emailLatency = Date.now() - emailStart;
+        const data = await response.json().catch(async () => ({ ok: false, error: await response.text() }));
 
-        if (error && error.message.includes("Failed to fetch")) {
+        if (!response.ok || !data?.ok) {
           updateItem("func_email", { status: "ERRO", latencyMs: emailLatency, details: "Função indisponível (Erro CORS ou rede)." });
         } else {
           updateItem("func_email", { 
             status: "OK", 
             latencyMs: emailLatency, 
-            details: `Processador Resend ativo. Resposta: ${JSON.stringify(data || error?.message || "OK")}`
+            details: `Health OK sem envio. Batch: ${data.batchSize}, Resend timeout: ${data.resendTimeoutMs}ms`
           });
         }
       } catch (err: any) {

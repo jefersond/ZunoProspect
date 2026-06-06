@@ -219,19 +219,21 @@ export default function AdminSystemHealth() {
       updateItem("func_email", { status: "PENDENTE" });
       const emailStart = Date.now();
       try {
-        const response = await withTimeout(
-          fetch("https://ihtltqxxlvbsxbiacbpr.supabase.co/functions/v1/process-behavior-emails", {
+        const { data, error } = await withTimeout(
+          supabase.functions.invoke("process-behavior-emails", {
             method: "GET",
-            headers: { "Content-Type": "application/json" }
           }),
           5000,
           "Timeout na invocação"
         );
         const emailLatency = Date.now() - emailStart;
-        const data = await response.json().catch(async () => ({ ok: false, error: await response.text() }));
 
-        if (!response.ok || !data?.ok) {
-          updateItem("func_email", { status: "ERRO", latencyMs: emailLatency, details: "Função indisponível (Erro CORS ou rede)." });
+        if (error || !data?.ok) {
+          updateItem("func_email", {
+            status: "ERRO",
+            latencyMs: emailLatency,
+            details: error?.message || "Health check sem resposta OK.",
+          });
         } else {
           updateItem("func_email", { 
             status: "OK", 

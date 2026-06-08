@@ -1132,6 +1132,7 @@ serve(async (req) => {
   let sourceForCatch = "app";
   let pathForCatch = "prospeccao";
   let retryCountForCatch = 0;
+  let leadData: LeadData | null = null;
   const requestId = req.headers.get("x-request-id") || crypto.randomUUID();
 
   try {
@@ -1263,7 +1264,6 @@ serve(async (req) => {
       }, 500);
     }
 
-    let leadData: LeadData;
     const searchContext = requestData.search_context || context || {};
     
     if (leadId) {

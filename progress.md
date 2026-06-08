@@ -64,6 +64,8 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
   - [x] Corrigidas as assinaturas de `buildEliteUserPrompt`, `buildBRUserPrompt` e `buildUSUserPrompt` na Edge Function `analisar-lead-ia` para receber e injetar adequadamente as diretrizes da campanha nos prompts do Gemini Flash.
   - [x] Implementada a normalização resiliente de `plano_prospecao_7dias` nos 4 arquivos do frontend (`LeadPlanDialog.tsx`, `LeadsList.tsx`, `useSecureLeads.ts` e `LeadsSalvos.tsx`) para aceitar tanto planos de prospecção legados (arrays puros) quanto novos planos estruturados com metadados (objetos contendo a chave `plano_prospeccao_7dias`), prevenindo erros catastróficos em runtime (como `.map is not a function`).
   - [x] Validado com sucesso o build de produção local do frontend React (`npm run build`).
+  - [x] **Iteração 8 (08/06/2026):** Identificado e corrigido erro de CORS no console ao chamar "Refinar com IA". A causa raiz era o sombreamento e escopo inadequado da variável `leadData` (declarada com `let` dentro do `try` e referenciada no `catch` global), lançando um `ReferenceError` que quebrava síncronamente o bloco `catch` e impedia o Supabase Gateway (Kong) de anexar os headers CORS ao erro 500 resultante. Movida a declaração de `leadData` para o topo do `serve`.
+  - [x] Efetuado o deploy da correção no Supabase e enviado para o GitHub remoto (com build passando sem erros).
 
 
 

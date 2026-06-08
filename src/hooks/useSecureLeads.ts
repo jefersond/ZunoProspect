@@ -99,7 +99,9 @@ const transformLead = (lead: any): LeadProspeccao => {
     },
     diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
     probabilidade_conversao: lead.probabilidade_conversao || 0,
-    plano_prospecao_7dias: (lead.plano_prospeccao as any[]) || [],
+    plano_prospecao_7dias: Array.isArray(lead.plano_prospeccao)
+      ? lead.plano_prospeccao
+      : (lead.plano_prospeccao?.plano_prospeccao_7dias || []),
     rating: lead.rating,
     total_reviews: lead.total_reviews,
     status: lead.status || 'novo',

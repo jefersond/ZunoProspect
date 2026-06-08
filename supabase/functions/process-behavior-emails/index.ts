@@ -302,6 +302,40 @@ serve(async (req: Request): Promise<Response> => {
       auth: { persistSession: false },
     });
 
+    // Função auxiliar para carregar todos os usuários do Supabase Auth recursivamente com paginação
+    const getAllUsers = async () => {
+      let allUsers: any[] = [];
+      let page = 1;
+      const perPage = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase.auth.admin.listUsers({
+          page,
+          perPage,
+        });
+
+        if (error) {
+          console.error(`[getAllUsers] Erro ao listar usuários na página ${page}:`, error.message);
+          throw error;
+        }
+
+        if (data?.users && data.users.length > 0) {
+          allUsers = allUsers.concat(data.users);
+          if (data.users.length < perPage) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log(`[getAllUsers] Carregados ${allUsers.length} usuários no total.`);
+      return allUsers;
+    };
+
     // Detectar Payload e Ação
     let body: any = {};
     if (req.method === "POST") {
@@ -349,10 +383,23 @@ serve(async (req: Request): Promise<Response> => {
 
       // Procurar usuário pelo email de teste para puxar o ID
       let userId: string | null = null;
-      const { data: authUsers } = await supabase.auth.admin.listUsers();
-      const matchedUser = authUsers?.users?.find(u => u.email?.toLowerCase() === targetTestEmail.toLowerCase());
-      if (matchedUser) {
-        userId = matchedUser.id;
+      try {
+        const { data: rpcData } = await supabase.rpc("get_user_id_by_email", {
+          p_email: targetTestEmail,
+        });
+        if (rpcData) {
+          userId = rpcData;
+        }
+      } catch (err) {
+        console.warn("[process-behavior-emails] Falha ao chamar RPC de busca no teste, usando fallback", err);
+      }
+      
+      if (!userId) {
+        const { data: authUsers } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const matchedUser = authUsers?.users?.find(u => u.email?.toLowerCase() === targetTestEmail.toLowerCase());
+        if (matchedUser) {
+          userId = matchedUser.id;
+        }
       }
 
       const unsubscribeUrl = userId
@@ -387,15 +434,11 @@ serve(async (req: Request): Promise<Response> => {
     // Este bloco descobre usuários qualificados e enfileira na behavior_email_queue
     const scanBehaviorAutomations = async () => {
       console.log("[Scanner] Iniciando varredura comportamental...");
-      const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers({
-        page: 1,
-        perPage: SCAN_USER_LIMIT,
-      });
-      if (listError) throw listError;
+      const authUsers = await getAllUsers();
 
       const now = new Date();
 
-      for (const user of authUsers.users) {
+      for (const user of authUsers) {
         if (!user.email) continue;
         const userEmail = user.email.toLowerCase();
 

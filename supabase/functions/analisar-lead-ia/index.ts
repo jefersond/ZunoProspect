@@ -871,71 +871,51 @@ function buildFallbackProspectingPlan(lead: LeadData): AnaliseResult["plano_pros
   ];
 }
 
-function applyQualityFallbackIfNeeded(analise: AnaliseResult, lead: LeadData): AnaliseResult {
+function applyQualityFallbackIfNeeded(
+  analise: AnaliseResult,
+  lead: LeadData,
+  logPrefix = "[analisar-lead-ia]"
+): { analise: AnaliseResult; fallbackUsed: boolean; missingFields: string[] } {
   if (!Array.isArray(analise.plano_prospeccao_7dias) || analise.plano_prospeccao_7dias.length === 0) {
+    console.log(`${logPrefix} Fallback ativado: plano_prospeccao_7dias ausente ou vazio.`);
     analise.plano_prospeccao_7dias = buildFallbackProspectingPlan(lead);
-    return analise;
+    return { analise, fallbackUsed: true, missingFields: ["plano_prospeccao_7dias"] };
   }
 
   const message = analise.plano_prospeccao_7dias[0]?.mensagem || "";
-  const diagnosisText = (analise.diagnostico_bullets || []).join(" ");
+  const missingFields: string[] = [];
+
   const hasIncompletePlan =
-    analise.plano_prospeccao_7dias.length < 7 ||
-    analise.plano_prospeccao_7dias.some((dia) => !dia.acao_sugerida || !dia.mensagem || !dia.objecao_provavel || !dia.resposta_sugerida || !dia.cta);
-  const hasGenericDiagnosis = GENERIC_ANALYSIS_TERMS.some((term) => normalizeDisclosureText(diagnosisText).includes(normalizeDisclosureText(term)));
-  const badMessage =
-    hasIncompletePlan ||
-    !hasGreeting(message) ||
-    !hasContext(message, lead) ||
-    !hasSimpleCta(message) ||
-    containsForbiddenZunoDisclosure(message) ||
-    GENERIC_ANALYSIS_TERMS.some((term) => normalizeDisclosureText(message).includes(normalizeDisclosureText(term)));
+    analise.plano_prospeccao_7dias.length < 5 ||
+    analise.plano_prospeccao_7dias.some((dia) => !dia.acao_sugerida || !dia.mensagem || !dia.cta);
 
-  if (!badMessage && !hasGenericDiagnosis) {
-    analise.plano_prospeccao_7dias = analise.plano_prospeccao_7dias.map((dia) => {
-      const { variations, ...cleanDay } = dia;
-      return cleanDay;
-    });
-    return analise;
+  if (hasIncompletePlan) missingFields.push("plano_incompleto");
+  if (!hasGreeting(message)) missingFields.push("primeira_mensagem_sem_saudacao");
+  if (!hasContext(message, lead)) missingFields.push("primeira_mensagem_sem_contexto");
+  if (!hasSimpleCta(message)) missingFields.push("primeira_mensagem_sem_cta_leve");
+
+  const hasDisclosure = containsForbiddenZunoDisclosure(message) || analysisContainsForbiddenZunoDisclosure(analise);
+
+  if (hasDisclosure) {
+    console.warn(`${logPrefix} Fallback ativado: disclosure proibido da Zuno encontrado nas copies.`);
+    analise.plano_prospeccao_7dias = buildFallbackProspectingPlan(lead);
+    return { analise, fallbackUsed: true, missingFields: [...missingFields, "zuno_disclosure_proibido"] };
   }
 
-  analise.plano_prospeccao_7dias = buildFallbackProspectingPlan(lead);
-
-  if (!analise.data_signals?.length) {
-    analise.data_signals = buildLeadDataSignals(lead);
-  }
-  if (!analise.company_reading) {
-    analise.company_reading = `${lead.nome} parece atuar em ${lead.nicho} ${lead.cidade ? `em ${lead.cidade}` : ""}. A leitura comercial deve partir dos sinais digitais encontrados e conectar a presenca online com possiveis oportunidades em ${lead.foco || "a prioridade comercial"}.`;
-  }
-  if (!analise.commercial_opportunity && !analise.why_good_lead) {
-    if (String(lead.foco || "").toLowerCase().includes("tr")) {
-      analise.commercial_opportunity = `Com foco em trafego, site/pagina, pixel/tag, WhatsApp e Instagram mostram se a empresa ja tem estrutura para receber visitas e transformar isso em conversa. A oportunidade esta em validar se campanhas e mensuracao ja geram contatos qualificados.`;
-    } else {
-      analise.commercial_opportunity = `Com foco em ${lead.foco || "selecionado"}, os sinais encontrados indicam onde a empresa ja passa confianca e onde ainda pode existir perda de oportunidade comercial.`;
-    }
-  }
-  if (!analise.probable_pain && !analise.pain_point) {
-    analise.probable_pain = "A dor provavel e perder conversas comerciais quando site, Instagram, contato ou mensuracao nao deixam claro o proximo passo do cliente.";
-  }
-  if (!analise.approach_gap) {
-    analise.approach_gap = "Entrar com um achado simples, fazer uma pergunta de validacao e oferecer uma sugestao curta, sem vender de cara.";
-  }
-  if (!analise.best_angle && !analise.commercial_angle) {
-    analise.best_angle = String(lead.foco || "").toLowerCase().includes("tr")
-      ? "preparar site, tracking e Instagram para receber trafego com mais seguranca"
-      : "melhorar presenca digital e clareza comercial com base nos sinais encontrados";
-  }
-  if (!analise.likely_objection) {
-    analise.likely_objection = "Nao tenho tempo para testar outra ferramenta agora.";
-  }
-  if (!analise.objection_response) {
-    analise.objection_response = "Entendo. A ideia nao e tomar seu tempo, e te mostrar em poucos minutos um exemplo pronto para voce avaliar se faz sentido.";
-  }
-  if (!analise.conversion_strategy && !analise.conversion_path) {
-    analise.conversion_strategy = "Enviar uma mensagem curta citando o achado principal, oferecer uma sugestao pratica e conduzir para uma conversa rapida.";
+  if (hasIncompletePlan) {
+    console.warn(`${logPrefix} Fallback ativado: plano de prospeccao incompleto (menos de 5 dias ou campos em branco).`);
+    analise.plano_prospeccao_7dias = buildFallbackProspectingPlan(lead);
+    return { analise, fallbackUsed: true, missingFields };
   }
 
-  return analise;
+  console.log(`${logPrefix} Sucesso: Análise da IA validada com êxito! Usando copies geradas pelo Gemini.`);
+  
+  analise.plano_prospeccao_7dias = analise.plano_prospeccao_7dias.map((dia) => {
+    const { variations, ...cleanDay } = dia;
+    return cleanDay;
+  });
+
+  return { analise, fallbackUsed: false, missingFields };
 }
 
 async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
@@ -1411,48 +1391,110 @@ serve(async (req) => {
     const canaisSelecionados = leadData.canaisProspeccao?.length ? leadData.canaisProspeccao : ["email", "whatsapp", "instagram"] as const;
     const canaisDisponiveis = getAvailableChannels(leadData, [...canaisSelecionados]);
 
+    // Injetar dados da campanha (ou inferir inteligentemente baseado no foco se ausentes)
+    const inputOferta = requestData.oferta_usuario || payloadLead.oferta_usuario || context.oferta_usuario || null;
+    const inputPublico = requestData.publico_alvo || payloadLead.publico_alvo || context.publico_alvo || null;
+    const inputDor = requestData.dor_principal || payloadLead.dor_principal || context.dor_principal || null;
+    const inputObjetivo = requestData.objetivo || payloadLead.objetivo || context.objetivo || null;
+    const inputCanal = requestData.canal || payloadLead.canal || context.canal || null;
+    const inputEtapa = requestData.etapa || payloadLead.etapa || context.etapa || null;
+
+    const foco = leadData.foco;
+    const nicho = leadData.nicho;
+    const cidade = leadData.cidade;
+
+    const inferred = getInferredContext(foco, nicho, cidade);
+    const campaignContext = {
+      oferta_usuario: inputOferta || inferred.oferta_usuario,
+      publico_alvo: inputPublico || inferred.publico_alvo,
+      dor_principal: inputDor || inferred.dor_principal,
+      objetivo: inputObjetivo || inferred.objetivo,
+      canal: inputCanal,
+      etapa: inputEtapa
+    };
+
     let analise: AnaliseResult;
     try {
-      console.log("🚀 Usando Gemini 2.0 Flash para análise manual...");
-      analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY, () => {
+      console.log("🚀 Usando Gemini 2.0 Flash para análise manual direta...");
+      analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY, campaignContext, () => {
         retryCountForCatch += 1;
       });
     } catch (geminiError: any) {
-      console.error("⚠️ Falha na chamada direta ao Gemini:", geminiError.message || geminiError);
-      console.log("🔄 Tentando fallback com Lovable AI Gateway...");
-      try {
-        analise = await analyzeWithLovableAI(leadData);
-      } catch (lovableError: any) {
-        console.error("❌ Falha no fallback da Lovable AI:", lovableError.message || lovableError);
-        throw geminiError;
-      }
+      console.error("❌ Falha na chamada direta ao Gemini:", geminiError.message || geminiError);
+      throw geminiError;
     }
 
-    analise = normalizeCommercialDiagnosisForStorage(
-      applyQualityFallbackIfNeeded(
-        sanitizeProspectingPlan(normalizePremiumCopyForStorage(analise), leadData),
-        leadData,
-      ),
-      leadData,
-    );
+    analise = sanitizeProspectingPlan(normalizePremiumCopyForStorage(analise), leadData);
+
+    const qualityResult = applyQualityFallbackIfNeeded(analise, leadData);
+    analise = normalizeCommercialDiagnosisForStorage(qualityResult.analise, leadData);
 
     if (isZunoInternalProspectingFocus(leadData.foco) && analysisContainsForbiddenZunoDisclosure(analise)) {
       console.warn("🚫 Análise da Zuno continha disclosure proibido; aplicando fallback seguro.");
-      analise = normalizeCommercialDiagnosisForStorage(
-        applyQualityFallbackIfNeeded(
-          sanitizeProspectingPlan(normalizePremiumCopyForStorage(generateZunoInternalMockAnalise(leadData)), leadData),
-          leadData,
-        ),
-        leadData,
+      const mockResult = applyQualityFallbackIfNeeded(
+        sanitizeProspectingPlan(normalizePremiumCopyForStorage(generateZunoInternalMockAnalise(leadData)), leadData),
+        leadData
       );
+      analise = normalizeCommercialDiagnosisForStorage(mockResult.analise, leadData);
+      qualityResult.fallbackUsed = true;
+      qualityResult.missingFields.push("zuno_disclosure_proibido");
     }
+
+    // Estruturar o JSON completo de metadados exigido pelo usuário, mantendo compatibilidade com o frontend
+    const planoSalvar = {
+      lead_id: leadId || null,
+      generated_at: new Date().toISOString(),
+      prompt_version: "v2_contextual",
+      model: "gemini-direct",
+      input_context: {
+        empresa: leadData.nome,
+        nicho: leadData.nicho,
+        cidade: leadData.cidade,
+        estado: leadData.endereco || null,
+        site: leadData.website || null,
+        oferta_usuario: campaignContext.oferta_usuario,
+        publico_alvo: campaignContext.publico_alvo,
+        dor_principal: campaignContext.dor_principal,
+        objetivo: campaignContext.objetivo,
+        canal: campaignContext.canal || null,
+        etapa: campaignContext.etapa || null
+      },
+      diagnostico: {
+        fit: analise.fit_level || "medio",
+        dor_provavel: analise.probable_pain || analise.pain_point || "Não identificada",
+        urgencia: analise.fit_level === "alto" ? "alta" : "media",
+        oportunidade: analise.commercial_opportunity || "Não detalhada",
+        justificativa: analise.why_good_lead || (analise.diagnostico_bullets || []).join(" ")
+      },
+      copies: {
+        dia_1: analise.plano_prospeccao_7dias[0]?.mensagem || "",
+        dia_2: analise.plano_prospeccao_7dias[1]?.mensagem || "",
+        dia_3: analise.plano_prospeccao_7dias[2]?.mensagem || "",
+        dia_4: analise.plano_prospeccao_7dias[3]?.mensagem || "",
+        dia_5: analise.plano_prospeccao_7dias[4]?.mensagem || "",
+        dia_6: analise.plano_prospeccao_7dias[5]?.mensagem || "",
+        dia_7: analise.plano_prospeccao_7dias[6]?.mensagem || ""
+      },
+      abordagens_por_canal: {
+        whatsapp: analise.messages?.whatsapp_primary || analise.whatsapp_message || "",
+        instagram: analise.messages?.instagram || analise.instagram_message || "",
+        email: analise.messages?.email_body || analise.email_body || ""
+      },
+      plano_prospeccao_7dias: analise.plano_prospeccao_7dias,
+      debug: {
+        raw_ai_response: JSON.stringify(analise),
+        fallback_used: qualityResult.fallbackUsed,
+        cache_used: false,
+        missing_fields: qualityResult.missingFields
+      }
+    };
 
     // Save analysis to DB
     if (leadId) {
       const { error: updateError } = await supabaseAdmin.from("leads").update({
         diagnostico_bullets: analise.diagnostico_bullets,
         probabilidade_conversao: analise.probabilidade_conversao,
-        plano_prospeccao: analise.plano_prospeccao_7dias,
+        plano_prospeccao: planoSalvar, // Salva o objeto JSON estruturado completo de metadados
         ai_analise_gerada_em: new Date().toISOString(),
       }).eq("id", leadId);
 
@@ -1461,7 +1503,7 @@ serve(async (req) => {
         throw new Error("Erro ao salvar análise do lead.");
       }
 
-      console.log("✅ Análise salva no banco");
+      console.log("✅ Análise estruturada e salva no banco");
     }
 
     const { data: incrementOk, error: incrementError } = await supabaseAdmin.rpc("increment_ai_usage", {
@@ -1482,8 +1524,9 @@ serve(async (req) => {
       eventData: {
         leadId,
         leadName: leadData.nome,
-        model: "Gemini Flash",
+        model: "Gemini Flash (Direct)",
         score: analise.probabilidade_conversao,
+        fallback_used: qualityResult.fallbackUsed,
         ...(isZunoInternalProspectingFocus(leadData.foco)
           ? {
               focus: ZUNO_INTERNAL_PROSPECTING_FOCUS,
@@ -1498,7 +1541,7 @@ serve(async (req) => {
       userAgent: req.headers.get("user-agent"),
     });
 
-    return jsonResponse(analise as unknown as Record<string, unknown>);
+    return jsonResponse(planoSalvar as unknown as Record<string, unknown>);
   } catch (error: any) {
     console.error("Erro analisar-lead-ia:", error);
     const duration = Date.now() - startTime;
@@ -1612,9 +1655,91 @@ serve(async (req) => {
 });
 
 // =============================================================================
+// CONTEXTO DE INFERÊNCIA INTELIGENTE DE CAMPANHA
+// =============================================================================
+function getInferredContext(foco: string, nicho: string, cidade: string) {
+  const normalizedFocus = String(foco || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const cleanNiche = nicho || "seu segmento";
+  const cleanCity = cidade || "sua região";
+  
+  if (normalizedFocus.includes("social") || normalizedFocus.includes("instagram")) {
+    return {
+      oferta_usuario: "Gestão de redes sociais, posicionamento e bio vitrine para Instagram",
+      publico_alvo: `Empresas de ${cleanNiche} em ${cleanCity} com perfis desorganizados`,
+      dor_principal: "Instagram inativo que não atrai clientes nem gera novas oportunidades comerciais",
+      objetivo: "Engajar via conteúdo e bio para iniciar conversas qualificadas no direct/WhatsApp"
+    };
+  }
+  
+  if (normalizedFocus.includes("trafego") || normalizedFocus.includes("traf")) {
+    return {
+      oferta_usuario: "Campanhas de anúncios pagos (Meta/Google Ads) direcionando para o WhatsApp",
+      publico_alvo: `Empresas de ${cleanNiche} em ${cleanCity} querendo fluxo diário de clientes`,
+      dor_principal: "Dependência de indicação e falta de previsibilidade de novos leads",
+      objetivo: "Agendar conversa de 15 minutos para apresentar funil de captação de leads"
+    };
+  }
+
+  if (normalizedFocus.includes("full") || normalizedFocus.includes("serv")) {
+    return {
+      oferta_usuario: "Assessoria multicanal 360° em marketing (tráfego, presença local, site e conversão)",
+      publico_alvo: `Empresas de ${cleanNiche} em ${cleanCity} buscando parceiro estratégico de crescimento`,
+      dor_principal: "Múltiplas agências executando ações desalinhadas que não geram retorno de vendas",
+      objetivo: "Oferecer diagnóstico estratégico gratuito de canais para otimização de faturamento"
+    };
+  }
+
+  if (normalizedFocus.includes("design") || normalizedFocus.includes("visual")) {
+    return {
+      oferta_usuario: "Identidade visual premium, redesign e branding focado em valorização comercial",
+      publico_alvo: `Empresas de ${cleanNiche} em ${cleanCity} querendo se destacar como premium`,
+      dor_principal: "Comunicação visual amadora que faz a empresa perder clientes com ticket alto",
+      objetivo: "Apresentar portfólio e como o design de impacto aumenta o fechamento de vendas"
+    };
+  }
+
+  if (normalizedFocus.includes("seo") || normalizedFocus.includes("site") || normalizedFocus.includes("landing")) {
+    return {
+      oferta_usuario: "Desenvolvimento de páginas que convertem e otimização de buscas no Google (SEO)",
+      publico_alvo: `Empresas de ${cleanNiche} em ${cleanCity} sem site próprio ou fora das buscas orgânicas`,
+      dor_principal: "Perda de clientes que buscam no Google por não ter um site bem otimizado e persuasivo",
+      objetivo: "Propor uma auditoria de SEO ou redesenho da landing page comercial"
+    };
+  }
+
+  if (normalizedFocus.includes("crm") || normalizedFocus.includes("automacao") || normalizedFocus.includes("gestao")) {
+    return {
+      oferta_usuario: "Estruturação de funil de vendas, CRM e automação comercial de WhatsApp",
+      publico_alvo: `Empresas de ${cleanNiche} em ${cleanCity} perdendo vendas por demora de atendimento`,
+      dor_principal: "Contatos comerciais se perdem no WhatsApp ou demoram para ter follow-up",
+      objetivo: "Oferecer demonstração prática de atendimento comercial automatizado e qualificado"
+    };
+  }
+
+  return {
+    oferta_usuario: `Serviço especializado em ${foco} para otimização e aceleração comercial`,
+    publico_alvo: `Empresas de ${cleanNiche} em ${cleanCity} buscando escala de vendas`,
+    dor_principal: `Impossibilidade de gerar novas oportunidades com constância em ${foco}`,
+    objetivo: "Demonstrar pontos de melhoria comercial baseados em dados públicos da empresa"
+  };
+}
+
+// =============================================================================
 // GOOGLE GEMINI DIRETO (API KEY DO USUÁRIO) - MODELO PRINCIPAL
 // =============================================================================
-async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string, onRetry?: () => void): Promise<AnaliseResult> {
+async function analyzeWithGeminiDirect(
+  lead: LeadData,
+  apiKey: string,
+  injectedCampaign: {
+    oferta_usuario: string;
+    publico_alvo: string;
+    dor_principal: string;
+    objetivo: string;
+    canal: string | null;
+    etapa: string | null;
+  },
+  onRetry?: () => void
+): Promise<AnaliseResult> {
   const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp", "instagram"] as const;
   let canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
   
@@ -1630,7 +1755,7 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string, onRetry?:
     : buildEliteCopywriterSystemPrompt(isUS);
   const userPrompt = isZunoInternal
     ? buildZunoInternalProspectingUserPrompt(lead, canaisDisponiveis)
-    : buildEliteUserPrompt(lead, canaisDisponiveis, isUS);
+    : buildEliteUserPrompt(lead, canaisDisponiveis, injectedCampaign, isUS);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
@@ -1809,9 +1934,15 @@ async function analyzeWithGeminiDirect(lead: LeadData, apiKey: string, onRetry?:
 }
 
 // =============================================================================
-// LOVABLE AI GATEWAY (FALLBACK)
+// LOVABLE AI GATEWAY (FALLBACK - DESATIVADO)
 // =============================================================================
 async function analyzeWithLovableAI(lead: LeadData): Promise<AnaliseResult> {
+  console.log("⚠️ analyzeWithLovableAI desativada por completo.");
+  return generateMockAnalise(lead);
+}
+
+// Função mock inativa mantida apenas para evitar quebras sintáticas
+async function analyzeWithLovableAIDisabledLegacy(lead: LeadData): Promise<AnaliseResult> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
     console.log("⚠️ Lovable API key não configurada - usando mock");
@@ -1833,7 +1964,7 @@ async function analyzeWithLovableAI(lead: LeadData): Promise<AnaliseResult> {
     : buildEliteCopywriterSystemPrompt(isUS);
   const userPrompt = isZunoInternal
     ? buildZunoInternalProspectingUserPrompt(lead, canaisDisponiveis)
-    : buildEliteUserPrompt(lead, canaisDisponiveis, isUS);
+    : buildEliteUserPrompt(lead, canaisDisponiveis, undefined, isUS);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
@@ -3159,11 +3290,23 @@ function getNichoExamples(nicho: string): NichoContext | null {
 // =============================================================================
 // USER PROMPT - DADOS DO LEAD
 // =============================================================================
-function buildEliteUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsapp" | "instagram")[], isUS: boolean = false): string {
+function buildEliteUserPrompt(
+  lead: LeadData,
+  canaisDisponiveis: ("email" | "whatsapp" | "instagram")[],
+  injectedCampaign?: {
+    oferta_usuario: string;
+    publico_alvo: string;
+    dor_principal: string;
+    objetivo: string;
+    canal: string | null;
+    etapa: string | null;
+  },
+  isUS: boolean = false
+): string {
   if (isUS) {
-    return buildUSUserPrompt(lead, canaisDisponiveis);
+    return buildUSUserPrompt(lead, canaisDisponiveis, injectedCampaign);
   }
-  return buildBRUserPrompt(lead, canaisDisponiveis);
+  return buildBRUserPrompt(lead, canaisDisponiveis, injectedCampaign);
 }
 
 function buildZunoInternalProspectingUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsapp" | "instagram")[]): string {
@@ -3216,14 +3359,25 @@ ${buildPremiumCopyOutputRules()}
 - Retorne a analise estruturada pela funcao gerar_analise_lead.`;
 }
 
-function buildBRUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsapp" | "instagram")[]): string {
+function buildBRUserPrompt(
+  lead: LeadData,
+  canaisDisponiveis: ("email" | "whatsapp" | "instagram")[],
+  injectedCampaign?: {
+    oferta_usuario: string;
+    publico_alvo: string;
+    dor_principal: string;
+    objetivo: string;
+    canal: string | null;
+    etapa: string | null;
+  }
+): string {
   const canalTexto = canaisDisponiveis.length > 0 
     ? canaisDisponiveis.map(c => c === "email" ? "Email" : c === "whatsapp" ? "WhatsApp" : "Instagram DM").join(", ")
     : "NENHUM DETECTADO";
 
   const sinaisMarketing = [];
-  if (lead.has_meta_pixel) sinaisMarketing.push("Meta Pixel ativo");
-  if (lead.has_gtag) sinaisMarketing.push("Google Analytics ativo");
+  if (lead.has_meta_pixel) sinaisMarketing.push("Meta Pixel active");
+  if (lead.has_gtag) sinaisMarketing.push("Google Analytics active");
   if (lead.has_gtm) sinaisMarketing.push("GTM configurado");
   if (lead.whatsapp_on_site || lead.whatsapp_number) sinaisMarketing.push("WhatsApp no site");
   if (lead.instagram_url) sinaisMarketing.push(`Instagram: ${lead.instagram_url}`);
@@ -3288,6 +3442,20 @@ Pesquise mentalmente: quais são as dores típicas deste tipo de negócio?
 `;
   }
 
+  const campanhaTexto = injectedCampaign ? `
+═══════════════════════════════════════
+🎯 DIRETRIZES DA CAMPANHA COMERCIAL DO USUÁRIO
+═══════════════════════════════════════
+• Oferta a ser feita: ${injectedCampaign.oferta_usuario}
+• Público-alvo do usuário: ${injectedCampaign.publico_alvo}
+• Dor a ser explorada: ${injectedCampaign.dor_principal}
+• Objetivo da campanha: ${injectedCampaign.objetivo}
+
+⚠️ INSTRUÇÃO CRÍTICA PARA AS MENSAGENS:
+O usuário escolheu vender a oferta "${injectedCampaign.oferta_usuario}" focando na dor "${injectedCampaign.dor_principal}".
+Portanto, você DEVE gerar as copies focando estritamente nessa dor e oferta! Não fale sobre outros serviços não relacionados.
+` : "";
+
   return `═══════════════════════════════════════
 📊 DADOS DO LEAD PARA ANÁLISE
 ═══════════════════════════════════════
@@ -3308,6 +3476,7 @@ ${lead.nome_responsavel
 
 🎯 FOCO DO SERVIÇO: ${lead.foco}
 ${focoArgs}
+${campanhaTexto}
 ${nichoSection}
 📊 SINAIS DE MARKETING DETECTADOS:
 ${sinaisMarketing.length > 0 ? sinaisMarketing.map(s => `• ${s}`).join("\n") : "• Nenhum sinal detectado - empresa com baixa maturidade digital"}
@@ -3363,7 +3532,18 @@ ${lead.nome_responsavel ? `• Responsável: ${lead.nome_responsavel}` : ""}`;
 // =============================================================================
 // US USER PROMPT - FOR AMERICAN LEADS (ENGLISH OUTPUT)
 // =============================================================================
-function buildUSUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsapp" | "instagram")[]): string {
+function buildUSUserPrompt(
+  lead: LeadData,
+  canaisDisponiveis: ("email" | "whatsapp" | "instagram")[],
+  injectedCampaign?: {
+    oferta_usuario: string;
+    publico_alvo: string;
+    dor_principal: string;
+    objetivo: string;
+    canal: string | null;
+    etapa: string | null;
+  }
+): string {
   const channelText = canaisDisponiveis.length > 0 
     ? canaisDisponiveis.map(c => c === "email" ? "Email" : c === "whatsapp" ? "WhatsApp" : "Instagram DM").join(", ")
     : "NONE DETECTED";
@@ -3389,6 +3569,20 @@ function buildUSUserPrompt(lead: LeadData, canaisDisponiveis: ("email" | "whatsa
 
   const focoArgs = getFocoArgumentsUS(lead.foco);
 
+  const campaignText = injectedCampaign ? `
+═══════════════════════════════════════
+🎯 USER'S COMMERCIAL CAMPAIGN GUIDELINES
+═══════════════════════════════════════
+• Service/Offer to sell: ${injectedCampaign.oferta_usuario}
+• Target Audience of the user: ${injectedCampaign.publico_alvo}
+• Main Pain Point to address: ${injectedCampaign.dor_principal}
+• Campaign Goal: ${injectedCampaign.objetivo}
+
+⚠️ CRITICAL DIRECTION FOR MESSAGES:
+You MUST focus the prospecting messages and copies strictly on the user's service offer ("${injectedCampaign.oferta_usuario}") and address the main pain point ("${injectedCampaign.dor_principal}").
+Do NOT talk about other services. Adapt the messaging to fit this exact campaign strategy.
+` : "";
+
   return `═══════════════════════════════════════
 📊 LEAD DATA FOR ANALYSIS
 ═══════════════════════════════════════
@@ -3407,6 +3601,7 @@ ${lead.nome_responsavel
 
 🎯 SERVICE FOCUS: ${lead.foco}
 ${focoArgs}
+${campaignText}
 
 📊 MARKETING SIGNALS DETECTED:
 ${marketingSignals.length > 0 ? marketingSignals.map(s => `• ${s}`).join("\n") : "• No signals detected - business with low digital maturity"}

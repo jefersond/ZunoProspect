@@ -33,16 +33,42 @@ Este plano estabelece a checklist operacional e memória de estabilização para
   - Ajustar a função `classifyAiFailure` para contemplar as 9 categorias exatas.
   - Exibir os 21 campos requeridos na auditoria de falhas de IA.
 
-#### Camada 3: Ferramentas / Edge Functions
-- [ ] **analisar-lead-ia (index.ts):** Ajustar o catch para retornar JSON de erro estruturado completo e garantir CORS em OPTIONS e falhas.
+36: #### Camada 3: Ferramentas / Edge Functions
+37: - [ ] **analisar-lead-ia (index.ts):** Ajustar o catch para retornar JSON de erro estruturado completo e garantir CORS em OPTIONS e falhas.
+38: 
+39: ### 🔄 Fase 5: Busca Incremental & Persistência de Filtros (Nova Solicitação)
+40: - [ ] **Persistência de Dados no Formulário (`ProspeccaoForm.tsx`):**
+41:   - Salvar o objeto `FormData` completo no `localStorage` ao efetuar qualquer busca bem-sucedida.
+42:   - Recuperar esse objeto na montagem do componente, aplicar `reset(savedData)` e ativar `showRepeatButton = true` com `lastSearchParams`.
+43: - [ ] **Comunicação por Eventos (`ProspeccaoForm.tsx`):**
+44:   - Escutar o evento `"triggerIncrementalSearch"` e acionar a busca incremental a partir dele.
+45: - [ ] **Botão Premium na Tabela (`LeadsList.tsx`):**
+46:   - Adicionar o botão "Prospectar mais leads" no cabeçalho da tabela caso existam leads e haja busca anterior em `localStorage`.
+47:   - Configurar o clique para disparar o CustomEvent e sincronizar o estado `isSearching` para exibir loader e desabilitar o clique.
+48: 
+49: ---
+
+### 🔄 Fase 6: Resolução de Assinaturas Pro e listUsers (Solicitação Atual)
+- [x] **SQL de Correção (Banco de Dados):**
+  - [x] Criar RPC `get_user_id_by_email` no Postgres para consultar `auth.users` diretamente por e-mail de forma indexada.
+  - [x] Criar script corretivo para atualizar a assinatura dos e-mails `falecom@klsalescompany.com` e `zunopropect@gmail.com` para o plano `pro` ativo.
+- [x] **Ajuste nos Webhooks e Despachadores (Edge Functions):**
+  - [x] **stripe-webhook/index.ts:** Substituir o `listUsers` pela chamada à RPC `get_user_id_by_email` com fallback secundário.
+  - [x] **kiwify-webhook/index.ts:** Substituir o `listUsers` pela chamada à RPC `get_user_id_by_email` com fallback secundário.
+  - [x] **process-behavior-emails/index.ts:** Implementar loop de paginação no `listUsers` para varrer 100% dos usuários.
+  - [x] **send-onboarding-email/index.ts:** Implementar loop de paginação ou obter e-mail diretamente.
 
 ---
 
-## 🛠️ Checklist de Testes Obrigatórios
-
-- [ ] **Teste 1 (IA com sucesso):** Clicar em "Gerar abordagem com IA", confirmar loader, desabilitação, 1 request, sucesso gera abordagem e consome 1 crédito.
-- [ ] **Teste 2 (IA com falha):** Simular falha na API, confirmar erro amigável, crédito mantido intacto, botão liberado para tentar novamente.
-- [ ] **Teste 3 (Duplo clique):** Testar cliques rápidos concorrentes, confirmar prevenção de chamadas adicionais e evento `AI_Analysis_Duplicate_Click_Prevented`.
-- [ ] **Teste 4 (Alerta de prejuízo):** Validar exibição do Alerta Crítico vermelho com 3+ falhas e 0 sucessos no painel e na atividade ao vivo.
-- [ ] **Teste 5 (Touch Inferido):** Confirmar exibição de UTMs e criativos inferidos de eventos para profiles vazios.
-- [ ] **Teste de Compilação:** Executar `npm run build` na pasta `reach-gen` e atestar que compila sem erros.
+50: 
+51: ## 🛠️ Checklist de Testes Obrigatórios
+52: 
+53: - [ ] **Teste 1 (IA com sucesso):** Clicar em "Gerar abordagem com IA", confirmar loader, desabilitação, 1 request, sucesso gera abordagem e consome 1 crédito.
+54: - [ ] **Teste 2 (IA com falha):** Simular falha na API, confirmar erro amigável, crédito mantido intacto, botão liberado para tentar novamente.
+55: - [ ] **Teste 3 (Duplo clique):** Testar cliques rápidos concorrentes, confirmar prevenção de chamadas adicionais e evento `AI_Analysis_Duplicate_Click_Prevented`.
+56: - [ ] **Teste 4 (Alerta de prejuízo):** Validar exibição do Alerta Crítico vermelho com 3+ falhas e 0 sucessos no painel e na atividade ao vivo.
+57: - [ ] **Teste 5 (Touch Inferido):** Confirmar exibição de UTMs e criativos inferidos de eventos para profiles vazios.
+58: - [ ] **Teste 6 (Persistência & Busca Incremental):**
+59:   - Preencher o formulário, buscar, atualizar a página e verificar se o form continua preenchido.
+60:   - Clicar em "Prospectar mais leads" no cabeçalho da tabela e verificar se novos leads são incrementados corretamente sem limpar a tabela.
+61: - [ ] **Teste de Compilação:** Executar `npm run build` na pasta `ZunoProspect-github` e atestar que compila sem erros.

@@ -65,3 +65,7 @@ verify_jwt = false
 
 [functions.unsubscribe-email]
 verify_jwt = false
+
+[functions.debug-users]
+verify_jwt = false
+

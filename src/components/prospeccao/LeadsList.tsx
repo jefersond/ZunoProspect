@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck, Sparkles } from "lucide-react";
+import { Loader2, ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck, Sparkles, Plus, Search } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
@@ -60,6 +60,7 @@ export const LeadsList = () => {
   const activeRequestsRef = useRef<Set<string>>(new Set());
   const recentlyTrackedLimitBlockRef = useRef<Record<string, number>>({});
   const [currentSearchRunId, setCurrentSearchRunId] = useState<string | null>(null);
+  const [hasSavedSearch, setHasSavedSearch] = useState(false);
   
   const normalizedPlanName = String(subscription?.plan_name || usage.plan_name || "free").toLowerCase();
   const firstAnalyzableLead = useMemo(
@@ -231,7 +232,9 @@ export const LeadsList = () => {
       },
       diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
       probabilidade_conversao: lead.probabilidade_conversao || 0,
-      plano_prospecao_7dias: (lead.plano_prospeccao as any[]) || [],
+      plano_prospecao_7dias: Array.isArray(lead.plano_prospeccao)
+        ? lead.plano_prospeccao
+        : (lead.plano_prospeccao?.plano_prospeccao_7dias || []),
       rating: lead.rating,
       total_reviews: lead.total_reviews,
       status: lead.status || 'novo',
@@ -396,10 +399,11 @@ export const LeadsList = () => {
     window.addEventListener("searchStarted", handleSearchStarted);
 
     // Listener para terminar busca com sucesso
-    const handleSearchFinished = (event: CustomEvent<{ searchRunId?: string; response?: any }>) => {
+    const handleSearchFinished = (event: CustomEvent<{ searchRunId?: string; response?: any; incremental?: boolean }>) => {
       setIsSearching(false);
       setSearchCompleted(true);
       const searchRunId = event.detail?.searchRunId;
+      const isIncremental = event.detail?.incremental;
       const response = event.detail?.response;
       const rawLeads = normalizeLeadsResponse(response);
       if (import.meta.env.DEV) {
@@ -408,17 +412,26 @@ export const LeadsList = () => {
       }
 
       if (rawLeads.length > 0) {
-        setLeads(rawLeads.map(transformLeadFromDb));
+        setLeads(prev => {
+          const newFormatted = rawLeads.map(transformLeadFromDb);
+          if (isIncremental) {
+            const existingIds = new Set(newFormatted.map(l => l.id));
+            const filteredPrev = prev.filter(l => !existingIds.has(l.id));
+            return [...newFormatted, ...filteredPrev];
+          }
+          return newFormatted;
+        });
         setSearchErrorState(null);
         setLoading(false);
-        if (searchRunId) setCurrentSearchRunId(searchRunId);
-      } else if (response && (response.success === true || response.leadsCount === 0 || response.newLeadsCount === 0)) {
+        if (searchRunId && !isIncremental) setCurrentSearchRunId(searchRunId);
+      } else if (response && (response.success === true || response.leadsCount === 0 || response.newLeadsCount === 0) && !isIncremental) {
         setLeads([]);
         setSearchErrorState(null);
         setLoading(false);
       }
 
-      loadLeads(searchRunId, { preserveExistingLeads: rawLeads.length > 0, searchCompletedLoad: true });
+      const loadSearchRunId = isIncremental ? undefined : searchRunId;
+      loadLeads(loadSearchRunId, { preserveExistingLeads: rawLeads.length > 0, searchCompletedLoad: true });
     };
     window.addEventListener("searchFinished", handleSearchFinished as EventListener);
 
@@ -526,7 +539,9 @@ export const LeadsList = () => {
                   ...lead,
                   diagnostico_bullets: (payload.new.diagnostico_bullets as string[]) || lead.diagnostico_bullets,
                   probabilidade_conversao: payload.new.probabilidade_conversao || lead.probabilidade_conversao,
-                  plano_prospecao_7dias: (payload.new.plano_prospeccao as any[]) || lead.plano_prospecao_7dias,
+                  plano_prospecao_7dias: Array.isArray(payload.new.plano_prospeccao)
+                    ? payload.new.plano_prospeccao
+                    : (payload.new.plano_prospeccao?.plano_prospeccao_7dias || lead.plano_prospecao_7dias),
                   ai_analise_gerada_em: payload.new.ai_analise_gerada_em || lead.ai_analise_gerada_em,
                   status: payload.new.status || lead.status,
                   salvo: payload.new.salvo ?? lead.salvo,
@@ -555,6 +570,19 @@ export const LeadsList = () => {
       window.removeEventListener("clearLeads", handleClear);
       window.removeEventListener("setLockedLeads", handleSetLockedLeads as EventListener);
       supabase.removeChannel(channel);
+    };
+  }, []);
+
+  useEffect(() => {
+    const checkSavedSearch = () => {
+      const saved = localStorage.getItem("zuno_last_search_form_data");
+      setHasSavedSearch(!!saved);
+    };
+    checkSavedSearch();
+
+    window.addEventListener("searchFinished", checkSavedSearch);
+    return () => {
+      window.removeEventListener("searchFinished", checkSavedSearch);
     };
   }, []);
 
@@ -1125,6 +1153,22 @@ export const LeadsList = () => {
             <CardTitle className="text-xl">Leads Encontrados ({leads.length})</CardTitle>
             {leads.length > 0 && (
               <div className="flex flex-wrap gap-2 sm:justify-end">
+                {hasSavedSearch && (
+                  <Button 
+                    onClick={() => window.dispatchEvent(new CustomEvent("triggerIncrementalSearch"))} 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-9 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 hover:text-emerald-400 hover:scale-[1.02] active:scale-95 transition-all"
+                    disabled={isSearching}
+                  >
+                    {isSearching ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin text-emerald-500" />
+                    ) : (
+                      <Plus className="h-4 w-4 mr-2 text-emerald-500" />
+                    )}
+                    Buscar mais leads
+                  </Button>
+                )}
                 <Button onClick={handleSaveLeads} variant="default" size="sm" className="h-9">
                   <Save className="h-4 w-4 mr-2" />
                   Salvar Leads

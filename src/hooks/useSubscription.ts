@@ -121,10 +121,14 @@ export const useSubscription = (): UseSubscriptionReturn => {
         addonResponse
       ] = await Promise.all([
         supabase.rpc("is_admin", { _user_id: user.id }),
-        supabase.rpc("get_current_user_usage", {}).catch(err => {
-          console.warn("[useSubscription] RPC get_current_user_usage falhou:", err);
-          return { data: null, error: err };
-        }),
+        (async () => {
+          try {
+            return await supabase.rpc("get_current_user_usage", {});
+          } catch (err) {
+            console.warn("[useSubscription] RPC get_current_user_usage falhou:", err);
+            return { data: null, error: err as any };
+          }
+        })(),
         supabase
           .from("user_subscriptions")
           .select("*")

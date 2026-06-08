@@ -204,8 +204,41 @@ const handler = async (req: Request): Promise<Response> => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-    if (authError) throw authError;
+    // Função auxiliar para carregar todos os usuários do Supabase Auth recursivamente com paginação
+    const getAllUsers = async () => {
+      let allUsers: any[] = [];
+      let page = 1;
+      const perPage = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase.auth.admin.listUsers({
+          page,
+          perPage,
+        });
+
+        if (error) {
+          console.error(`[getAllUsers] Erro ao listar usuários na página ${page}:`, error.message);
+          throw error;
+        }
+
+        if (data?.users && data.users.length > 0) {
+          allUsers = allUsers.concat(data.users);
+          if (data.users.length < perPage) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log(`[getAllUsers] Carregados ${allUsers.length} usuários no total.`);
+      return allUsers;
+    };
+
+    const authUsers = await getAllUsers();
 
     let totalQueued = 0;
     let allErrors: string[] = [];
@@ -219,7 +252,7 @@ const handler = async (req: Request): Promise<Response> => {
       .eq('leads_used_this_month', 0);
 
     for (const subscription of usersNoLeads || []) {
-      const authUser = authUsers.users.find(u => u.id === subscription.user_id);
+      const authUser = authUsers.find(u => u.id === subscription.user_id);
       if (!authUser?.email) continue;
       if (await isUnsubscribed(supabase, subscription.user_id)) continue;
       
@@ -271,7 +304,7 @@ const handler = async (req: Request): Promise<Response> => {
       .gt('leads_used_this_month', 0);
 
     for (const subscription of usersWithLeads || []) {
-      const authUser = authUsers.users.find(u => u.id === subscription.user_id);
+      const authUser = authUsers.find(u => u.id === subscription.user_id);
       if (!authUser?.email) continue;
       if (await isUnsubscribed(supabase, subscription.user_id)) continue;
       

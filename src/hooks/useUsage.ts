@@ -146,10 +146,14 @@ export function useUsage(): UseUsageReturn {
 
       // Executa consulta RPC e tenta ler direto do banco em paralelo para maior tolerância a falhas
       const [usageResponse, subResponse] = await Promise.all([
-        supabase.rpc("get_current_user_usage", {}).catch(err => {
-          console.warn("[useUsage] RPC get_current_user_usage falhou:", err);
-          return { data: null, error: err };
-        }),
+        (async () => {
+          try {
+            return await supabase.rpc("get_current_user_usage", {});
+          } catch (err) {
+            console.warn("[useUsage] RPC get_current_user_usage falhou:", err);
+            return { data: null, error: err as any };
+          }
+        })(),
         supabase
           .from("user_subscriptions")
           .select("*")

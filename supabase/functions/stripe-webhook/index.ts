@@ -322,13 +322,29 @@ async function findUserByStripeData(
 
   if (emailToLookup) {
     try {
-      const { data: authData } = await supabaseAdmin.auth.admin.listUsers();
+      // 1. Tenta buscar usando a RPC de busca direta por e-mail (evita paginação e é indexada)
+      const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc("get_user_id_by_email", {
+        p_email: emailToLookup,
+      });
+      
+      if (!rpcError && rpcData) {
+        console.log(`[stripe-webhook] Usuário localizado via RPC get_user_id_by_email: ${rpcData} para o e-mail ${emailToLookup}`);
+        return { userId: rpcData, email: emailToLookup };
+      }
+
+      if (rpcError) {
+        console.warn("[stripe-webhook] Falha ao executar RPC get_user_id_by_email, usando fallback listUsers:", rpcError.message);
+      }
+
+      // 2. Fallback de segurança buscando com perPage estendido para 1000
+      const { data: authData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
       const user = authData?.users?.find(u => u.email?.toLowerCase() === emailToLookup!.toLowerCase());
       if (user?.id) {
+        console.log(`[stripe-webhook] Usuário localizado via listUsers (fallback): ${user.id} para o e-mail ${emailToLookup}`);
         return { userId: user.id, email: emailToLookup };
       }
     } catch (authError) {
-      console.error("Erro ao listar usuários no auth admin:", authError);
+      console.error("[stripe-webhook] Erro ao buscar usuário por email:", authError);
     }
   }
 

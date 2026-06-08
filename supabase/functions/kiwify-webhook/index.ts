@@ -143,18 +143,38 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    // Buscar usuário pelo email
-    const { data: userData, error: userError } = await supabaseClient.auth.admin.listUsers();
-    
-    if (userError) {
-      logStep("ERROR listing users", { error: userError.message });
-      return new Response(JSON.stringify({ error: "Failed to list users" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // Buscar usuário pelo email usando RPC
+    let user: { id: string; email?: string } | null = null;
+    try {
+      const { data: rpcData, error: rpcError } = await supabaseClient.rpc("get_user_id_by_email", {
+        p_email: customerEmail,
       });
+      if (!rpcError && rpcData) {
+        logStep("User found via RPC get_user_id_by_email", { userId: rpcData });
+        user = { id: rpcData, email: customerEmail };
+      } else if (rpcError) {
+        logStep("RPC get_user_id_by_email failed, using fallback listUsers", { error: rpcError.message });
+      }
+    } catch (rpcErr) {
+      logStep("RPC get_user_id_by_email exception, using fallback listUsers", { error: String(rpcErr) });
     }
 
-    const user = userData.users.find(u => u.email?.toLowerCase() === customerEmail.toLowerCase());
+    if (!user) {
+      // Fallback para listUsers com perPage de 1000
+      const { data: userData, error: userError } = await supabaseClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      if (userError) {
+        logStep("ERROR listing users in fallback", { error: userError.message });
+        return new Response(JSON.stringify({ error: "Failed to list users" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const foundUser = userData?.users?.find(u => u.email?.toLowerCase() === customerEmail.toLowerCase());
+      if (foundUser) {
+        logStep("User found via listUsers fallback", { userId: foundUser.id });
+        user = { id: foundUser.id, email: foundUser.email };
+      }
+    }
     
     if (!user) {
       logStep("User not found, creating account", { email: customerEmail });

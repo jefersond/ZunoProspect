@@ -22,9 +22,37 @@ Este arquivo centraliza o mapeamento de vulnerabilidades, restrições arquitetu
 - **Análise:** Criativos de campanhas Meta Ads chegam como IDs numéricos gigantescos (ex: `120248028635250725`). Sem um mapeamento amigável, o painel do administrador mostra apenas esses números, dificultando a análise de performance.
 - **Solução:** Adicionaremos a chave no mapeamento `CREATIVE_NAME_MAP` com um placeholder amigável de identificação que pode ser customizado.
 
+
+### 5. Busca Incremental & Persistência de Filtros
+- **Análise:** Usuários necessitam de uma experiência fluida para prospectar mais leads sob as mesmas diretrizes (cidade, nicho, canais, foco) após obterem resultados iniciais, sem perder o formulário preenchido em caso de recarregamento e sem apagar os leads anteriores (não salvos) da tela.
+- **Solução:**
+  1. Serialização do formulário (`FormData`) em JSON no `localStorage` (`zuno_last_search_form_data`) em buscas bem-sucedidas.
+  2. Implementação do `reset` reativo no frontend para preencher os inputs na montagem.
+  3. Desacoplamento via eventos customizados no `window` (`triggerIncrementalSearch`) para que o botão posicionado no cabeçalho da tabela de leads consiga invocar a busca incremental de forma síncrona sem re-renderizar desnecessariamente o componente de listagem.
+  4. Lógica de mesclagem no estado do React para garantir que novos leads adicionados fiquem no topo da lista, e recarregamento geral do banco com `searchRunId = undefined` para acumular todos os leads não salvos de uma vez na UI.
+
 ---
 
 ## 🛠️ Restrições de Produção
 
 - **Preservação de Faturamento:** Nenhuma regra de preços, planos Stripe ou webhooks existentes deve ser modificada.
 - **Bypass de Admin:** O e-mail de admin principal (`jeferson.zanotell@gmail.com`) deve possuir bypass imediato de limites e acesso ilimitado.
+
+### 6. Falha de Paginação no listUsers das Edge Functions
+- **Análise:** Várias Edge Functions (`stripe-webhook`, `kiwify-webhook`, `process-behavior-emails`, `send-onboarding-email`) utilizam `supabaseAdmin.auth.admin.listUsers()` sem paginação para buscar o ID de um usuário a partir do seu e-mail.
+- **Vulnerabilidade:** A chamada `listUsers` padrão do Supabase limita o retorno a no máximo 50 usuários por página. Quando a base de usuários do SaaS ultrapassa 50 usuários, os novos cadastros não aparecem na primeira página e a busca por e-mail no webhook falha.
+- **Consequência:** Os usuários pagantes (`falecom@klsalescompany.com` e `zunopropect@gmail.com`) tiveram a assinatura processada pelo webhook mas o `user_id` não foi localizado na lista truncada de 50 usuários, mantendo as contas em fallback como "free" com limites de 20 leads e 3 análises de IA.
+- **Solução:** Criar uma RPC SQL `get_user_id_by_email` no banco de dados para buscar o ID do usuário de forma indexada e rápida no schema `auth.users` diretamente no Postgres. Ajustar as Edge Functions para utilizarem essa RPC.
+
+### 7. Erro de Tipo no Frontend ao Consultar RPC de Assinatura (08/06/2026)
+- **Análise:** Mesmo após a ativação Pro das assinaturas no banco de dados, o visual em produção para contas pagas persistia como Free (20 leads / 3 análises). O console revelou dois erros críticos de tipo:
+  - `TypeError: F.rpc(...).catch is not a function` (em `useUsage.ts`)
+  - `TypeError: m.rpc(...).catch is not a function` (em `useSubscription.ts`)
+- **Causa Raiz:** O cliente JavaScript do Supabase (`supabase.rpc()`) retorna um objeto do tipo `PostgrestFilterBuilder` que implementa `PromiseLike` (possui o método `.then`), mas não possui o método `.catch` diretamente no builder. A tentativa de encadear `.catch(...)` direto na chamada da RPC lançou um erro de tipo síncrono/assíncrono no JavaScript que derrubou o `Promise.all` em ambas as hooks.
+- **Consequência:** Como o `Promise.all` quebrou devido ao erro de tipo, o código do hook caía silenciosamente no bloco `catch` principal do React e forçava o estado do usuário de volta para o plano padrão `free` (20/3) para todas as contas que não possuíam bypass de admin (admins têm bypass síncrono no início do hook, o que explica por que a conta admin do desenvolvedor funcionava).
+- **Resolução:** Substituímos o encadeamento direto de `.catch` nas RPCs por uma IIFE assíncrona segura (`(async () => { try { return await supabase.rpc(...); } catch (err) { ... } })()`) em ambos os hooks. O deploy da correção foi efetuado em Produção na Vercel e o site já está funcionando 100% com os limites Pro corretos.
+### 8. Análise de Erro de Mensageria e Deploy da Edge Function IA (08/06/2026)
+- **Mensagem do Console:** `Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received`.
+- **Diagnóstico:** Este erro é gerado por extensões de terceiros do Google Chrome (como LastPass, adblockers ou tradutores) que interceptam e falham ao responder chamadas assíncronas internas do navegador. Não há impacto ou relação com as requisições HTTP do Supabase, sendo um erro de falso positivo.
+- **Causa da Copy Não Melhorar:** A Edge Function `analisar-lead-ia` em produção estava executando a lógica antiga e desatualizada da nuvem, que aplicava fallbacks de qualidade rígidos e genéricos (sobrescrevendo o plano do Gemini por textos fixos). As melhorias de prompt e novos prompts de copies de alta conversão presentes no Git local nunca haviam sido deployados na Edge Function correspondente na nuvem do Supabase.
+- **Resolução:** Realizado o deploy da versão atualizada da Edge Function `analisar-lead-ia` contendo as melhorias de prompts de copy de 7 dias, contextualização por nicho e cidade de lead, e sanitização para os webhooks e prospecção de WhatsApp.

@@ -21,15 +21,50 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
 - [x] Criação do plano de implementação premium `implementation_plan.md` no diretório de artefatos.
 - [x] Atualização da Constituição do Projeto em `gemini.md` no workspace.
 - [x] Criação e atualização de `task_plan.md`, `findings.md` e `progress.md` no workspace de trabalho.
-- [ ] Obter respostas de descoberta e aprovação do Blueprint pelo usuário.
+- [x] Obter respostas de descoberta e aprovação do Blueprint pelo usuário.
+
+### Iteração 2: Busca Incremental & Persistência de Filtros (04/06/2026)
+- [x] Salvar `FormData` em `localStorage` sob a chave `"zuno_last_search_form_data"`.
+- [x] Implementar `reset` e restabelecimento de estados no formulário na montagem do componente.
+- [x] Adicionar listener do CustomEvent `"triggerIncrementalSearch"` para acionar a busca incremental.
+- [x] Criar o botão premium `"Buscar mais leads"` no cabeçalho de `LeadsList.tsx`.
+- [x] Mesclar os leads no topo no frontend e recarregar todos os leads não salvos de forma determinística na conclusão.
+- [x] Validar que o build de produção passou com 100% de sucesso.
 
 ---
 
 ## 📊 Acompanhamento Técnico de Bugs (IA & Atribuição)
 
-| Bug Relatado | Causa Provável | Ação Efetuada | Status |
+| Bug Relatado / Funcionalidade | Causa Provável | Ação Efetuada | Status |
 | :--- | :--- | :--- | :--- |
 | **1. Falhas críticas de IA para usuários pagos** | Instabilidades na API do Gemini ou cota da chave esgotada, gerando erros não tratados. | Blindar Edge Function, retornar JSON estruturado rico e tratar no frontend com erros amigáveis. | ⏳ Planejado |
 | **2. Atribuição First/Last Touch vazia** | Falhas na sincronização do profile via localStorage ou navegação anônima sem UTMs salvas. | Implementar inferência de UTMs baseada no histórico de eventos (`app_events`) na tela do admin. | ⏳ Planejado |
 | **3. Cliques duplicados consumindo cota** | Cliques repetidos rápidos chamando a Edge Function simultaneamente. | Adicionar desabilitação e controle síncrono por `lead_id` no frontend. | ⏳ Planejado |
 | **4. ID numérico de criativo no admin** | Criativos do Meta Ads aparecendo como IDs brutos sem mapeamento legível. | Adicionar o ID `120248028635250725` no `CREATIVE_NAME_MAP`. | ⏳ Planejado |
+| **5. Busca Incremental & Repetição** | Perda de filtros após reload e necessidade de buscar mais sem limpar a lista. | Persistência no `localStorage`, disparo via eventos customizados e mesclagem de novos leads no topo. | ✅ Concluído |
+| **6. Assinaturas Pro exibidas como Free (falecom e zunopropect)** | Limite de paginação (50) no `listUsers` do Supabase causou falha silenciosa de localização do usuário nos webhooks do Stripe/Kiwify. | Mapeada a causa raiz, elaborado plano de implementação, criada a RPC SQL e desenhado os ajustes nas Edge Functions. | ⏳ Planejado |
+
+---
+
+## 🚀 Estado Atual (08/06/2026)
+- **Fase de Implantação Concluída:** Deploy de 100% das Edge Functions afetadas realizado no servidor Supabase de produção.
+- **Ações Efetuadas:**
+  - [x] Criada a migração para a RPC SQL `get_user_id_by_email` no repositório.
+  - [x] Deploy das Edge Functions `stripe-webhook`, `kiwify-webhook`, `process-behavior-emails` e `send-onboarding-email` realizado com sucesso no Supabase remoto.
+  - [x] Elaborado o script SQL consolidado para criação da RPC e ativação das assinaturas Pro dos e-mails `falecom@klsalescompany.com` e `zunopropect@gmail.com` para execução manual no painel do Supabase.
+  - [x] Executada consulta direta no banco de dados de produção comprovando que as assinaturas Pro das contas `zunopropect@gmail.com` e `falecom@klsalescompany.com` estão 100% ativas com limites de 800 leads e 100 análises de IA.
+  - [x] Diagnosticada a causa do visual ainda estar exibindo "20 leads e 3 análises" (plano Free): erro de sintaxe/API do Supabase Client no frontend (`rpc().catch is not a function` quebrando o `Promise.all` e forçando fallback para Free).
+  - [x] Corrigido o bug de sintaxe em `src/hooks/useSubscription.ts` e `src/hooks/useUsage.ts` envolvendo a chamada RPC em uma IIFE assíncrona segura.
+  - [x] Resolvidos conflitos de git merge locais e efetuado o pull completo com a branch principal do GitHub.
+  - [x] Efetuado o build local bem-sucedido e realizado o deploy de produção forçado na Vercel com a versão corrigida (100% online no domínio oficial).
+  - [x] Diagnosticado o erro `Uncaught (in promise) Error: A listener indicated...` no console do usuário como um falso positivo causado por extensões do Chrome (content scripts) e sem relação com a falha de melhoria de copy.
+  - [x] Realizado o deploy remoto atualizado da Edge Function `analisar-lead-ia` para o Supabase remoto, aplicando todas as otimizações e prompts de melhoria de copy que estavam pendentes no Git local.
+  - [x] Identificado erro de compilação da Edge function no deploy do Supabase devido a uma chave de fechamento sobressalente `}` na linha 920. Resolvido o syntax error e deploy finalizado com sucesso.
+  - [x] Identificada a causa raiz do não envio de variáveis de campanha (oferta_usuario, dor_principal, publico_alvo, objetivo) ao Gemini: a assinatura de tipos de `buildEliteUserPrompt` não aceitava nem propagava o terceiro argumento `injectedCampaign` para as funções internas de geração do prompt (`buildBRUserPrompt` e `buildUSUserPrompt`).
+  - [x] Corrigidas as assinaturas de `buildEliteUserPrompt`, `buildBRUserPrompt` e `buildUSUserPrompt` na Edge Function `analisar-lead-ia` para receber e injetar adequadamente as diretrizes da campanha nos prompts do Gemini Flash.
+  - [x] Implementada a normalização resiliente de `plano_prospecao_7dias` nos 4 arquivos do frontend (`LeadPlanDialog.tsx`, `LeadsList.tsx`, `useSecureLeads.ts` e `LeadsSalvos.tsx`) para aceitar tanto planos de prospecção legados (arrays puros) quanto novos planos estruturados com metadados (objetos contendo a chave `plano_prospeccao_7dias`), prevenindo erros catastróficos em runtime (como `.map is not a function`).
+  - [x] Validado com sucesso o build de produção local do frontend React (`npm run build`).
+
+
+
+

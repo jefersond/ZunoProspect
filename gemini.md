@@ -150,6 +150,7 @@ Disparados ao clicar em Upgrade sob diferentes condições do funil.
 2. **Determinismo de Créditos:** O saldo de análise com IA só pode ser descontado se a análise for concluída com absoluto sucesso. Erros não consomem limites de IA.
 3. **Preservação de Integrações:** É expressamente proibido alterar a lógica de faturamento, preços, integrações Stripe ou webhooks existentes.
 4. **Isolamento de Testes Internos:** Todos os eventos gerados com `?internal=true`, session/localStorage `zuno_internal_test` ou por e-mails internos definidos em `tracking.ts` devem ter `is_internal_event = true` e `event_source_type = 'internal_test'`.
+5. **Persistência de Busca e Busca Incremental:** O formulário completo de busca (`FormData`) deve ser salvo no `localStorage` (`zuno_last_search_form_data`) após o envio de qualquer busca bem-sucedida. Uma busca incremental deve herdar e manter estes dados, e os leads correspondentes devem ser mesclados na tabela sem apagar leads não salvos (ao contrário da busca convencional, que realiza a limpeza prévia).
 
 ---
 

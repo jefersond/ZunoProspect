@@ -151,6 +151,7 @@ export const ProspeccaoForm = () => {
     setValue,
     watch,
     getValues,
+    reset,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -183,6 +184,65 @@ export const ProspeccaoForm = () => {
     };
     fetchUser();
   }, []);
+
+  // Carrega a busca salva no localStorage para pré-preencher o formulário
+  useEffect(() => {
+    const savedFormData = localStorage.getItem("zuno_last_search_form_data");
+    if (savedFormData) {
+      try {
+        const parsed = JSON.parse(savedFormData);
+        // Preenche o react-hook-form
+        reset(parsed);
+        
+        // Sincroniza estados auxiliares que controlam a UI no formulário
+        if (parsed.pais) {
+          setSelectedCountry(parsed.pais);
+        }
+        if (parsed.proximidadeAtiva !== undefined) {
+          setProximidadeAtiva(parsed.proximidadeAtiva);
+        }
+        if (parsed.raioKm !== undefined) {
+          setRaioKm([parsed.raioKm]);
+        }
+        
+        // Define os parâmetros da última busca para habilitar os botões de repetição
+        setLastSearchParams(parsed);
+        setShowRepeatButton(true);
+      } catch (error) {
+        console.error("Erro ao carregar busca salva do localStorage:", error);
+      }
+    }
+  }, [reset]);
+
+  // Escuta o evento customizado para acionar a busca incremental
+  useEffect(() => {
+    const handleTriggerIncrementalSearch = () => {
+      if (loading) return;
+      
+      const savedFormData = localStorage.getItem("zuno_last_search_form_data");
+      if (savedFormData) {
+        try {
+          const parsed = JSON.parse(savedFormData);
+          runSearch(parsed, true);
+        } catch (error) {
+          console.error("Erro ao ler busca incremental do localStorage:", error);
+        }
+      } else if (lastSearchParams) {
+        runSearch(lastSearchParams, true);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Nenhuma busca anterior",
+          description: "Não foi possível encontrar as diretrizes da busca anterior.",
+        });
+      }
+    };
+
+    window.addEventListener("triggerIncrementalSearch", handleTriggerIncrementalSearch);
+    return () => {
+      window.removeEventListener("triggerIncrementalSearch", handleTriggerIncrementalSearch);
+    };
+  }, [lastSearchParams, loading]);
 
   const refreshUsage = async () => {
     await Promise.all([refetchUsage(), refetchSubscription()]);
@@ -338,6 +398,7 @@ export const ProspeccaoForm = () => {
       niche: data.nicho,
       focus: data.foco
     }));
+    localStorage.setItem("zuno_last_search_form_data", JSON.stringify(data));
     setShowRepeatButton(false);
     setUpgradeIncentive(null); // Limpa incentivo anterior
     
@@ -501,7 +562,7 @@ export const ProspeccaoForm = () => {
 
       const searchRunIdFromResponse = responseData?.searchRunId;
       window.dispatchEvent(new CustomEvent("searchFinished", {
-        detail: { searchRunId: searchRunIdFromResponse, response: responseData }
+        detail: { searchRunId: searchRunIdFromResponse, response: responseData, incremental: isIncrementalSearch }
       }));
       setLoading(false);
       setCurrentStep(0);

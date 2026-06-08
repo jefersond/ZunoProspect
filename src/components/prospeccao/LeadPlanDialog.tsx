@@ -315,7 +315,9 @@ export const LeadPlanDialog = ({
         ...lead,
         diagnostico_bullets: updatedLead.diagnostico_bullets as string[],
         probabilidade_conversao: updatedLead.probabilidade_conversao || 0,
-        plano_prospecao_7dias: updatedLead.plano_prospeccao as any,
+        plano_prospecao_7dias: Array.isArray(updatedLead.plano_prospeccao)
+          ? updatedLead.plano_prospeccao
+          : (updatedLead.plano_prospeccao?.plano_prospeccao_7dias || []),
         ai_analise_gerada_em: updatedLead.ai_analise_gerada_em,
       };
 

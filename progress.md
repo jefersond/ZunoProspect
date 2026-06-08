@@ -66,7 +66,13 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
   - [x] Validado com sucesso o build de produção local do frontend React (`npm run build`).
   - [x] **Iteração 8 (08/06/2026):** Identificado e corrigido erro de CORS no console ao chamar "Refinar com IA". A causa raiz era o sombreamento e escopo inadequado da variável `leadData` (declarada com `let` dentro do `try` e referenciada no `catch` global), lançando um `ReferenceError` que quebrava síncronamente o bloco `catch` e impedia o Supabase Gateway (Kong) de anexar os headers CORS ao erro 500 resultante. Movida a declaração de `leadData` para o topo do `serve`.
   - [x] Efetuado o deploy da correção no Supabase e enviado para o GitHub remoto (com build passando sem erros).
-
+  - [x] **Iteração 9 (08/06/2026): Auditoria completa de fluxos de erro para todos os usuários.**
+    - Auditados todos os caminhos de erro na Edge Function `analisar-lead-ia` (CORS, 401, 400, 402, 403, 408, 500).
+    - **Identificado desalinhamento crítico de `error_code`:** Backend retornava `AI_CREDITS_EXHAUSTED` mas frontend verificava apenas `AI_LIMIT_REACHED`. Corrigido em 3 arquivos frontend (`LeadPlanDialog.tsx`, `LeadsList.tsx`, `LeadsSalvos.tsx`) para reconhecer ambos os códigos + campo `blocked`.
+    - **Corrigido fluxo de `increment_ai_usage`:** Quando o incremento falhava, o backend retornava 402 mesmo com a análise já salva no banco, gerando uma experiência confusa (lead atualizado mas toast de "erro"). Agora retorna sucesso com `credit_warning`.
+    - **Corrigido status HTTP no catch global:** Erros de crédito agora retornam 402 (não 500), payload inválido retorna 400, timeout retorna 408. Isso melhora a semântica e permite que o frontend trate cada caso corretamente.
+    - **Adicionado campo `blocked: true`** na resposta de erro de créditos para detecção mais robusta no frontend.
+    - Build de produção validado com sucesso.
 
 
 

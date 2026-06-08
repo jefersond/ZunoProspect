@@ -356,7 +356,9 @@ const LeadsSalvos = () => {
                              errorMsg.toLowerCase().includes("crédito") || 
                              errorMsg.toLowerCase().includes("saldo") ||
                              errorMsg.toLowerCase().includes("402") ||
-                             (errorPayload?.error_code === "AI_LIMIT_REACHED");
+                             (errorPayload?.error_code === "AI_LIMIT_REACHED") ||
+                             (errorPayload?.error_code === "AI_CREDITS_EXHAUSTED") ||
+                             (errorPayload?.blocked === true);
 
       const isPayloadError = errorPayload?.error_code === "INVALID_LEAD_PAYLOAD" || 
                              errorMsg.toLowerCase().includes("suficientes") ||

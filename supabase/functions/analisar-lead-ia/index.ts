@@ -141,6 +141,16 @@ function isUSLead(lead: LeadData): boolean {
   return lead.pais === "US";
 }
 
+function isAdminUserHelper(userEmail?: string | null, usageInfo?: any): boolean {
+  const email = (userEmail || "").trim().toLowerCase();
+  return (
+    email === "jeferson.zanotell@gmail.com" ||
+    email === "jefeson.zanotell@gmail.com" ||
+    usageInfo?.is_admin === true ||
+    usageInfo?.role === "admin"
+  );
+}
+
 function normalizeLeadForAI(lead: any, searchContext: any = {}): LeadData {
   if (!lead) return {} as LeadData;
 
@@ -1241,8 +1251,7 @@ serve(async (req) => {
     aiRemainingForCatch = aiRemaining;
     aiLimitForCatch = Number(usageInfo?.ai_limit ?? 3);
     aiUsedForCatch = Number(usageInfo?.ai_used_this_month ?? 0);
-    const isEmailAdmin = ADMIN_EMAILS.has((user.email || "").trim().toLowerCase());
-    const isAdminUser = isEmailAdmin || usageInfo?.is_admin === true;
+    const isAdminUser = isAdminUserHelper(user.email, usageInfo);
     const isUnlimited = isAdminUser || Number(usageInfo?.ai_limit ?? 0) >= 999999;
 
     if (!isUnlimited && aiRemaining <= 0) {
@@ -1250,8 +1259,8 @@ serve(async (req) => {
       return jsonResponse({
         success: false,
         blocked: true,
-        error_code: "AI_LIMIT_REACHED",
-        error_message: "Limite de IA atingido",
+        error_code: "AI_CREDITS_EXHAUSTED",
+        error_message: "Você não tem análises IA disponíveis.",
         error: "Limite de IA atingido",
         details: "Você atingiu seu limite de análises com IA.",
       }, 402);
@@ -1506,16 +1515,21 @@ serve(async (req) => {
       console.log("✅ Análise estruturada e salva no banco");
     }
 
-    const { data: incrementOk, error: incrementError } = await supabaseAdmin.rpc("increment_ai_usage", {
-      p_user_id: userId,
-    });
-
-    if (incrementError || incrementOk !== true) {
-      console.error("❌ Erro ao incrementar uso de IA:", incrementError?.message || "increment_ai_usage returned false");
-      return jsonResponse({
-        error: "Limite de IA atingido",
-        details: "Voce atingiu seu limite de analises com IA.",
-      }, 402);
+    let incrementOk = true;
+    let creditWarning: string | null = null;
+    if (!isAdminUser) {
+      const { data: rpcOk, error: incrementError } = await supabaseAdmin.rpc("increment_ai_usage", {
+        p_user_id: userId,
+      });
+      incrementOk = rpcOk === true;
+      if (incrementError || !rpcOk) {
+        // A análise já foi salva com sucesso no banco. Não devemos retornar erro 402 aqui,
+        // pois o usuário veria "erro" mas o lead já foi atualizado. Retornamos sucesso com warning.
+        console.warn("⚠️ Análise salva com sucesso, mas falha ao incrementar crédito de IA:", incrementError?.message || "increment_ai_usage returned false");
+        creditWarning = "Análise concluída, mas houve um erro ao registrar o consumo do crédito. Entre em contato com o suporte se isso se repetir.";
+      }
+    } else {
+      console.log(`⚡ [analisar-lead-ia] Usuário é ADMIN (${user.email}). Bypass no consumo de crédito de IA.`);
     }
 
     await logAppEvent(supabaseAdmin, {
@@ -1527,7 +1541,15 @@ serve(async (req) => {
         model: "Gemini Flash (Direct)",
         score: analise.probabilidade_conversao,
         fallback_used: qualityResult.fallbackUsed,
-        ...(isZunoInternalProspectingFocus(leadData.foco)
+        ...(isAdminUser
+          ? {
+              admin_override: true,
+              credit_consumed: false,
+              is_internal_event: true,
+              event_source_type: "admin",
+              source: "admin_refine_ai"
+            }
+          : isZunoInternalProspectingFocus(leadData.foco)
           ? {
               focus: ZUNO_INTERNAL_PROSPECTING_FOCUS,
               internal_zuno_prospecting: true,
@@ -1541,7 +1563,12 @@ serve(async (req) => {
       userAgent: req.headers.get("user-agent"),
     });
 
-    return jsonResponse(planoSalvar as unknown as Record<string, unknown>);
+    const successResponse = {
+      ...planoSalvar,
+      success: true,
+      ...(creditWarning ? { credit_warning: creditWarning } : {}),
+    };
+    return jsonResponse(successResponse as unknown as Record<string, unknown>);
   } catch (error: any) {
     console.error("Erro analisar-lead-ia:", error);
     const duration = Date.now() - startTime;
@@ -1557,8 +1584,8 @@ serve(async (req) => {
     } else if (errorCode === "INVALID_LEAD_PAYLOAD" || debugMessage.toLowerCase().includes("suficientes") || debugMessage.toLowerCase().includes("payload")) {
       errorCode = "INVALID_LEAD_PAYLOAD";
       errorMessage = "Esse lead não tem dados suficientes para análise. Tente outro lead.";
-    } else if (errorCode === "AI_LIMIT_REACHED" || debugMessage.toLowerCase().includes("limite") || debugMessage.toLowerCase().includes("crédito") || debugMessage.toLowerCase().includes("saldo") || debugMessage.toLowerCase().includes("402")) {
-      errorCode = "AI_LIMIT_REACHED";
+    } else if (errorCode === "AI_LIMIT_REACHED" || errorCode === "AI_CREDITS_EXHAUSTED" || debugMessage.toLowerCase().includes("limite") || debugMessage.toLowerCase().includes("crédito") || debugMessage.toLowerCase().includes("saldo") || debugMessage.toLowerCase().includes("402")) {
+      errorCode = "AI_CREDITS_EXHAUSTED";
       errorMessage = "Você atingiu seu limite de análises com IA.";
     }
     
@@ -1632,8 +1659,15 @@ serve(async (req) => {
         userAgent: req.headers.get("user-agent"),
       });
     }
+    // Determinar o status HTTP correto baseado no tipo de erro
+    let httpStatus = 500;
+    if (errorCode === "AI_CREDITS_EXHAUSTED") httpStatus = 402;
+    else if (errorCode === "INVALID_LEAD_PAYLOAD") httpStatus = 400;
+    else if (errorCode === "GEMINI_TIMEOUT") httpStatus = 408;
+
     return jsonResponse({
       success: false,
+      blocked: errorCode === "AI_CREDITS_EXHAUSTED",
       error_code: errorCode,
       error_message: errorMessage,
       debug_message: debugMessage,
@@ -1650,7 +1684,7 @@ serve(async (req) => {
       edge_function: "analisar-lead-ia",
       error: errorMessage,
       details: debugMessage,
-    }, 500);
+    }, httpStatus);
   }
 });
 

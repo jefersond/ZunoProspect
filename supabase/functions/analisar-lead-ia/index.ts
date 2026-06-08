@@ -1794,177 +1794,196 @@ async function analyzeWithGeminiDirect(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
 
-  try {
-    // Usa fetchWithRetry para lidar com rate limits (429)
-    const response = await fetchWithRetry(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 8000,
-          },
-          tools: [{
-            functionDeclarations: [{
-              name: "gerar_analise_lead",
-              description: "Gera análise completa do lead com diagnóstico, probabilidade e plano de prospecção de 7 dias",
-              parameters: {
-                type: "object",
-                properties: {
-                  diagnostico_bullets: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "6-8 bullets de diagnóstico consultivo profundo"
-                  },
-                  probabilidade_conversao: {
-                    type: "number",
-                    description: "Probabilidade de conversão de 0-100"
-                  },
-                  score: { type: "number", description: "Score de conversao de 0 a 100" },
-                  fit_level: { type: "string", enum: ["alto", "medio", "baixo"] },
-                  diagnostic: { type: "string" },
-                  pain_point: { type: "string" },
-                  approach_angle: { type: "string" },
-                  company_reading: { type: "string" },
-                  why_good_lead: { type: "string" },
-                  data_signals: { type: "array", items: { type: "string" } },
-                  commercial_opportunity: { type: "string" },
-                  probable_pain: { type: "string" },
-                  approach_gap: { type: "string" },
-                  commercial_angle: { type: "string" },
-                  best_angle: { type: "string" },
-                  recommended_offer: {
-                    type: "object",
-                    properties: {
-                      plan: { type: "string", enum: ["free", "starter", "pro", "agency"] },
-                      type: { type: "string" },
-                      reason: { type: "string" }
-                    }
-                  },
-                  conversion_path: { type: "string" },
-                  conversion_strategy: { type: "string" },
-                  messages: {
-                    type: "object",
-                    properties: {
-                      whatsapp_primary: { type: "string" },
-                      whatsapp_alternative: { type: "string" },
-                      instagram: { type: "string" },
-                      email_subject: { type: "string" },
-                      email_body: { type: "string" },
-                      follow_up: { type: "string" }
-                    }
-                  },
-                  warnings: { type: "array", items: { type: "string" } },
-                  whatsapp_message: { type: "string" },
-                  instagram_message: { type: "string" },
-                  email_subject: { type: "string" },
-                  email_body: { type: "string" },
-                  follow_up: { type: "string" },
-                  follow_up_message: { type: "string" },
-                  likely_objection: { type: "string" },
-                  objection_response: { type: "string" },
-                  cta: { type: "string" },
-                  variations: {
-                    type: "object",
-                    properties: {
-                      direct: { type: "string" },
-                      consultative: { type: "string" },
-                      light_provocation: { type: "string" }
-                    }
-                  },
-                  plano_prospeccao_7dias: {
-                    type: "array",
-                    items: {
+  const modelsToTry = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash"];
+  let lastResponseError = "";
+
+  for (const model of modelsToTry) {
+    try {
+      console.log(`🤖 Tentando analisar com o modelo: ${model}`);
+      const response = await fetchWithRetry(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }
+            ],
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 8000,
+            },
+            tools: [{
+              functionDeclarations: [{
+                name: "gerar_analise_lead",
+                description: "Gera análise completa do lead com diagnóstico, probabilidade e plano de prospecção de 7 dias",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    diagnostico_bullets: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "6-8 bullets de diagnóstico consultivo profundo"
+                    },
+                    probabilidade_conversao: {
+                      type: "number",
+                      description: "Probabilidade de conversão de 0-100"
+                    },
+                    score: { type: "number", description: "Score de conversao de 0 a 100" },
+                    fit_level: { type: "string", enum: ["alto", "medio", "baixo"] },
+                    diagnostic: { type: "string" },
+                    pain_point: { type: "string" },
+                    approach_angle: { type: "string" },
+                    company_reading: { type: "string" },
+                    why_good_lead: { type: "string" },
+                    data_signals: { type: "array", items: { type: "string" } },
+                    commercial_opportunity: { type: "string" },
+                    probable_pain: { type: "string" },
+                    approach_gap: { type: "string" },
+                    commercial_angle: { type: "string" },
+                    best_angle: { type: "string" },
+                    recommended_offer: {
                       type: "object",
                       properties: {
-                        dia: { type: "number" },
-                        canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
-                        acao_sugerida: { type: "string", description: "Ação tática específica: enviar áudio, texto, curtir posts, reagir story, etc." },
-                        mensagem: { type: "string" },
-                        objecao_provavel: { type: "string" },
-                        resposta_sugerida: { type: "string" },
-                        cta: { type: "string" }
-                      },
-                      required: ["dia", "canal", "acao_sugerida", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
+                        plan: { type: "string", enum: ["free", "starter", "pro", "agency"] },
+                        type: { type: "string" },
+                        reason: { type: "string" }
+                      }
+                    },
+                    conversion_path: { type: "string" },
+                    conversion_strategy: { type: "string" },
+                    messages: {
+                      type: "object",
+                      properties: {
+                        whatsapp_primary: { type: "string" },
+                        whatsapp_alternative: { type: "string" },
+                        instagram: { type: "string" },
+                        email_subject: { type: "string" },
+                        email_body: { type: "string" },
+                        follow_up: { type: "string" }
+                      }
+                    },
+                    warnings: { type: "array", items: { type: "string" } },
+                    whatsapp_message: { type: "string" },
+                    instagram_message: { type: "string" },
+                    email_subject: { type: "string" },
+                    email_body: { type: "string" },
+                    follow_up: { type: "string" },
+                    follow_up_message: { type: "string" },
+                    likely_objection: { type: "string" },
+                    objection_response: { type: "string" },
+                    cta: { type: "string" },
+                    variations: {
+                      type: "object",
+                      properties: {
+                        direct: { type: "string" },
+                        consultative: { type: "string" },
+                        light_provocation: { type: "string" }
+                      }
+                    },
+                    plano_prospeccao_7dias: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          dia: { type: "number" },
+                          canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
+                          acao_sugerida: { type: "string", description: "Ação tática específica: enviar áudio, texto, curtir posts, reagir story, etc." },
+                          mensagem: { type: "string" },
+                          objecao_provavel: { type: "string" },
+                          resposta_sugerida: { type: "string" },
+                          cta: { type: "string" }
+                        },
+                        required: ["dia", "canal", "acao_sugerida", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"]
+                      }
                     }
-                  }
-                },
-                required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"]
+                  },
+                  required: ["diagnostico_bullets", "probabilidade_conversao", "plano_prospeccao_7dias"]
+                }
+              }]
+            }],
+            toolConfig: {
+              functionCallingConfig: {
+                mode: "ANY",
+                allowedFunctionNames: ["gerar_analise_lead"]
               }
-            }]
-          }],
-          toolConfig: {
-            functionCallingConfig: {
-              mode: "ANY",
-              allowedFunctionNames: ["gerar_analise_lead"]
             }
-          }
-        }),
-        signal: controller.signal,
-      },
-      5, // maxRetries (aumentado para 5 para maior resiliência contra rate limit)
-      3000, // baseDelay 3s (aumentado para 3s para dar mais tempo de cooldown)
-      onRetry
-    );
+          }),
+          signal: controller.signal,
+        },
+        5, // maxRetries
+        3000, // baseDelay 3s
+        onRetry
+      );
 
-    clearTimeout(timeoutId);
+      if (response.status === 404) {
+        console.warn(`⚠️ Modelo ${model} retornou 404 (indisponível). Tentando o próximo...`);
+        lastResponseError = `Modelo ${model} indisponível (404)`;
+        continue;
+      }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ Gemini API error:", response.status, errorText);
-      throw new Error(`Gemini API error: ${response.status}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ Gemini API error para o modelo ${model}:`, response.status, errorText);
+        throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      
+      // Parse Gemini response format
+      const candidate = data.candidates?.[0];
+      if (!candidate?.content?.parts) {
+        throw new Error("Resposta inválida do Gemini");
+      }
+
+      // Find the function call in parts
+      const functionCallPart = candidate.content.parts.find((p: any) => p.functionCall);
+      if (!functionCallPart?.functionCall?.args) {
+        throw new Error("IA não retornou análise estruturada");
+      }
+
+      const analise: AnaliseResult = functionCallPart.functionCall.args;
+      
+      // Validate: accept 5-7 days (more tolerant)
+      if (!analise.plano_prospeccao_7dias || analise.plano_prospeccao_7dias.length < 5) {
+        throw new Error("Plano deve ter pelo menos 5 dias");
+      }
+      
+      // Complete to 7 days if needed
+      while (analise.plano_prospeccao_7dias.length < 7) {
+        const lastDay = analise.plano_prospeccao_7dias[analise.plano_prospeccao_7dias.length - 1];
+        analise.plano_prospeccao_7dias.push({
+          dia: analise.plano_prospeccao_7dias.length + 1,
+          canal: lastDay.canal,
+          acao_sugerida: "Follow-up final",
+          mensagem: `Continuando nosso último contato, gostaria de entender melhor sua situação atual com ${lead.foco || "marketing digital"}.`,
+          objecao_provavel: "Não tenho interesse",
+          resposta_sugerida: "Sem problemas! Fico à disposição quando precisar.",
+          cta: "Posso ajudar de alguma forma?",
+        });
+      }
+
+      console.log(`✅ Análise gerada com sucesso via modelo: ${model}`);
+      
+      clearTimeout(timeoutId);
+      return analise;
+    } catch (err: any) {
+      console.warn(`⚠️ Falha ao processar com modelo ${model}:`, err.message);
+      lastResponseError = err.message;
+      
+      // Se não for o último modelo, continua o loop
+      if (model === modelsToTry[modelsToTry.length - 1]) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          throw new Error("Timeout: IA demorou mais de 90 segundos");
+        }
+        throw err;
+      }
     }
-
-    const data = await response.json();
-    
-    // Parse Gemini response format
-    const candidate = data.candidates?.[0];
-    if (!candidate?.content?.parts) {
-      throw new Error("Resposta inválida do Gemini");
-    }
-
-    // Find the function call in parts
-    const functionCallPart = candidate.content.parts.find((p: any) => p.functionCall);
-    if (!functionCallPart?.functionCall?.args) {
-      throw new Error("IA não retornou análise estruturada");
-    }
-
-    const analise: AnaliseResult = functionCallPart.functionCall.args;
-    
-    // Validate: accept 5-7 days (more tolerant)
-    if (!analise.plano_prospeccao_7dias || analise.plano_prospeccao_7dias.length < 5) {
-      throw new Error("Plano deve ter pelo menos 5 dias");
-    }
-    
-    // Complete to 7 days if needed
-    while (analise.plano_prospeccao_7dias.length < 7) {
-      const lastDay = analise.plano_prospeccao_7dias[analise.plano_prospeccao_7dias.length - 1];
-      analise.plano_prospeccao_7dias.push({
-        dia: analise.plano_prospeccao_7dias.length + 1,
-        canal: lastDay.canal,
-        acao_sugerida: "Follow-up final",
-        mensagem: `Continuando nosso último contato, gostaria de entender melhor sua situação atual com ${lead.foco || "marketing digital"}.`,
-        objecao_provavel: "Não tenho interesse",
-        resposta_sugerida: "Sem problemas! Fico à disposição quando precisar.",
-        cta: "Posso ajudar de alguma forma?",
-      });
-    }
-
-    console.log("✅ Análise gerada com sucesso via Gemini 2.0 Flash");
-    return analise;
-
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      throw new Error("Timeout: IA demorou mais de 90 segundos");
-    }
-    throw error;
   }
+
+  clearTimeout(timeoutId);
+  throw new Error(`Todos os modelos do Gemini falharam. Último erro: ${lastResponseError}`);
 }
 
 // =============================================================================

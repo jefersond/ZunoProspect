@@ -73,6 +73,14 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
     - **Corrigido status HTTP no catch global:** Erros de crédito agora retornam 402 (não 500), payload inválido retorna 400, timeout retorna 408. Isso melhora a semântica e permite que o frontend trate cada caso corretamente.
     - **Adicionado campo `blocked: true`** na resposta de erro de créditos para detecção mais robusta no frontend.
     - Build de produção validado com sucesso.
+  - [x] **Iteração 10 (08/06/2026): Resolução do Falso Positivo de Crédito e Investigação de Rate Limit do Gemini.**
+    - Identificada a causa raiz do erro de crédito persistente: a mensagem padrão de erro genérico da Edge Function continha a palavra `"crédito"`, o que ativava o `isBalanceError` no frontend via `includes("crédito")`.
+    - Corrigido `isBalanceError` em `LeadsList.tsx`, `LeadPlanDialog.tsx` e `LeadsSalvos.tsx` para usar checagens específicas e baseadas no `error_code` estruturado.
+    - Alterada a mensagem de erro genérica do backend para `"Não conseguimos concluir a análise agora. O uso de IA não foi descontado. Tente novamente em alguns instantes."` (sem a palavra crédito/saldo/limite).
+    - Consultados os logs na nuvem via Supabase CLI (`--linked` em `app_events`), revelando que o erro técnico real é `"Rate limit excedido após 3 tentativas"`.
+    - Aumentada a resiliência no `fetchWithRetry` do backend para realizar até 5 tentativas com delays mais adequados de backoff contra rate limits temporários da API da Google.
+    - Executado o build de produção no frontend com 100% de sucesso.
+    - Efetuado o deploy da nova Edge Function atualizada no Supabase remoto e commitado as correções no Git.
 
 
 

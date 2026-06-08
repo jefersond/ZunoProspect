@@ -352,13 +352,16 @@ const LeadsSalvos = () => {
         }
       }
 
-      const isBalanceError = errorMsg.toLowerCase().includes("limite") || 
-                             errorMsg.toLowerCase().includes("crédito") || 
-                             errorMsg.toLowerCase().includes("saldo") ||
-                             errorMsg.toLowerCase().includes("402") ||
+      const isBalanceError = (errorPayload?.error_code === "AI_CREDITS_EXHAUSTED") ||
                              (errorPayload?.error_code === "AI_LIMIT_REACHED") ||
-                             (errorPayload?.error_code === "AI_CREDITS_EXHAUSTED") ||
-                             (errorPayload?.blocked === true);
+                             (errorPayload?.blocked === true) ||
+                             errorMsg.toLowerCase().includes("limite de análises atingido") ||
+                             errorMsg.toLowerCase().includes("sem análises disponíveis") ||
+                             errorMsg.toLowerCase().includes("crédito esgotado") ||
+                             errorMsg.toLowerCase().includes("saldo esgotado") ||
+                             errorMsg.toLowerCase().includes("excedeu o limite") ||
+                             errorMsg.toLowerCase().includes("sem saldo") ||
+                             errorMsg.toLowerCase().includes("402");
 
       const isPayloadError = errorPayload?.error_code === "INVALID_LEAD_PAYLOAD" || 
                              errorMsg.toLowerCase().includes("suficientes") ||

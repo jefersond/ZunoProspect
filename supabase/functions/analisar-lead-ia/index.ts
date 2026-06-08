@@ -1575,7 +1575,7 @@ serve(async (req) => {
     
     // Normalizar o código de erro, a mensagem amigável para o usuário e a de debug técnico seguro
     let errorCode = error?.code || "AI_ANALYSIS_ERROR";
-    let errorMessage = "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.";
+    let errorMessage = "Não conseguimos concluir a análise agora. O uso de IA não foi descontado. Tente novamente em alguns instantes.";
     let debugMessage = error instanceof Error ? error.message : String(error);
     
     if (error?.name === "AbortError" || debugMessage.toLowerCase().includes("timeout") || debugMessage.toLowerCase().includes("deadline")) {
@@ -1907,8 +1907,8 @@ async function analyzeWithGeminiDirect(
         }),
         signal: controller.signal,
       },
-      3, // maxRetries
-      2000, // baseDelay 2s
+      5, // maxRetries (aumentado para 5 para maior resiliência contra rate limit)
+      3000, // baseDelay 3s (aumentado para 3s para dar mais tempo de cooldown)
       onRetry
     );
 

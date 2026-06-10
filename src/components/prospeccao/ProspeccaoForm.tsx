@@ -38,7 +38,7 @@ const focusOptions = [
   { label: "SEO", value: "SEO" },
   { label: "Sites/Landing", value: "Sites/Landing" },
   { label: "CRM", value: "CRM" },
-  { label: "Serviços Profissionais", value: "servicos_profissionais" },
+  { label: "Serviços Profissionais", value: "servicos_profissionais", adminOnly: true },
   { label: "Oportunidade comercial", value: ZUNO_INTERNAL_PROSPECTING_FOCUS, adminOnly: true },
 ];
 
@@ -268,7 +268,7 @@ export const ProspeccaoForm = () => {
   const visibleFocusOptions = focusOptions.filter((option) => !option.adminOnly || isAdmin);
 
   useEffect(() => {
-    if (!isAdmin && foco === ZUNO_INTERNAL_PROSPECTING_FOCUS) {
+    if (!isAdmin && (foco === ZUNO_INTERNAL_PROSPECTING_FOCUS || foco === "servicos_profissionais")) {
       setValue("foco", "Full Service");
     }
   }, [foco, isAdmin, setValue]);
@@ -367,7 +367,7 @@ export const ProspeccaoForm = () => {
       return;
     }
 
-    if (data.foco === ZUNO_INTERNAL_PROSPECTING_FOCUS && !isAdmin) {
+    if ((data.foco === ZUNO_INTERNAL_PROSPECTING_FOCUS || data.foco === "servicos_profissionais") && !isAdmin) {
       toast({
         variant: "destructive",
         title: "Foco exclusivo para administradores",

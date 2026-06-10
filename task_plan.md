@@ -72,3 +72,25 @@ Este plano estabelece a checklist operacional e memória de estabilização para
 59:   - Preencher o formulário, buscar, atualizar a página e verificar se o form continua preenchido.
 60:   - Clicar em "Prospectar mais leads" no cabeçalho da tabela e verificar se novos leads são incrementados corretamente sem limpar a tabela.
 61: - [ ] **Teste de Compilação:** Executar `npm run build` na pasta `ZunoProspect-github` e atestar que compila sem erros.
+
+---
+
+### 🔄 Fase 7: Categoria de Serviços Profissionais (Solicitação Atual)
+- [ ] **Frontend - Configuração da Categoria:**
+  - [ ] Adicionar `"servicos_profissionais"` à união `Foco` em `src/types/lead.ts`.
+  - [ ] Mapear `{ label: "Serviços Profissionais", value: "servicos_profissionais" }` em `focusOptions` de `ProspeccaoForm.tsx`.
+  - [ ] Estender interface `NormalizedLead` e atualizar `normalizeLeadForAI` em `src/utils/normalizeLead.ts` para enviar o payload completo.
+- [ ] **Backend - Adaptação da Edge Function (`analisar-lead-ia`):**
+  - [ ] Estender interface `LeadData` e atualizar `normalizeLeadForAI` do backend.
+  - [ ] Ajustar `getInferredContext` para posicionar `servicos_profissionais` no topo.
+  - [ ] Adicionar argumentação e diretrizes estruturadas em `getFocoArguments` e `getFocoArgumentsUS`.
+  - [ ] Adaptar `buildEliteCopywriterSystemPrompt`, `buildBRSystemPrompt` e `buildUSSystemPrompt` para receber `foco` e redefinir a especialidade do copywriter de elite.
+  - [ ] Atualizar `buildStrategicDiagnosisBullets` com os bullets específicos de Serviços Profissionais.
+
+---
+
+## 🛠️ Checklist de Testes de Serviços Profissionais
+
+- [ ] **Teste de Busca e Categoria:** Buscar por "advogados de inventário" em "Vila Velha" com o foco "Serviços Profissionais", e confirmar que os leads são salvos com `foco: "servicos_profissionais"`.
+- [ ] **Teste de Diagnóstico (IA):** Gerar a análise com IA para o corretor/avaliador de imóveis e verificar se o diagnóstico cita partilha, inventário, e conexão técnica de utilidade sem agressividade digital.
+- [ ] **Teste de Cadência (IA):** Verificar se a cadência de 7 dias se baseia em parcerias e indicações, sem citar tráfego pago, funil, social media, criativos ou anúncios.

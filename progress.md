@@ -81,6 +81,11 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
     - Aumentada a resiliência no `fetchWithRetry` do backend para realizar até 5 tentativas com delays mais adequados de backoff contra rate limits temporários da API da Google.
     - Executado o build de produção no frontend com 100% de sucesso.
     - Efetuado o deploy da nova Edge Function atualizada no Supabase remoto e commitado as correções no Git.
+  - [x] **Iteração 11 (08/06/2026): Correção de Descontinuação do Gemini 2.0 Flash (Erro 404) e Cascata de Fallback.**
+    - Identificada a causa do erro de reanálise persistente pós-deploy: o modelo `gemini-2.0-flash` foi descontinuado oficialmente pela Google em 1º de junho de 2026, retornando status HTTP `404` para a nossa chamada.
+    - Implementada uma **cascata resiliente de modelos em loop de fallback** no backend (`gemini-3.5-flash` -> `gemini-2.5-flash` -> `gemini-1.5-flash` -> `gemini-2.0-flash`) com tratamento de erro 404 síncrono.
+    - Efetuado deploy atualizado da Edge Function no Supabase de produção.
+    - Commits adicionados e enviados ao repositório remoto GitHub com sucesso.
 
 
 

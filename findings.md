@@ -68,3 +68,13 @@ Este arquivo centraliza o mapeamento de vulnerabilidades, restrições arquitetu
   1. Alteramos `isBalanceError` nos 3 arquivos React do frontend (`LeadsList.tsx`, `LeadPlanDialog.tsx` e `LeadsSalvos.tsx`) para usar chaves de erro estruturadas (`error_code === "AI_CREDITS_EXHAUSTED"`, `error_code === "AI_LIMIT_REACHED"`, etc.) e substrings altamente específicas (ex: `"limite de análises atingido"`), removendo o check genérico de `"crédito"`.
   2. Alteramos a mensagem de erro padrão na Edge Function de `"Seu crédito de IA não foi consumido"` para `"O uso de IA não foi descontado"`, blindando também contra caches antigos do navegador.
 
+### 11. Descontinuação do Modelo Gemini 2.0 Flash e Erro 404 (08/06/2026)
+- **Descoberta:** Ao analisar as falhas recentes no banco de dados pós-deploy da iteração anterior, identificamos o erro real: `Gemini API error: 404`. Investigando as mudanças da Google no Google AI Studio, descobrimos que a Google **descontinuou e desligou oficialmente o modelo `gemini-2.0-flash` no dia 1º de junho de 2026**. Como a nossa Edge Function apontava para a URL antiga desse modelo, a API da Google passou a responder com status 404 (Not Found) para todas as requisições de análise de lead.
+- **Resolução:** 
+  1. Implementamos uma **cascata de modelos em loop de fallback** no backend (`analyzeWithGeminiDirect` na Edge Function `analisar-lead-ia/index.ts`). A função agora tenta analisar usando os seguintes modelos em ordem de prioridade: `gemini-3.5-flash`, `gemini-2.5-flash`, `gemini-1.5-flash` e por fim o legado `gemini-2.0-flash`.
+  2. Se a API da Google retornar status `404` para o modelo atual, a Edge Function registra o aviso, intercepta o erro de forma limpa e passa automaticamente para o próximo modelo da lista de forma síncrona na mesma requisição. Isso blinda o sistema contra futuras descontinuações de modelos por parte da Google.
+  3. Deploy da Edge Function atualizada efetuado no Supabase e alterações de backend commitadas e enviadas ao GitHub.
+
+### 12. Colisão de Palavra-Chave no Foco (Serviços Profissionais)
+- **Descoberta:** O foco `"servicos_profissionais"` contém a palavra `"serv"`. A Edge Function `analisar-lead-ia` possuía uma condicional que verificava `normalizedFocus.includes("serv")` para aplicar fallbacks e prompts de "Full Service" (assessoria digital). Se essa condicional não for reorganizada, a busca sob a nova categoria Serviços Profissionais incorretamente trará ganchos de agência de marketing digital, violando a regra principal de não tratar como marketing digital.
+- **Resolução:** A verificação por `"servicos_profissionais"` (ou `"servicos profissionais"`) deve ser feita com precedência e estar no topo da função de inferência de contexto no backend (`getInferredContext`).

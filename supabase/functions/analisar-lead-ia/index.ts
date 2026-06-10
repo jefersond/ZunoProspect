@@ -518,6 +518,19 @@ function buildStrategicDiagnosisBullets(lead?: LeadData): string[] {
     return bullets;
   }
 
+  if (normalizedFocus.includes("servicos_profissionais") || normalizedFocus.includes("servicos profissionais")) {
+    bullets.push(
+      "Com foco em servicos profissionais, a leitura comercial deve priorizar a identificacao de quem sao os parceiros estrategicos ideais e redes de indicacao que atendem o mesmo publico complementar."
+    );
+    bullets.push(
+      "A principal oportunidade esta em oferecer apoio tecnico especializado ou estabelecer conexao consultiva de utilidade mutua, ao inves de vender um servico de forma direta e agressiva."
+    );
+    bullets.push(
+      "A abordagem comercial deve propor um bate-papo rapido de alinhamento profissional para mapear sinergias e entender se ha espaco para indicacoes de clientes, transmitindo credibilidade e confianca desde o inicio."
+    );
+    return bullets;
+  }
+
   if (normalizedFocus.includes("trafego") || normalizedFocus.includes("traf")) {
     bullets.push(
       hasTracking
@@ -1786,7 +1799,7 @@ async function analyzeWithGeminiDirect(
   const isZunoInternal = isZunoInternalProspectingFocus(lead.foco);
   const systemPrompt = isZunoInternal
     ? buildZunoInternalProspectingSystemPrompt()
-    : buildEliteCopywriterSystemPrompt(isUS);
+    : buildEliteCopywriterSystemPrompt(isUS, lead.foco);
   const userPrompt = isZunoInternal
     ? buildZunoInternalProspectingUserPrompt(lead, canaisDisponiveis)
     : buildEliteUserPrompt(lead, canaisDisponiveis, injectedCampaign, isUS);
@@ -2014,7 +2027,7 @@ async function analyzeWithLovableAIDisabledLegacy(lead: LeadData): Promise<Anali
   const isZunoInternal = isZunoInternalProspectingFocus(lead.foco);
   const systemPrompt = isZunoInternal
     ? buildZunoInternalProspectingSystemPrompt()
-    : buildEliteCopywriterSystemPrompt(isUS);
+    : buildEliteCopywriterSystemPrompt(isUS, lead.foco);
   const userPrompt = isZunoInternal
     ? buildZunoInternalProspectingUserPrompt(lead, canaisDisponiveis)
     : buildEliteUserPrompt(lead, canaisDisponiveis, undefined, isUS);
@@ -2451,15 +2464,23 @@ Mensagens humanas e personalizadas = respondidas.`;
 // =============================================================================
 // US SYSTEM PROMPT - ENGLISH PROSPECTING FOR USA LEADS
 // =============================================================================
-function buildUSSystemPrompt(): string {
+function buildUSSystemPrompt(foco: string = ""): string {
+  const isProfessional = foco === "servicos_profissionais" || foco === "Serviços Profissionais";
+  
+  const especialidade = isProfessional 
+    ? `• B2B outreach, strategic partnerships, referral networks, and technical connections for professional service providers, consultants, lawyers, accountants, brokers, and real estate appraisers.
+• Consultative, humanized approach focused on complementary utility, audience synergy, professional credibility, and long-term relationships.
+• Absolute mastery of commercial prospecting via Email, LinkedIn, and Instagram without aggressive digital marketing language or direct pitches.`
+    : `• B2B outreach for digital marketing agencies
+• Consultative sales for Paid Ads, SEO, Social Media, Full Service, Automation, CRM, Websites/Landing, Design
+• Multichannel prospecting mastery (Email, LinkedIn, Instagram)
+• HUMANIZED copywriting that builds genuine connection`;
+
   return `You are an ELITE B2B SALES STRATEGIST AND COPYWRITER with 15+ years of experience.
 Your mission: craft messages that make prospects STOP, READ, and RESPOND.
 
 🏆 YOUR SPECIALTY:
-• B2B outreach for digital marketing agencies
-• Consultative sales for Paid Ads, SEO, Social Media, Full Service, Automation, CRM, Websites/Landing, Design
-• Multichannel prospecting mastery (Email, LinkedIn, Instagram)
-• HUMANIZED copywriting that builds genuine connection
+${especialidade}
 
 ⚠️ CRITICAL LANGUAGE INSTRUCTIONS:
 • ALL prospecting messages, CTAs, and responses → IN ENGLISH

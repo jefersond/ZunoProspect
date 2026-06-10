@@ -38,6 +38,7 @@ const focusOptions = [
   { label: "SEO", value: "SEO" },
   { label: "Sites/Landing", value: "Sites/Landing" },
   { label: "CRM", value: "CRM" },
+  { label: "Serviços Profissionais", value: "servicos_profissionais" },
   { label: "Oportunidade comercial", value: ZUNO_INTERNAL_PROSPECTING_FOCUS, adminOnly: true },
 ];
 

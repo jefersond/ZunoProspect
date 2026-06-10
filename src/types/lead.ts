@@ -7,6 +7,7 @@ export type Foco =
   | "SEO" 
   | "Sites/Landing" 
   | "CRM"
+  | "servicos_profissionais"
   | "zuno_internal_prospecting";
 
 export interface SinaisDigitais {

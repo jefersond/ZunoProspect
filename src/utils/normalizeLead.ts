@@ -24,6 +24,16 @@ export interface NormalizedLead {
   rating?: number | null;
   reviews?: number | null;
   endereco?: string | null;
+  
+  // Novos campos para Serviços Profissionais B2B
+  categoria_prospeccao?: string;
+  categoria_label?: string;
+  servico_oferecido?: string;
+  publico_desejado?: string;
+  possiveis_indicadores?: string;
+  estado?: string;
+  canal?: string;
+  objetivo?: string;
 }
 
 const ZUNO_INTERNAL_PROSPECTING_FOCUS = "zuno_internal_prospecting";
@@ -32,6 +42,9 @@ const ZUNO_COMMERCIAL_FOCUS_LABEL = "Oportunidade comercial";
 function getSafeFocusLabel(foco?: string | null): string {
   if (!foco || foco === ZUNO_INTERNAL_PROSPECTING_FOCUS) {
     return ZUNO_COMMERCIAL_FOCUS_LABEL;
+  }
+  if (foco === "servicos_profissionais") {
+    return "Serviços Profissionais";
   }
   return foco;
 }
@@ -78,12 +91,15 @@ export function normalizeLeadForAI(lead: any, searchContext: any = {}): Normaliz
   const has_gtag = lead.has_gtag || (lead.sinais && typeof lead.sinais === 'object' ? lead.sinais.has_gtag : false) || false;
   const has_gtm = lead.has_gtm || (lead.sinais && typeof lead.sinais === 'object' ? lead.sinais.has_gtm : false) || false;
 
+  const rawFocus = lead.foco || searchContext.focus || "Full Service";
+  const isProfessional = rawFocus === "servicos_profissionais" || rawFocus === "Serviços Profissionais";
+
   return {
     nome: String(nome).trim(),
     nicho: nicho ? String(nicho).trim() : "Não informado",
     cidade: city ? String(city).trim() : "Não informada",
     website: website ? String(website).trim() : null,
-    foco: getSafeFocusLabel(lead.foco || searchContext.focus || "Full Service"),
+    foco: getSafeFocusLabel(rawFocus),
     whatsapp_on_site: !!has_whatsapp_on_site,
     whatsapp_number: phone ? String(phone).trim() : null,
     email: lead.email || null,
@@ -104,5 +120,15 @@ export function normalizeLeadForAI(lead: any, searchContext: any = {}): Normaliz
     rating: rating ? Number(rating) : null,
     reviews: reviews ? Number(reviews) : null,
     endereco: address ? String(address).trim() : null,
+    
+    // Novos campos de Serviços Profissionais
+    categoria_prospeccao: isProfessional ? "servicos_profissionais" : undefined,
+    categoria_label: isProfessional ? "Serviços Profissionais" : undefined,
+    servico_oferecido: isProfessional ? (lead.servico_oferecido || lead.nicho || searchContext.niche || "Serviço especializado") : undefined,
+    publico_desejado: isProfessional ? (lead.publico_desejado || lead.nicho || searchContext.niche || "Empresas e parceiros B2B") : undefined,
+    possiveis_indicadores: isProfessional ? (lead.possiveis_indicadores || "Parceiros estratégicos, advogados, contadores, imobiliárias e contatos B2B") : undefined,
+    estado: isProfessional ? (lead.estado || searchContext.state || lead.uf || "Não informado") : undefined,
+    canal: isProfessional ? (lead.canal || (lead.canaisProspeccao && lead.canaisProspeccao.join(", ")) || "whatsapp, email, instagram") : undefined,
+    objetivo: isProfessional ? (lead.objetivo || "parceria comercial e rede de indicações") : undefined,
   };
 }

@@ -138,6 +138,10 @@ async function activateUserPlan(
     currentPeriodStart?: string | null;
     currentPeriodEnd?: string | null;
     status: string;
+    trialStart?: string | null;
+    trialEnd?: string | null;
+    cancelAtPeriodEnd?: boolean;
+    canceledAt?: string | null;
   }
 ) {
   const normPlan = normalizePlanDbName(params.planId);
@@ -210,12 +214,42 @@ async function activateUserPlan(
       current_period_start: periodStart,
       current_period_end: periodEnd,
       billing_cycle: params.billingCycle || "monthly",
+      trial_start: params.trialStart ?? null,
+      trial_end: params.trialEnd ?? null,
+      cancel_at_period_end: params.cancelAtPeriodEnd ?? false,
+      canceled_at: params.canceledAt ?? null,
       updated_at: now.toISOString(),
     }, { onConflict: "user_id" });
 
   if (error) {
     console.error("Erro ao fazer upsert em user_subscriptions:", error);
     throw error;
+  }
+
+  // Calcular trial_days_remaining se estiver em trial
+  let trialDaysRemaining: number | null = null;
+  if (subscriptionStatus === "trialing" && params.trialEnd) {
+    const trialEndDate = new Date(params.trialEnd);
+    const diff = trialEndDate.getTime() - now.getTime();
+    trialDaysRemaining = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  }
+
+  // Atualizar a tabela profiles para espelhar as informações
+  const { error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .update({
+      plan_id: targetPlan,
+      subscription_status: subscriptionStatus,
+      trial_start: params.trialStart ?? null,
+      trial_end: params.trialEnd ?? null,
+      trial_days_remaining: trialDaysRemaining,
+      stripe_customer_id: params.stripeCustomerId ?? null,
+      stripe_subscription_id: params.stripeSubscriptionId ?? null,
+    })
+    .eq("id", params.userId);
+
+  if (profileError) {
+    console.warn("[activateUserPlan] Erro ao atualizar tabela profiles:", profileError);
   }
 
   // Trigger do bonus de indicação (referral)
@@ -685,12 +719,23 @@ serve(async (req) => {
 
       // RESOLVER O PLANO COM MÁXIMA SEGURANÇA
       let resolvedPriceId: string | null = null;
+      let trialStart: string | null = null;
+      let trialEnd: string | null = null;
+      let cancelAtPeriodEnd = false;
+      let canceledAt: string | null = null;
+      let subStatus = "active";
+
       if (stripeSubscriptionId) {
         try {
           const sub = await stripe.subscriptions.retrieve(stripeSubscriptionId);
           resolvedPriceId = sub.items?.data?.[0]?.price?.id || null;
+          trialStart = sub.trial_start ? new Date(sub.trial_start * 1000).toISOString() : null;
+          trialEnd = sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null;
+          cancelAtPeriodEnd = sub.cancel_at_period_end;
+          canceledAt = sub.canceled_at ? new Date(sub.canceled_at * 1000).toISOString() : null;
+          subStatus = sub.status;
         } catch (e) {
-          console.warn("Erro ao buscar subscription no Stripe para obter Price ID:", e);
+          console.warn("Erro ao buscar subscription no Stripe para obter dados:", e);
         }
       }
 
@@ -738,7 +783,11 @@ serve(async (req) => {
             stripeCustomerId,
             stripeSubscriptionId,
             stripePriceId: resolvedPriceId,
-            status: "active",
+            status: subStatus,
+            trialStart,
+            trialEnd,
+            cancelAtPeriodEnd,
+            canceledAt,
           });
           
           await logAppEvent(supabaseAdmin, eventUserId, "Payment_Plan_Activated", {
@@ -818,7 +867,52 @@ serve(async (req) => {
           console.warn(`[stripe-webhook] customer.subscription.created/updated recebido sem user_id mapeado (ID do Evento: ${event.id})`);
         } else {
           const billingCycle = metadata?.billing_cycle || "monthly";
-          
+          const trialStart = subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : null;
+          const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null;
+          const cancelAtPeriodEnd = subscription.cancel_at_period_end;
+          const canceledAt = subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null;
+
+          // Se estiver em trial e o usuário marcou para cancelar, cancela imediatamente no Stripe
+          if (subscription.status === "trialing" && cancelAtPeriodEnd) {
+            console.log(`[stripe-webhook] Assinatura em trial detectada com cancel_at_period_end=true. Cancelando imediatamente no Stripe para o usuário ${eventUserId}.`);
+            try {
+              await stripe.subscriptions.cancel(subscription.id);
+              // Dispara o rebaixamento local imediatamente
+              await activateUserPlan(supabaseAdmin, {
+                userId: eventUserId,
+                email,
+                planId: "free",
+                billingCycle,
+                stripeCustomerId,
+                stripeSubscriptionId,
+                stripePriceId: priceId,
+                currentPeriodStart: new Date(subscription.current_period_start * 1000).toISOString(),
+                currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+                status: "cancelled",
+                trialStart,
+                trialEnd,
+                cancelAtPeriodEnd: false,
+                canceledAt: new Date().toISOString(),
+              });
+              
+              await logAppEvent(supabaseAdmin, eventUserId, "Subscription_Canceled_Trial_Immediate", {
+                stripe_event_id: event.id,
+                event_type: event.type,
+                plan_id: finalPlanId,
+                email,
+                stripe_customer_id: stripeCustomerId,
+                stripe_subscription_id: stripeSubscriptionId,
+              });
+              
+              // Retornar da execução pois já processamos o cancelamento
+              return new Response(JSON.stringify({ received: true, forced_trial_cancel: true }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            } catch (cancelError) {
+              console.error(`[stripe-webhook] Erro ao forçar cancelamento imediato no Stripe para ${subscription.id}:`, cancelError);
+            }
+          }
+
           await activateUserPlan(supabaseAdmin, {
             userId: eventUserId,
             email,
@@ -830,6 +924,10 @@ serve(async (req) => {
             currentPeriodStart: new Date(subscription.current_period_start * 1000).toISOString(),
             currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
             status: subscription.status,
+            trialStart,
+            trialEnd,
+            cancelAtPeriodEnd,
+            canceledAt,
           });
 
           await logAppEvent(supabaseAdmin, eventUserId, "Subscription_Updated", {
@@ -866,6 +964,10 @@ serve(async (req) => {
           console.warn(`[stripe-webhook] customer.subscription.deleted recebido sem user_id mapeado (ID do Evento: ${event.id})`);
         } else {
           // Downgrade para Free
+          const trialStart = subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : null;
+          const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null;
+          const canceledAt = subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null;
+
           await activateUserPlan(supabaseAdmin, {
             userId: eventUserId,
             email,
@@ -874,6 +976,10 @@ serve(async (req) => {
             stripeCustomerId,
             stripeSubscriptionId,
             status: "cancelled",
+            trialStart,
+            trialEnd,
+            cancelAtPeriodEnd: false,
+            canceledAt,
           });
 
           await logAppEvent(supabaseAdmin, eventUserId, "Subscription_Canceled", {
@@ -941,6 +1047,11 @@ serve(async (req) => {
           } else {
             const billingCycle = metadata?.billing_cycle || "monthly";
             const isFailed = event.type === "invoice.payment_failed";
+            
+            const trialStart = subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : null;
+            const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null;
+            const cancelAtPeriodEnd = subscription.cancel_at_period_end;
+            const canceledAt = subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null;
 
             await activateUserPlan(supabaseAdmin, {
               userId: eventUserId,
@@ -952,7 +1063,11 @@ serve(async (req) => {
               stripePriceId: priceId,
               currentPeriodStart: new Date(subscription.current_period_start * 1000).toISOString(),
               currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
-              status: isFailed ? "past_due" : "active",
+              status: isFailed ? "past_due" : subscription.status,
+              trialStart,
+              trialEnd,
+              cancelAtPeriodEnd,
+              canceledAt,
             });
 
             if (isFailed) {

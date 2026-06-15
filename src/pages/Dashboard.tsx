@@ -11,6 +11,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { ReferralCard } from "@/components/ReferralCard";
 import { UsageStats } from "@/components/UsageStats";
 import { useUsage } from "@/hooks/useUsage";
+import { useSubscription } from "@/hooks/useSubscription";
 import { isAdminUser } from "@/config/admin";
 
 interface DashboardMetrics {
@@ -30,6 +31,7 @@ const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accen
 const Dashboard = () => {
   const navigate = useNavigate();
   const { usage, loading: usageLoading, isAdmin: usageIsAdmin } = useUsage();
+  const { subscription } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [ctaShown, setCtaShown] = useState(false);
@@ -168,6 +170,40 @@ const Dashboard = () => {
       <AppHeader isAdmin={isAdmin} />
 
       <main className="container mx-auto px-4 py-8 space-y-6">
+        {/* Banner do Teste Grátis Ativo (Trial) */}
+        {subscription?.subscription_status === "trialing" && (
+          <div className="rounded-xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/40 via-emerald-900/10 to-zinc-950 p-5 shadow-xl transition-all duration-300">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3.5">
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+                  <Activity className="h-5 w-5 text-emerald-400" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
+                    Teste grátis ativo — Plano {subscription.plan_name === "starter" ? "Starter" : subscription.plan_name === "pro" ? "Pro" : subscription.plan_name === "agency" ? "Agency" : subscription.plan_name}
+                    <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
+                      {subscription.trial_days_remaining ?? 7} {Number(subscription.trial_days_remaining) === 1 ? 'dia restante' : 'dias restantes'}
+                    </span>
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-400">
+                    Seu teste grátis termina em <strong className="text-slate-200">{subscription.trial_days_remaining ?? 7} {Number(subscription.trial_days_remaining) === 1 ? 'dia' : 'dias'}</strong>. 
+                    Próxima cobrança: <strong className="text-slate-200">R$ {subscription.plan_name === "starter" ? "47" : subscription.plan_name === "pro" ? "97" : subscription.plan_name === "agency" ? "247" : "0"}</strong> em <strong className="text-slate-200">{subscription.trial_end ? new Date(subscription.trial_end).toLocaleDateString('pt-BR') : '-'}</strong>.
+                  </p>
+                </div>
+              </div>
+              <div className="shrink-0">
+                <Button
+                  onClick={() => navigate("/profile")}
+                  variant="outline"
+                  className="w-full sm:w-auto h-9 border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 font-medium px-4 transition-all duration-200 text-xs sm:text-sm"
+                >
+                  Gerenciar Assinatura
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Banner de Onboarding pós-cadastro */}
         {metrics.totalLeads === 0 && (
           <div className="rounded-xl border border-emerald-500/20 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent p-6 shadow-xl transition-all duration-300">

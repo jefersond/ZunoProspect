@@ -51,7 +51,7 @@ export function LPHeader() {
               <Link to={appendReferralToPath("/auth")}>Entrar</Link>
             </Button>
             <Button className="bg-primary px-6 text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90" onClick={() => trackEvent("cta_clicked", { cta: "comecar_gratis", location: "header" })} asChild>
-              <Link to={appendReferralToPath("/auth?tab=signup")}>Começar grátis</Link>
+              <Link to={appendReferralToPath("/auth?tab=signup")}>Começar a prospectar</Link>
             </Button>
           </div>
 
@@ -76,7 +76,7 @@ export function LPHeader() {
                   ))}
                   <div className="mt-2 space-y-3 border-t pt-4">
                     <Button className="w-full" onClick={() => trackEvent("cta_clicked", { cta: "comecar_gratis", location: "mobile_header" })} asChild>
-                      <Link to={appendReferralToPath("/auth?tab=signup")}>Começar grátis</Link>
+                      <Link to={appendReferralToPath("/auth?tab=signup")}>Começar a prospectar</Link>
                     </Button>
                     <Button variant="outline" className="w-full" asChild>
                       <Link to={appendReferralToPath("/auth?tab=login")}>Entrar</Link>

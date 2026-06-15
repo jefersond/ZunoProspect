@@ -36,7 +36,7 @@ export function ParaQuemSection() {
 
         <div className="mt-10 text-center">
           <Button size="lg" variant="success" onClick={() => scrollToSection("precos")}>
-            Começar grátis
+            Começar a prospectar
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>

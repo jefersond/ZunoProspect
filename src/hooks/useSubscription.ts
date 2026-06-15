@@ -3,6 +3,44 @@ import { supabase } from "@/integrations/supabase/client";
 import { ADMIN_LEADS_LIMIT, isAdminEmail, isAdminUser } from "@/config/admin";
 import { useAuth } from "@/hooks/useAuth";
 
+export interface SubscriptionInfo {
+  plan_name: string;
+  leads_limit: number;
+  leads_used: number;
+  leads_remaining: number;
+  ai_limit: number;
+  ai_used: number;
+  ai_remaining: number;
+  ai_available_total: number;
+  billing_period_end: string;
+  is_admin: boolean;
+  usa_addon: boolean;
+  usa_addon_active_until: string | null;
+  us_prospecting_addon_status: string | null;
+  leads_bonus_balance: number;
+  leads_available_total: number;
+  subscription_status?: string | null;
+  trial_start?: string | null;
+  trial_end?: string | null;
+  cancel_at_period_end?: boolean;
+  canceled_at?: string | null;
+  trial_days_remaining?: number | null;
+}
+
+export interface UseSubscriptionReturn {
+  subscription: SubscriptionInfo | null;
+  loading: boolean;
+  error: string | null;
+  isAdmin: boolean;
+  refetch: () => Promise<void>;
+  canUseLeads: (count: number) => boolean;
+  incrementLeadsUsed: (count: number) => Promise<boolean>;
+  getPlanDisplayName: () => string;
+  getUsagePercentage: () => number;
+  hasUsaAddon: () => boolean;
+  canUseUsaProspecting: () => boolean;
+}
+
 const defaultPeriodEnd = () =>
   new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -42,6 +80,12 @@ const starterFallback = (isAdmin: boolean): SubscriptionInfo => {
       us_prospecting_addon_status: "active",
       leads_bonus_balance: 999999,
       leads_available_total: 999999,
+      subscription_status: "active",
+      trial_start: null,
+      trial_end: null,
+      cancel_at_period_end: false,
+      canceled_at: null,
+      trial_days_remaining: null,
     };
   }
 
@@ -62,6 +106,12 @@ const starterFallback = (isAdmin: boolean): SubscriptionInfo => {
     us_prospecting_addon_status: null,
     leads_bonus_balance: 0,
     leads_available_total: limits.leads_limit,
+    subscription_status: null,
+    trial_start: null,
+    trial_end: null,
+    cancel_at_period_end: false,
+    canceled_at: null,
+    trial_days_remaining: null,
   };
 };
 
@@ -94,6 +144,12 @@ export const useSubscription = (): UseSubscriptionReturn => {
         us_prospecting_addon_status: "active",
         leads_bonus_balance: 999999,
         leads_available_total: 999999,
+        subscription_status: "active",
+        trial_start: null,
+        trial_end: null,
+        cancel_at_period_end: false,
+        canceled_at: null,
+        trial_days_remaining: null,
       });
       setIsAdmin(true);
       setLoading(false);
@@ -221,6 +277,12 @@ export const useSubscription = (): UseSubscriptionReturn => {
           us_prospecting_addon_status: "active",
           leads_bonus_balance: 999999,
           leads_available_total: 999999,
+          subscription_status: "active",
+          trial_start: null,
+          trial_end: null,
+          cancel_at_period_end: false,
+          canceled_at: null,
+          trial_days_remaining: null,
         });
         return;
       }
@@ -228,6 +290,13 @@ export const useSubscription = (): UseSubscriptionReturn => {
       const planRemaining = Math.max(0, limits.leads_limit - leadsUsed);
       const bonusSaldo = Math.max(0, leadsBonus);
       const effectiveRemaining = planRemaining + bonusSaldo;
+
+      let trialDaysRemaining: number | null = null;
+      if (directSub?.subscription_status === "trialing" && directSub.trial_end) {
+        const trialEndDate = new Date(directSub.trial_end);
+        const diffMs = trialEndDate.getTime() - new Date().getTime();
+        trialDaysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+      }
 
       setSubscription({
         plan_name: normalizedPlan,
@@ -245,6 +314,12 @@ export const useSubscription = (): UseSubscriptionReturn => {
         us_prospecting_addon_status: addonData?.status ?? null,
         leads_bonus_balance: bonusSaldo,
         leads_available_total: effectiveRemaining,
+        subscription_status: directSub?.subscription_status ?? null,
+        trial_start: directSub?.trial_start ?? null,
+        trial_end: directSub?.trial_end ?? null,
+        cancel_at_period_end: directSub?.cancel_at_period_end ?? false,
+        canceled_at: directSub?.canceled_at ?? null,
+        trial_days_remaining: trialDaysRemaining,
       });
     } catch (err: any) {
       console.error("Erro ao buscar assinatura:", err);

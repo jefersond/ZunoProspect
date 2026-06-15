@@ -32,11 +32,13 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
-  const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [profile, setProfile] = useState({
     nome_completo: "",
     empresa: "",
   });
+  const [cancelingSub, setCancelingSub] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [managingSubLoading, setManagingSubLoading] = useState(false);
 
   // Handle checkout result from URL params
   useEffect(() => {
@@ -138,6 +140,94 @@ const Profile = () => {
     }
   };
 
+  const handleManageSubscription = async () => {
+    setManagingSubLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({
+          variant: "destructive",
+          title: "Sessão expirada",
+          description: "Faça login novamente.",
+        });
+        return;
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/customer-portal`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: "portal" }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao conectar ao Stripe.");
+      }
+
+      if (data.url) {
+        window.open(data.url, "_blank");
+      } else {
+        throw new Error("URL do portal não retornada.");
+      }
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao abrir gerenciador",
+        description: err.message,
+      });
+    } finally {
+      setManagingSubLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    setCancelingSub(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({
+          variant: "destructive",
+          title: "Sessão expirada",
+          description: "Faça login novamente.",
+        });
+        return;
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/customer-portal`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: "cancel_subscription" }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao cancelar assinatura.");
+      }
+
+      toast({
+        title: "Cancelamento concluído!",
+        description: "Seu teste grátis foi cancelado. Você não será cobrado. Seu acesso aos recursos pagos foi encerrado.",
+      });
+
+      setCancelConfirmOpen(false);
+      refetch?.();
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao cancelar",
+        description: err.message,
+      });
+    } finally {
+      setCancelingSub(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/10 to-primary/5">
@@ -212,23 +302,23 @@ const Profile = () => {
         {/* Card de Alteração de Senha */}
         <ChangePasswordSection />
 
-        {/* Card de Upgrade de Plano */}
+        {/* Card de Plano e Assinatura */}
         <Card className="shadow-lg mt-6 border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Crown className="h-5 w-5 text-primary" />
-              Seu Plano
+              Plano e assinatura
             </CardTitle>
             <CardDescription>
-              Gerencie sua assinatura e veja seu uso
+              Gerencie seus limites, renovação e faturamento
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Info do plano */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Plano atual</p>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mt-1">
                   <p className="text-lg font-semibold flex items-center gap-2">
                     {isAdmin ? (
                       <Shield className="h-4 w-4 text-amber-500" />
@@ -240,45 +330,82 @@ const Profile = () => {
                   {isAdmin && (
                     <Badge className="bg-amber-500 hover:bg-amber-600">Admin</Badge>
                   )}
+                  {subscription && subscription.subscription_status === "trialing" && (
+                    <Badge className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold border-none">
+                      Teste grátis ativo
+                    </Badge>
+                  )}
                 </div>
               </div>
-              <div className="flex gap-2">
-                {!isAdmin && subscription?.plan_name !== 'agencia' && subscription?.plan_name !== 'starter' && (
+              <div className="flex flex-wrap gap-2">
+                {!isAdmin && subscription && subscription.plan_name !== "free" && (
                   <Button 
                     variant="outline" 
-                    onClick={() => setManageDialogOpen(true)} 
+                    onClick={handleManageSubscription} 
+                    className="gap-2"
+                    disabled={managingSubLoading}
+                  >
+                    {managingSubLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CreditCard className="h-4 w-4" />
+                    )}
+                    Gerenciar faturamento
+                  </Button>
+                )}
+                {!isAdmin && subscription && subscription.subscription_status === "trialing" && (
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => setCancelConfirmOpen(true)}
                     className="gap-2"
                   >
-                    <CreditCard className="h-4 w-4" />
-                    <span className="hidden sm:inline">Gerenciar</span>
+                    Cancelar teste grátis
                   </Button>
                 )}
-                {!isAdmin && subscription?.plan_name === 'starter' && (
-                  <Button onClick={() => setUpgradeDialogOpen(true)} className="gap-2">
+                {!isAdmin && subscription && subscription.plan_name === "free" && (
+                  <Button onClick={() => setUpgradeDialogOpen(true)} className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">
                     <Crown className="h-4 w-4" />
-                    Fazer Upgrade
-                  </Button>
-                )}
-                {!isAdmin && subscription?.plan_name !== 'agencia' && subscription?.plan_name !== 'starter' && (
-                  <Button onClick={() => setUpgradeDialogOpen(true)} className="gap-2">
-                    <Crown className="h-4 w-4" />
-                    Upgrade
+                    Ver planos
                   </Button>
                 )}
               </div>
             </div>
 
+            {/* Informações detalhadas do trial */}
+            {!isAdmin && subscription && subscription.subscription_status === "trialing" && (
+              <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-sm space-y-2">
+                <p className="text-foreground">
+                  ✓ Você está no teste grátis do plano <span className="font-bold capitalize">{subscription.plan_name}</span>.
+                </p>
+                {subscription.trial_days_remaining !== undefined && subscription.trial_days_remaining !== null && (
+                  <p className="text-emerald-400 font-semibold">
+                    Restam {subscription.trial_days_remaining} {subscription.trial_days_remaining === 1 ? 'dia' : 'dias'} de teste.
+                  </p>
+                )}
+                <p className="text-muted-foreground text-xs leading-5">
+                  Hoje você não foi cobrado. Ao fim do teste, sua assinatura será renovada automaticamente por{" "}
+                  <span className="font-semibold text-foreground">
+                    R$ {subscription.plan_name === "pro" ? "97" : subscription.plan_name === "agency" ? "247" : "47"}/mês
+                  </span>. Você pode cancelar antes do fim do teste para não ser cobrado.
+                </p>
+              </div>
+            )}
+
             {/* Indicador de uso */}
-            <div className="pt-4 border-t">
+            <div className="pt-4 border-t border-border/40">
               <UsageIndicator />
             </div>
 
-            {/* Período de renovação */}
-            {subscription && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground pt-4 border-t">
+            {/* Período de renovação / Cobrança */}
+            {!isAdmin && subscription && subscription.plan_name !== "free" && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground pt-4 border-t border-border/40">
                 <Calendar className="h-4 w-4" />
                 <span>
-                  Renova em {new Date(subscription.billing_period_end).toLocaleDateString('pt-BR')}
+                  {subscription.subscription_status === "trialing" ? (
+                    <>Cobrança em: {new Date(subscription.billing_period_end).toLocaleDateString('pt-BR')}</>
+                  ) : (
+                    <>Próxima cobrança: {new Date(subscription.billing_period_end).toLocaleDateString('pt-BR')}</>
+                  )}
                 </span>
               </div>
             )}
@@ -316,47 +443,49 @@ const Profile = () => {
         )}
       </main>
 
-      {/* Dialog de Gerenciamento de Assinatura (Kiwify) */}
-      <Dialog open={manageDialogOpen} onOpenChange={setManageDialogOpen}>
+      {/* Dialog de Confirmação de Cancelamento do Trial */}
+      <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-primary" />
-              Gerenciar Assinatura
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Shield className="h-5 w-5" />
+              Cancelar Teste Grátis
             </DialogTitle>
             <DialogDescription>
-              Sua assinatura é gerenciada pela Kiwify
+              Confirme se deseja cancelar o seu teste grátis imediatamente
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <p className="text-sm text-muted-foreground">
-              Para gerenciar sua assinatura (alterar forma de pagamento, cancelar, etc.), 
-              utilize o e-mail de compra/aprovação para acessar o portal da Kiwify.
+            <p className="text-sm text-muted-foreground leading-6">
+              Se você cancelar agora, perderá o acesso aos recursos do teste grátis imediatamente. Você não será cobrado.
             </p>
             
-            <div className="space-y-3">
+            <div className="flex flex-col gap-2 pt-2">
               <Button
-                variant="outline"
-                className="w-full gap-2"
-                onClick={() => window.open("https://ajuda.kiwify.com.br/pt-br/article/como-cancelar-a-assinatura-do-produto-que-comprei-19d0my1/", "_blank")}
+                variant="destructive"
+                className="w-full h-11 text-base font-semibold"
+                onClick={handleCancelSubscription}
+                disabled={cancelingSub}
               >
-                <ExternalLink className="h-4 w-4" />
-                Como cancelar minha assinatura
+                {cancelingSub ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Cancelando teste...
+                  </>
+                ) : (
+                  "Cancelar teste grátis agora"
+                )}
               </Button>
               
               <Button
-                variant="default"
-                className="w-full gap-2"
-                onClick={() => window.open("https://dashboard.kiwify.com.br/login/", "_blank")}
+                variant="outline"
+                className="w-full h-11 text-base"
+                onClick={() => setCancelConfirmOpen(false)}
+                disabled={cancelingSub}
               >
-                <ExternalLink className="h-4 w-4" />
-                Acessar portal Kiwify
+                Manter meu teste grátis
               </Button>
             </div>
-            
-            <p className="text-xs text-muted-foreground text-center pt-2">
-              Use o mesmo e-mail que você utilizou na compra para acessar.
-            </p>
           </div>
         </DialogContent>
       </Dialog>

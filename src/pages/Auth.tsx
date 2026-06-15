@@ -170,6 +170,11 @@ const Auth = () => {
       }
     }
 
+    // Limpar checkout pendente do localStorage caso acesse autenticação sem plano explícito
+    if (!selectedPlan) {
+      localStorage.removeItem("checkout_pending");
+    }
+
     // Handle OAuth error responses
     const error = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");

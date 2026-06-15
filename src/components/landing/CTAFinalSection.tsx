@@ -26,7 +26,7 @@ export function CTAFinalSection() {
             asChild
           >
             <Link to={appendReferralToPath("/auth?tab=signup")}>
-              Começar grátis
+              Começar a prospectar
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
           </Button>

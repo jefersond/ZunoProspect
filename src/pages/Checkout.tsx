@@ -439,7 +439,7 @@ export default function Checkout() {
           <Link to="/">
             <Logo />
           </Link>
-          <Link to="/#precos" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
+          <Link to="/precos" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
             <ArrowLeft className="h-4 w-4" />
             Voltar para planos
           </Link>
@@ -464,10 +464,36 @@ export default function Checkout() {
               </div>
 
               {/* Resumo do plano */}
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">Plano {plano.nome}</span>
-                  <span className="font-bold text-lg text-emerald-500">R$ {preco}{periodo}</span>
+              <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-lg space-y-3">
+                <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
+                  <span className="font-semibold text-foreground">Plano {plano.nome}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">7 dias grátis</span>
+                </div>
+                
+                <div className="space-y-1.5 text-sm text-muted-foreground">
+                  <div className="flex justify-between">
+                    <span>Hoje:</span>
+                    <span className="font-bold text-emerald-400">R$ 0</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Após o teste:</span>
+                    <span className="font-semibold text-foreground">R$ {preco}{periodo}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span>Próxima cobrança:</span>
+                    <span className="text-foreground">{(() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 7);
+                      return d.toLocaleDateString("pt-BR");
+                    })()}</span>
+                  </div>
+                </div>
+
+                <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
+                  <p>✓ Você não será cobrado hoje.</p>
+                  <p>✓ Seu teste grátis dura 7 dias.</p>
+                  <p>✓ Após o teste, sua assinatura será renovada automaticamente.</p>
+                  <p>✓ Você pode cancelar antes do fim do teste para não ser cobrado.</p>
                 </div>
               </div>
 

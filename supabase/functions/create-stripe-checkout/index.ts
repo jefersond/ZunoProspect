@@ -282,8 +282,10 @@ serve(async (req) => {
 
     const checkoutMetadata = {
       user_id: user.id,
+      email: user.email || "",
       user_email: user.email || "",
       plan_id: planId,
+      plan_name: plan.name,
       plan_key: planId,
       billing_cycle: billingCycle === "annual" ? "yearly" : "monthly",
       source: String(source),
@@ -292,6 +294,8 @@ serve(async (req) => {
       leads_limit: String(plan.leadsLimit),
       ai_limit: String(plan.aiLimit),
       is_annual: String(billingCycle === "annual"),
+      trial_days: "7",
+      trial_requires_card: "true",
     };
 
     const sessionArgs: any = {
@@ -318,7 +322,11 @@ serve(async (req) => {
       cancel_url: `${publicSiteUrl}/precos?checkout=cancelled`,
       metadata: checkoutMetadata,
       subscription_data: {
-        metadata: checkoutMetadata,
+        trial_period_days: 7,
+        metadata: {
+          ...checkoutMetadata,
+          trial_type: "7_day_card_required",
+        },
       },
       client_reference_id: user.id,
     };

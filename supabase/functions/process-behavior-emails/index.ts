@@ -132,6 +132,19 @@ ${unsubscribeUrl}
 
 // ============= DEFINIÇÃO DOS TEMPLATES =============
 const emailTemplates: Record<string, (metadata: any) => EmailTemplatePayload> = {
+  trial_ending_24h: (metadata: any) => {
+    const planName = metadata?.planName || "Starter";
+    const planPrice = metadata?.planPrice || "47";
+    return {
+      title: "Seu teste grátis da Zuno termina em 24 horas",
+      preheader: "Aviso de término do período de teste grátis da Zuno Propect.",
+      body: `Seu teste grátis da Zuno termina em 24 horas. Se continuar, sua assinatura será renovada automaticamente no plano ${planName} por R$ ${planPrice}/mês. Você pode cancelar antes da cobrança.`,
+      ctaLabel: "Gerenciar minha assinatura",
+      ctaUrl: "https://www.zunopropect.com.br/profile?utm_source=email&utm_medium=behavior&utm_campaign=trial_ending_24h",
+      microcopy: "Você pode cancelar a qualquer momento no seu painel de perfil."
+    };
+  },
+
   signup_no_search_1h: () => ({
     title: "Faça sua primeira busca",
     preheader: "Comece encontrando empresas por cidade e nicho.",
@@ -446,7 +459,7 @@ serve(async (req: Request): Promise<Response> => {
         // Buscamos em user_subscriptions
         const { data: subscription } = await supabase
           .from("user_subscriptions")
-          .select("plan_name")
+          .select("plan_name, subscription_status, trial_end, cancel_at_period_end")
           .eq("user_id", user.id)
           .maybeSingle();
 
@@ -543,11 +556,38 @@ serve(async (req: Request): Promise<Response> => {
             }
           }
         }
+
+        // --- AUTOMATION 7: trial_ending_24h ---
+        if (
+          subscription &&
+          subscription.subscription_status === "trialing" &&
+          !subscription.cancel_at_period_end &&
+          subscription.trial_end
+        ) {
+          const trialEndDate = new Date(subscription.trial_end);
+          const diffMs = trialEndDate.getTime() - now.getTime();
+          const diffHours = diffMs / (1000 * 60 * 60);
+
+          // Se faltar entre 23 e 25 horas para o fim do trial (janela de 2h para o cron)
+          if (diffHours >= 23 && diffHours <= 25) {
+            let planPrice = "47";
+            const normPlan = String(subscription.plan_name).toLowerCase();
+            if (normPlan === "pro") planPrice = "97";
+            else if (normPlan === "agencia" || normPlan === "agency") planPrice = "247";
+
+            const planDisplayName = normPlan === "pro" ? "Pro" : normPlan === "agencia" || normPlan === "agency" ? "Agency" : "Starter";
+
+            await enqueueEmail(user.id, userEmail, "trial_ending_24h", new Date(), {
+              planName: planDisplayName,
+              planPrice,
+            });
+          }
+        }
       }
     };
 
     // Helper para inserir na fila
-    const enqueueEmail = async (userId: string, email: string, key: string, scheduledFor: Date) => {
+    const enqueueEmail = async (userId: string, email: string, key: string, scheduledFor: Date, meta: Record<string, any> = {}) => {
       // 1. Verificar se o e-mail ou user_id está descadastrado antes de enfileirar
       const fingerprint = await hashEmail(email);
       const { data: isUnsub } = await supabase
@@ -576,7 +616,8 @@ serve(async (req: Request): Promise<Response> => {
             email: email,
             automation_key: key,
             scheduled_for: scheduledFor.toISOString(),
-            status: "pending"
+            status: "pending",
+            metadata: meta
           })
           .select("id")
           .single();
@@ -768,7 +809,7 @@ serve(async (req: Request): Promise<Response> => {
             ? `${supabaseUrl}/functions/v1/unsubscribe-email?uid=${encodeURIComponent(item.user_id)}&source=${encodeURIComponent(item.automation_key)}`
             : `https://zunopropect.com.br/unsubscribe?email_hash=${await hashEmail(item.email)}`;
 
-          const templatePayload = templateGenerator({});
+          const templatePayload = templateGenerator(item.metadata || {});
           const html = behaviorEmailLayout({ ...templatePayload, unsubscribeUrl });
           const text = behaviorEmailText({ ...templatePayload, unsubscribeUrl });
 

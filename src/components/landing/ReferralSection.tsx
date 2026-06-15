@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, ArrowRight, CheckCircle2, Copy, CreditCard, Gift, Share2 } from "lucide-react";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 
 export function ReferralSection() {
@@ -92,9 +92,19 @@ export function ReferralSection() {
                 Copiar meu link
               </Button>
             ) : (
-              <Button size="lg" className="h-14 w-full bg-emerald-600 px-8 text-base font-medium text-white hover:bg-emerald-500 sm:w-auto" onClick={handleSignup}>
-                Criar conta grátis
-                <ArrowRight className="ml-2 h-5 w-5" />
+              <Button size="lg" className="h-14 w-full bg-emerald-600 px-8 text-base font-medium text-white hover:bg-emerald-500 sm:w-auto" asChild>
+                <Link 
+                  to="/auth?tab=signup"
+                  onClick={() => {
+                    trackMetaCustomEvent("Referral_CTA_Click", {
+                      page: "landing",
+                      location: "referral_section",
+                    });
+                  }}
+                >
+                  Comece a prospectar agora
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
               </Button>
             )}
             <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">

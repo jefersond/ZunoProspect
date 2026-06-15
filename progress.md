@@ -43,6 +43,8 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
 | **4. ID numérico de criativo no admin** | Criativos do Meta Ads aparecendo como IDs brutos sem mapeamento legível. | Adicionar o ID `120248028635250725` no `CREATIVE_NAME_MAP`. | ⏳ Planejado |
 | **5. Busca Incremental & Repetição** | Perda de filtros após reload e necessidade de buscar mais sem limpar a lista. | Persistência no `localStorage`, disparo via eventos customizados e mesclagem de novos leads no topo. | ✅ Concluído |
 | **6. Assinaturas Pro exibidas como Free (falecom e zunopropect)** | Limite de paginação (50) no `listUsers` do Supabase causou falha silenciosa de localização do usuário nos webhooks do Stripe/Kiwify. | Mapeada a causa raiz, elaborado plano de implementação, criada a RPC SQL e desenhado os ajustes nas Edge Functions. | ⏳ Planejado |
+| **7. Redirecionamento indevido no checkout** | Link de voltar para planos apontava para a home que força redirecionamento de usuários logados. | Modificado o link de `to="/#precos"` para `to="/precos"` no cabeçalho do Checkout. | ✅ Concluído |
+| **8. Modal do Kiwify no Perfil** | Arquivo antigo do clone reach-gen possuía modal do Kiwify hardcoded no botão Gerenciar. | Unificado o Profile.tsx de reach-gen para chamar o Stripe Customer Portal diretamente, e limpo o modal antigo. | ✅ Concluído |
 
 ---
 
@@ -86,6 +88,16 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
     - Implementada uma **cascata resiliente de modelos em loop de fallback** no backend (`gemini-3.5-flash` -> `gemini-2.5-flash` -> `gemini-1.5-flash` -> `gemini-2.0-flash`) com tratamento de erro 404 síncrono.
     - Efetuado deploy atualizado da Edge Function no Supabase de produção.
     - Commits adicionados e enviados ao repositório remoto GitHub com sucesso.
+  - [x] **Iteração 12 (15/06/2026): Ajuste do Link de Retorno no Checkout.**
+    - Identificada a causa de redirecionamento automático de usuários logados para a home e depois `/prospeccao` (dashboard) com exibição de plano Free.
+    - Corrigido o link em `Checkout.tsx` para apontar diretamente para a rota pública `/precos`.
+    - Executado o build de produção local com 100% de sucesso.
+  - [x] **Iteração 13 (15/06/2026): Remoção do Modal da Kiwify e Unificação com Stripe.**
+    - Identificado que o workspace continha clones redundantes (`reach-gen` e `ZunoProspect-github`), onde o `reach-gen` ainda possuía o modal antigo da Kiwify.
+    - Atualizado o arquivo `src/pages/Profile.tsx` da pasta `reach-gen` para remover o modal da Kiwify e utilizar o Stripe Customer Portal diretamente.
+    - Executado o build de produção local em ambos os diretórios com 100% de sucesso.
+
+
 
 
 

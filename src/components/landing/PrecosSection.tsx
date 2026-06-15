@@ -23,7 +23,7 @@ const freePlan = {
   subtitle: "Para testar a plataforma e entender como o Zuno funciona.",
   leadsLimit: 20,
   aiLimit: 3,
-  cta: "Começar grátis",
+  cta: "Começar a prospectar",
   features: [
     "20 leads por mês",
     "3 análises com IA por mês",
@@ -194,10 +194,10 @@ export function PrecosSection() {
         <div className="mx-auto mb-10 max-w-2xl text-center">
           <Badge variant="outline" className="mb-4">Planos</Badge>
           <h2 className="mb-4 text-3xl font-bold md:text-4xl">
-            Comece grátis e evolua quando precisar de mais volume
+            Escolha o plano ideal para a sua prospecção
           </h2>
           <p className="mb-7 text-base text-muted-foreground md:text-lg">
-            Teste o Zuno com 20 leads e 3 análises com IA. Sem precisar escolher plano agora.
+            Teste grátis por 7 dias. Você não será cobrado hoje. Depois, continua no plano escolhido se não cancelar.
           </p>
 
           <div className="flex flex-col items-center gap-2">
@@ -220,64 +220,7 @@ export function PrecosSection() {
           </div>
         </div>
 
-        <div className="mx-auto mb-8 max-w-6xl">
-          <Card className="flex flex-col gap-5 rounded-lg border-emerald-500/30 bg-emerald-500/5 p-5 md:flex-row md:items-center md:justify-between md:p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/20">
-                <Sparkles className="h-5 w-5 text-emerald-400" />
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold">Teste grátis com 20 leads + 3 análises IA</h3>
-                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                  Uma porta de entrada simples para entender o valor antes de assinar.
-                </p>
-              </div>
-            </div>
-
-            <Button className="shrink-0" onClick={handleFreeSignup}>
-              Começar grátis
-            </Button>
-          </Card>
-        </div>
-
-        <div className="mx-auto grid max-w-7xl gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <Card className="relative flex min-h-[520px] flex-col overflow-hidden rounded-lg border border-border bg-card p-6 text-card-foreground shadow-md dark:border-white/10 dark:bg-zinc-950/70">
-            <div className="flex min-h-[134px] flex-col items-center text-center">
-              <div className="mb-4 h-7" />
-              <h3 className="text-2xl font-semibold tracking-tight">{freePlan.displayName}</h3>
-              <p className="mt-2 min-h-10 text-sm leading-5 text-muted-foreground">{freePlan.subtitle}</p>
-            </div>
-
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-center dark:bg-background/30">
-                <p className="text-lg font-semibold">{freePlan.leadsLimit}</p>
-                <p className="text-xs text-muted-foreground">leads/mês</p>
-              </div>
-              <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-center dark:bg-background/30">
-                <p className="text-lg font-semibold">{freePlan.aiLimit}</p>
-                <p className="text-xs text-muted-foreground">análises IA/mês</p>
-              </div>
-            </div>
-
-            <div className="mt-6 text-center">
-              <div className="text-4xl font-bold tracking-tight">R$ 0</div>
-              <p className="mt-2 h-5 text-xs text-muted-foreground">sem cartão agora</p>
-            </div>
-
-            <ul className="mt-7 flex-1 space-y-3">
-              {freePlan.features.map((feature) => (
-                <li key={feature} className="flex items-start gap-3 text-sm leading-5 text-muted-foreground">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
-
-            <Button className="mt-7 h-12 w-full font-semibold" variant="outline" onClick={handleFreeSignup}>
-              {freePlan.cta}
-            </Button>
-          </Card>
-
+        <div className="mx-auto grid max-w-7xl gap-5 md:grid-cols-3 xl:grid-cols-3">
           {PLAN_LIST.map((plan) => {
             const price = getPlanPrice(plan.id, billingCycle);
             const isCurrentProcessing = isProcessing === plan.id;
@@ -317,7 +260,11 @@ export function PrecosSection() {
                 </div>
 
                 <div className="mt-6 text-center">
+                  <div className="text-emerald-400 font-semibold text-lg mb-1">
+                    7 dias grátis
+                  </div>
                   <div className="flex items-baseline justify-center gap-1">
+                    <span className="text-sm text-muted-foreground mr-1">depois</span>
                     <span className="text-4xl font-bold tracking-tight">R$ {price.toLocaleString("pt-BR")}</span>
                     <span className="text-sm text-muted-foreground">{getPlanPeriodLabel(billingCycle)}</span>
                   </div>
@@ -346,6 +293,23 @@ export function PrecosSection() {
               </Card>
             );
           })}
+        </div>
+
+        {/* Opção secundária plano Free sem cartão */}
+        <div className="mx-auto mt-10 max-w-2xl text-center">
+          <p className="text-sm text-muted-foreground mb-3">
+            Ainda quer testar sem cartão?
+            <br />
+            Comece com o plano gratuito limitado: 20 leads + 3 análises IA.
+          </p>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-muted-foreground hover:text-foreground underline decoration-dotted underline-offset-4"
+            onClick={handleFreeSignup}
+          >
+            Começar a prospectar sem cartão
+          </Button>
         </div>
 
         <div className="mx-auto mt-14 max-w-6xl border-t border-border/60 pt-10">

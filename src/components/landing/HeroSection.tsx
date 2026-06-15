@@ -51,10 +51,10 @@ export function HeroSection() {
                       to={appendReferralToPath("/auth?tab=signup")}
                       onClick={() => {
                         trackCta("comecar_gratis", "hero");
-                        trackHeroCta("CTA_Hero_Click", "Comecar gratis");
+                        trackHeroCta("CTA_Hero_Click", "Comece a prospectar");
                       }}
                     >
-                      Começar grátis
+                      Começar a prospectar
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>
                   </Button>

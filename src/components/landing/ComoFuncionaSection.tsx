@@ -83,8 +83,8 @@ export function ComoFuncionaSection() {
         </div>
 
         {/* Sequência Visual Horizontal (Esteira de Prospecção) - O Coração do Produto */}
-        <div className="mx-auto mb-10 max-w-5xl rounded-xl border border-[#1f2d29] bg-[#111816]/40 p-4 md:p-6 backdrop-blur shadow-2xl">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-2">
+        <div className="mx-auto mb-10 max-w-6xl rounded-xl border border-[#1f2d29] bg-[#111816]/40 p-4 md:p-5 backdrop-blur shadow-2xl">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-1.5 lg:gap-2">
             {etapasFluxo.map((etapa, idx) => {
               const ativo = passoAtivo === etapa.index;
               const concluido = passoAtivo > etapa.index;
@@ -92,7 +92,7 @@ export function ComoFuncionaSection() {
                 <div key={idx} className="flex-1 flex items-center">
                   <button
                     onClick={() => setPassoAtivo(etapa.index)}
-                    className={`flex flex-col md:flex-row items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-all duration-300 w-full ${
+                    className={`flex flex-col md:flex-row items-center gap-2 md:gap-1.5 lg:gap-2.5 px-3 py-2.5 md:px-1.5 md:py-2 lg:px-3 lg:py-2.5 rounded-lg border text-left transition-all duration-300 w-full ${
                       ativo
                         ? "bg-[#111816] border-[#10d98a] text-[#10d98a] shadow-[0_0_15px_rgba(16,217,138,0.1)] scale-[1.02]"
                         : concluido
@@ -100,22 +100,22 @@ export function ComoFuncionaSection() {
                         : "bg-transparent border-transparent text-[#9ca3af] hover:text-[#f4f4f5]"
                     }`}
                   >
-                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-bold ${
+                    <div className={`flex h-8 w-8 md:h-7 md:w-7 lg:h-8 lg:w-8 shrink-0 items-center justify-center rounded-full border text-xs font-bold ${
                       ativo
                         ? "border-[#10d98a] bg-[#10d98a]/10 text-[#10d98a]"
                         : concluido
                         ? "border-[#10d98a]/30 bg-[#10d98a]/5 text-[#10d98a]"
                         : "border-[#1f2d29] text-[#9ca3af]"
                     }`}>
-                      <etapa.icone className="h-4 w-4" />
+                      <etapa.icone className="h-4 w-4 md:h-3.5 md:w-3.5 lg:h-4 lg:w-4" />
                     </div>
                     <div>
-                      <p className="text-[9px] uppercase font-mono tracking-wider text-[#9ca3af]">Etapa {idx + 1}</p>
-                      <p className="text-xs font-bold whitespace-nowrap">{etapa.label}</p>
+                      <p className="text-[9px] md:text-[8px] lg:text-[9px] uppercase font-mono tracking-wider text-[#9ca3af]">Etapa {idx + 1}</p>
+                      <p className="text-xs md:text-[10px] lg:text-xs font-bold whitespace-nowrap">{etapa.label}</p>
                     </div>
                   </button>
                   {idx < etapasFluxo.length - 1 && (
-                    <div className="hidden md:block mx-3 text-[#1f2d29] font-bold text-lg">➔</div>
+                    <div className="hidden md:block mx-1.5 lg:mx-2 xl:mx-3 text-[#1f2d29] font-bold text-base lg:text-lg">➔</div>
                   )}
                 </div>
               );

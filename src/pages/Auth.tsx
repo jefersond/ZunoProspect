@@ -128,7 +128,7 @@ const Auth = () => {
   // Handle Google OAuth login
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
-    trackEvent(activeTab === "signup" ? "signup_started" : "login_started", { method: "google" });
+    trackEvent(activeTab === "signup" ? "signup_started" : "login_started", { method: "google", plan_id: selectedPlan || null });
     
     try {
       const referralCode = searchParams.get("ref");
@@ -211,7 +211,7 @@ const Auth = () => {
       (event, session) => {
         // Only process on sign-in events
         if (event === 'SIGNED_IN' && session) {
-          trackEvent(activeTab === "signup" ? "signup_completed" : "login_completed", { method: "google" });
+          trackEvent(activeTab === "signup" ? "signup_completed" : "login_completed", { method: "google", plan_id: selectedPlan || null });
           trackOnce(`meta_login_google_${session.user.id}`, () => {
             trackMetaCustomEvent("Login_Completed", { method: "google" });
           });
@@ -299,7 +299,7 @@ const Auth = () => {
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-    trackEvent("signup_started", { method: "email" });
+    trackEvent("signup_started", { method: "email", plan_id: selectedPlan || null });
     trackMetaCustomEvent("Signup_Started", {
       method: "email",
       source: selectedPlan ? "checkout" : "landing_or_app",
@@ -409,7 +409,7 @@ const Auth = () => {
           ref_source: "url",
         });
       }
-      trackEvent("signup_completed", { method: "email", has_session: Boolean(data.session) });
+      trackEvent("signup_completed", { method: "email", has_session: Boolean(data.session), plan_id: selectedPlan || null });
       
       // Verificar se já existe sessão (auto-confirm ativado)
       if (data.session) {
@@ -699,7 +699,7 @@ const Auth = () => {
                       onChange={e => {
                         if (!signupStartedTracked) {
                           setSignupStartedTracked(true);
-                          trackEvent("signup_started", { method: "email", source: "password_input" });
+                          trackEvent("signup_started", { method: "email", source: "password_input", plan_id: selectedPlan || null });
                         }
                         setSignupPassword(e.target.value);
                         validatePasswordStrength(e.target.value);

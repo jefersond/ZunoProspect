@@ -91,6 +91,8 @@ export function PrecosSection() {
     const price = getPlanPrice(plan.id, billingCycle);
     const trackingPrice = plan.monthlyPrice;
 
+    trackEvent("cta_clicked", { cta: `ativar_teste_${plan.id}`, location: "pricing", plan_id: plan.id });
+
     trackMetaCustomEvent("Pricing_Click", {
       page: "landing",
       plan_id: plan.id,
@@ -189,15 +191,17 @@ export function PrecosSection() {
   };
 
   return (
-    <section id="precos" ref={sectionRef} className="bg-background py-16 md:py-20">
+    <section id="precos" ref={sectionRef} className="bg-[#0b0f0e] py-20 border-b border-[#1f2d29]/40">
       <div className="container mx-auto px-4">
-        <div className="mx-auto mb-10 max-w-2xl text-center">
-          <Badge variant="outline" className="mb-4">Planos</Badge>
-          <h2 className="mb-4 text-3xl font-bold md:text-4xl">
-            Escolha o plano ideal para a sua prospecção
+        <div className="mx-auto mb-12 max-w-2xl text-center">
+          <Badge variant="outline" className="mb-4 border-[#1f2d29] text-[#9ca3af] bg-[#111816]/50">
+            Planos e Assinaturas
+          </Badge>
+          <h2 className="mb-4 text-3xl font-extrabold tracking-tight text-[#f4f4f5] md:text-5xl">
+            Teste a Zuno grátis por 7 dias
           </h2>
-          <p className="mb-7 text-base text-muted-foreground md:text-lg">
-            Teste grátis por 7 dias. Você não será cobrado hoje. Depois, continua no plano escolhido se não cancelar.
+          <p className="text-base text-[#9ca3af] md:text-lg leading-relaxed max-w-2xl mx-auto font-medium mb-8">
+            <span className="text-[#10d98a] font-bold">Hoje você paga R$0.</span> Escolha um plano, ative o teste com cartão e use a Zuno por 7 dias. Depois do teste, sua assinatura começa automaticamente no plano escolhido. <span className="text-[#f4f4f5] font-bold">Cancele antes do fim do teste para não ser cobrado.</span>
           </p>
 
           <div className="flex flex-col items-center gap-2">
@@ -205,22 +209,22 @@ export function PrecosSection() {
               type="single"
               value={billingCycle}
               onValueChange={(value) => value && setBillingCycle(value as BillingCycle)}
-              className="rounded-lg border border-border bg-muted p-1 shadow-sm dark:border-white/10 dark:bg-zinc-900"
+              className="rounded-lg border border-[#1f2d29] bg-[#111816] p-1 shadow-sm"
             >
-              <ToggleGroupItem value="monthly" className="h-9 rounded-md px-4 text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm dark:data-[state=on]:bg-zinc-800 dark:data-[state=on]:text-zinc-50">
+              <ToggleGroupItem value="monthly" className="h-9 rounded-md px-4 text-[#9ca3af] data-[state=on]:bg-[#0b0f0e] data-[state=on]:text-[#f4f4f5] data-[state=on]:shadow-sm">
                 Mensal
               </ToggleGroupItem>
-              <ToggleGroupItem value="annual" className="h-9 rounded-md px-4 text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm dark:data-[state=on]:bg-zinc-800 dark:data-[state=on]:text-zinc-50">
+              <ToggleGroupItem value="annual" className="h-9 rounded-md px-4 text-[#9ca3af] data-[state=on]:bg-[#0b0f0e] data-[state=on]:text-[#f4f4f5] data-[state=on]:shadow-sm">
                 Anual
               </ToggleGroupItem>
             </ToggleGroup>
             {billingCycle === "annual" && (
-              <p className="text-xs text-muted-foreground">Cobrança anual com dois meses de desconto.</p>
+              <p className="text-xs text-[#10d98a] font-mono">Cobrança anual com 2 meses de desconto incluso.</p>
             )}
           </div>
         </div>
 
-        <div className="mx-auto grid max-w-7xl gap-5 md:grid-cols-3 xl:grid-cols-3">
+        <div className="mx-auto grid max-w-6xl gap-6 md:grid-cols-3">
           {PLAN_LIST.map((plan) => {
             const price = getPlanPrice(plan.id, billingCycle);
             const isCurrentProcessing = isProcessing === plan.id;
@@ -229,87 +233,108 @@ export function PrecosSection() {
               <Card
                 key={plan.id}
                 className={cn(
-                  "relative flex min-h-[520px] flex-col overflow-hidden rounded-lg border bg-card p-6 text-card-foreground shadow-md dark:bg-zinc-950/70",
-                  plan.highlighted ? "border-emerald-500 shadow-emerald-500/15 dark:border-emerald-400/70 dark:shadow-emerald-950/50" : "border-border dark:border-white/10",
+                  "relative flex min-h-[540px] flex-col overflow-hidden rounded-xl border p-6 text-[#f4f4f5] shadow-lg bg-[#111816] transition-all duration-300",
+                  plan.highlighted ? "border-[#10d98a] shadow-[0_0_35px_rgba(16,217,138,0.06)]" : "border-[#1f2d29]",
                 )}
               >
-                {plan.highlighted && <div className="absolute inset-x-0 top-0 h-1 bg-emerald-400" />}
+                {plan.highlighted && <div className="absolute inset-x-0 top-0 h-[3px] bg-[#10d98a]" />}
 
-                <div className="flex min-h-[134px] flex-col items-center text-center">
-                  {plan.badge ? (
-                    <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase text-emerald-700 dark:text-emerald-200">
+                <div className="flex min-h-[120px] flex-col items-center text-center">
+                  {plan.highlighted ? (
+                    <div className="mb-3 inline-flex items-center gap-1 rounded-full border border-[#10d98a]/30 bg-[#10d98a]/10 px-3 py-0.5 text-[10px] font-bold uppercase text-[#10d98a]">
                       <Sparkles className="h-3 w-3" />
-                      {plan.badge}
+                      RECOMENDADO
                     </div>
                   ) : (
-                    <div className="mb-4 h-7" />
+                    <div className="mb-3 h-5" />
                   )}
-                  <h3 className="text-2xl font-semibold tracking-tight">{plan.displayName}</h3>
-                  <p className="mt-2 min-h-10 text-sm leading-5 text-muted-foreground">{plan.subtitle}</p>
+                  <h3 className="text-2xl font-bold tracking-tight">{plan.displayName}</h3>
+                  <p className="mt-2 min-h-10 text-xs text-[#9ca3af] leading-relaxed">{plan.subtitle}</p>
                 </div>
 
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-center dark:bg-background/30">
-                    <p className="text-lg font-semibold">{plan.leadsLimit.toLocaleString("pt-BR")}</p>
-                    <p className="text-xs text-muted-foreground">leads/mês</p>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-[#1f2d29] bg-[#0b0f0e] p-2.5 text-center">
+                    <p className="text-base font-bold text-[#f4f4f5]">{plan.leadsLimit.toLocaleString("pt-BR")}</p>
+                    <p className="text-[10px] text-[#9ca3af] uppercase tracking-wider font-mono">leads/mês</p>
                   </div>
-                  <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-center dark:bg-background/30">
-                    <p className="text-lg font-semibold">{plan.aiLimit.toLocaleString("pt-BR")}</p>
-                    <p className="text-xs text-muted-foreground">análises IA/mês</p>
+                  <div className="rounded-lg border border-[#1f2d29] bg-[#0b0f0e] p-2.5 text-center">
+                    <p className="text-base font-bold text-[#f4f4f5]">{plan.aiLimit.toLocaleString("pt-BR")}</p>
+                    <p className="text-[10px] text-[#9ca3af] uppercase tracking-wider font-mono">análises IA</p>
                   </div>
                 </div>
 
-                <div className="mt-6 text-center">
-                  <div className="text-emerald-400 font-semibold text-lg mb-1">
-                    7 dias grátis
-                  </div>
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-sm text-muted-foreground mr-1">depois</span>
-                    <span className="text-4xl font-bold tracking-tight">R$ {price.toLocaleString("pt-BR")}</span>
-                    <span className="text-sm text-muted-foreground">{getPlanPeriodLabel(billingCycle)}</span>
-                  </div>
-                  <p className="mt-2 h-5 text-xs text-muted-foreground">
-                    {billingCycle === "annual" ? `equivale a R$ ${plan.monthlyPrice}/mês` : "cobrança mensal recorrente"}
+                <div className="mt-6 text-center border-t border-[#1f2d29]/40 pt-5 pb-3">
+                  <p className="text-[#10d98a] text-sm font-extrabold uppercase tracking-wider font-mono">
+                    Hoje R$0 por 7 dias
+                  </p>
+                  <p className="text-3xl font-black text-[#f4f4f5] mt-2">
+                    Depois R$ {price.toLocaleString("pt-BR")}{getPlanPeriodLabel(billingCycle)}
+                  </p>
+                  <p className="mt-2 text-xs text-[#9ca3af] font-medium font-sans">
+                    {billingCycle === "annual"
+                      ? `Cobrança automática após o teste de R$ ${price.toLocaleString("pt-BR")}/ano`
+                      : `Cobrança automática após o teste de R$ ${price.toLocaleString("pt-BR")}/mês`}
                   </p>
                 </div>
 
-                <ul className="mt-7 flex-1 space-y-3">
+                <ul className="mt-6 flex-1 space-y-2.5">
                   {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-3 text-sm leading-5 text-muted-foreground">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                    <li key={feature} className="flex items-start gap-2 text-xs leading-relaxed text-[#9ca3af]">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#10d98a]" />
                       <span>{feature}</span>
                     </li>
                   ))}
                 </ul>
 
-                <Button
-                  className={cn("mt-7 h-12 w-full font-semibold", plan.highlighted && "bg-emerald-600 text-white hover:bg-emerald-500")}
-                  variant={plan.highlighted ? "default" : "outline"}
-                  onClick={() => handleSelectPlano(plan)}
-                  disabled={Boolean(isProcessing)}
-                >
-                  {isCurrentProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : plan.cta}
-                </Button>
+                <div className="mt-6 flex flex-col gap-2">
+                  <Button
+                    className={cn(
+                      "h-12 w-full font-bold transition-all duration-300", 
+                      plan.highlighted 
+                        ? "bg-[#10d98a] text-[#0b0f0e] hover:bg-[#10d98a]/90 shadow-[0_0_20px_rgba(16,217,138,0.25)]" 
+                        : "bg-transparent border border-[#1f2d29] text-[#f4f4f5] hover:border-[#10d98a]/40 hover:bg-[#10d98a]/5"
+                    )}
+                    onClick={() => handleSelectPlano(plan)}
+                    disabled={Boolean(isProcessing)}
+                  >
+                    {isCurrentProcessing ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      "Ativar teste de 7 dias"
+                    )}
+                  </Button>
+                  <p className="text-center text-xs font-semibold text-[#9ca3af] tracking-wide mt-1">
+                    Cartão necessário • Cancele antes da cobrança
+                  </p>
+                </div>
               </Card>
             );
           })}
         </div>
 
-        {/* Opção secundária plano Free sem cartão */}
-        <div className="mx-auto mt-10 max-w-2xl text-center">
-          <p className="text-sm text-muted-foreground mb-3">
-            Ainda quer testar sem cartão?
-            <br />
-            Comece com o plano gratuito limitado: 20 leads + 3 análises IA.
+        {/* Informações Obrigatórias e Transparência */}
+        <div className="mx-auto mt-12 max-w-2xl text-center border-t border-[#1f2d29]/40 pt-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 text-xs text-[#9ca3af] font-mono tracking-wide">
+            <div className="p-3 bg-[#111816]/40 rounded-lg border border-[#1f2d29]/40">
+              <p className="text-[#10d98a] font-bold">R$ 0</p>
+              <p className="mt-0.5 text-[9px] uppercase">Hoje</p>
+            </div>
+            <div className="p-3 bg-[#111816]/40 rounded-lg border border-[#1f2d29]/40">
+              <p className="text-[#10d98a] font-bold">Sim</p>
+              <p className="mt-0.5 text-[9px] uppercase">Cartão Requerido</p>
+            </div>
+            <div className="p-3 bg-[#111816]/40 rounded-lg border border-[#1f2d29]/40">
+              <p className="text-[#10d98a] font-bold">1 Clique</p>
+              <p className="mt-0.5 text-[9px] uppercase">Cancele Online</p>
+            </div>
+            <div className="p-3 bg-[#111816]/40 rounded-lg border border-[#1f2d29]/40">
+              <p className="text-red-400 font-bold">Não</p>
+              <p className="mt-0.5 text-[9px] uppercase">Garantia de Clientes</p>
+            </div>
+          </div>
+          <p className="text-xs text-[#9ca3af] leading-relaxed">
+            * <strong>Segurança e Transparência</strong>: O cadastro do cartão é obrigatório para validação de identidade e prevenção contra abusos. Você pode cancelar sua assinatura síncronamente na área de perfil antes do encerramento dos 7 dias para evitar qualquer cobrança. A Zuno localiza oportunidades regionais de marketing e gera copies, mas a conversão e fechamento do cliente final são de sua responsabilidade comercial.
           </p>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="text-muted-foreground hover:text-foreground underline decoration-dotted underline-offset-4"
-            onClick={handleFreeSignup}
-          >
-            Começar a prospectar sem cartão
-          </Button>
         </div>
 
         <div className="mx-auto mt-14 max-w-6xl border-t border-border/60 pt-10">

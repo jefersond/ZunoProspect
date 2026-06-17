@@ -1,7 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
-import { appendReferralToPath } from "@/lib/referral";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
 
 export function CTAFinalSection() {
@@ -10,30 +8,39 @@ export function CTAFinalSection() {
   };
 
   return (
-    <section className="bg-primary py-14 md:py-20">
-      <div className="container mx-auto px-4 text-center">
-        <h2 className="mx-auto mb-4 max-w-3xl text-3xl font-bold text-primary-foreground md:text-5xl">
+    <section className="bg-[#0b0f0e] py-16 md:py-24 border-b border-[#1f2d29]/40 relative overflow-hidden">
+      {/* Brilho decorativo no centro */}
+      <div className="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#10d98a]/5 blur-[120px] pointer-events-none" />
+
+      <div className="container mx-auto px-4 text-center relative z-10">
+        <div className="mx-auto mb-4 inline-flex items-center gap-1.5 rounded-full border border-[#10d98a]/20 bg-[#10d98a]/5 px-3 py-1 text-xs font-semibold text-[#10d98a]">
+          <Sparkles className="h-3.5 w-3.5" />
+          Acesso imediato e simplificado
+        </div>
+
+        <h2 className="mx-auto mb-4 max-w-3xl text-3xl font-extrabold text-[#f4f4f5] md:text-5xl tracking-tight">
           Comece sua prospecção com mais clareza.
         </h2>
-        <p className="mx-auto mb-8 max-w-2xl text-base text-primary-foreground/80 md:text-xl">
-          Teste com 20 leads grátis + 3 análises IA.
+        <p className="mx-auto mb-8 max-w-2xl text-base text-[#9ca3af] md:text-lg">
+          Teste grátis por 7 dias com acesso completo às ferramentas de busca e IA, sem taxas de configuração.
         </p>
+
         <div className="mx-auto flex max-w-md flex-col justify-center gap-3 sm:max-w-none sm:flex-row">
           <Button
             size="lg"
-            className="h-14 w-full bg-primary-foreground px-8 text-base font-bold text-primary hover:bg-primary-foreground/90 sm:w-auto"
-            onClick={() => trackEvent("cta_clicked", { cta: "comecar_gratis", location: "final_cta" })}
-            asChild
+            className="h-14 w-full bg-[#10d98a] text-[#0b0f0e] font-bold shadow-[0_0_30px_rgba(16,217,138,0.25)] hover:bg-[#10d98a]/90 sm:w-auto px-8"
+            onClick={() => {
+              trackEvent("cta_clicked", { cta: "comecar_gratis", location: "final_cta" });
+              scrollToSection("precos");
+            }}
           >
-            <Link to={appendReferralToPath("/auth?tab=signup")}>
-              Começar a prospectar
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Link>
+            Começar minha prospecção com mais clareza
+            <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
           <Button
             size="lg"
             variant="outline"
-            className="h-14 w-full border-primary-foreground/40 bg-transparent px-8 text-base text-primary-foreground hover:bg-primary-foreground/10 sm:w-auto"
+            className="h-14 w-full border-[#1f2d29] bg-transparent text-[#f4f4f5] hover:border-[#10d98a]/40 hover:bg-[#10d98a]/5 sm:w-auto px-8"
             onClick={() => {
               trackEvent("cta_clicked", { cta: "ver_planos", location: "final_cta" });
               scrollToSection("precos");
@@ -42,7 +49,11 @@ export function CTAFinalSection() {
             Ver planos
           </Button>
         </div>
+        <p className="text-sm font-semibold text-[#f4f4f5] mt-4">
+          Hoje R$0 • Cartão necessário • Cancele antes da cobrança
+        </p>
       </div>
     </section>
   );
 }
+

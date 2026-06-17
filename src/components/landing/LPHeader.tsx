@@ -28,17 +28,17 @@ export function LPHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border/50 bg-background/95 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-[#1f2d29]/40 bg-[#0b0f0e]/95 backdrop-blur-md text-[#f4f4f5]">
       <div className="container mx-auto px-3 sm:px-4">
         <div className="flex h-14 items-center justify-between sm:h-16">
-          <Logo className="[&_svg]:h-6 [&_svg]:w-6 sm:[&_svg]:h-8 sm:[&_svg]:w-8 [&_span:first-of-type]:text-base sm:[&_span:first-of-type]:text-xl [&_span:last-of-type]:text-base sm:[&_span:last-of-type]:text-xl" />
+          <Logo className="[&_svg]:h-6 [&_svg]:w-6 sm:[&_svg]:h-8 sm:[&_svg]:w-8 [&_span:first-of-type]:text-base sm:[&_span:first-of-type]:text-xl [&_span:last-of-type]:text-base sm:[&_span:last-of-type]:text-xl [&_span]:text-[#f4f4f5]" />
 
           <nav className="hidden items-center gap-6 lg:flex">
             {navItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => scrollToSection(item.id)}
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                className="text-sm text-[#9ca3af] transition-colors hover:text-[#f4f4f5]"
               >
                 {item.label}
               </button>
@@ -47,11 +47,17 @@ export function LPHeader() {
 
           <div className="hidden items-center gap-3 lg:flex">
             <ThemeToggle />
-            <Button variant="ghost" className="text-sm font-medium transition-colors hover:bg-primary/5 hover:text-primary" asChild>
+            <Button variant="ghost" className="text-sm font-medium text-[#9ca3af] transition-colors hover:bg-[#10d98a]/5 hover:text-[#10d98a]" asChild>
               <Link to={appendReferralToPath("/auth")}>Entrar</Link>
             </Button>
-            <Button className="bg-primary px-6 text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90" onClick={() => trackEvent("cta_clicked", { cta: "comecar_gratis", location: "header" })} asChild>
-              <Link to={appendReferralToPath("/auth?tab=signup")}>Começar a prospectar</Link>
+            <Button 
+              className="bg-[#10d98a] px-6 text-[#0b0f0e] font-bold shadow-lg shadow-[#10d98a]/20 hover:bg-[#10d98a]/90 hover:scale-[1.02] transition-transform" 
+              onClick={() => {
+                trackEvent("cta_clicked", { cta: "comecar_gratis", location: "header" });
+                scrollToSection("precos");
+              }}
+            >
+              Começar teste grátis
             </Button>
           </div>
 
@@ -59,26 +65,32 @@ export function LPHeader() {
             <ThemeToggle />
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="sm" className="px-2">
+                <Button variant="ghost" size="sm" className="px-2 text-[#9ca3af] hover:text-[#f4f4f5]">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-[280px] sm:w-[320px]">
+              <SheetContent side="right" className="w-[280px] sm:w-[320px] bg-[#0b0f0e] border-l border-[#1f2d29] text-[#f4f4f5]">
                 <nav className="mt-8 flex flex-col gap-4">
                   {navItems.map((item) => (
                     <button
                       key={item.id}
                       onClick={() => scrollToSection(item.id)}
-                      className="rounded-lg px-4 py-3 text-left transition-colors hover:bg-secondary"
+                      className="rounded-lg px-4 py-3 text-left transition-colors text-[#9ca3af] hover:bg-[#111816] hover:text-[#f4f4f5]"
                     >
                       {item.label}
                     </button>
                   ))}
-                  <div className="mt-2 space-y-3 border-t pt-4">
-                    <Button className="w-full" onClick={() => trackEvent("cta_clicked", { cta: "comecar_gratis", location: "mobile_header" })} asChild>
-                      <Link to={appendReferralToPath("/auth?tab=signup")}>Começar a prospectar</Link>
+                  <div className="mt-2 space-y-3 border-t border-[#1f2d29] pt-4">
+                    <Button 
+                      className="w-full bg-[#10d98a] text-[#0b0f0e] font-bold hover:bg-[#10d98a]/90" 
+                      onClick={() => {
+                        trackEvent("cta_clicked", { cta: "comecar_gratis", location: "mobile_header" });
+                        scrollToSection("precos");
+                      }}
+                    >
+                      Começar teste grátis
                     </Button>
-                    <Button variant="outline" className="w-full" asChild>
+                    <Button variant="outline" className="w-full border-[#1f2d29] text-[#f4f4f5] hover:bg-[#10d98a]/5" asChild>
                       <Link to={appendReferralToPath("/auth?tab=login")}>Entrar</Link>
                     </Button>
                   </div>

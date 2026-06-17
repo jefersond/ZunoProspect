@@ -1,14 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
-import { ArrowRight, ShieldCheck } from "lucide-react";
-import { SocialProofBar } from "./SocialProofBar";
+import { ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
-import { appendReferralToPath } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 
+
 export function HeroSection() {
-  const headline = "Pare de prospectar no escuro.";
+  const headline = "Pare de caçar empresas no improviso.";
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -27,55 +25,73 @@ export function HeroSection() {
   };
 
   return (
-    <section className="relative overflow-hidden border-b border-border/40 bg-background pt-20 pb-12 selection:bg-primary/30 md:pt-28 md:pb-20">
+    <section className="relative overflow-hidden border-b border-[#1f2d29]/40 bg-[#0b0f0e] pt-24 pb-16 selection:bg-[#10d98a]/30 md:pt-32 md:pb-24">
+      {/* Brilho neon de fundo */}
+      <div className="absolute left-1/3 top-1/4 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-[#10d98a]/5 blur-[120px] pointer-events-none" />
+
       <div className="container relative z-10 mx-auto px-4">
-        <div className="grid items-center gap-10 lg:grid-cols-[1fr_0.92fr] lg:gap-12">
+        <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8">
           <div className="relative">
-            <div className="rounded-2xl border border-border/50 bg-card/70 p-5 shadow-xl backdrop-blur md:p-8">
-              <h1 className="mt-2 max-w-3xl text-4xl font-extrabold leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+            <div className="rounded-2xl border border-[#1f2d29] bg-[#111816]/80 p-6 shadow-[0_0_50px_rgba(16,217,138,0.02)] backdrop-blur-md md:p-8">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-[#10d98a]/30 bg-[#10d98a]/10 px-3 py-1 text-xs font-semibold text-[#10d98a] mb-4">
+                <Sparkles className="h-3.5 w-3.5" />
+                Máquina de prospecção inteligente
+              </div>
+
+              <h1 className="mt-2 max-w-3xl text-4xl font-extrabold leading-[1.05] tracking-tight text-[#f4f4f5] sm:text-5xl lg:text-6xl">
                 {headline}
               </h1>
 
-              <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg md:text-xl">
-                Encontre empresas por cidade e nicho, analise oportunidades com IA e receba abordagens prontas para WhatsApp, Instagram e e-mail.
+              <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#9ca3af] sm:text-lg md:text-xl">
+                A Zuno ajuda gestores de tráfego, social medias, designers, freelancers e agências a encontrar empresas por cidade/nicho, analisar oportunidades e gerar abordagens com IA.
               </p>
 
-              <div className="mt-8 flex flex-col gap-3">
+              {/* Chips de Públicos Alvo para Segmentação Rápida */}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {["Gestores de tráfego", "Social medias", "Designers", "Freelancers", "Agências"].map((publico) => (
+                  <span 
+                    key={publico}
+                    className="inline-flex items-center rounded-full border border-[#1f2d29] bg-[#0b0f0e]/50 px-3 py-1 text-xs font-semibold text-[#10d98a] hover:border-[#10d98a]/30 transition-all cursor-default"
+                  >
+                    {publico}
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-8 flex flex-col gap-4">
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button
                     size="lg"
-                    className="h-14 rounded-xl border-2 border-primary/50 bg-primary px-8 text-base font-bold text-primary-foreground shadow-[0_0_32px_hsl(162_72%_41%/0.45)] transition-all hover:scale-[1.02] hover:bg-primary/90 sm:text-lg"
-                    asChild
+                    className="h-14 rounded-lg bg-[#10d98a] px-8 text-base font-bold text-[#0b0f0e] shadow-[0_0_32px_rgba(16,217,138,0.3)] transition-all hover:scale-[1.02] hover:bg-[#10d98a]/90 sm:text-lg"
+                    onClick={() => {
+                      trackCta("comecar_gratis", "hero");
+                      trackHeroCta("CTA_Hero_Click", "Começar teste grátis de 7 dias");
+                      scrollToSection("precos");
+                    }}
                   >
-                    <Link
-                      to={appendReferralToPath("/auth?tab=signup")}
-                      onClick={() => {
-                        trackCta("comecar_gratis", "hero");
-                        trackHeroCta("CTA_Hero_Click", "Comece a prospectar");
-                      }}
-                    >
-                      Começar a prospectar
-                      <ArrowRight className="ml-2 h-5 w-5" />
-                    </Link>
+                    Começar teste grátis de 7 dias
+                    <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                   <Button
                     size="lg"
                     variant="outline"
-                    className="h-14 rounded-xl border-primary/30 px-8 text-base text-primary hover:border-primary/60 hover:bg-primary/10 sm:text-lg"
+                    className="h-14 rounded-lg border-[#1f2d29] bg-transparent px-8 text-base text-[#f4f4f5] hover:border-[#10d98a]/40 hover:bg-[#10d98a]/5 sm:text-lg"
                     onClick={() => {
                       trackCta("ver_como_funciona", "hero");
-                      trackHeroCta("CTA_Secondary_Click", "Ver como funciona");
+                      trackHeroCta("CTA_Secondary_Click", "Ver como funciona na prática");
                       scrollToSection("como-funciona");
                     }}
                   >
-                    Ver como funciona
+                    Ver como funciona na prática
                   </Button>
                 </div>
 
-                <p className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-                  <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
-                  Teste com 20 leads grátis + 3 análises IA.
-                </p>
+                <div className="mt-1 flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 shrink-0 text-[#10d98a]" />
+                  <p className="text-sm text-[#f4f4f5] font-semibold tracking-wide">
+                    Hoje R$0 • Cartão necessário • Cancele antes da cobrança
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -88,3 +104,4 @@ export function HeroSection() {
     </section>
   );
 }
+

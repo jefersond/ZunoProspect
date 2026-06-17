@@ -26,32 +26,27 @@ export const PERFIS_ALVO: PerfilAlvo[] = [
   {
     titulo: "Gestores de tráfego",
     icone: TrendingUp,
-    bullets: ["Encontre empresas que podem precisar de anúncios."],
+    bullets: ["Encontre clínicas, estéticas e negócios locais que precisam de anúncios e campanhas."],
   },
   {
     titulo: "Social medias",
     icone: Megaphone,
-    bullets: ["Ache negócios com presença digital fraca."],
+    bullets: ["Ache restaurantes, lojas e prestadores de serviços que precisam melhorar a presença digital."],
+  },
+  {
+    titulo: "Designers",
+    icone: Palette,
+    bullets: ["Identifique empresas com marcas desatualizadas e que necessitam de nova identidade visual."],
   },
   {
     titulo: "Freelancers",
-    icone: Palette,
-    bullets: ["Comece a prospectar sem depender só de indicação."],
-  },
-  {
-    titulo: "Consultores",
-    icone: LineChart,
-    bullets: ["Priorize empresas com sinais de oportunidade."],
-  },
-  {
-    titulo: "Agências pequenas",
-    icone: Building2,
-    bullets: ["Crie listas por nicho e região para alimentar o comercial."],
-  },
-  {
-    titulo: "SDRs",
     icone: BriefcaseBusiness,
-    bullets: ["Organize a primeira abordagem com dados e IA."],
+    bullets: ["Prospecte clientes ativamente por região para vender seus serviços sem depender apenas de indicações."],
+  },
+  {
+    titulo: "Agências",
+    icone: Building2,
+    bullets: ["Mapeie segmentos inteiros na sua cidade e alimente seu time de vendas com leads qualificados."],
   },
 ];
 
@@ -122,31 +117,31 @@ export const LEAD_QUANTITIES = [300, 800, 2000];
 
 export const FAQ_ITEMS = [
   {
-    pergunta: "O que é o Zuno Propect?",
-    resposta: "O Zuno é uma plataforma de prospecção com IA que ajuda você a encontrar empresas por cidade e nicho, analisar oportunidades e gerar abordagens prontas.",
+    pergunta: "Vou ser cobrado hoje?",
+    resposta: "Não. Ao ativar o teste de 7 dias, você paga R$0 hoje.",
   },
   {
-    pergunta: "Preciso de cartão para começar?",
-    resposta: "Não. Você pode testar com 20 leads e 3 análises IA no plano grátis.",
+    pergunta: "Por que preciso colocar cartão?",
+    resposta: "O cartão é usado para ativar o teste do plano escolhido e evitar cadastros sem intenção real. A cobrança só acontece depois dos 7 dias, se você não cancelar antes.",
   },
   {
-    pergunta: "Quantos leads tenho no plano grátis?",
-    resposta: "O plano grátis inclui 20 leads por mês e 3 análises com IA.",
+    pergunta: "Posso cancelar antes da cobrança?",
+    resposta: "Sim. Você pode cancelar antes do fim do teste para não ser cobrado.",
   },
   {
-    pergunta: "A IA gera mensagens para quais canais?",
-    resposta: "O Zuno gera abordagens prontas para WhatsApp, Instagram e e-mail.",
+    pergunta: "O que acontece depois dos 7 dias?",
+    resposta: "Após os 7 dias, sua assinatura começa automaticamente no plano escolhido e a cobrança mensal é realizada.",
   },
   {
-    pergunta: "A IA consome meus créditos automaticamente?",
-    resposta: "Não. A IA só é usada quando você clica para analisar um lead.",
+    pergunta: "A Zuno garante clientes?",
+    resposta: "Não. A Zuno não garante clientes. Ela ajuda você a encontrar empresas, analisar oportunidades e gerar abordagens com mais contexto. O resultado depende da sua oferta, abordagem e execução comercial.",
   },
   {
-    pergunta: "Posso cancelar quando quiser?",
-    resposta: "Sim. Nos planos mensais, você pode cancelar quando quiser.",
+    pergunta: "Para quem a Zuno é indicada?",
+    resposta: "Para gestores de tráfego, social medias, designers, freelancers, agências e operações que precisam prospectar empresas com mais clareza.",
   },
   {
-    pergunta: "Como funciona a indicação?",
-    resposta: "Você ganha 100 buscas extras quando uma pessoa indicada assina qualquer plano pago. Cadastros gratuitos ficam como pendentes.",
+    pergunta: "Posso usar a Zuno sem cartão?",
+    resposta: "A oferta principal é o teste de 7 dias dos planos pagos com cartão. Se existir plano gratuito limitado, ele deve aparecer apenas como opção secundária, sem destaque principal.",
   },
 ];

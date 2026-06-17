@@ -10,9 +10,10 @@ import { captureAttributionParams, trackMetaCustomEvent, trackOnce } from "@/lib
 
 import { LPHeader } from "@/components/landing/LPHeader";
 import { HeroSection } from "@/components/landing/HeroSection";
+import { AntesDepoisSection } from "@/components/landing/AntesDepoisSection";
 import { ComoFuncionaSection } from "@/components/landing/ComoFuncionaSection";
 import { ParaQuemSection } from "@/components/landing/ParaQuemSection";
-import { OQueZunoFazSection } from "@/components/landing/OQueZunoFazSection";
+import { CasosDeUsoSection } from "@/components/landing/CasosDeUsoSection";
 
 
 const PrecosSection = lazy(() => import("@/components/landing/PrecosSection").then((m) => ({
@@ -102,17 +103,22 @@ export default function LandingProspeccaoIA() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-background">
+    <div className="dark min-h-screen overflow-x-hidden bg-[#0b0f0e] text-[#f4f4f5] selection:bg-[#10d98a]/30">
       <LPHeader />
       {hasReferralInvite && (
-        <div className="border-b border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-center text-sm text-foreground">
+        <div className="border-b border-[#10d98a]/20 bg-[#10d98a]/10 px-4 py-3 text-center text-sm text-[#10d98a]">
           Você foi convidado para conhecer o Zuno Propect.
         </div>
       )}
       <HeroSection />
+      
+      <AntesDepoisSection />
+      
       <ComoFuncionaSection />
+      
       <ParaQuemSection />
-      <OQueZunoFazSection />
+      
+      <CasosDeUsoSection />
 
       <Suspense fallback={<SectionSkeleton />}>
         <PrecosSection />

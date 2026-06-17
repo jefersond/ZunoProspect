@@ -560,6 +560,34 @@ async function checkDuplicatePurchaseEvent(
   }
 }
 
+async function checkDuplicateTrialStartedEvent(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userId: string | null,
+  subscriptionId: string | null
+): Promise<boolean> {
+  if (!userId || !subscriptionId) return false;
+  
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("app_events")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("event_name", "trial_started")
+      .or(`metadata->>stripe_subscription_id.eq.${subscriptionId},event_data->>stripe_subscription_id.eq.${subscriptionId}`)
+      .limit(1);
+      
+    if (error) {
+      console.warn("[stripe-webhook] Erro ao checar duplicidade de trial_started event:", error);
+      return false;
+    }
+    
+    return data && data.length > 0;
+  } catch (e) {
+    console.warn("[stripe-webhook] Falha ao executar checkDuplicateTrialStartedEvent:", e);
+    return false;
+  }
+}
+
 async function logPaymentEvent(
   supabaseAdmin: ReturnType<typeof createClient>,
   values: Record<string, unknown>,
@@ -800,6 +828,32 @@ serve(async (req) => {
             stripe_checkout_session_id: stripeCheckoutSessionId,
           });
 
+          // REGISTRAR TRIAL INICIADO SE A ASSINATURA ESTIVER EM STATUS TRIALING
+          if (subStatus === "trialing") {
+            const hasTrialDuplicate = await checkDuplicateTrialStartedEvent(
+              supabaseAdmin,
+              eventUserId,
+              stripeSubscriptionId
+            );
+
+            if (!hasTrialDuplicate) {
+              await logAppEvent(supabaseAdmin, eventUserId, "trial_started", {
+                stripe_event_id: event.id,
+                stripe_checkout_session_id: stripeCheckoutSessionId,
+                stripe_customer_id: stripeCustomerId,
+                stripe_subscription_id: stripeSubscriptionId,
+                stripe_price_id: resolvedPriceId,
+                plan_id: finalPlanId,
+                plan_name: finalPlanId === "starter" ? "Starter" : finalPlanId === "pro" ? "Pro" : finalPlanId === "agency" ? "Agency" : "Free",
+                value: 0,
+                currency: currency?.toUpperCase() || "BRL",
+                billing_cycle: billingCycle === "yearly" || billingCycle === "annual" || billingCycle === "year" ? "yearly" : "monthly",
+                source: "stripe_webhook",
+              });
+              console.log(`[stripe-webhook] Evento trial_started registrado via checkout.session.completed para ${eventUserId}`);
+            }
+          }
+
           // REGISTRAR COMPRA IMEDIATAMENTE NO TEMPO REAL SE O PAGAMENTO ESTIVER CONFIRMADO
           if (eventStatus === "paid" || session.payment_status === "paid") {
             const hasDuplicate = await checkDuplicatePurchaseEvent(
@@ -904,6 +958,14 @@ serve(async (req) => {
                 stripe_subscription_id: stripeSubscriptionId,
               });
               
+              await logAppEvent(supabaseAdmin, eventUserId, "cancel_trial", {
+                stripe_event_id: event.id,
+                stripe_customer_id: stripeCustomerId,
+                stripe_subscription_id: stripeSubscriptionId,
+                plan_id: finalPlanId,
+                reason: "trial_immediate_cancel",
+              });
+
               // Retornar da execução pois já processamos o cancelamento
               return new Response(JSON.stringify({ received: true, forced_trial_cancel: true }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -938,6 +1000,30 @@ serve(async (req) => {
             stripe_customer_id: stripeCustomerId,
             stripe_subscription_id: stripeSubscriptionId,
           });
+
+          if (subscription.status === "trialing") {
+            const hasTrialDuplicate = await checkDuplicateTrialStartedEvent(
+              supabaseAdmin,
+              eventUserId,
+              stripeSubscriptionId
+            );
+
+            if (!hasTrialDuplicate) {
+              await logAppEvent(supabaseAdmin, eventUserId, "trial_started", {
+                stripe_event_id: event.id,
+                stripe_customer_id: stripeCustomerId,
+                stripe_subscription_id: stripeSubscriptionId,
+                stripe_price_id: priceId,
+                plan_id: finalPlanId,
+                plan_name: finalPlanId === "starter" ? "Starter" : finalPlanId === "pro" ? "Pro" : finalPlanId === "agency" ? "Agency" : "Free",
+                value: 0,
+                currency: currency?.toUpperCase() || "BRL",
+                billing_cycle: billingCycle === "yearly" || billingCycle === "annual" || billingCycle === "year" ? "yearly" : "monthly",
+                source: "stripe_webhook",
+              });
+              console.log(`[stripe-webhook] Evento trial_started registrado via customer.subscription.created/updated para ${eventUserId}`);
+            }
+          }
         }
       }
     }
@@ -990,6 +1076,18 @@ serve(async (req) => {
             stripe_customer_id: stripeCustomerId,
             stripe_subscription_id: stripeSubscriptionId,
           });
+
+          // Se estava em trial no momento do cancelamento
+          const isTrial = subscription.trial_end && new Date(subscription.trial_end * 1000) > new Date();
+          if (isTrial) {
+            await logAppEvent(supabaseAdmin, eventUserId, "cancel_trial", {
+              stripe_event_id: event.id,
+              stripe_customer_id: stripeCustomerId,
+              stripe_subscription_id: stripeSubscriptionId,
+              plan_id: metadata?.plan_id || "free",
+              reason: "subscription_deleted_during_trial",
+            });
+          }
         }
       }
     }

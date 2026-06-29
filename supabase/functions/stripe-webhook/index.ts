@@ -477,6 +477,38 @@ async function activateUserPlan(
     await rewardReferralForPaidPlan(supabaseAdmin, params.userId, targetPlan);
   }
 
+  // Agendar sequência de e-mails do trial (dias 3, 6 e 7)
+  // Fire-and-forget: erro aqui não interrompe a ativação do plano.
+  if (subscriptionStatus === 'trialing' && !isCanceled) {
+    try {
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('full_name')
+        .eq('id', params.userId)
+        .maybeSingle();
+
+      await fetch(
+        `${Deno.env.get('SUPABASE_URL')}/functions/v1/schedule-trial-emails`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({
+            user_id:          params.userId,
+            email:            params.email,
+            name:             profile?.full_name ?? '',
+            trial_started_at: params.trialStart,
+          }),
+        }
+      );
+      console.log(`[activateUserPlan] E-mails do trial agendados para ${params.userId}`);
+    } catch (emailErr) {
+      console.warn('[activateUserPlan] Falha ao agendar e-mails do trial (não crítico):', emailErr);
+    }
+  }
+
   console.log(`[activateUserPlan] Plano ${targetPlan} ativado com sucesso para o usuário ${params.userId}. Limites - leads: ${leadsLimit}, IA: ${aiLimit}`);
 }
 

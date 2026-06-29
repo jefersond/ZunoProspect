@@ -16,6 +16,10 @@ export type UsageInfo = {
   leads_available_total: number;
   billing_period_end: string;
   is_admin: boolean;
+  subscription_status?: string | null;
+  status?: string | null;
+  payment_status?: string | null;
+  hosted_invoice_url?: string | null;
 };
 
 type UseUsageReturn = {
@@ -45,6 +49,10 @@ const DEFAULT_USAGE: UsageInfo = {
   leads_available_total: 20,
   billing_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
   is_admin: false,
+  subscription_status: null,
+  status: null,
+  payment_status: null,
+  hosted_invoice_url: null,
 };
 
 function asSafeNumber(value: unknown, fallback = 0) {
@@ -196,12 +204,12 @@ export function useUsage(): UseUsageReturn {
         return "free";
       };
 
-      // Verificar se existe assinatura ativa/trialing em user_subscriptions ou se o status é null/não-cancelado com data no futuro
-      const CANCELLED_STATUSES_U = ["cancelled", "canceled", "unpaid", "incomplete_expired", "past_due"];
-      const subStatusNorm = (directSub?.subscription_status ?? "").toLowerCase();
+      // Para fins de ativação do plano, consideramos status de recuperação como válidos temporariamente (bloqueados via helpers)
+      const CANCELLED_STATUSES_U = ["cancelled", "canceled", "incomplete_expired"];
+      const subStatusNorm = (directSub?.subscription_status ?? directSub?.status ?? "").toLowerCase();
       const subPEnd = new Date(directSub?.billing_period_end || directSub?.current_period_end || 0);
       const isSubActive = !!directSub && (
-        ["active", "trialing"].includes(subStatusNorm) ||
+        ["active", "trialing", "past_due", "unpaid"].includes(subStatusNorm) ||
         (!CANCELLED_STATUSES_U.includes(subStatusNorm) && subPEnd > new Date())
       );
 
@@ -252,6 +260,10 @@ export function useUsage(): UseUsageReturn {
           leads_available_total: 999999,
           billing_period_end: billingPeriodEnd,
           is_admin: true,
+          subscription_status: "active",
+          status: "active",
+          payment_status: "paid",
+          hosted_invoice_url: null,
         });
         return;
       }
@@ -279,6 +291,10 @@ export function useUsage(): UseUsageReturn {
         leads_available_total: effectiveRemaining,
         billing_period_end: billingPeriodEnd,
         is_admin: false,
+        subscription_status: directSub?.subscription_status ?? directSub?.status ?? null,
+        status: directSub?.status ?? directSub?.subscription_status ?? null,
+        payment_status: directSub?.payment_status ?? null,
+        hosted_invoice_url: directSub?.hosted_invoice_url ?? null,
       });
 
     } catch (err: any) {

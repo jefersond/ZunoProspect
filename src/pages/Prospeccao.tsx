@@ -14,6 +14,7 @@ import { trackInitiateCheckout, trackMetaCustomEvent } from "@/lib/metaPixel";
 import { PLANS, normalizePlanId } from "@/config/plans";
 import { getFunnelContext } from "@/lib/funnelContext";
 import { AppHeader } from "@/components/AppHeader";
+import { PaymentRecoveryBanner } from "@/components/subscription/PaymentRecoveryBanner";
 
 const Prospeccao = () => {
   const navigate = useNavigate();
@@ -134,6 +135,7 @@ const Prospeccao = () => {
       />
 
       <main className="container mx-auto px-4 py-8 space-y-8">
+        <PaymentRecoveryBanner />
         <ProspeccaoForm />
         <LeadsList />
       </main>

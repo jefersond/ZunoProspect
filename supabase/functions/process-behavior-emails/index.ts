@@ -877,8 +877,191 @@ serve(async (req: Request): Promise<Response> => {
       return stats;
     };
 
-    // Rodar sequencialmente o Scanner e o Processor
+    // Função para varrer assinaturas já atrasadas e enviar e-mail de recuperação
+    const processOverdueSubscriptions = async () => {
+      console.log("[Recovery] Verificando assinaturas ja atrasadas...");
+      
+      const { data: overdueSubs, error: subsError } = await supabase
+        .from("user_subscriptions")
+        .select("user_id, status, plan_name, latest_invoice_id, hosted_invoice_url, stripe_subscription_id")
+        .in("status", ["past_due", "unpaid"]);
+
+      if (subsError) {
+        console.error("[Recovery] Erro ao carregar assinaturas atrasadas:", subsError);
+        return;
+      }
+
+      console.log(`[Recovery] Encontradas ${overdueSubs?.length || 0} assinaturas past_due/unpaid.`);
+
+      for (const sub of overdueSubs || []) {
+        if (!sub.user_id) continue;
+
+        // Determinar invoiceId (fallback se estiver vazio)
+        const invoiceId = sub.latest_invoice_id || `retro_rec_${sub.stripe_subscription_id || sub.user_id}`;
+
+        // 1. Checar se já foi enviado e-mail de recuperação para este invoice_id
+        const { data: existingLog, error: logError } = await supabase
+          .from("payment_recovery_email_logs")
+          .select("id")
+          .eq("invoice_id", invoiceId)
+          .eq("event_type", "payment_failed")
+          .maybeSingle();
+
+        if (logError) {
+          console.error("[Recovery] Erro ao checar logs de e-mail de recuperacao:", logError);
+        }
+
+        if (existingLog) {
+          console.log(`[Recovery] E-mail de recuperacao ja enviado anteriormente para user_id=${sub.user_id} e invoice_id=${invoiceId}. Ignorando.`);
+          continue;
+        }
+
+        // 2. Buscar e-mail do usuário no Supabase Auth
+        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(sub.user_id);
+        if (userError || !userData?.user || !userData.user.email) {
+          console.error(`[Recovery] Nao foi possivel carregar dados de e-mail do usuario ${sub.user_id}:`, userError);
+          continue;
+        }
+
+        const email = userData.user.email.toLowerCase();
+
+        // 3. Buscar nome de exibição no profile
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("nome_completo")
+          .eq("id", sub.user_id)
+          .maybeSingle();
+        const userName = prof?.nome_completo || "";
+
+        // 4. Verificar se está descadastrado
+        const fingerprint = await hashEmail(email);
+        const { data: isUnsub } = await supabase
+          .from("email_unsubscribes")
+          .select("id")
+          .or(`user_id.eq.${sub.user_id},email_fingerprint.eq.${fingerprint}`)
+          .maybeSingle();
+
+        if (isUnsub) {
+          console.log(`[Recovery] Usuario ${email} esta descadastrado de emails. Pulando envio.`);
+          continue;
+        }
+
+        // 5. Preparar e-mail de recuperação
+        const nomeDisplay = userName ? userName.split(' ')[0] : 'Parceiro';
+        const planoDisplay = sub.plan_name ? sub.plan_name.toUpperCase() : 'Zuno Prospect';
+        
+        const defaultAppUrl = "https://www.zunopropect.com.br/prospeccao";
+        const payUrl = sub.hosted_invoice_url || defaultAppUrl;
+        const ZUNO_SUPPORT_WHATSAPP = "553298511685";
+        const whatsappMsg = encodeURIComponent("Olá! Meu teste da Zuno terminou, mas o pagamento não foi concluído. Preciso de ajuda para regularizar.");
+        const whatsappUrl = `https://wa.me/${ZUNO_SUPPORT_WHATSAPP}?text=${whatsappMsg}`;
+
+        const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Não conseguimos concluir o pagamento da Zuno</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0b0f0e;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#f4f4f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0b0f0e;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="background-color:#111816;border:1px solid #1f2d29;border-radius:12px;overflow:hidden;padding:40px 30px;">
+          <tr>
+            <td align="center" style="padding-bottom:30px;">
+              <table cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td width="36" height="36" align="center" valign="middle" style="background-color:#10d98a;color:#0b0f0e;font-size:20px;font-weight:900;border-radius:8px;font-family:sans-serif;">Z</td>
+                  <td style="padding-left:10px;font-size:22px;font-weight:800;color:#f4f4f5;letter-spacing:-0.5px;">Zuno Propect</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="font-size:16px;line-height:1.6;color:#f4f4f5;">
+              Olá, <strong>${nomeDisplay}</strong>,<br><br>
+              Seu teste da Zuno terminou, mas não conseguimos concluir o pagamento da sua assinatura do plano <strong>${planoDisplay}</strong>.<br><br>
+              Isso geralmente acontece por limite no cartão, bloqueio de segurança do banco, cartão virtual expirado ou necessidade de atualizar os dados cadastrados.<br><br>
+              Para continuar utilizando a Zuno Prospect sem interrupções nas suas buscas e análises IA, você pode concluir o pagamento de forma simples:
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:30px 0;">
+              <a href="${payUrl}" target="_blank" style="display:inline-block;background-color:#10d98a;color:#0b0f0e;text-decoration:none;font-weight:bold;font-size:15px;padding:14px 28px;border-radius:8px;text-align:center;">
+                Atualizar pagamento
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="font-size:14px;line-height:1.6;color:#9ca3af;padding-bottom:20px;">
+              Se você preferir falar com a nossa equipe para resolver ou tirar dúvidas, clique abaixo para abrir nosso suporte no WhatsApp:
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding-bottom:20px;">
+              <a href="${whatsappUrl}" target="_blank" style="display:inline-block;border:1px solid #1f2d29;background-color:#111816;color:#10d98a;text-decoration:none;font-weight:bold;font-size:14px;padding:10px 20px;border-radius:8px;text-align:center;">
+                Falar com suporte via WhatsApp
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="border-top:1px solid #1f2d29;padding-top:20px;font-size:12px;color:#9ca3af;line-height:1.5;">
+              Seus leads já gerados e histórico continuam salvos e disponíveis para consulta. Apenas a geração de novas buscas e uso de IA ficarão suspensos até a regularização do pagamento.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+
+        const textContent = `Zuno Propect - Pagamento não concluído\n\nOlá, ${nomeDisplay},\n\nSeu teste da Zuno terminou, mas não conseguimos concluir o pagamento da sua assinatura do plano ${planoDisplay}.\n\nIsso pode acontecer por limite, cartão virtual expirado, bloqueio do banco ou dados do cartão.\n\nPara continuar utilizando a Zuno, atualize o pagamento pelo link abaixo:\n${payUrl}\n\nSe precisar de suporte, fale conosco no WhatsApp:\n${whatsappUrl}\n\nSeus leads já gerados e histórico continuam salvos e disponíveis para consulta.`;
+
+        // 6. Enviar o e-mail
+        console.log(`[Recovery] Enviando e-mail de recuperacao para ${email}...`);
+        const res = await sendEmailViaResend({
+          from: RESEND_FROM_EMAIL,
+          to: [email],
+          subject: "Pagamento não concluído",
+          html: htmlContent,
+          text: textContent,
+          reply_to: RESEND_REPLY_TO_EMAIL,
+        });
+
+        if (res.success) {
+          const messageId = res.data?.id || null;
+          await supabase.from("payment_recovery_email_logs").insert({
+            user_id: sub.user_id,
+            invoice_id: invoiceId,
+            subscription_id: sub.stripe_subscription_id,
+            email: email,
+            event_type: "payment_failed",
+            status: "sent",
+            sent_at: new Date().toISOString(),
+          });
+          console.log(`[Recovery] E-mail enviado com sucesso para ${email} (Msg ID: ${messageId})`);
+        } else {
+          console.error(`[Recovery] Falha ao enviar e-mail para ${email}:`, res.error);
+          await supabase.from("payment_recovery_email_logs").insert({
+            user_id: sub.user_id,
+            invoice_id: invoiceId,
+            subscription_id: sub.stripe_subscription_id,
+            email: email,
+            event_type: "payment_failed",
+            status: "failed",
+            error_message: String(res.error),
+          });
+        }
+      }
+    };
+
+    // Rodar sequencialmente o Scanner, o Processor e o envio retroativo de cobrança
     await scanBehaviorAutomations();
+    await processOverdueSubscriptions();
     const stats = await processPendingBehaviorEmails();
 
     return new Response(JSON.stringify({

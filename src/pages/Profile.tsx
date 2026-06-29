@@ -35,6 +35,7 @@ const Profile = () => {
   const [profile, setProfile] = useState({
     nome_completo: "",
     empresa: "",
+    whatsapp: "",
   });
   const [cancelingSub, setCancelingSub] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
@@ -89,6 +90,7 @@ const Profile = () => {
         setProfile({
           nome_completo: data.nome_completo || "",
           empresa: data.empresa || "",
+          whatsapp: data.whatsapp || "",
         });
       }
     } catch (error: any) {
@@ -120,6 +122,7 @@ const Profile = () => {
           id: user.id,
           nome_completo: profile.nome_completo,
           empresa: profile.empresa,
+          whatsapp: profile.whatsapp,
           updated_at: new Date().toISOString(),
         });
 
@@ -277,6 +280,19 @@ const Profile = () => {
                   value={profile.empresa}
                   onChange={(e) =>
                     setProfile({ ...profile, empresa: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="whatsapp">WhatsApp</Label>
+                <Input
+                  id="whatsapp"
+                  type="text"
+                  placeholder="Ex: (11) 99999-9999"
+                  value={profile.whatsapp}
+                  onChange={(e) =>
+                    setProfile({ ...profile, whatsapp: e.target.value })
                   }
                 />
               </div>

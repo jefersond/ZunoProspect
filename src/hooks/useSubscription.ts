@@ -20,6 +20,9 @@ export interface SubscriptionInfo {
   leads_bonus_balance: number;
   leads_available_total: number;
   subscription_status?: string | null;
+  status?: string | null;
+  payment_status?: string | null;
+  hosted_invoice_url?: string | null;
   trial_start?: string | null;
   trial_end?: string | null;
   cancel_at_period_end?: boolean;
@@ -221,12 +224,12 @@ export const useSubscription = (): UseSubscriptionReturn => {
       let aiUsed = 0;
       let leadsBonus = 0;
 
-      // Verificar se existe assinatura ativa/trialing em user_subscriptions ou se o status é null/não-cancelado com data no futuro
-      const CANCELLED_STATUSES = ["cancelled", "canceled", "unpaid", "incomplete_expired", "past_due"];
-      const subStatusNormalized = (directSub?.subscription_status ?? "").toLowerCase();
+      // Para fins de ativação do plano, consideramos status de recuperação como válidos temporariamente (bloqueados via helpers)
+      const CANCELLED_STATUSES = ["cancelled", "canceled", "incomplete_expired"];
+      const subStatusNormalized = (directSub?.subscription_status ?? directSub?.status ?? "").toLowerCase();
       const subPeriodEnd = new Date(directSub?.billing_period_end || directSub?.current_period_end || 0);
       const isSubActive = !!directSub && (
-        ["active", "trialing"].includes(subStatusNormalized) ||
+        ["active", "trialing", "past_due", "unpaid"].includes(subStatusNormalized) ||
         (!CANCELLED_STATUSES.includes(subStatusNormalized) && subPeriodEnd > new Date())
       );
 
@@ -278,6 +281,9 @@ export const useSubscription = (): UseSubscriptionReturn => {
           leads_bonus_balance: 999999,
           leads_available_total: 999999,
           subscription_status: "active",
+          status: "active",
+          payment_status: "paid",
+          hosted_invoice_url: null,
           trial_start: null,
           trial_end: null,
           cancel_at_period_end: false,
@@ -292,7 +298,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
       const effectiveRemaining = planRemaining + bonusSaldo;
 
       let trialDaysRemaining: number | null = null;
-      if (directSub?.subscription_status === "trialing" && directSub.trial_end) {
+      if ((directSub?.subscription_status === "trialing" || directSub?.status === "trialing") && directSub.trial_end) {
         const trialEndDate = new Date(directSub.trial_end);
         const diffMs = trialEndDate.getTime() - new Date().getTime();
         trialDaysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
@@ -314,7 +320,10 @@ export const useSubscription = (): UseSubscriptionReturn => {
         us_prospecting_addon_status: addonData?.status ?? null,
         leads_bonus_balance: bonusSaldo,
         leads_available_total: effectiveRemaining,
-        subscription_status: directSub?.subscription_status ?? null,
+        subscription_status: directSub?.subscription_status ?? directSub?.status ?? null,
+        status: directSub?.status ?? directSub?.subscription_status ?? null,
+        payment_status: directSub?.payment_status ?? null,
+        hosted_invoice_url: directSub?.hosted_invoice_url ?? null,
         trial_start: directSub?.trial_start ?? null,
         trial_end: directSub?.trial_end ?? null,
         cancel_at_period_end: directSub?.cancel_at_period_end ?? false,

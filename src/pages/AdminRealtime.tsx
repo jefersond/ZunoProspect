@@ -56,6 +56,8 @@ type AdminUserSummary = {
   leads_used_this_month: number;
   ai_limit: number;
   ai_used_this_month: number;
+  whatsapp?: string | null;
+  phone?: string | null;
   first_utm_source?: string | null;
   first_utm_medium?: string | null;
   first_utm_campaign?: string | null;
@@ -678,6 +680,7 @@ export default function AdminRealtime() {
     // Obter dados do usuário no Supabase se disponíveis
     const user = (last.user_id && usersById.get(last.user_id)) || usersByEmail.get((last.email || last.user_email || "").toLowerCase());
     const email = user?.email || last.email || last.user_email || "-";
+    const whatsapp = user?.whatsapp || user?.phone || "-";
     const plan = String(user?.plan_name || metadata(last).user_plan || "unknown").toLowerCase();
     
     // UTMs e Origem do tráfego
@@ -968,6 +971,7 @@ export default function AdminRealtime() {
     
     return {
       email,
+      whatsapp,
       plan,
       utmSource: utmSourceVal,
       utmCampaign: utmCampaignVal,
@@ -1396,6 +1400,23 @@ export default function AdminRealtime() {
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     <p><span className="text-slate-500 font-medium">E-mail:</span> <span className="text-slate-200 font-bold break-all">{selectedJourneySummary.email}</span></p>
+                    <p>
+                      <span className="text-slate-500 font-medium">WhatsApp:</span>{' '}
+                      <span className="text-slate-200 font-bold break-all">
+                        {selectedJourneySummary.whatsapp && selectedJourneySummary.whatsapp !== "-" ? (
+                          <a
+                            href={`https://wa.me/${selectedJourneySummary.whatsapp.replace(/\D/g, "").length <= 11 && !selectedJourneySummary.whatsapp.replace(/\D/g, "").startsWith("55") ? "55" + selectedJourneySummary.whatsapp.replace(/\D/g, "") : selectedJourneySummary.whatsapp.replace(/\D/g, "")}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-emerald-400 hover:text-emerald-350 hover:underline inline-flex items-center gap-1 font-semibold"
+                          >
+                            {selectedJourneySummary.whatsapp}
+                          </a>
+                        ) : (
+                          "-"
+                        )}
+                      </span>
+                    </p>
                     <p>
                       <span className="text-slate-500 font-medium">Plano Atual:</span>{' '}
                       <Badge className={`text-[10px] py-0.5 px-2 font-bold uppercase ${

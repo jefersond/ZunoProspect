@@ -125,6 +125,201 @@ function resolvePlanByStripeData(
 }
 
 // Ativação e persistência centralizada do plano (ETAPA 4)
+async function sendPaymentRecoveryEmail(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  params: {
+    userId: string | null;
+    email: string;
+    nome: string;
+    plano: string;
+    invoiceId: string;
+    subscriptionId: string | null;
+    hostedInvoiceUrl: string | null;
+  }
+) {
+  const invoiceId = params.invoiceId;
+  const email = params.email;
+
+  // 1. Checar se já foi enviado e-mail de recuperação para este invoice_id
+  const { data: existingLog, error: logError } = await supabaseAdmin
+    .from("payment_recovery_email_logs")
+    .select("id")
+    .eq("invoice_id", invoiceId)
+    .eq("event_type", "payment_failed")
+    .maybeSingle();
+
+  if (logError) {
+    console.error("[stripe-webhook] Erro ao checar logs de e-mail de recuperação:", logError);
+  }
+
+  if (existingLog) {
+    console.log(`[stripe-webhook] E-mail de recuperação já enviado anteriormente para invoice_id=${invoiceId}. Ignorando.`);
+    return;
+  }
+
+  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
+  const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "Zuno Propect <contato@zunopropect.com.br>";
+  const RESEND_REPLY_TO_EMAIL = Deno.env.get("RESEND_REPLY_TO_EMAIL") || "";
+
+  if (!RESEND_API_KEY) {
+    console.error("[stripe-webhook] RESEND_API_KEY não configurada no ambiente. Não é possível enviar e-mail de recuperação.");
+    return;
+  }
+
+  // 2. Preparar links
+  const defaultAppUrl = "https://www.zunopropect.com.br/prospeccao";
+  const payUrl = params.hostedInvoiceUrl || defaultAppUrl;
+  const ZUNO_SUPPORT_WHATSAPP = "553298511685";
+  const whatsappMsg = encodeURIComponent("Olá! Meu teste da Zuno terminou, mas o pagamento não foi concluído. Preciso de ajuda para regularizar.");
+  const whatsappUrl = `https://wa.me/${ZUNO_SUPPORT_WHATSAPP}?text=${whatsappMsg}`;
+
+  // 3. Montar HTML
+  const nomeDisplay = params.nome ? params.nome.split(' ')[0] : 'Parceiro';
+  const planoDisplay = params.plano ? params.plano.toUpperCase() : 'Zuno Prospect';
+  
+  const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Não conseguimos concluir o pagamento da Zuno</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0b0f0e;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#f4f4f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0b0f0e;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="background-color:#111816;border:1px solid #1f2d29;border-radius:12px;overflow:hidden;padding:40px 30px;">
+          <tr>
+            <td align="center" style="padding-bottom:30px;">
+              <table cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td width="36" height="36" align="center" valign="middle" style="background-color:#10d98a;color:#0b0f0e;font-size:20px;font-weight:900;border-radius:8px;font-family:sans-serif;">Z</td>
+                  <td style="padding-left:10px;font-size:22px;font-weight:800;color:#f4f4f5;letter-spacing:-0.5px;">Zuno Propect</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <h2 style="color:#f4f4f5;font-size:20px;margin-top:0;margin-bottom:16px;font-weight:700;">Oi, ${nomeDisplay}, tudo bem?</h2>
+              <p style="color:#9ca3af;font-size:15px;line-height:24px;margin-bottom:24px;">
+                Seu teste da Zuno terminou, mas não conseguimos concluir o pagamento do plano <strong>${planoDisplay}</strong>.
+              </p>
+              <p style="color:#9ca3af;font-size:15px;line-height:24px;margin-bottom:30px;">
+                Isso pode acontecer por limite, cartão virtual, bloqueio do banco ou dados do cartão.
+              </p>
+              <p style="color:#9ca3af;font-size:15px;line-height:24px;margin-bottom:30px;">
+                Para continuar usando a Zuno, atualize o pagamento pelo botão abaixo:
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding-bottom:30px;">
+              <a href="${payUrl}" style="display:inline-block;background-color:#10d98a;color:#0b0f0e;text-decoration:none;padding:14px 28px;font-size:15px;font-weight:700;border-radius:8px;box-shadow:0 4px 12px rgba(16,217,138,0.2);">
+                Atualizar pagamento
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="border-top:1px solid #1f2d29;padding-top:24px;">
+              <p style="color:#9ca3af;font-size:14px;margin:0 0 16px 0;">
+                Se precisar de ajuda, fale comigo pelo suporte.
+              </p>
+              <a href="${whatsappUrl}" target="_blank" style="display:inline-block;color:#10d98a;text-decoration:none;font-size:14px;font-weight:600;">
+                💬 Falar com suporte no WhatsApp
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+
+  const textContent = `
+Oi, ${nomeDisplay}, tudo bem?
+
+Seu teste da Zuno terminou, mas não conseguimos concluir o pagamento do plano ${planoDisplay}.
+
+Isso pode acontecer por limite, cartão virtual, bloqueio do banco ou dados do cartão.
+
+Para continuar usando a Zuno, atualize o pagamento pelo link abaixo:
+${payUrl}
+
+Se precisar de ajuda, fale comigo pelo suporte.
+WhatsApp: ${whatsappUrl}
+  `.trim();
+
+  // 4. Enviar via Resend
+  let status = "failed";
+  let errorMessage: string | null = null;
+  let sentAt: string | null = null;
+
+  try {
+    const payload = {
+      from: RESEND_FROM_EMAIL,
+      to: [email],
+      subject: "Não conseguimos concluir o pagamento da Zuno",
+      html: htmlContent,
+      text: textContent,
+      reply_to: RESEND_REPLY_TO_EMAIL || undefined,
+    };
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data?.id) {
+      status = "sent";
+      sentAt = new Date().toISOString();
+      console.log(`[stripe-webhook] E-mail de recuperação enviado com sucesso para ${email}. ID do Resend: ${data.id}`);
+    } else {
+      errorMessage = data?.message || data?.error || `Erro HTTP ${response.status} da API Resend`;
+      console.error(`[stripe-webhook] Falha no retorno do Resend ao enviar para ${email}:`, errorMessage);
+    }
+  } catch (err: any) {
+    errorMessage = err.message || "Exceção desconhecida no fetch do Resend";
+    console.error(`[stripe-webhook] Exceção ao enviar e-mail via Resend para ${email}:`, err);
+  }
+
+  // 5. Inserir log no banco de dados para evitar duplicidade futuramente
+  const { error: insertError } = await supabaseAdmin
+    .from("payment_recovery_email_logs")
+    .insert({
+      user_id: params.userId,
+      invoice_id: invoiceId,
+      subscription_id: params.subscriptionId,
+      email: email,
+      event_type: "payment_failed",
+      status: status,
+      sent_at: sentAt,
+      error_message: errorMessage,
+    });
+
+  if (insertError) {
+    console.error("[stripe-webhook] Erro ao gravar log de e-mail de recuperação:", insertError);
+  }
+
+  // Registrar também o evento no app_events
+  await logAppEvent(supabaseAdmin, params.userId, status === "sent" ? "Payment_Recovery_Email_Sent" : "Payment_Recovery_Email_Failed", {
+    invoice_id: invoiceId,
+    subscription_id: params.subscriptionId,
+    email: email,
+    error_message: errorMessage,
+    status: status
+  });
+}
+
 async function activateUserPlan(
   supabaseAdmin: ReturnType<typeof createClient>,
   params: {
@@ -142,6 +337,16 @@ async function activateUserPlan(
     trialEnd?: string | null;
     cancelAtPeriodEnd?: boolean;
     canceledAt?: string | null;
+    
+    // Novos campos opcionais de recuperação de pagamento
+    paymentStatus?: string | null;
+    latestInvoiceId?: string | null;
+    hostedInvoiceUrl?: string | null;
+    lastPaymentFailedAt?: string | null;
+    lastPaymentSucceededAt?: string | null;
+    amountRemaining?: number | null;
+    amountDue?: number | null;
+    invoiceAttemptCount?: number | null;
   }
 ) {
   const normPlan = normalizePlanDbName(params.planId);
@@ -219,6 +424,17 @@ async function activateUserPlan(
       cancel_at_period_end: params.cancelAtPeriodEnd ?? false,
       canceled_at: params.canceledAt ?? null,
       updated_at: now.toISOString(),
+      
+      // Novos campos de recuperação de pagamento
+      status: subscriptionStatus,
+      payment_status: params.paymentStatus ?? null,
+      latest_invoice_id: params.latestInvoiceId ?? null,
+      hosted_invoice_url: params.hostedInvoiceUrl ?? null,
+      last_payment_failed_at: params.lastPaymentFailedAt ?? null,
+      last_payment_succeeded_at: params.lastPaymentSucceededAt ?? null,
+      amount_remaining: params.amountRemaining ?? null,
+      amount_due: params.amountDue ?? null,
+      invoice_attempt_count: params.invoiceAttemptCount ?? null,
     }, { onConflict: "user_id" });
 
   if (error) {
@@ -245,6 +461,10 @@ async function activateUserPlan(
       trial_days_remaining: trialDaysRemaining,
       stripe_customer_id: params.stripeCustomerId ?? null,
       stripe_subscription_id: params.stripeSubscriptionId ?? null,
+      
+      // Novos campos em profiles
+      current_plan: targetPlan,
+      payment_status: params.paymentStatus ?? null,
     })
     .eq("id", params.userId);
 
@@ -259,6 +479,7 @@ async function activateUserPlan(
 
   console.log(`[activateUserPlan] Plano ${targetPlan} ativado com sucesso para o usuário ${params.userId}. Limites - leads: ${leadsLimit}, IA: ${aiLimit}`);
 }
+
 
 // Pipeline de busca robusta do usuário em caso de metadados ausentes (ETAPA 5)
 async function findUserByStripeData(
@@ -975,6 +1196,13 @@ serve(async (req) => {
             }
           }
 
+          let paymentStatus = "paid";
+          if (subscription.status === "past_due" || subscription.status === "unpaid") {
+            paymentStatus = "failed";
+          } else if (subscription.status === "incomplete") {
+            paymentStatus = "requires_payment_method";
+          }
+
           await activateUserPlan(supabaseAdmin, {
             userId: eventUserId,
             email,
@@ -990,6 +1218,9 @@ serve(async (req) => {
             trialEnd,
             cancelAtPeriodEnd,
             canceledAt,
+            
+            paymentStatus,
+            latestInvoiceId: subscription.latest_invoice ? stripeId(subscription.latest_invoice) : undefined,
           });
 
           await logAppEvent(supabaseAdmin, eventUserId, "Subscription_Updated", {
@@ -1066,6 +1297,7 @@ serve(async (req) => {
             trialEnd,
             cancelAtPeriodEnd: false,
             canceledAt,
+            paymentStatus: "canceled",
           });
 
           await logAppEvent(supabaseAdmin, eventUserId, "Subscription_Canceled", {
@@ -1092,11 +1324,12 @@ serve(async (req) => {
       }
     }
 
-    // 4. invoice.payment_succeeded e invoice.payment_failed
-    if (event.type === "invoice.payment_succeeded" || event.type === "invoice.payment_failed") {
+    // 4. invoice.payment_succeeded, invoice.payment_failed e invoice.paid
+    if (event.type === "invoice.payment_succeeded" || event.type === "invoice.payment_failed" || event.type === "invoice.paid") {
       const invoice = event.data.object as Stripe.Invoice;
       const subscriptionId = stripeId(invoice.subscription);
-      eventStatus = event.type === "invoice.payment_failed" ? "failed" : "paid";
+      const isFailed = event.type === "invoice.payment_failed";
+      eventStatus = isFailed ? "failed" : "paid";
       stripeCustomerId = stripeId(invoice.customer);
       stripeSubscriptionId = subscriptionId;
       stripeCheckoutSessionId = stripeId(invoice.charge) || null;
@@ -1127,13 +1360,13 @@ serve(async (req) => {
           await updateAddonFromSubscription(
             supabaseAdmin,
             subscription,
-            event.type === "invoice.payment_failed" ? "past_due" : "active",
+            isFailed ? "past_due" : "active",
           );
         } else {
           if (!eventUserId) {
             console.warn(`[stripe-webhook] invoice event recebido sem user_id mapeado (ID do Evento: ${event.id})`);
             
-            if (event.type === "invoice.payment_failed") {
+            if (isFailed) {
               await logAppEvent(supabaseAdmin, null, "Payment_Plan_Activation_Failed", {
                 stripe_event_id: event.id,
                 event_type: event.type,
@@ -1144,7 +1377,6 @@ serve(async (req) => {
             }
           } else {
             const billingCycle = metadata?.billing_cycle || "monthly";
-            const isFailed = event.type === "invoice.payment_failed";
             
             const trialStart = subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : null;
             const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null;
@@ -1166,18 +1398,66 @@ serve(async (req) => {
               trialEnd,
               cancelAtPeriodEnd,
               canceledAt,
+              
+              // Novos campos de faturamento/recuperação
+              paymentStatus: isFailed ? "failed" : "paid",
+              latestInvoiceId: invoice.id,
+              hostedInvoiceUrl: invoice.hosted_invoice_url,
+              lastPaymentFailedAt: isFailed ? new Date().toISOString() : undefined,
+              lastPaymentSucceededAt: !isFailed ? new Date().toISOString() : undefined,
+              amountRemaining: invoice.amount_remaining,
+              amountDue: invoice.amount_due,
+              invoiceAttemptCount: invoice.attempt_count,
             });
 
             if (isFailed) {
-              await logAppEvent(supabaseAdmin, eventUserId, "Invoice_Payment_Failed", {
+              await logAppEvent(supabaseAdmin, eventUserId, "Payment_Failed", {
                 stripe_event_id: event.id,
                 event_type: event.type,
                 plan_id: finalPlanId,
                 email,
                 stripe_customer_id: stripeCustomerId,
                 stripe_subscription_id: stripeSubscriptionId,
+                invoice_id: invoice.id,
+                amount_due: invoice.amount_due,
+                amount_remaining: invoice.amount_remaining,
+                hosted_invoice_url: invoice.hosted_invoice_url,
+                attempt_count: invoice.attempt_count,
+              });
+
+              // Obter o nome do usuário a partir dos profiles se possível para o e-mail
+              let userName = "";
+              if (eventUserId) {
+                const { data: prof } = await supabaseAdmin
+                  .from("profiles")
+                  .select("nome_completo")
+                  .eq("id", eventUserId)
+                  .maybeSingle();
+                userName = prof?.nome_completo || "";
+              }
+
+              // Dispara o e-mail de recuperação sem duplicar
+              await sendPaymentRecoveryEmail(supabaseAdmin, {
+                userId: eventUserId,
+                email: email || invoice.customer_email || "",
+                nome: userName,
+                plano: finalPlanId,
+                invoiceId: invoice.id,
+                subscriptionId: stripeSubscriptionId,
+                hostedInvoiceUrl: invoice.hosted_invoice_url,
               });
             } else {
+              await logAppEvent(supabaseAdmin, eventUserId, "Payment_Recovered", {
+                stripe_event_id: event.id,
+                event_type: event.type,
+                plan_id: finalPlanId,
+                email,
+                stripe_customer_id: stripeCustomerId,
+                stripe_subscription_id: stripeSubscriptionId,
+                invoice_id: invoice.id,
+                amount_paid: invoice.amount_paid || amount || 0,
+              });
+
               await logAppEvent(supabaseAdmin, eventUserId, "Payment_Plan_Activated", {
                 stripe_event_id: event.id,
                 event_type: event.type,
@@ -1212,7 +1492,7 @@ serve(async (req) => {
                   has_plan_conflict: hasPlanConflict,
                   conflict_details: conflictDetails,
                 });
-                console.log(`[stripe-webhook] Evento purchase_completed registrado com sucesso via invoice.payment_succeeded para ${eventUserId}`);
+                console.log(`[stripe-webhook] Evento purchase_completed registrado com sucesso via invoice.payment_succeeded/paid para ${eventUserId}`);
               }
             }
           }

@@ -373,3 +373,43 @@ Evento de rastreamento disparado na finalização segura do checkout (`app_event
 1. **Independência de Abas (Error Boundary):** As abas do admin devem operar de forma isolada através do `AdminErrorBoundary`. A falha catastrófica em runtime de uma aba (ex: colunas ausentes ou erro CORS de Edge Function) nunca deve derrubar o painel administrativo inteiro, exibindo em vez disso um card de erro amigável contextualizado.
 2. **Ciclo de Vida do Loading (Try-Catch-Finally):** Qualquer requisição administrativa de dados no Supabase ou Edge Functions deve ser envelopada em um bloco `try/catch` síncrono, garantindo o desligamento do loader (`setLoading(false)`) no bloco `finally` e exibindo `AdminErrorState` com botão de retentativa em caso de falha.
 3. **Resiliência a Campos Nulos:** Na listagem de tráfego, jornada e checkouts, qualquer leitura de metadados nulos ou ausentes deve ser normalizada síncronamente com fallbacks amigáveis (ex: `value || "não informado"`), impedindo quebras de render no React.
+
+---
+
+## 5. Recuperação de Pagamento e Faturamento
+
+### Esquema de Dados Adicional (user_subscriptions)
+* `status`: text (Status da assinatura do Stripe, ex: 'past_due', 'active', 'canceled')
+* `payment_status`: text (Status de pagamento da última fatura, ex: 'failed', 'paid', 'requires_payment_method')
+* `latest_invoice_id`: text (ID da última fatura gerada no Stripe)
+* `hosted_invoice_url`: text (Link público do Stripe para pagamento da fatura)
+* `last_payment_failed_at`: timestamptz (Timestamp da última falha de pagamento)
+* `last_payment_succeeded_at`: timestamptz (Timestamp do último sucesso de pagamento)
+* `amount_remaining`: integer (Valor restante em centavos a ser pago na fatura)
+* `amount_due`: integer (Valor total em centavos da fatura)
+* `invoice_attempt_count`: integer (Contagem de tentativas de pagamento realizadas)
+* `updated_at`: timestamptz (Timestamp da última atualização)
+
+### Esquema de Dados Adicional (profiles)
+* `subscription_status`: text (Sincronizado com user_subscriptions)
+* `current_plan`: text (Nome amigável do plano ativo ou contratado)
+* `payment_status`: text (Status de pagamento da última fatura)
+
+### Tabela de Logs de E-mail de Recuperação (`payment_recovery_email_logs`)
+* `id`: uuid (Primary Key)
+* `user_id`: uuid (Foreign Key -> auth.users, nullable)
+* `invoice_id`: text (Not Null)
+* `subscription_id`: text (Nullable)
+* `email`: text (Not Null)
+* `event_type`: text (Not Null, ex: 'payment_failed')
+* `status`: text (Not Null, ex: 'sent', 'failed')
+* `sent_at`: timestamptz (Nullable)
+* `error_message`: text (Nullable)
+* `created_at`: timestamptz (Default: now())
+
+### Regras Comportamentais de Recuperação de Pagamento
+1. **isPaymentRecoveryRequired Helper:** Retorna `true` se a assinatura possuir `subscription_status === 'past_due'` ou `payment_status === 'failed'` ou `payment_status === 'requires_payment_method'` ou fatura aberta/não paga com `amount_remaining > 0`.
+2. **canUsePaidFeatures Helper:** Retorna `true` para admins (`isAdmin === true`). Se o status for `past_due`, `unpaid` ou se o pagamento falhou (`payment_status === 'failed'`), o helper deve retornar `false`, bloqueando novas buscas, análises de IA, refinos e consumo de créditos. Permite acesso a perfis, histórico, leads existentes e suporte.
+3. **Recuperação Amigável:** O aviso no app (banner ou modal central leve) deve usar linguagem empática e humana, explicando que o pagamento não foi concluído por possíveis motivos como limite do cartão, cartão virtual ou bloqueio bancário.
+4. **Tratamento de E-mail Único:** Nunca enviar mais de um e-mail de recuperação para a mesma fatura (`invoice_id`). Checar se já existe um registro correspondente em `payment_recovery_email_logs` com status de sucesso antes do envio.
+5. **Bypass de Admin:** Admins (`isAdmin === true`) têm acesso total e irrestrito, ignorando quaisquer bloqueios ou validações de pagamento pendente.

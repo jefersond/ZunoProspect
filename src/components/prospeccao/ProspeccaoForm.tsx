@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useUsage } from "@/hooks/useUsage";
+import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { Loader2, Search, Mail, MessageCircle, Instagram, Globe, Sparkles } from "lucide-react";
 import { SearchProgress } from "./SearchProgress";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
@@ -337,6 +338,37 @@ export const ProspeccaoForm = () => {
     return pollInterval;
   };
 
+  const handleUpdatePayment = async () => {
+    trackEvent("Payment_Update_Clicked", {
+      plan_name: subscription?.plan_name,
+      subscription_status: subscription?.status || subscription?.subscription_status,
+      hosted_invoice_url_exists: !!subscription?.hosted_invoice_url,
+      source: "form_block_toast",
+    });
+
+    if (subscription?.hosted_invoice_url) {
+      window.open(subscription.hosted_invoice_url, "_blank");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke("create-customer-portal-session");
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, "_blank");
+      } else {
+        throw new Error("URL do portal não encontrada.");
+      }
+    } catch (err: any) {
+      console.error("Erro ao abrir portal do Stripe:", err);
+      toast({
+        title: "Erro ao abrir o portal",
+        description: err.message || "Tente novamente ou contate o suporte.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const runSearch = async (data: FormData, isIncrementalSearch: boolean) => {
     if (subscriptionLoading || usageLoading) {
       toast({
@@ -352,6 +384,23 @@ export const ProspeccaoForm = () => {
         description: "Estamos criando seu perfil e saldo inicial. Tente novamente em instantes.",
       });
       await refreshUsage();
+      return;
+    }
+
+    if (!canUsePaidFeatures(null, subscription)) {
+      toast({
+        variant: "destructive",
+        title: "Pagamento pendente",
+        description: "Não conseguimos concluir o pagamento da sua assinatura. Atualize o pagamento para continuar gerando novas buscas.",
+        action: (
+          <button 
+            onClick={handleUpdatePayment}
+            className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-zinc-700 bg-zinc-800 px-3 text-xs font-bold text-zinc-200 transition-all hover:bg-zinc-700 focus:outline-none"
+          >
+            Atualizar
+          </button>
+        )
+      });
       return;
     }
 

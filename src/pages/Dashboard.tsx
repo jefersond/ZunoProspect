@@ -13,6 +13,7 @@ import { UsageStats } from "@/components/UsageStats";
 import { useUsage } from "@/hooks/useUsage";
 import { useSubscription } from "@/hooks/useSubscription";
 import { isAdminUser } from "@/config/admin";
+import { PaymentRecoveryBanner } from "@/components/subscription/PaymentRecoveryBanner";
 
 interface DashboardMetrics {
   totalLeads: number;
@@ -170,6 +171,7 @@ const Dashboard = () => {
       <AppHeader isAdmin={isAdmin} />
 
       <main className="container mx-auto px-4 py-8 space-y-6">
+        <PaymentRecoveryBanner />
         {/* Banner do Teste Grátis Ativo (Trial) */}
         {subscription?.subscription_status === "trialing" && (
           <div className="rounded-xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/40 via-emerald-900/10 to-zinc-950 p-5 shadow-xl transition-all duration-300">

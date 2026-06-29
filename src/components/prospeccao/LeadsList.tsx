@@ -23,6 +23,7 @@ import { UpsellCard } from "./UpsellCard";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useUsage } from "@/hooks/useUsage";
 import { trackEvent } from "@/lib/analytics";
+import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import type { UpgradeSource } from "@/lib/funnelContext";
 import { normalizeLeadForAI } from "@/utils/normalizeLead";
@@ -43,6 +44,37 @@ const normalizeLeadsResponse = (response: any): any[] => {
 export const LeadsList = () => {
   const { toast } = useToast();
   const { subscription, isAdmin: subscriptionIsAdmin } = useSubscription();
+
+  const handleUpdatePayment = async () => {
+    trackEvent("Payment_Update_Clicked", {
+      plan_name: subscription?.plan_name,
+      subscription_status: subscription?.status || subscription?.subscription_status,
+      hosted_invoice_url_exists: !!subscription?.hosted_invoice_url,
+      source: "leads_list_block_toast",
+    });
+
+    if (subscription?.hosted_invoice_url) {
+      window.open(subscription.hosted_invoice_url, "_blank");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke("create-customer-portal-session");
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, "_blank");
+      } else {
+        throw new Error("URL do portal não encontrada.");
+      }
+    } catch (err: any) {
+      console.error("Erro ao abrir portal do Stripe:", err);
+      toast({
+        title: "Erro ao abrir o portal",
+        description: err.message || "Tente novamente ou contate o suporte.",
+        variant: "destructive",
+      });
+    }
+  };
   const { usage, canAnalyzeAI, refetch: refetchUsage, isAdmin: usageIsAdmin } = useUsage();
   const isAdmin = subscriptionIsAdmin || usageIsAdmin;
   const [leads, setLeads] = useState<LeadProspeccao[]>([]);
@@ -821,6 +853,23 @@ export const LeadsList = () => {
 
   // Analisar ou reanalisar lead manualmente
   const reanalyzeLead = async (lead: LeadProspeccao, source = "leads_list") => {
+    if (!canUsePaidFeatures(null, subscription)) {
+      toast({
+        variant: "destructive",
+        title: "Pagamento pendente",
+        description: "Atualize o pagamento da sua assinatura para continuar usando as análises com IA.",
+        action: (
+          <button 
+            onClick={handleUpdatePayment}
+            className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-zinc-700 bg-zinc-800 px-3 text-xs font-bold text-zinc-200 transition-all hover:bg-zinc-700 focus:outline-none"
+          >
+            Atualizar
+          </button>
+        )
+      });
+      return;
+    }
+
     if (activeRequestsRef.current.has(lead.id) || reanalyzingLeads.has(lead.id)) {
       console.log("Clique duplo detectado e prevenido para o lead:", lead.id);
       trackEvent("AI_Analysis_Duplicate_Click_Prevented", {

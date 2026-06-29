@@ -308,6 +308,7 @@ const Auth = () => {
     const fullName = formData.get("fullName") as string;
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
+    const whatsapp = formData.get("whatsapp") as string;
 
     // Track Lead event when user attempts signup
     trackLead({
@@ -374,6 +375,7 @@ const Auth = () => {
         emailRedirectTo: `${redirectBase}/auth`,
         data: {
           full_name: fullName,
+          whatsapp: whatsapp,
           selected_plan: selectedPlan || null,
           referred_by_code: referralCode || null
         }
@@ -681,6 +683,10 @@ const Auth = () => {
                   <div className="space-y-2">
                     <Label htmlFor="signup-fullname">Nome Completo</Label>
                     <Input id="signup-fullname" name="fullName" type="text" placeholder="Seu nome completo" required minLength={3} className={authInputClass} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-whatsapp">WhatsApp</Label>
+                    <Input id="signup-whatsapp" name="whatsapp" type="tel" placeholder="Ex: (11) 99999-9999" required className={authInputClass} />
                   </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>

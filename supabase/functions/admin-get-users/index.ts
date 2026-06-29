@@ -92,6 +92,7 @@ const buildUserSummary = (
     id: authUser.id,
     email: authUser.email || "",
     phone: authUser.phone || profile.telefone || "",
+    whatsapp: profile.whatsapp || authUser.user_metadata?.whatsapp || "",
     nome_completo: profile.nome_completo || authUser.user_metadata?.full_name || authUser.user_metadata?.name || "",
     empresa: profile.empresa || "",
     avatar_url: profile.avatar_url || authUser.user_metadata?.avatar_url || "",

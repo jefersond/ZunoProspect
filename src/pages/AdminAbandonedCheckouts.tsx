@@ -49,6 +49,8 @@ type AdminUserSummary = {
   leads_used_this_month: number;
   ai_limit: number;
   ai_used_this_month: number;
+  whatsapp?: string | null;
+  phone?: string | null;
 };
 
 type CheckoutRow = {
@@ -999,8 +1001,30 @@ export default function AdminAbandonedCheckouts() {
                       </TableCell>
 
                       {/* Email */}
-                      <TableCell className="py-3 font-medium max-w-[180px] truncate text-slate-100" title={row.email}>
-                        {row.email}
+                      <TableCell className="py-3 font-medium max-w-[180px] text-slate-100" title={row.email}>
+                        <div className="truncate">{row.email}</div>
+                        {(() => {
+                          const user = usersByEmail.get(row.email.toLowerCase());
+                          const phone = user?.whatsapp || user?.phone;
+                          if (phone) {
+                            const cleanPhone = phone.replace(/\D/g, "");
+                            const formattedPhone = cleanPhone.length <= 11 && !cleanPhone.startsWith("55") ? `55${cleanPhone}` : cleanPhone;
+                            return (
+                              <a
+                                href={`https://wa.me/${formattedPhone}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[10px] text-[#10d98a] hover:text-[#0be690] hover:underline mt-1 font-semibold"
+                              >
+                                <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                                  <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.517 2.266 2.27 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.835-4.477c1.637.972 3.407 1.492 5.21 1.495 5.516 0 10.005-4.486 10.007-9.998.001-2.671-1.041-5.182-2.932-7.072C17.234 2.057 14.73 1.01 12.015 1.01 6.5 1.01 2.01 5.498 2.008 11.01c-.001 1.83.479 3.619 1.392 5.197L2.417 22l6.002-1.573-.207-.123-.046-.027c-.89-.529-1.867-1.11-2.68-1.594zM16.57 14.93c-.27-.135-1.6-.79-1.849-.88-.249-.09-.43-.135-.61.135-.18.27-.698.88-.856 1.06-.157.18-.316.2-.585.065-2.073-1.04-3.41-2.046-4.524-3.957-.294-.505.294-.468.84-1.56.09-.18.044-.336-.022-.47-.067-.135-.61-1.47-.836-2.013-.22-.53-.442-.457-.61-.466-.158-.007-.339-.009-.52-.009-.18 0-.476.068-.724.336-.249.27-.95.93-.95 2.27s.972 2.632 1.108 2.812c.135.18 1.914 2.922 4.637 4.101.648.28 1.153.448 1.547.573.65.207 1.242.177 1.708.108.52-.078 1.6-.653 1.826-1.253.225-.6.225-1.114.158-1.223-.068-.11-.249-.2-.519-.335z"/>
+                                </svg>
+                                <span>{phone}</span>
+                              </a>
+                            );
+                          }
+                          return null;
+                        })()}
                       </TableCell>
 
                       {/* Plano Escolhido */}

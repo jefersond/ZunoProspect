@@ -209,3 +209,20 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
 - [x] Otimizada a legenda de cobrança recorrente pós-teste em cada plano, diferenciando síncronamente mensal e anual (ex: *"Cobrança automática após o teste de R$ 47/mês"* ou *"Cobrança automática após o teste de R$ 470/ano"*).
 - [x] Mantida a coerência e exibição em destaque verde neon do microcopy *"Hoje R$0 por 7 dias"*.
 - [x] Validada a compilação de produção do projeto React (`npm run build`) com 100% de sucesso.
+
+### Iteração 16: Fluxo de Recuperação de Pagamento e Bloqueio Amigável de IA (25/06/2026)
+- [x] **Banco de Dados:** Criada e aplicada a migração SQL `20260624214700_payment_recovery.sql` adicionando suporte para armazenar status detalhado de cobrança na tabela `user_subscriptions` e `profiles`, além de criar a tabela `payment_recovery_email_logs`.
+- [x] **Backend & Webhooks:**
+  - [x] Atualizada a Edge Function `stripe-webhook/index.ts` para processar eventos de `invoice.payment_failed` (atraso) e `invoice.paid` (regularização), disparando e-mails de recuperação via Resend e gravando logs de auditoria contra e-mails duplicados.
+  - [x] Criada a Edge Function `create-customer-portal-session/index.ts` para iniciar sessões do Stripe Customer Portal com segurança como fallback de pagamento.
+- [x] **Frontend & Hooks:**
+  - [x] Atualizados os hooks `useSubscription.ts` e `useUsage.ts` para expor novos campos de faturamento e evitar downgrade automático para Free em status `past_due`/`unpaid`.
+  - [x] Criado o helper utilitário `subscriptionHelpers.ts` contendo `isPaymentRecoveryRequired` e `canUsePaidFeatures`.
+- [x] **Componentes UI & Banners:**
+  - [x] Criado o componente `<PaymentRecoveryBanner />` no tema premium escuro com suporte via WhatsApp e ação de atualização via hosted invoice ou portal Stripe.
+  - [x] Integrado o banner no topo do Dashboard (`Dashboard.tsx`) e da tela de Prospecção (`Prospeccao.tsx`).
+- [x] **Bloqueio de Recursos Pagos:**
+  - [x] Impedidas novas buscas em `ProspeccaoForm.tsx` via validação de pagamento pendente e exibição de Toast com botão "Atualizar".
+  - [x] Impedida a geração de análises e reanálises com IA em `LeadsList.tsx` (reanalyzeLead), `LeadPlanDialog.tsx` (handleReanalyze) e `LeadsSalvos.tsx` (handleReanalyze), mostrando Toast de pagamento pendente.
+- [x] **Validação Técnica:**
+  - [x] Executada compilação de produção do frontend (`npm run build`) com 100% de sucesso, livre de erros de tipos ou referências.

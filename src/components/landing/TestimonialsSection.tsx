@@ -7,7 +7,7 @@ const DEPOIMENTOS = [
     avatar: "KF",
     cor: "#6366F1",
     texto:
-      "Achei muito bacana o jeito como prospecta. A gente usa a lista gerada pro cold call — já vem com Instagram, WhatsApp, tudo pronto. O exemplo de cadência também é muito legal. É um facilitador enorme mesmo.",
+      "Achei muito bacana o jeito como prospecta. A gente usa a lista gerada pro cold call. Já vem com Instagram, WhatsApp, tudo pronto. O exemplo de cadência também é muito legal. É um facilitador enorme mesmo.",
   },
   {
     nome: "Rafael",

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 import { Loader2, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -10,11 +11,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, profile, profileLoading, refetchProfile } = useAuth();
+  const { user, loading: authLoading, profile, profileLoading, refetchProfile } = useAuth();
+  const { subscription, loading: subscriptionLoading, isAdmin: subIsAdmin } = useSubscription();
   const location = useLocation();
   const { toast } = useToast();
   const [whatsapp, setWhatsapp] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const loading = authLoading || subscriptionLoading;
 
   if (loading) {
     return (
@@ -138,6 +142,15 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         </Card>
       </div>
     );
+  }
+
+  // Se o usuário está no plano gratuito (free) e tenta acessar qualquer área além do checkout/perfil,
+  // bloqueamos o acesso e redirecionamos para o checkout para que ele assine o teste pago.
+  const isFreeUser = subscription?.plan_name === "free";
+  const isAllowedRoute = ["/checkout", "/profile"].includes(location.pathname);
+
+  if (user && isFreeUser && !subIsAdmin && !isAllowedRoute) {
+    return <Navigate to="/checkout" replace />;
   }
 
   return <>{children}</>;

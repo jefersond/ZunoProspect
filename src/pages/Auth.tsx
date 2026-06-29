@@ -170,8 +170,10 @@ const Auth = () => {
       }
     }
 
-    // Limpar checkout pendente do localStorage caso acesse autenticação sem plano explícito
-    if (!selectedPlan) {
+    // Limpar checkout pendente do localStorage caso acesse autenticação sem plano explícito e não seja um callback de login do Google
+    const hash = window.location.hash;
+    const hasOAuth = hash.includes("access_token") || hash.includes("id_token") || searchParams.has("code");
+    if (!selectedPlan && !hasOAuth) {
       localStorage.removeItem("checkout_pending");
     }
 

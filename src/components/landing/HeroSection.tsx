@@ -108,13 +108,13 @@ export function HeroSection() {
                     variant="outline"
                     className="h-14 rounded-lg border-[#1f2d29] bg-transparent px-8 text-base text-[#f4f4f5] hover:border-[#10d98a]/40 hover:bg-[#10d98a]/5 sm:text-lg"
                     onClick={() => {
-                      trackCta("ver_demo", "hero");
-                      trackHeroCta("CTA_Secondary_Click", "Ver demonstração ao vivo");
+                      trackCta("ver_como_funciona", "hero");
+                      trackHeroCta("CTA_Secondary_Click", "Ver como buscar leads");
                       scrollToSection("como-funciona");
                     }}
                   >
                     <Play className="mr-2 h-4 w-4" />
-                    Ver demonstração ao vivo
+                    Ver como buscar leads
                   </Button>
                 </div>
 

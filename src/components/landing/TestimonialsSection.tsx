@@ -4,24 +4,21 @@ const DEPOIMENTOS = [
   {
     nome: "Kiéffer",
     cargo: "Comercial",
-    avatar: "KF",
-    cor: "#6366F1",
+    foto: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=80&h=80&fit=crop&crop=faces&auto=format&q=80",
     texto:
       "Achei muito bacana o jeito como prospecta. A gente usa a lista gerada pro cold call. Já vem com Instagram, WhatsApp, tudo pronto. O exemplo de cadência também é muito legal. É um facilitador enorme mesmo.",
   },
   {
     nome: "Rafael",
     cargo: "Gestor de Vendas",
-    avatar: "RF",
-    cor: "#10B981",
+    foto: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=80&h=80&fit=crop&crop=faces&auto=format&q=80",
     texto:
       "O que me prendeu foi não precisar ficar pesquisando Instagram e WhatsApp de cada empresa na mão. Isso já sai pronto. Uso a lista todo dia antes de ligar e a conversa já começa com contexto.",
   },
   {
     nome: "Ana",
     cargo: "Freelancer de Prospecção",
-    avatar: "AN",
-    cor: "#F59E0B",
+    foto: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&h=80&fit=crop&crop=faces&auto=format&q=80",
     texto:
       "Antes ficava uma hora no Google Maps pra montar uma lista que nem sempre tinha número certo. Agora faço isso em minutos e ainda sai com contexto da empresa pra saber o que falar.",
   },
@@ -61,12 +58,12 @@ export function TestimonialsSection() {
 
               {/* Autor */}
               <div className="flex items-center gap-3">
-                <div
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  style={{ backgroundColor: d.cor }}
-                >
-                  {d.avatar}
-                </div>
+                <img
+                  src={d.foto}
+                  alt={d.nome}
+                  className="h-9 w-9 shrink-0 rounded-full object-cover"
+                  loading="lazy"
+                />
                 <div>
                   <p className="text-sm font-semibold text-[#f4f4f5]">{d.nome}</p>
                   <p className="text-xs text-[#71717A]">{d.cargo}</p>

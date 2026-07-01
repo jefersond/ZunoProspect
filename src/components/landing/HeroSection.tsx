@@ -5,10 +5,10 @@ import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 
 const AVATARS = [
-  { initials: "RM", color: "#6366F1" },
-  { initials: "CS", color: "#10B981" },
-  { initials: "LP", color: "#F59E0B" },
-  { initials: "AO", color: "#EC4899" },
+  { foto: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64&h=64&fit=crop&crop=faces&auto=format&q=80", alt: "RM" },
+  { foto: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=64&h=64&fit=crop&crop=faces&auto=format&q=80", alt: "CS" },
+  { foto: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64&h=64&fit=crop&crop=faces&auto=format&q=80", alt: "LP" },
+  { foto: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=64&h=64&fit=crop&crop=faces&auto=format&q=80", alt: "AO" },
 ];
 
 export function HeroSection() {
@@ -68,13 +68,13 @@ export function HeroSection() {
               <div className="mt-6 flex items-center gap-3">
                 <div className="flex -space-x-2">
                   {AVATARS.map((a) => (
-                    <div
-                      key={a.initials}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#111816] text-[10px] font-bold text-white"
-                      style={{ backgroundColor: a.color }}
-                    >
-                      {a.initials}
-                    </div>
+                    <img
+                      key={a.alt}
+                      src={a.foto}
+                      alt={a.alt}
+                      className="h-8 w-8 rounded-full border-2 border-[#111816] object-cover"
+                      loading="lazy"
+                    />
                   ))}
                 </div>
                 <div>

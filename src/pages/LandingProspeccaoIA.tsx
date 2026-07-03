@@ -128,15 +128,15 @@ export default function LandingProspeccaoIA() {
       </Suspense>
 
       <Suspense fallback={<SectionSkeleton />}>
-        <ReferralSection />
-      </Suspense>
-
-      <Suspense fallback={<SectionSkeleton />}>
         <FAQSection />
       </Suspense>
 
       <Suspense fallback={<SectionSkeleton />}>
         <CTAFinalSection />
+      </Suspense>
+
+      <Suspense fallback={<SectionSkeleton />}>
+        <ReferralSection />
       </Suspense>
 
       <Suspense fallback={<SectionSkeleton />}>

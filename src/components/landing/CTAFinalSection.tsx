@@ -34,19 +34,8 @@ export function CTAFinalSection() {
               scrollToSection("precos");
             }}
           >
-            Começar minha prospecção com mais clareza
+            Começar teste grátis de 7 dias
             <ArrowRight className="ml-2 h-5 w-5" />
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            className="h-14 w-full border-[#1f2d29] bg-transparent text-[#f4f4f5] hover:border-[#10d98a]/40 hover:bg-[#10d98a]/5 sm:w-auto px-8"
-            onClick={() => {
-              trackEvent("cta_clicked", { cta: "ver_planos", location: "final_cta" });
-              scrollToSection("precos");
-            }}
-          >
-            Ver planos
           </Button>
         </div>
         <p className="text-sm font-semibold text-[#f4f4f5] mt-4">

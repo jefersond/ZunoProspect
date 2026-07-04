@@ -145,11 +145,23 @@ export const FAQ_ITEMS = [
     resposta: "Após os 7 dias, sua assinatura começa automaticamente no plano escolhido e a cobrança mensal é realizada.",
   },
   {
+    pergunta: "Qual a diferença da Zuno para o Google Maps?",
+    resposta: "O Google Maps deixa você ver empresas uma por uma, sem dados de contato estruturados, sem análise de oportunidade e sem geração de abordagem. A Zuno entrega uma lista de empresas por cidade e nicho com WhatsApp, Instagram e site compilados, mais diagnóstico de presença digital e copy pronta para cada lead — tudo em um fluxo de prospecção, não em uma busca manual.",
+  },
+  {
+    pergunta: "Funciona para qualquer cidade do Brasil?",
+    resposta: "Sim. A Zuno localiza empresas em qualquer cidade brasileira. Você escolhe a cidade e o nicho (ex: 'Clínica estética em Campinas') e o sistema busca empresas naquela região específica.",
+  },
+  {
     pergunta: "A Zuno garante clientes?",
     resposta: "Não. A Zuno não garante clientes. Ela ajuda você a encontrar empresas, analisar oportunidades e gerar abordagens com mais contexto. O resultado depende da sua oferta, abordagem e execução comercial.",
   },
   {
     pergunta: "Para quem a Zuno é indicada?",
     resposta: "Para gestores de tráfego, social medias, designers, freelancers, agências e operações que precisam prospectar empresas com mais clareza.",
+  },
+  {
+    pergunta: "Posso usar a Zuno sem cartão?",
+    resposta: "A principal forma de acesso é o teste grátis de 7 dias nos planos pagos, que exige cartão para ativação. Existe também um plano Free com acesso limitado (20 leads e 3 análises por mês) que não requer cartão — disponível na tela de cadastro.",
   },
 ];

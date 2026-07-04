@@ -1,8 +1,13 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { XCircle, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { XCircle, CheckCircle2, ArrowRight } from "lucide-react";
+import { trackEvent } from "@/lib/analytics";
 
 export function AntesDepoisSection() {
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  };
   const itensImproviso = [
     "Busca empresas manualmente",
     "Joga contatos em planilhas",
@@ -97,6 +102,23 @@ export function AntesDepoisSection() {
               Resultado: lista de 30 leads com contatos em ~5 minutos.
             </div>
           </Card>
+        </div>
+
+        <div className="mt-14 text-center">
+          <Button
+            size="lg"
+            className="h-14 rounded-lg bg-[#10d98a] text-[#0b0f0e] font-bold shadow-[0_0_30px_rgba(16,217,138,0.2)] hover:bg-[#10d98a]/90 transition-all px-8 text-base md:text-lg"
+            onClick={() => {
+              trackEvent("cta_clicked", { cta: "comecar_gratis", location: "antes_depois" });
+              scrollToSection("precos");
+            }}
+          >
+            Quero prospectar com clareza
+            <ArrowRight className="ml-2 h-5 w-5" />
+          </Button>
+          <p className="text-xs font-semibold text-[#9ca3af] mt-3 tracking-wide">
+            Hoje R$0 • Cancele antes da cobrança
+          </p>
         </div>
       </div>
     </section>

@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Megaphone, Palette, Building2, Search, ArrowRight } from "lucide-react";
+import { TrendingUp, Megaphone, Palette, Building2, BriefcaseBusiness, Search, ArrowRight } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
 
 export function CasosDeUsoSection() {
@@ -41,6 +41,14 @@ export function CasosDeUsoSection() {
       descricao: "Mapeie segmentos inteiros em lote em qualquer região brasileira para alimentar o time de vendas (SDRs) com empresas validadas e contatos ativos.",
       exemplo: "Busca: 'Distribuidora' ou 'Construtora' em 'Ribeirão Preto - SP'",
       foco: "Diagnóstico integrado de canais digitais, estruturação de prospecção comercial recorrente e volume de abordagens."
+    },
+    {
+      persona: "Freelancer",
+      icone: BriefcaseBusiness,
+      titulo: "Clientes sem Depender de Indicação",
+      descricao: "Prospecte ativamente em qualquer cidade para fechar novos clientes sem esperar indicação. Monte listas por nicho e aborde com mensagem personalizada para cada empresa.",
+      exemplo: "Busca: 'Salão de beleza' ou 'Pet shop' em 'Goiânia - GO'",
+      foco: "Independência de pipeline, abordagem direta por WhatsApp e Instagram com copy gerada por IA."
     }
   ];
 

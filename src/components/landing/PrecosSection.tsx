@@ -320,16 +320,16 @@ export function PrecosSection() {
               <p className="mt-0.5 text-[9px] uppercase">Hoje</p>
             </div>
             <div className="p-3 bg-[#111816]/40 rounded-lg border border-[#1f2d29]/40">
-              <p className="text-[#10d98a] font-bold">Sim</p>
-              <p className="mt-0.5 text-[9px] uppercase">Cartão Requerido</p>
+              <p className="text-[#f4f4f5] font-bold">Obrigatório</p>
+              <p className="mt-0.5 text-[9px] uppercase">Cartão</p>
             </div>
             <div className="p-3 bg-[#111816]/40 rounded-lg border border-[#1f2d29]/40">
               <p className="text-[#10d98a] font-bold">1 Clique</p>
               <p className="mt-0.5 text-[9px] uppercase">Cancele Online</p>
             </div>
             <div className="p-3 bg-[#111816]/40 rounded-lg border border-[#1f2d29]/40">
-              <p className="text-red-400 font-bold">Não</p>
-              <p className="mt-0.5 text-[9px] uppercase">Garantia de Clientes</p>
+              <p className="text-[#9ca3af] font-bold">Sua execução</p>
+              <p className="mt-0.5 text-[9px] uppercase">Resultado final</p>
             </div>
           </div>
           <p className="text-xs text-[#9ca3af] leading-relaxed">

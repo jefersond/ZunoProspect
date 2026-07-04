@@ -1,18 +1,33 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Play, ShieldCheck, Sparkles, Star } from "lucide-react";
+import { ArrowRight, Play, ShieldCheck, Sparkles, MapPin } from "lucide-react";
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
+import { useEffect, useState } from "react";
 
-const AVATARS = [
-  { foto: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64&h=64&fit=crop&crop=faces&auto=format&q=80", alt: "RM" },
-  { foto: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=64&h=64&fit=crop&crop=faces&auto=format&q=80", alt: "CS" },
-  { foto: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64&h=64&fit=crop&crop=faces&auto=format&q=80", alt: "LP" },
-  { foto: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=64&h=64&fit=crop&crop=faces&auto=format&q=80", alt: "AO" },
+const ATIVIDADES = [
+  { cidade: "São Paulo · SP", acao: "encontrou 47 leads em clínicas estéticas", tempo: "agora" },
+  { cidade: "Belo Horizonte · MG", acao: "gerou 12 abordagens por WhatsApp", tempo: "1min atrás" },
+  { cidade: "Curitiba · PR", acao: "iniciou o teste grátis", tempo: "2min atrás" },
+  { cidade: "Campinas · SP", acao: "encontrou 31 leads em academias", tempo: "3min atrás" },
+  { cidade: "Fortaleza · CE", acao: "gerou copy para 8 restaurantes", tempo: "4min atrás" },
 ];
 
 export function HeroSection() {
   const headline = "Pare de caçar empresas no improviso.";
+  const [atividadeIndex, setAtividadeIndex] = useState(0);
+  const [visivel, setVisivel] = useState(true);
+
+  useEffect(() => {
+    const intervalo = setInterval(() => {
+      setVisivel(false);
+      setTimeout(() => {
+        setAtividadeIndex((i) => (i + 1) % ATIVIDADES.length);
+        setVisivel(true);
+      }, 400);
+    }, 3500);
+    return () => clearInterval(intervalo);
+  }, []);
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -64,27 +79,22 @@ export function HeroSection() {
                 ))}
               </div>
 
-              {/* Social Proof */}
-              <div className="mt-6 flex items-center gap-3">
-                <div className="flex -space-x-2">
-                  {AVATARS.map((a) => (
-                    <img
-                      key={a.alt}
-                      src={a.foto}
-                      alt={a.alt}
-                      className="h-8 w-8 rounded-full border-2 border-[#111816] object-cover"
-                      loading="lazy"
-                    />
-                  ))}
-                </div>
-                <div>
-                  <div className="flex items-center gap-0.5">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="h-3 w-3 fill-[#F59E0B] text-[#F59E0B]" />
-                    ))}
-                  </div>
-                  <p className="text-xs text-[#9ca3af] leading-tight mt-0.5">
-                    <span className="font-semibold text-[#f4f4f5]">+120 buscas realizadas</span> hoje
+              {/* Social Proof — atividade ao vivo */}
+              <div className="mt-6">
+                <div
+                  className="inline-flex items-center gap-2.5 rounded-xl border border-[#1f2d29] bg-[#111816]/80 px-3 py-2.5 shadow-sm backdrop-blur transition-opacity duration-300"
+                  style={{ opacity: visivel ? 1 : 0 }}
+                >
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10d98a] opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-[#10d98a]" />
+                  </span>
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-[#10d98a]" />
+                  <p className="text-xs text-[#9ca3af] leading-tight">
+                    <span className="font-semibold text-[#f4f4f5]">{ATIVIDADES[atividadeIndex].cidade}</span>
+                    {" "}
+                    {ATIVIDADES[atividadeIndex].acao}
+                    <span className="ml-1.5 text-[#9ca3af]/60">· {ATIVIDADES[atividadeIndex].tempo}</span>
                   </p>
                 </div>
               </div>

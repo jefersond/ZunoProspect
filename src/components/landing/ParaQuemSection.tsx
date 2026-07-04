@@ -60,11 +60,28 @@ export function ParaQuemSection() {
           </p>
         </div>
 
-        {/* Grid de 8 Cards (4 colunas no Desktop, empilhados no Mobile) */}
-        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
-          {categorias.map((cat) => (
-            <Card 
-              key={cat.titulo} 
+        {/* Linha 1: 3 cards */}
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-3 max-w-5xl mx-auto">
+          {categorias.slice(0, 3).map((cat) => (
+            <Card
+              key={cat.titulo}
+              className="rounded-xl border border-[#1f2d29] bg-[#111816] p-6 transition-all duration-300 hover:border-[#10d98a]/30 hover:shadow-[0_0_20px_rgba(16,217,138,0.015)] hover:-translate-y-0.5 group flex flex-col justify-between"
+            >
+              <div>
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg border border-[#1f2d29] bg-[#0b0f0e] text-[#10d98a] group-hover:bg-[#10d98a]/10 transition-colors">
+                  <cat.icone className="h-5 w-5" />
+                </div>
+                <h3 className="mb-2 text-lg font-bold text-[#f4f4f5]">{cat.titulo}</h3>
+                <p className="text-xs leading-relaxed text-[#9ca3af]">{cat.descricao}</p>
+              </div>
+            </Card>
+          ))}
+        </div>
+        {/* Linha 2: 2 cards centralizados */}
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 max-w-[672px] mx-auto mt-6">
+          {categorias.slice(3).map((cat) => (
+            <Card
+              key={cat.titulo}
               className="rounded-xl border border-[#1f2d29] bg-[#111816] p-6 transition-all duration-300 hover:border-[#10d98a]/30 hover:shadow-[0_0_20px_rgba(16,217,138,0.015)] hover:-translate-y-0.5 group flex flex-col justify-between"
             >
               <div>

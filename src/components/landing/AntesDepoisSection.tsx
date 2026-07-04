@@ -65,7 +65,7 @@ export function AntesDepoisSection() {
             </ul>
 
             <div className="mt-8 rounded-lg bg-zinc-900/30 p-4 border border-zinc-800/40 text-center text-xs text-zinc-600 font-mono">
-              Resultado: Taxa de resposta baixa e esgotamento mental.
+              Resultado: horas perdidas por dia e baixa taxa de resposta.
             </div>
           </Card>
 
@@ -94,7 +94,7 @@ export function AntesDepoisSection() {
             </ul>
 
             <div className="mt-8 rounded-lg bg-[#10d98a]/5 p-4 border border-[#10d98a]/10 text-center text-xs text-[#10d98a] font-mono">
-              Resultado: Mais abordagens com contexto e sem bloqueio mental.
+              Resultado: lista de 30 leads com contatos em ~5 minutos.
             </div>
           </Card>
         </div>

@@ -117,6 +117,18 @@ export const LEAD_QUANTITIES = [300, 800, 2000];
 
 export const FAQ_ITEMS = [
   {
+    pergunta: "Os dados incluem WhatsApp e Instagram reais?",
+    resposta: "Sim. A Zuno busca, quando disponível, o WhatsApp ativo, o perfil do Instagram, o site e outros canais de contato da empresa. Os dados são consultados ao vivo a cada busca — não usamos listas estáticas ou bases desatualizadas.",
+  },
+  {
+    pergunta: "Quanto tempo leva para achar os primeiros leads?",
+    resposta: "Em média menos de 5 minutos. Você escolhe cidade e nicho, a Zuno localiza empresas e já entrega os dados de contato e presença digital. A análise de IA e geração de abordagem levam mais alguns segundos por lead.",
+  },
+  {
+    pergunta: "Como a Zuno encontra esses dados?",
+    resposta: "A Zuno combina dados públicos de presença digital (Google Maps, sites, redes sociais) com análise de IA para mapear empresas por região e nicho. Nenhuma informação privada é acessada — só o que está disponível publicamente.",
+  },
+  {
     pergunta: "Vou ser cobrado hoje?",
     resposta: "Não. Ao ativar o teste de 7 dias, você paga R$0 hoje.",
   },
@@ -139,9 +151,5 @@ export const FAQ_ITEMS = [
   {
     pergunta: "Para quem a Zuno é indicada?",
     resposta: "Para gestores de tráfego, social medias, designers, freelancers, agências e operações que precisam prospectar empresas com mais clareza.",
-  },
-  {
-    pergunta: "Posso usar a Zuno sem cartão?",
-    resposta: "A oferta principal é o teste de 7 dias dos planos pagos com cartão. Se existir plano gratuito limitado, ele deve aparecer apenas como opção secundária, sem destaque principal.",
   },
 ];

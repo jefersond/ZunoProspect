@@ -84,7 +84,7 @@ export function HeroSection() {
                     ))}
                   </div>
                   <p className="text-xs text-[#9ca3af] leading-tight mt-0.5">
-                    <span className="font-semibold text-[#f4f4f5]">+80 profissionais</span> usando a Zuno
+                    <span className="font-semibold text-[#f4f4f5]">+120 buscas realizadas</span> hoje
                   </p>
                 </div>
               </div>

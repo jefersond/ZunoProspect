@@ -3,7 +3,7 @@ import { ArrowRight, Play, ShieldCheck, Sparkles, MapPin } from "lucide-react";
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const ATIVIDADES = [
   { cidade: "São Paulo · SP", acao: "encontrou 47 leads em clínicas estéticas", tempo: "agora" },
@@ -14,9 +14,11 @@ const ATIVIDADES = [
 ];
 
 export function HeroSection() {
-  const headline = "Pare de caçar empresas no improviso.";
+  const headline = "Encontre, analise e aborde empresas sem improviso.";
   const [atividadeIndex, setAtividadeIndex] = useState(0);
   const [visivel, setVisivel] = useState(true);
+  const [email, setEmail] = useState("");
+  const emailRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const intervalo = setInterval(() => {
@@ -45,8 +47,16 @@ export function HeroSection() {
     });
   };
 
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    trackCta("comecar_gratis_email", "hero");
+    trackHeroCta("CTA_Hero_Email_Submit", "Começar grátis");
+    const dest = `/signup${email ? `?email=${encodeURIComponent(email)}` : ""}`;
+    window.location.href = dest;
+  };
+
   return (
-    <section className="relative overflow-hidden border-b border-[#1f2d29]/40 bg-[#0b0f0e] pt-24 pb-16 selection:bg-[#10d98a]/30 md:pt-32 md:pb-24">
+    <section className="relative overflow-hidden border-b border-[#1f2d29]/40 bg-[#0b0f0e] pt-16 pb-16 selection:bg-[#10d98a]/30 md:pt-24 md:pb-24">
       {/* Brilho neon de fundo */}
       <div className="absolute left-1/3 top-1/4 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-[#10d98a]/5 blur-[120px] pointer-events-none" />
 
@@ -100,40 +110,56 @@ export function HeroSection() {
               </div>
 
               <div className="mt-7 flex flex-col gap-4">
-                <div className="flex flex-col gap-3 sm:flex-row">
+                {/* Email inline — captura direta no hero */}
+                <form onSubmit={handleEmailSubmit} className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    ref={emailRef}
+                    type="email"
+                    inputMode="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    className="h-14 flex-1 rounded-lg border border-[#1f2d29] bg-[#111816] px-4 text-base text-[#f4f4f5] placeholder-[#4b5563] outline-none transition-all focus:border-[#10d98a]/50 focus:ring-2 focus:ring-[#10d98a]/10"
+                  />
                   <Button
+                    type="submit"
                     size="lg"
-                    className="h-14 rounded-lg bg-[#10d98a] px-8 text-base font-bold text-[#0b0f0e] shadow-[0_0_32px_rgba(16,217,138,0.3)] transition-all hover:scale-[1.02] hover:bg-[#10d98a]/90 sm:text-lg"
+                    className="h-14 rounded-lg bg-[#10d98a] px-7 text-base font-bold text-[#0b0f0e] shadow-[0_0_32px_rgba(16,217,138,0.3)] transition-all hover:scale-[1.02] hover:bg-[#10d98a]/90 sm:text-lg whitespace-nowrap"
                     onClick={() => {
                       trackCta("comecar_gratis", "hero");
-                      trackHeroCta("CTA_Hero_Click", "Começar teste grátis de 7 dias");
-                      scrollToSection("precos");
+                      trackHeroCta("CTA_Hero_Click", "Começar grátis");
                     }}
                   >
-                    Começar teste grátis de 7 dias
+                    Começar grátis
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="h-14 rounded-lg border-[#1f2d29] bg-transparent px-8 text-base text-[#f4f4f5] hover:border-[#10d98a]/40 hover:bg-[#10d98a]/5 sm:text-lg"
-                    onClick={() => {
-                      trackCta("ver_como_funciona", "hero");
-                      trackHeroCta("CTA_Secondary_Click", "Ver como buscar leads");
-                      scrollToSection("como-funciona");
-                    }}
-                  >
-                    <Play className="mr-2 h-4 w-4" />
-                    Ver como buscar leads
-                  </Button>
-                </div>
+                </form>
 
-                <div className="mt-1 flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 shrink-0 text-[#10d98a]" />
-                  <p className="text-sm text-[#f4f4f5] font-semibold tracking-wide">
-                    Hoje R$0 • Cancele antes dos 7 dias sem cobrança
+                {/* Trust — duas linhas no mobile para não cortar */}
+                <div className="flex items-start gap-2 sm:items-center">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-[#10d98a] mt-0.5 sm:mt-0" />
+                  <p className="text-xs text-[#9ca3af] font-medium leading-snug">
+                    Sem cartão de crédito · Hoje R$0
+                    <br className="sm:hidden" />
+                    <span className="hidden sm:inline"> · </span>
+                    Cancele antes dos 7 dias sem cobrança
                   </p>
                 </div>
+
+                {/* Secundário — ver demo */}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="w-fit px-0 text-sm text-[#9ca3af] hover:text-[#f4f4f5] hover:bg-transparent"
+                  onClick={() => {
+                    trackCta("ver_como_funciona", "hero");
+                    trackHeroCta("CTA_Secondary_Click", "Ver como buscar leads");
+                    scrollToSection("como-funciona");
+                  }}
+                >
+                  <Play className="mr-2 h-3.5 w-3.5" />
+                  Ver como buscar leads
+                </Button>
               </div>
             </div>
           </div>

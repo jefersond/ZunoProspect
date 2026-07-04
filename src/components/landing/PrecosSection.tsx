@@ -194,9 +194,13 @@ export function PrecosSection() {
     <section id="precos" ref={sectionRef} className="bg-[#0b0f0e] py-20 border-b border-[#1f2d29]/40">
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-12 max-w-2xl text-center">
-          <Badge variant="outline" className="mb-4 border-[#1f2d29] text-[#9ca3af] bg-[#111816]/50">
-            Planos e Assinaturas
-          </Badge>
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#10d98a]/30 bg-[#10d98a]/10 px-3 py-1 text-xs font-semibold text-[#10d98a]">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10d98a] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#10d98a]"></span>
+            </span>
+            Teste disponível agora — comece hoje e tenha leads em minutos
+          </div>
           <h2 className="mb-4 text-3xl font-extrabold tracking-tight text-[#f4f4f5] md:text-5xl">
             Teste a Zuno grátis por 7 dias
           </h2>

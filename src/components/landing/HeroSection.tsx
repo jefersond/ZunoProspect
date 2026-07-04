@@ -121,7 +121,7 @@ export function HeroSection() {
                 <div className="mt-1 flex items-center gap-2">
                   <ShieldCheck className="h-5 w-5 shrink-0 text-[#10d98a]" />
                   <p className="text-sm text-[#f4f4f5] font-semibold tracking-wide">
-                    Hoje R$0 • Cartão necessário • Cancele antes da cobrança
+                    Hoje R$0 • Cancele antes dos 7 dias sem cobrança
                   </p>
                 </div>
               </div>

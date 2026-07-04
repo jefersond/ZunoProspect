@@ -1,16 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  ArrowRight, 
-  Layers, 
-  TrendingUp, 
-  Bot, 
-  Palette, 
-  MessageSquare, 
-  Search, 
-  Layout, 
-  Users 
+import {
+  ArrowRight,
+  TrendingUp,
+  Palette,
+  MessageSquare,
+  BriefcaseBusiness,
+  Building2
 } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
 
@@ -21,44 +18,29 @@ export function ParaQuemSection() {
 
   const categorias = [
     {
-      titulo: "Full Service",
-      icone: Layers,
-      descricao: "Para agências que oferecem marketing completo e precisam prospectar empresas com uma abordagem mais consultiva.",
-    },
-    {
-      titulo: "Tráfego Pago",
+      titulo: "Gestores de Tráfego",
       icone: TrendingUp,
-      descricao: "Encontre clínicas, escolas, estéticas e negócios locais que podem precisar de aquisição e geração de demanda.",
+      descricao: "Encontre clínicas, escolas, estéticas e negócios locais que precisam de anúncios e campanhas. Monte listas segmentadas por nicho e cidade para alimentar seu pipeline.",
     },
     {
-      titulo: "Automação",
-      icone: Bot,
-      descricao: "Prospecte empresas que podem precisar organizar atendimento, processos, follow-up ou operação comercial.",
-    },
-    {
-      titulo: "Design / Branding",
-      icone: Palette,
-      descricao: "Encontre empresas que podem precisar melhorar identidade visual, comunicação e percepção de marca.",
-    },
-    {
-      titulo: "Social Media",
+      titulo: "Social Medias",
       icone: MessageSquare,
-      descricao: "Busque empresas locais que precisam melhorar presença digital, conteúdo e relacionamento no Instagram.",
+      descricao: "Busque restaurantes, lojas e negócios locais com presença digital fraca. Aborde com contexto sobre o Instagram, site e canais da empresa — não com mensagem genérica.",
     },
     {
-      titulo: "SEO",
-      icone: Search,
-      descricao: "Encontre empresas que dependem de busca orgânica, presença local ou ranqueamento para atrair clientes.",
+      titulo: "Designers",
+      icone: Palette,
+      descricao: "Identifique empresas consolidadas com marcas desatualizadas. A Zuno mostra dados de presença digital que revelam oportunidades de identidade visual e comunicação.",
     },
     {
-      titulo: "Sites / Landing Pages",
-      icone: Layout,
-      descricao: "Prospecte negócios com presença online fraca e gere abordagens para criação de sites, páginas e captação.",
+      titulo: "Freelancers",
+      icone: BriefcaseBusiness,
+      descricao: "Prospecte ativamente sem depender de indicação. Monte listas por nicho e cidade, gere abordagens personalizadas e mantenha o pipeline cheio todo mês.",
     },
     {
-      titulo: "CRM",
-      icone: Users,
-      descricao: "Encontre empresas que precisam estruturar relacionamento, funil comercial, acompanhamento e retorno de leads.",
+      titulo: "Agências",
+      icone: Building2,
+      descricao: "Mapeie segmentos inteiros em qualquer região para alimentar seu time de vendas com leads validados, contatos ativos e diagnóstico de presença digital.",
     },
   ];
 
@@ -79,7 +61,7 @@ export function ParaQuemSection() {
         </div>
 
         {/* Grid de 8 Cards (4 colunas no Desktop, empilhados no Mobile) */}
-        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 max-w-7xl mx-auto">
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
           {categorias.map((cat) => (
             <Card 
               key={cat.titulo} 

@@ -561,7 +561,7 @@ export const LeadPlanDialog = ({
               placeholder="Adicione notas sobre este lead... (salva automaticamente)"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="min-h-[100px] resize-none bg-background/50"
+              className="min-h-[100px] resize-none bg-[#0b0f0e] border-[#1f2d29] focus-visible:border-[#10d98a]/50 focus-visible:ring-[#10d98a]/20"
             />
           ) : (
             <div className="flex flex-col items-center justify-center py-4 text-center bg-muted/50 rounded-lg border border-dashed border-border">

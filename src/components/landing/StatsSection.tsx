@@ -1,6 +1,6 @@
 const STATS = [
-  { numero: "+2.000", label: "profissionais ativos" },
-  { numero: "180k+", label: "leads mapeados" },
+  { numero: "+80", label: "profissionais ativos" },
+  { numero: "+3.000", label: "leads encontrados" },
   { numero: "< 5min", label: "do nicho à abordagem" },
   { numero: "4.9★", label: "satisfação média" },
 ];

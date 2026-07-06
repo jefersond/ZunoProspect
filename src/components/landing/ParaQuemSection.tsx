@@ -1,16 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  ArrowRight, 
-  Layers, 
-  TrendingUp, 
-  Bot, 
-  Palette, 
-  MessageSquare, 
-  Search, 
-  Layout, 
-  Users 
+import {
+  ArrowRight,
+  TrendingUp,
+  Palette,
+  MessageSquare,
+  BriefcaseBusiness,
+  Building2
 } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
 
@@ -21,44 +18,29 @@ export function ParaQuemSection() {
 
   const categorias = [
     {
-      titulo: "Full Service",
-      icone: Layers,
-      descricao: "Para agências que oferecem marketing completo e precisam prospectar empresas com uma abordagem mais consultiva.",
-    },
-    {
-      titulo: "Tráfego Pago",
+      titulo: "Gestores de Tráfego",
       icone: TrendingUp,
-      descricao: "Encontre clínicas, escolas, estéticas e negócios locais que podem precisar de aquisição e geração de demanda.",
+      descricao: "Encontre clínicas, escolas, estéticas e negócios locais que precisam de anúncios e campanhas. Monte listas segmentadas por nicho e cidade para alimentar seu pipeline.",
     },
     {
-      titulo: "Automação",
-      icone: Bot,
-      descricao: "Prospecte empresas que podem precisar organizar atendimento, processos, follow-up ou operação comercial.",
-    },
-    {
-      titulo: "Design / Branding",
-      icone: Palette,
-      descricao: "Encontre empresas que podem precisar melhorar identidade visual, comunicação e percepção de marca.",
-    },
-    {
-      titulo: "Social Media",
+      titulo: "Social Medias",
       icone: MessageSquare,
-      descricao: "Busque empresas locais que precisam melhorar presença digital, conteúdo e relacionamento no Instagram.",
+      descricao: "Busque restaurantes, lojas e negócios locais com presença digital fraca. Aborde com contexto sobre o Instagram, site e canais da empresa — não com mensagem genérica.",
     },
     {
-      titulo: "SEO",
-      icone: Search,
-      descricao: "Encontre empresas que dependem de busca orgânica, presença local ou ranqueamento para atrair clientes.",
+      titulo: "Designers",
+      icone: Palette,
+      descricao: "Identifique empresas consolidadas com marcas desatualizadas. A Zuno mostra dados de presença digital que revelam oportunidades de identidade visual e comunicação.",
     },
     {
-      titulo: "Sites / Landing Pages",
-      icone: Layout,
-      descricao: "Prospecte negócios com presença online fraca e gere abordagens para criação de sites, páginas e captação.",
+      titulo: "Freelancers",
+      icone: BriefcaseBusiness,
+      descricao: "Prospecte ativamente sem depender de indicação. Monte listas por nicho e cidade, gere abordagens personalizadas e mantenha o pipeline cheio todo mês.",
     },
     {
-      titulo: "CRM",
-      icone: Users,
-      descricao: "Encontre empresas que precisam estruturar relacionamento, funil comercial, acompanhamento e retorno de leads.",
+      titulo: "Agências",
+      icone: Building2,
+      descricao: "Mapeie segmentos inteiros em qualquer região para alimentar seu time de vendas com leads validados, contatos ativos e diagnóstico de presença digital.",
     },
   ];
 
@@ -78,11 +60,28 @@ export function ParaQuemSection() {
           </p>
         </div>
 
-        {/* Grid de 8 Cards (4 colunas no Desktop, empilhados no Mobile) */}
-        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 max-w-7xl mx-auto">
-          {categorias.map((cat) => (
-            <Card 
-              key={cat.titulo} 
+        {/* Linha 1: 3 cards */}
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-3 max-w-5xl mx-auto">
+          {categorias.slice(0, 3).map((cat) => (
+            <Card
+              key={cat.titulo}
+              className="rounded-xl border border-[#1f2d29] bg-[#111816] p-6 transition-all duration-300 hover:border-[#10d98a]/30 hover:shadow-[0_0_20px_rgba(16,217,138,0.015)] hover:-translate-y-0.5 group flex flex-col justify-between"
+            >
+              <div>
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg border border-[#1f2d29] bg-[#0b0f0e] text-[#10d98a] group-hover:bg-[#10d98a]/10 transition-colors">
+                  <cat.icone className="h-5 w-5" />
+                </div>
+                <h3 className="mb-2 text-lg font-bold text-[#f4f4f5]">{cat.titulo}</h3>
+                <p className="text-xs leading-relaxed text-[#9ca3af]">{cat.descricao}</p>
+              </div>
+            </Card>
+          ))}
+        </div>
+        {/* Linha 2: 2 cards centralizados */}
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 max-w-[672px] mx-auto mt-6">
+          {categorias.slice(3).map((cat) => (
+            <Card
+              key={cat.titulo}
               className="rounded-xl border border-[#1f2d29] bg-[#111816] p-6 transition-all duration-300 hover:border-[#10d98a]/30 hover:shadow-[0_0_20px_rgba(16,217,138,0.015)] hover:-translate-y-0.5 group flex flex-col justify-between"
             >
               <div>

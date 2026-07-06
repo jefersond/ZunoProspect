@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense, useState } from "react";
+import { useEffect, useRef, lazy, Suspense, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,10 +10,13 @@ import { captureAttributionParams, trackMetaCustomEvent, trackOnce } from "@/lib
 
 import { LPHeader } from "@/components/landing/LPHeader";
 import { HeroSection } from "@/components/landing/HeroSection";
+import { StatsSection } from "@/components/landing/StatsSection";
 import { AntesDepoisSection } from "@/components/landing/AntesDepoisSection";
 import { ComoFuncionaSection } from "@/components/landing/ComoFuncionaSection";
 import { ParaQuemSection } from "@/components/landing/ParaQuemSection";
 import { CasosDeUsoSection } from "@/components/landing/CasosDeUsoSection";
+import { TestimonialsSection } from "@/components/landing/TestimonialsSection";
+import { StickyCtaBar } from "@/components/landing/StickyCtaBar";
 
 
 const PrecosSection = lazy(() => import("@/components/landing/PrecosSection").then((m) => ({
@@ -44,6 +47,7 @@ export default function LandingProspeccaoIA() {
   const [searchParams] = useSearchParams();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const hasReferralInvite = Boolean(getReferralFromSearch(searchParams));
+  const heroRef = useRef<HTMLElement>(null);
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -112,8 +116,12 @@ export default function LandingProspeccaoIA() {
           Você foi convidado para conhecer o Zuno Propect.
         </div>
       )}
-      <HeroSection />
-      
+      <div ref={heroRef as React.RefObject<HTMLDivElement>}>
+        <HeroSection />
+      </div>
+
+      <StatsSection />
+
       <AntesDepoisSection />
       
       <ComoFuncionaSection />
@@ -122,12 +130,10 @@ export default function LandingProspeccaoIA() {
       
       <CasosDeUsoSection />
 
-      <Suspense fallback={<SectionSkeleton />}>
-        <PrecosSection />
-      </Suspense>
+      <TestimonialsSection />
 
       <Suspense fallback={<SectionSkeleton />}>
-        <ReferralSection />
+        <PrecosSection />
       </Suspense>
 
       <Suspense fallback={<SectionSkeleton />}>
@@ -139,10 +145,15 @@ export default function LandingProspeccaoIA() {
       </Suspense>
 
       <Suspense fallback={<SectionSkeleton />}>
+        <ReferralSection />
+      </Suspense>
+
+      <Suspense fallback={<SectionSkeleton />}>
         <Footer />
       </Suspense>
 
       <FloatingWhatsAppButton />
+      <StickyCtaBar heroRef={heroRef} />
     </div>
   );
 }

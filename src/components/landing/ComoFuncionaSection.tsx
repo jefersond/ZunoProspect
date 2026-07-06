@@ -78,7 +78,8 @@ export function ComoFuncionaSection() {
             Da busca à abordagem em poucos passos
           </h2>
           <p className="text-base text-[#9ca3af] md:text-lg">
-            Escolha onde e quem quer prospectar. A Zuno ajuda a encontrar empresas, entender oportunidades e gerar mensagens com IA.
+            Escolha onde e quem quer prospectar. A Zuno ajuda a encontrar empresas, entender oportunidades e gerar mensagens com IA.{" "}
+            <span className="text-[#10d98a] font-medium">Dados reais, consultados ao vivo a cada busca — nenhuma lista desatualizada.</span>
           </p>
         </div>
 

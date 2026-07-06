@@ -117,6 +117,18 @@ export const LEAD_QUANTITIES = [300, 800, 2000];
 
 export const FAQ_ITEMS = [
   {
+    pergunta: "Os dados incluem WhatsApp e Instagram reais?",
+    resposta: "Sim. A Zuno busca, quando disponível, o WhatsApp ativo, o perfil do Instagram, o site e outros canais de contato da empresa. Os dados são consultados ao vivo a cada busca — não usamos listas estáticas ou bases desatualizadas.",
+  },
+  {
+    pergunta: "Quanto tempo leva para achar os primeiros leads?",
+    resposta: "Em média menos de 5 minutos. Você escolhe cidade e nicho, a Zuno localiza empresas e já entrega os dados de contato e presença digital. A análise de IA e geração de abordagem levam mais alguns segundos por lead.",
+  },
+  {
+    pergunta: "Como a Zuno encontra esses dados?",
+    resposta: "A Zuno combina dados públicos de presença digital (Google Maps, sites, redes sociais) com análise de IA para mapear empresas por região e nicho. Nenhuma informação privada é acessada — só o que está disponível publicamente.",
+  },
+  {
     pergunta: "Vou ser cobrado hoje?",
     resposta: "Não. Ao ativar o teste de 7 dias, você paga R$0 hoje.",
   },
@@ -133,6 +145,14 @@ export const FAQ_ITEMS = [
     resposta: "Após os 7 dias, sua assinatura começa automaticamente no plano escolhido e a cobrança mensal é realizada.",
   },
   {
+    pergunta: "Qual a diferença da Zuno para o Google Maps?",
+    resposta: "O Google Maps deixa você ver empresas uma por uma, sem dados de contato estruturados, sem análise de oportunidade e sem geração de abordagem. A Zuno entrega uma lista de empresas por cidade e nicho com WhatsApp, Instagram e site compilados, mais diagnóstico de presença digital e copy pronta para cada lead — tudo em um fluxo de prospecção, não em uma busca manual.",
+  },
+  {
+    pergunta: "Funciona para qualquer cidade do Brasil?",
+    resposta: "Sim. A Zuno localiza empresas em qualquer cidade brasileira. Você escolhe a cidade e o nicho (ex: 'Clínica estética em Campinas') e o sistema busca empresas naquela região específica.",
+  },
+  {
     pergunta: "A Zuno garante clientes?",
     resposta: "Não. A Zuno não garante clientes. Ela ajuda você a encontrar empresas, analisar oportunidades e gerar abordagens com mais contexto. O resultado depende da sua oferta, abordagem e execução comercial.",
   },
@@ -142,6 +162,6 @@ export const FAQ_ITEMS = [
   },
   {
     pergunta: "Posso usar a Zuno sem cartão?",
-    resposta: "A oferta principal é o teste de 7 dias dos planos pagos com cartão. Se existir plano gratuito limitado, ele deve aparecer apenas como opção secundária, sem destaque principal.",
+    resposta: "A principal forma de acesso é o teste grátis de 7 dias nos planos pagos, que exige cartão para ativação. Existe também um plano Free com acesso limitado (20 leads e 3 análises por mês) que não requer cartão — disponível na tela de cadastro.",
   },
 ];

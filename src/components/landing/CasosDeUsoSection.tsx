@@ -1,8 +1,14 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Megaphone, Palette, Building2, Search, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, Megaphone, Palette, Building2, BriefcaseBusiness, Search, ArrowRight } from "lucide-react";
+import { trackEvent } from "@/lib/analytics";
 
 export function CasosDeUsoSection() {
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  };
+
   const casos = [
     {
       persona: "Gestor de Tráfego",
@@ -35,6 +41,14 @@ export function CasosDeUsoSection() {
       descricao: "Mapeie segmentos inteiros em lote em qualquer região brasileira para alimentar o time de vendas (SDRs) com empresas validadas e contatos ativos.",
       exemplo: "Busca: 'Distribuidora' ou 'Construtora' em 'Ribeirão Preto - SP'",
       foco: "Diagnóstico integrado de canais digitais, estruturação de prospecção comercial recorrente e volume de abordagens."
+    },
+    {
+      persona: "Freelancer",
+      icone: BriefcaseBusiness,
+      titulo: "Clientes sem Depender de Indicação",
+      descricao: "Prospecte ativamente em qualquer cidade para fechar novos clientes sem esperar indicação. Monte listas por nicho e aborde com mensagem personalizada para cada empresa.",
+      exemplo: "Busca: 'Salão de beleza' ou 'Pet shop' em 'Goiânia - GO'",
+      foco: "Independência de pipeline, abordagem direta por WhatsApp e Instagram com copy gerada por IA."
     }
   ];
 
@@ -90,6 +104,23 @@ export function CasosDeUsoSection() {
               </div>
             </Card>
           ))}
+        </div>
+
+        <div className="mt-14 text-center">
+          <Button
+            size="lg"
+            className="h-14 rounded-lg bg-[#10d98a] text-[#0b0f0e] font-bold shadow-[0_0_30px_rgba(16,217,138,0.2)] hover:bg-[#10d98a]/90 transition-all px-8 text-base md:text-lg"
+            onClick={() => {
+              trackEvent("cta_clicked", { cta: "comecar_gratis", location: "casos_de_uso" });
+              scrollToSection("precos");
+            }}
+          >
+            Começar teste grátis de 7 dias
+            <ArrowRight className="ml-2 h-5 w-5" />
+          </Button>
+          <p className="text-xs font-semibold text-[#9ca3af] mt-3 tracking-wide">
+            Hoje R$0 • Cancele antes da cobrança
+          </p>
         </div>
       </div>
     </section>

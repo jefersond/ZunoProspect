@@ -18,7 +18,7 @@ import { appendReferralToPath, getCurrentReferralCode, saveReferralCode } from "
 import { trackEvent } from "@/lib/analytics";
 
 const authInputClass =
-  "h-11 rounded-lg border-border/80 bg-card/70 shadow-sm transition-colors placeholder:text-muted-foreground/70 hover:border-muted-foreground/40 focus-visible:border-emerald-500/60 focus-visible:ring-2 focus-visible:ring-emerald-500/25 focus-visible:ring-offset-0";
+  "h-11 rounded-lg border-border bg-background shadow-sm transition-colors placeholder:text-muted-foreground/50 hover:border-muted-foreground/50 focus-visible:border-emerald-500/60 focus-visible:ring-2 focus-visible:ring-emerald-500/25 focus-visible:ring-offset-0";
 const authPrimaryButtonClass =
   "h-11 rounded-lg bg-emerald-600 text-white shadow-sm shadow-emerald-950/20 hover:bg-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/35 focus-visible:ring-offset-0";
 const authSecondaryButtonClass =
@@ -492,7 +492,7 @@ const Auth = () => {
     }
     setLoading(false);
   };
-  return <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/20 to-primary/5 p-4">
+  return <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background via-secondary/20 to-primary/5 px-4 py-10 overflow-y-auto">
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>

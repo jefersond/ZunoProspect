@@ -225,7 +225,8 @@ serve(async (req) => {
     const scopes = (keyData.scopes as string[]) || [];
 
     // Extrair partes do caminho
-    const pathParts = pathname.replace(/^\/functions\/v1\/api-leads/, "").split("/").filter(Boolean);
+    // Supabase pode passar pathname como /functions/v1/api-leads ou apenas /api-leads
+    const pathParts = pathname.replace(/^\/(functions\/v1\/)?api-leads/, "").split("/").filter(Boolean);
 
     // ==========================================
     // ROTA: GET /api-leads OU GET /api-leads/pending

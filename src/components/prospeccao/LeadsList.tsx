@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck, Sparkles, Plus, Search } from "lucide-react";
+import { Loader2, ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck, Sparkles, Plus, Search, Check, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
@@ -805,6 +805,26 @@ export const LeadsList = () => {
     }
   };
 
+  const approveLead = async (lead: LeadProspeccao) => {
+    if (lead.salvo) return;
+    try {
+      const { error } = await supabase
+        .from("leads")
+        .update({ salvo: true })
+        .eq("id", lead.id);
+      if (error) throw error;
+      toast({ title: "Lead aprovado", description: `${lead.nome} marcado para abordagem` });
+      trackMetaCustomEvent("Lead_Saved", { lead_id: lead.id, lead_name: lead.nome });
+      loadLeads();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Erro ao aprovar", description: error.message });
+    }
+  };
+
+  const rejectLead = async (id: string) => {
+    await deleteLead(id);
+  };
+
   const toggleSaveLead = async (lead: LeadProspeccao) => {
     try {
       const { error } = await supabase
@@ -1427,12 +1447,12 @@ export const LeadsList = () => {
             <div className="min-w-[1120px] p-4">
               <Table className="table-fixed overflow-hidden rounded-md border">
                 <colgroup>
-                  <col className="w-[27%]" />
+                  <col className="w-[23%]" />
                   <col className="w-[15%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[12%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[21%]" />
                 </colgroup>
                 <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -1683,37 +1703,74 @@ export const LeadsList = () => {
                     </TableCell>
                     
                     <TableCell className="px-3 py-3 align-top">
-                      <div className="flex items-center justify-center gap-1.5">
+                      <div className="flex flex-col gap-1.5">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => openPlanDialog(lead)}
-                          className="h-8 whitespace-nowrap px-2.5"
+                          className="h-8 w-full whitespace-nowrap px-2"
                         >
-                          <Eye className="h-4 w-4 mr-1" />
+                          <Eye className="h-3 w-3 mr-1" />
                           Ver Plano
                         </Button>
-                        <Button
-                          variant={lead.salvo ? "default" : "ghost"}
-                          size="sm"
-                          onClick={() => toggleSaveLead(lead)}
-                          title={lead.salvo ? "Desmarcar lead" : "Salvar lead"}
-                          className="h-8 w-8 p-0"
-                        >
-                          {lead.salvo ? (
-                            <Archive className="h-4 w-4" />
-                          ) : (
-                            <Save className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteLead(lead.id)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        {isAdmin ? (
+                          <>
+                            {lead.salvo ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => toggleSaveLead(lead)}
+                                className="h-8 w-full px-2 text-emerald-600 border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20"
+                              >
+                                <Check className="h-3 w-3 mr-1" />
+                                Aprovado
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => approveLead(lead)}
+                                className="h-8 w-full px-2 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/60"
+                              >
+                                <Check className="h-3 w-3 mr-1" />
+                                Aprovar
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => rejectLead(lead.id)}
+                              className="h-8 w-full px-2 text-red-500 border-red-500/30 hover:bg-red-500/10 hover:border-red-500/60 hover:text-red-400"
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              Rejeitar
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              variant={lead.salvo ? "default" : "ghost"}
+                              size="sm"
+                              onClick={() => toggleSaveLead(lead)}
+                              title={lead.salvo ? "Desmarcar lead" : "Salvar lead"}
+                              className="h-8 w-8 p-0"
+                            >
+                              {lead.salvo ? (
+                                <Archive className="h-4 w-4" />
+                              ) : (
+                                <Save className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteLead(lead.id)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

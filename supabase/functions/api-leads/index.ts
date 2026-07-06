@@ -129,8 +129,14 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
-    const leadId = url.searchParams.get('id');
     const method = req.method;
+
+    // Extract lead ID from path (/api-leads/{id}) or query param (?id=...)
+    const pathParts = url.pathname.split('/').filter(Boolean);
+    const lastSegment = pathParts[pathParts.length - 1];
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const pathLeadId = UUID_REGEX.test(lastSegment) ? lastSegment : null;
+    const leadId = url.searchParams.get('id') || pathLeadId;
 
     // GET /api-leads?action=analytics - Get analytics summary
     if (method === 'GET' && action === 'analytics') {
@@ -178,28 +184,65 @@ serve(async (req) => {
       });
     }
 
-    // GET /api-leads?id=<uuid> - Get single lead
+    // GET /api-leads/{id} or ?id=<uuid> - Get single lead with decrypted contacts
     if (method === 'GET' && leadId) {
       const encryptionKey = Deno.env.get('LEADS_ENCRYPTION_KEY');
-      if (!encryptionKey) {
-        console.error('LEADS_ENCRYPTION_KEY not configured');
-        return new Response(JSON.stringify({ error: 'Configuração de criptografia ausente' }), {
-          status: 500,
+
+      if (encryptionKey) {
+        // Use the filtered RPC (proven to work) and pick the lead by ID
+        const { data: allLeads, error: rpcError } = await supabaseAdmin
+          .rpc('set_encryption_key_and_get_leads_filtered', {
+            p_encryption_key: encryptionKey,
+            p_salvo: null,
+            p_user_id: userId,
+            p_search_run_id: null
+          });
+
+        if (rpcError) throw rpcError;
+
+        const raw = (allLeads || []).find((l: any) => l.id === leadId);
+
+        if (!raw) {
+          return new Response(JSON.stringify({ error: 'Lead não encontrado' }), {
+            status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const lead = {
+          id: raw.id,
+          nome: raw.nome,
+          cidade: raw.cidade,
+          nicho: raw.nicho,
+          foco: raw.foco,
+          status: raw.status,
+          rating: raw.rating,
+          total_reviews: raw.total_reviews,
+          probabilidade_conversao: raw.probabilidade_conversao,
+          salvo: raw.salvo,
+          phone: raw.whatsapp_number || raw.telefone || '',
+          email: raw.email || '',
+          instagram: raw.instagram_url || '',
+          website: raw.website || '',
+          created_at: raw.created_at,
+          updated_at: raw.updated_at,
+        };
+
+        return new Response(JSON.stringify({ success: true, data: lead }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
-      const { data: leads, error } = await supabaseAdmin
-        .rpc('set_encryption_key_and_get_lead_by_id', { 
-          p_encryption_key: encryptionKey,
-          p_lead_id: leadId, 
-          p_user_id: userId 
-        });
+      // Fallback: unencrypted single lead
+      const { data: rows, error } = await supabaseAdmin
+        .from('leads')
+        .select('id, nome, cidade, nicho, foco, status, rating, total_reviews, probabilidade_conversao, salvo, created_at, updated_at')
+        .eq('id', leadId)
+        .eq('user_id', userId)
+        .limit(1);
 
-      const lead = leads?.[0];
-
+      const lead = rows?.[0];
       if (error || !lead) {
-        console.error('Lead fetch error:', error?.message || 'Not found');
         return new Response(JSON.stringify({ error: 'Lead não encontrado' }), {
           status: 404,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -211,39 +254,85 @@ serve(async (req) => {
       });
     }
 
-    // GET /api-leads - List leads with pagination
+    // GET /api-leads - List leads with pagination + decrypted contact fields
     if (method === 'GET') {
       const page = parseInt(url.searchParams.get('page') || '1');
       const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100);
-      const status = url.searchParams.get('status');
-      const foco = url.searchParams.get('foco');
-      const salvo = url.searchParams.get('salvo');
+      const statusFilter = url.searchParams.get('status');
+      const focoFilter = url.searchParams.get('foco');
+      const salvoParam = url.searchParams.get('salvo');
       const offset = (page - 1) * limit;
 
-      // Build query
-      let query = supabaseAdmin
-        .from('leads')
-        .select('id, nome, cidade, nicho, foco, status, rating, total_reviews, probabilidade_conversao, salvo, created_at, updated_at', { count: 'exact' })
-        .eq('user_id', userId);
+      const encryptionKey = Deno.env.get('LEADS_ENCRYPTION_KEY');
+      let leads: any[];
+      let total: number;
 
-      if (status) query = query.eq('status', status);
-      if (foco) query = query.eq('foco', foco);
-      if (salvo !== null) query = query.eq('salvo', salvo === 'true');
+      if (encryptionKey) {
+        // Use RPC to get decrypted contact data (same as internal app)
+        const salvoValue = salvoParam === 'true' ? true : salvoParam === 'false' ? false : null;
+        const { data: rpcLeads, error: rpcError } = await supabaseAdmin
+          .rpc('set_encryption_key_and_get_leads_filtered', {
+            p_encryption_key: encryptionKey,
+            p_salvo: salvoValue,
+            p_user_id: userId,
+            p_search_run_id: null
+          });
 
-      const { data: leads, error, count } = await query
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
+        if (rpcError) throw rpcError;
 
-      if (error) throw error;
+        let filtered: any[] = rpcLeads || [];
+        if (statusFilter) filtered = filtered.filter((l: any) => l.status === statusFilter);
+        if (focoFilter) filtered = filtered.filter((l: any) => l.foco === focoFilter);
 
-      return new Response(JSON.stringify({ 
-        success: true, 
+        total = filtered.length;
+        const paginated = filtered.slice(offset, offset + limit);
+
+        leads = paginated.map((l: any) => ({
+          id: l.id,
+          nome: l.nome,
+          cidade: l.cidade,
+          nicho: l.nicho,
+          foco: l.foco,
+          status: l.status,
+          rating: l.rating,
+          total_reviews: l.total_reviews,
+          probabilidade_conversao: l.probabilidade_conversao,
+          salvo: l.salvo,
+          phone: l.whatsapp_number || l.telefone || '',
+          email: l.email || '',
+          instagram: l.instagram_url || '',
+          website: l.website || '',
+          created_at: l.created_at,
+          updated_at: l.updated_at,
+        }));
+      } else {
+        // Fallback: unencrypted query (contact fields absent)
+        let query = supabaseAdmin
+          .from('leads')
+          .select('id, nome, cidade, nicho, foco, status, rating, total_reviews, probabilidade_conversao, salvo, created_at, updated_at', { count: 'exact' })
+          .eq('user_id', userId);
+
+        if (statusFilter) query = query.eq('status', statusFilter);
+        if (focoFilter) query = query.eq('foco', focoFilter);
+        if (salvoParam !== null) query = query.eq('salvo', salvoParam === 'true');
+
+        const { data, error, count } = await query
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1);
+
+        if (error) throw error;
+        leads = data || [];
+        total = count || 0;
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
         data: leads,
         pagination: {
           page,
           limit,
-          total: count || 0,
-          total_pages: Math.ceil((count || 0) / limit),
+          total,
+          total_pages: Math.ceil(total / limit),
         }
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

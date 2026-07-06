@@ -304,8 +304,22 @@ serve(async (req) => {
       const totalCount = filteredLeads.length;
       const paginatedLeads = filteredLeads.slice(offset, offset + limit);
 
+      // Buscar análises da tabela lead_analyses para os leads da página atual
+      const paginatedIds = paginatedLeads.map((l: any) => l.id);
+      const { data: analysesData } = await supabaseAdmin
+        .from('lead_analyses')
+        .select('lead_id, opportunity_summary, possible_pain, approach_angle, whatsapp_message, instagram_message, email_subject, email_body, follow_up_message, priority, status, created_at')
+        .in('lead_id', paginatedIds)
+        .order('created_at', { ascending: false });
+
+      // Mapear análise mais recente por lead_id
+      const analysisMap: Record<string, any> = {};
+      for (const a of (analysesData || [])) {
+        if (!analysisMap[a.lead_id]) analysisMap[a.lead_id] = a;
+      }
+
       // Mapeamento do payload de leitura simplificado
-      const mappedLeads = paginatedLeads.map(lead => ({
+      const mappedLeads = paginatedLeads.map((lead: any) => ({
         id: lead.id,
         user_id: lead.user_id,
         company_name: lead.nome,
@@ -318,7 +332,32 @@ serve(async (req) => {
         description: lead.instagram_context || lead.notas || "",
         source: lead.search_run_id || "manual",
         status: lead.processing_status || "pending",
-        created_at: lead.created_at
+        salvo: lead.salvo || false,
+        score: lead.probabilidade_conversao ?? null,
+        ai_analysis: lead.diagnostico_bullets ?? null,
+        digital_signals: lead.digital_signals ?? null,
+        prospecting_plan: lead.plano_prospeccao ?? null,
+        ai_generated_at: lead.ai_analise_gerada_em ?? null,
+        has_meta_pixel: lead.has_meta_pixel ?? null,
+        has_gtag: lead.has_gtag ?? null,
+        rating: lead.rating ?? null,
+        total_reviews: lead.total_reviews ?? null,
+        // Dados da análise mais recente (tabela lead_analyses)
+        latest_analysis: analysisMap[lead.id] ? {
+          opportunity_summary: analysisMap[lead.id].opportunity_summary ?? null,
+          possible_pain: analysisMap[lead.id].possible_pain ?? null,
+          approach_angle: analysisMap[lead.id].approach_angle ?? null,
+          whatsapp_message: analysisMap[lead.id].whatsapp_message ?? null,
+          instagram_message: analysisMap[lead.id].instagram_message ?? null,
+          email_subject: analysisMap[lead.id].email_subject ?? null,
+          email_body: analysisMap[lead.id].email_body ?? null,
+          follow_up_message: analysisMap[lead.id].follow_up_message ?? null,
+          priority: analysisMap[lead.id].priority ?? null,
+          status: analysisMap[lead.id].status ?? null,
+          generated_at: analysisMap[lead.id].created_at ?? null,
+        } : null,
+        created_at: lead.created_at,
+        updated_at: lead.updated_at || null
       }));
 
       const responseBody = {

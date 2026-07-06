@@ -65,7 +65,7 @@ function buildErrorResponse(
 }
 
 // Função para mapear o lead de forma completa descriptografada para o Claude externo
-const mapLeadForClaude = (lead: any) => {
+const mapLeadForClaude = (lead: any, latestAnalysis?: any) => {
   const whatsappNumberClean = lead.whatsapp_number ? lead.whatsapp_number.replace(/\D/g, "") : "";
   const phoneClean = lead.telefone ? lead.telefone.replace(/\D/g, "") : "";
   
@@ -113,6 +113,7 @@ const mapLeadForClaude = (lead: any) => {
     probabilidade_conversao: lead.probabilidade_conversao || null,
     plano_prospeccao: lead.plano_prospeccao || null,
     ai_analise_gerada_em: lead.ai_analise_gerada_em || null,
+    salvo: lead.salvo || false,
     
     // CNPJ corporativo
     cnpj: lead.cnpj || "",
@@ -127,7 +128,23 @@ const mapLeadForClaude = (lead: any) => {
     // Controle
     processing_status: lead.processing_status || "pending",
     processing_attempts: lead.processing_attempts || 0,
-    last_processing_error: lead.last_processing_error || null
+    last_processing_error: lead.last_processing_error || null,
+    
+    // Análise mais recente (tabela lead_analyses) se fornecida
+    latest_analysis: latestAnalysis ? {
+      opportunity_summary: latestAnalysis.opportunity_summary ?? null,
+      possible_pain: latestAnalysis.possible_pain ?? null,
+      approach_angle: latestAnalysis.approach_angle ?? null,
+      whatsapp_message: latestAnalysis.whatsapp_message ?? null,
+      instagram_message: latestAnalysis.instagram_message ?? null,
+      email_subject: latestAnalysis.email_subject ?? null,
+      email_body: latestAnalysis.email_body ?? null,
+      follow_up_message: latestAnalysis.follow_up_message ?? null,
+      priority: latestAnalysis.priority ?? null,
+      status: latestAnalysis.status ?? null,
+      generated_at: latestAnalysis.created_at ?? null,
+    } : null,
+    updated_at: lead.updated_at || null
   };
 };
 
@@ -292,7 +309,8 @@ serve(async (req) => {
     const scopes = (keyData.scopes as string[]) || [];
 
     // Extrair partes do caminho
-    const pathParts = pathname.replace(/^\/functions\/v1\/api-leads/, "").split("/").filter(Boolean);
+    // Supabase pode passar pathname como /functions/v1/api-leads ou apenas /api-leads
+    const pathParts = pathname.replace(/^\/(functions\/v1\/)?api-leads/, "").split("/").filter(Boolean);
 
     // ==========================================
     // ROTA: GET /api-leads OU GET /api-leads/pending
@@ -370,8 +388,22 @@ serve(async (req) => {
       const totalCount = filteredLeads.length;
       const paginatedLeads = filteredLeads.slice(offset, offset + limit);
 
+      // Buscar análises da tabela lead_analyses para os leads da página atual
+      const paginatedIds = paginatedLeads.map((l: any) => l.id);
+      const { data: analysesData } = await supabaseAdmin
+        .from('lead_analyses')
+        .select('lead_id, opportunity_summary, possible_pain, approach_angle, whatsapp_message, instagram_message, email_subject, email_body, follow_up_message, priority, status, created_at')
+        .in('lead_id', paginatedIds)
+        .order('created_at', { ascending: false });
+
+      // Mapear análise mais recente por lead_id
+      const analysisMap: Record<string, any> = {};
+      for (const a of (analysesData || [])) {
+        if (!analysisMap[a.lead_id]) analysisMap[a.lead_id] = a;
+      }
+
       // Mapeamento do payload de leitura completo para o Claude
-      const mappedLeads = paginatedLeads.map(mapLeadForClaude);
+      const mappedLeads = paginatedLeads.map(lead => mapLeadForClaude(lead, analysisMap[lead.id]));
 
       const responseBody = {
         success: true,
@@ -412,22 +444,33 @@ serve(async (req) => {
 
       const leadId = pathParts[0];
 
-      const { data: leads, error } = await supabaseAdmin.rpc(
-        'set_encryption_key_and_get_lead_by_id',
+      // set_encryption_key_and_get_lead_by_id falha com service role context.
+      // Workaround: set_encryption_key_and_get_leads_filtered + find por ID.
+      const { data: allLeads, error } = await supabaseAdmin.rpc(
+        'set_encryption_key_and_get_leads_filtered',
         {
           p_encryption_key: encryptionKey,
-          p_lead_id: leadId,
-          p_user_id: currentUserId
+          p_salvo: null,
+          p_user_id: currentUserId,
+          p_search_run_id: null
         }
       );
 
-      const lead = leads?.[0];
+      const lead = (allLeads || []).find((l: any) => l.id === leadId);
 
       if (error || !lead) {
         return buildErrorResponse('LEAD_NOT_FOUND', 'Lead não encontrado.', 404, requestId, corsHeaders);
       }
 
-      const mappedLead = mapLeadForClaude(lead);
+      // Buscar análise mais recente para o lead individual
+      const { data: analysisData } = await supabaseAdmin
+        .from('lead_analyses')
+        .select('lead_id, opportunity_summary, possible_pain, approach_angle, whatsapp_message, instagram_message, email_subject, email_body, follow_up_message, priority, status, created_at')
+        .eq('lead_id', lead.id)
+        .order('created_at', { ascending: false })
+        .maybeSingle();
+
+      const mappedLead = mapLeadForClaude(lead, analysisData);
 
       // Registrar log
       await supabaseAdmin.from('api_logs').insert({

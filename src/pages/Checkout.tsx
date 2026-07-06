@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CheckCircle2, Loader2, Eye, EyeOff, ArrowLeft, Check, Sparkles, Building2, ExternalLink } from "lucide-react";
+import { CheckCircle2, Loader2, Eye, EyeOff, ArrowLeft, Check, Sparkles, Building2, ExternalLink, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
@@ -99,7 +99,7 @@ type PlanoKey = "starter" | "pro" | "agencia";
 
 export default function Checkout() {
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { usage } = useUsage();
   
   // Get params from URL
@@ -127,16 +127,32 @@ export default function Checkout() {
   const [isGoogleProcessing, setIsGoogleProcessing] = useState(false);
   const [hasSession, setHasSession] = useState(false);
 
-  // Note: OAuth callback is now handled by /auth page which checks for checkout_pending
+  // Monitor user changes from useAuth hook
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session?.user) return;
-
+    if (user) {
       setHasSession(true);
-      setEmail(session.user.email || "");
-      setNome(session.user.user_metadata?.full_name || session.user.user_metadata?.name || "");
-    });
-  }, []);
+      setEmail(user.email || "");
+      setNome(user.user_metadata?.full_name || user.user_metadata?.name || "");
+    } else {
+      setHasSession(false);
+      setEmail("");
+      setNome("");
+      setSenha("");
+    }
+  }, [user]);
+
+  const handleSignOut = async () => {
+    setIsProcessing(true);
+    try {
+      await signOut();
+      toast.success("Desconectado com sucesso.");
+    } catch (error) {
+      console.error("Erro ao sair:", error);
+      toast.error("Erro ao desconectar da conta.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const preco = isAnual ? plano.precoAnual : plano.precoMensal;
   const periodo = isAnual ? "/ano" : "/mês";
@@ -439,10 +455,23 @@ export default function Checkout() {
           <Link to="/">
             <Logo />
           </Link>
-          <Link to="/precos" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-            <ArrowLeft className="h-4 w-4" />
-            Voltar para planos
-          </Link>
+          <div className="flex items-center gap-4">
+            {hasSession && (
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={isAnyProcessing}
+                className="text-sm text-muted-foreground hover:text-destructive flex items-center gap-1.5 transition-colors duration-200"
+              >
+                <LogOut className="h-4 w-4" />
+                Sair da conta
+              </button>
+            )}
+            <Link to="/precos" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
+              <ArrowLeft className="h-4 w-4" />
+              Voltar para planos
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -553,7 +582,19 @@ export default function Checkout() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">E-mail *</Label>
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="email">E-mail *</Label>
+                      {hasSession && (
+                        <button
+                          type="button"
+                          onClick={handleSignOut}
+                          disabled={isAnyProcessing}
+                          className="text-xs text-emerald-500 hover:text-emerald-400 underline cursor-pointer transition-colors"
+                        >
+                          Usar outra conta
+                        </button>
+                      )}
+                    </div>
                     <Input 
                       id="email" 
                       type="email" 

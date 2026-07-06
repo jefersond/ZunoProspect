@@ -359,8 +359,8 @@ serve(async (req) => {
 
       const leadId = pathParts[0];
 
-      // set_encryption_key_and_get_lead_by_id falha com service role (auth context).
-      // Workaround: usar set_encryption_key_and_get_leads_filtered + find por ID.
+      // set_encryption_key_and_get_lead_by_id falha com service role context.
+      // Workaround: set_encryption_key_and_get_leads_filtered + find por ID.
       const { data: allLeads, error } = await supabaseAdmin.rpc(
         'set_encryption_key_and_get_leads_filtered',
         {

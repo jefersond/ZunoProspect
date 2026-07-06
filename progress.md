@@ -124,6 +124,18 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
 - [x] Mesclar os leads no topo no frontend e recarregar todos os leads não salvos de forma determinística na conclusão.
 - [x] Validar que o build de produção passou com 100% de sucesso.
 
+### Iteração 3: Logout no Checkout (29/06/2026)
+- [x] Adicionar import do ícone `LogOut` do `lucide-react`.
+- [x] Desestruturar a função `signOut` de `useAuth()` no componente `Checkout`.
+- [x] Criar a função `handleSignOut` para gerenciar a desconexão do usuário de forma reativa e exibir notificação toast.
+- [x] Alterar o `useEffect` de carregamento de sessão para observar dinamicamente o `user` do `useAuth()` e ajustar ou limpar estados do formulário (`nome`, `email`, `senha`, `hasSession`) automaticamente.
+- [x] Inserir o botão "Sair da conta" no Header do Checkout.
+- [x] Inserir o link de ação rápida "Usar outra conta" acima do campo E-mail no formulário de Checkout.
+
+### Iteração 4: Fluxo de Navegação e Redirecionamento da LP (29/06/2026)
+- [x] Alterar o link "Voltar ao site" na página `/precos` para apontar para `/?no_redirect=true` no componente `Precos.tsx`.
+- [x] Implementar leitura de `no_redirect` do `searchParams` e condicionar a checagem de auth e o redirecionamento automático do usuário logado na Landing Page (`LandingProspeccaoIA.tsx`).
+
 ---
 
 ## 📊 Acompanhamento Técnico de Bugs (IA & Atribuição)

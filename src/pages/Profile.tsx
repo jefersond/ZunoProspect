@@ -428,8 +428,8 @@ const Profile = () => {
           </CardContent>
         </Card>
 
-        {/* API Integration Section - Agency plan only */}
-        {(isAdmin || subscription?.plan_name === 'agencia') && (
+        {/* API Integration Section - Admin only */}
+        {isAdmin && (
           <ApiKeysSection />
         )}
 

@@ -50,11 +50,13 @@ export default function LandingProspeccaoIA() {
   };
 
   useEffect(() => {
+    const noRedirect = searchParams.get("no_redirect") === "true";
+
     const checkAuth = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (session?.user) {
+      if (session?.user && !noRedirect) {
         navigate("/prospeccao", { replace: true });
       } else {
         persistReferralFromSearch(searchParams);
@@ -67,7 +69,7 @@ export default function LandingProspeccaoIA() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       const checkoutInProgress = sessionStorage.getItem("checkout_in_progress");
-      if (session?.user && !checkoutInProgress) {
+      if (session?.user && !checkoutInProgress && !noRedirect) {
         navigate("/prospeccao", { replace: true });
       }
     });

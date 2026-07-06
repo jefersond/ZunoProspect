@@ -14,7 +14,7 @@ export default function Precos() {
             <Logo className="h-8" />
           </Link>
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/" className="flex items-center gap-2">
+            <Link to="/?no_redirect=true" className="flex items-center gap-2">
               <ArrowLeft className="h-4 w-4" />
               Voltar ao site
             </Link>

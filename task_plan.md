@@ -94,3 +94,40 @@ Este plano estabelece a checklist operacional e memória de estabilização para
 - [ ] **Teste de Busca e Categoria:** Buscar por "advogados de inventário" em "Vila Velha" com o foco "Serviços Profissionais", e confirmar que os leads são salvos com `foco: "servicos_profissionais"`.
 - [ ] **Teste de Diagnóstico (IA):** Gerar a análise com IA para o corretor/avaliador de imóveis e verificar se o diagnóstico cita partilha, inventário, e conexão técnica de utilidade sem agressividade digital.
 - [ ] **Teste de Cadência (IA):** Verificar se a cadência de 7 dias se baseia em parcerias e indicações, sem citar tráfego pago, funil, social media, criativos ou anúncios.
+
+---
+
+### 🔄 Fase 8: Logout no Checkout (Concluído)
+- [x] **Frontend - Checkout.tsx:**
+  - [x] Importar o ícone `LogOut` do `lucide-react`.
+  - [x] Desestruturar `signOut` de `useAuth()`.
+  - [x] Criar o método `handleSignOut` que chama `signOut` do hook de autenticação e exibe toast de sucesso.
+  - [x] Substituir o `useEffect` de carregamento estático inicial por um `useEffect` reativo baseado em `user` do `useAuth()` para sincronizar e limpar estados do form de forma segura.
+  - [x] Adicionar botão "Sair da conta" no Header do Checkout quando `hasSession` for `true`.
+  - [x] Adicionar link "Usar outra conta" no label/topo do campo E-mail no formulário de Checkout quando `hasSession` for `true`.
+
+---
+
+## 🛠️ Checklist de Testes de Logout no Checkout (Concluído)
+
+- [x] **Teste de Exibição:** Entrar no Checkout com sessão ativa e validar que o botão "Sair da conta" aparece no header e o link "Usar outra conta" aparece acima do campo de e-mail.
+- [x] **Teste de Ação de Logout:** Clicar em "Sair da conta" ou "Usar outra conta", confirmar que a sessão é limpa, um toast de sucesso é exibido e a tela volta a mostrar o formulário de cadastro/login com campo de senha e botão do Google.
+
+---
+
+### 🔄 Fase 9: Fluxo de Navegação e Redirecionamento da LP (Solicitação Atual)
+- [ ] **Frontend - Precos.tsx:**
+  - [ ] Alterar o link "Voltar ao site" para incluir o parâmetro de query `no_redirect=true` (`to="/?no_redirect=true"`).
+- [ ] **Frontend - LandingProspeccaoIA.tsx:**
+  - [ ] Ler o parâmetro `no_redirect` do hook `useSearchParams()`.
+  - [ ] Blindar a lógica de verificação de autenticação (`checkAuth` e `onAuthStateChange`) para NÃO redirecionar o usuário se o parâmetro `no_redirect` for verdadeiro.
+
+---
+
+## 🛠️ Checklist de Testes de Fluxo de Navegação
+
+- [ ] **Teste de Redirecionamento Normal:** Acessar a raiz `/` com sessão ativa e sem parâmetro. Validar que o usuário continua sendo redirecionado para `/prospeccao`.
+- [ ] **Teste de Voltar do Checkout para Preços:** No Checkout, clicar em "Voltar para planos". Validar que a pessoa vai para `/precos`.
+- [ ] **Teste de Voltar da Página de Preços para a LP (Logado):** Na página de preços `/precos`, com o usuário logado, clicar em "Voltar ao site". Validar que o usuário é redirecionado para `/?no_redirect=true` e a LP institucional é exibida sem ser redirecionado para `/prospeccao`.
+
+

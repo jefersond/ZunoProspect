@@ -110,13 +110,144 @@ export const LeadPlanDialog = ({
     ['starter', 'iniciante', 'pro', 'agencia', 'admin'].includes(subscription.plan_name));
   const canAnalyzeLead = isAdmin || canAnalyzeAI;
 
+  const [pendingAnalysis, setPendingAnalysis] = useState<any | null>(null);
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
+  const [isProcessingApproval, setIsProcessingApproval] = useState(false);
+
+  const loadPendingAnalysis = useCallback(async (leadId: string) => {
+    setIsLoadingAnalysis(true);
+    try {
+      const { data, error } = await supabase
+        .from('lead_analyses')
+        .select('*')
+        .eq('lead_id', leadId)
+        .eq('status', 'awaiting_review')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      setPendingAnalysis(data);
+    } catch (e) {
+      console.error("Erro ao carregar análise pendente:", e);
+    } finally {
+      setIsLoadingAnalysis(false);
+    }
+  }, []);
+
   // Sempre que o lead mudar ou o dialog for reaberto, sincroniza o estado interno
   useEffect(() => {
-    if (open) {
+    if (open && lead) {
       setCurrentLead(lead);
-      setNotes(lead?.notas || "");
+      setNotes(lead.notas || "");
+      if (lead.processing_status === 'awaiting_review') {
+        loadPendingAnalysis(lead.id);
+      } else {
+        setPendingAnalysis(null);
+      }
+    } else {
+      setPendingAnalysis(null);
     }
-  }, [lead, open]);
+  }, [lead, open, loadPendingAnalysis]);
+
+  const handleApproveAnalysis = async () => {
+    if (!currentLead || !pendingAnalysis) return;
+    setIsProcessingApproval(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("Sessão expirada. Faça login novamente.");
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/api-leads/${currentLead.id}/approve`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ analysis_id: pendingAnalysis.id })
+      });
+
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error?.message || "Erro ao aprovar análise.");
+
+      toast({
+        title: "Análise Aprovada!",
+        description: "As copies e diagnóstico foram copiados para o lead com sucesso.",
+      });
+
+      setPendingAnalysis(null);
+      onLeadUpdate?.();
+
+      // Recarregar lead do banco
+      const { data: updatedLead } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('id', currentLead.id)
+        .single();
+      
+      if (updatedLead) {
+        setCurrentLead({
+          ...lead,
+          diagnostico_bullets: updatedLead.diagnostico_bullets as string[],
+          probabilidade_conversao: updatedLead.probabilidade_conversao || 0,
+          plano_prospecao_7dias: Array.isArray(updatedLead.plano_prospeccao)
+            ? updatedLead.plano_prospeccao
+            : (updatedLead.plano_prospeccao?.plano_prospeccao_7dias || []),
+          processing_status: updatedLead.processing_status,
+          ai_analise_gerada_em: updatedLead.ai_analise_gerada_em,
+          status: updatedLead.status,
+          notas: updatedLead.notas
+        } as any);
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao aprovar análise",
+        description: error.message,
+      });
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
+  const handleRejectAnalysis = async () => {
+    if (!currentLead || !pendingAnalysis) return;
+    setIsProcessingApproval(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("Sessão expirada. Faça login novamente.");
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/api-leads/${currentLead.id}/reject`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ analysis_id: pendingAnalysis.id })
+      });
+
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error?.message || "Erro ao rejeitar análise.");
+
+      toast({
+        title: "Análise Rejeitada",
+        description: "O status do lead foi marcado como rejeitado.",
+      });
+
+      setPendingAnalysis(null);
+      onLeadUpdate?.();
+      setCurrentLead(prev => prev ? { ...prev, processing_status: 'rejected' } as any : null);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao rejeitar análise",
+        description: error.message,
+      });
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
 
   // Debounced save para anotações
   const saveNotes = useCallback(async (notesValue: string) => {
@@ -592,16 +723,74 @@ export const LeadPlanDialog = ({
           </TabsList>
 
           <TabsContent value="analise">
-            <LeadAnalysis
-              lead={displayLead}
-              diagnostico={displayLead.diagnostico_bullets}
-              probabilidade={displayLead.probabilidade_conversao}
-              plano={displayLead.plano_prospecao_7dias}
-              geradoEm={displayLead.ai_analise_gerada_em}
-              onReanalyze={handleReanalyze}
-              isReanalyzing={isReanalyzing}
-              canAnalyzeAI={canAnalyzeLead}
-            />
+            {isLoadingAnalysis ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+                Carregando análise pendente...
+              </div>
+            ) : pendingAnalysis ? (
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg border border-amber-500/30 bg-amber-500/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold text-amber-500 flex items-center gap-1.5">
+                      <Brain className="h-4 w-4" />
+                      Análise Externa Pendente
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Gerada via integração por <span className="font-semibold text-foreground">{pendingAnalysis.agent_name}</span> ({pendingAnalysis.model_used})
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      size="sm" 
+                      onClick={handleApproveAnalysis} 
+                      disabled={isProcessingApproval}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                    >
+                      {isProcessingApproval && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                      Aprovar
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="destructive" 
+                      onClick={handleRejectAnalysis}
+                      disabled={isProcessingApproval}
+                    >
+                      {isProcessingApproval && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                      Rejeitar
+                    </Button>
+                  </div>
+                </div>
+                <LeadAnalysis
+                  lead={displayLead}
+                  diagnostico={[
+                    pendingAnalysis.opportunity_summary,
+                    pendingAnalysis.possible_pain,
+                    pendingAnalysis.approach_angle
+                  ].filter(Boolean)}
+                  probabilidade={pendingAnalysis.priority === 'high' ? 85 : pendingAnalysis.priority === 'medium' ? 60 : 35}
+                  plano={[
+                    pendingAnalysis.whatsapp_message && { dia: 1, canal: 'whatsapp' as const, titulo: 'Abordagem WhatsApp', mensagem: pendingAnalysis.whatsapp_message },
+                    pendingAnalysis.instagram_message && { dia: 2, canal: 'instagram' as const, titulo: 'Abordagem Instagram', mensagem: pendingAnalysis.instagram_message },
+                    pendingAnalysis.email_body && { dia: 3, canal: 'email' as const, titulo: pendingAnalysis.email_subject || 'Abordagem E-mail', mensagem: pendingAnalysis.email_body },
+                    pendingAnalysis.follow_up_message && { dia: 4, canal: 'whatsapp' as const, titulo: 'Follow-up WhatsApp', mensagem: pendingAnalysis.follow_up_message }
+                  ].filter(Boolean) as any[]}
+                  geradoEm={pendingAnalysis.created_at}
+                  canAnalyzeAI={false}
+                />
+              </div>
+            ) : (
+              <LeadAnalysis
+                lead={displayLead}
+                diagnostico={displayLead.diagnostico_bullets}
+                probabilidade={displayLead.probabilidade_conversao}
+                plano={displayLead.plano_prospecao_7dias}
+                geradoEm={displayLead.ai_analise_gerada_em}
+                onReanalyze={handleReanalyze}
+                isReanalyzing={isReanalyzing}
+                canAnalyzeAI={canAnalyzeLead}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="templates">

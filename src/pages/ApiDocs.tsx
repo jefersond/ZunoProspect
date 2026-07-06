@@ -20,21 +20,20 @@ import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 const API_BASE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/api-leads`;
 
 const ApiDocs = () => {
   const navigate = useNavigate();
-  const { subscription, isAdmin, loading } = useSubscription();
+  const { isAdmin, loading } = useSubscription();
   const [copied, setCopied] = useState<string | null>(null);
 
-  // Redirect if not agency plan
+  // Redireciona se não for administrador
   useEffect(() => {
-    if (!loading && !isAdmin && subscription?.plan_name !== 'agencia') {
+    if (!loading && !isAdmin) {
       navigate('/profile');
     }
-  }, [loading, isAdmin, subscription, navigate]);
+  }, [loading, isAdmin, navigate]);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -62,270 +61,195 @@ const ApiDocs = () => {
     </div>
   );
 
-  const nodeJsExamples = {
-    listLeads: `const axios = require('axios');
+  const curlExamples = {
+    listPending: `curl -X GET "${API_BASE_URL}/pending" \\
+  -H "Authorization: Bearer zuno_live_sua_api_key_aqui"`,
+  
+    claimLead: `curl -X POST "${API_BASE_URL}/uuid-do-lead/claim" \\
+  -H "Authorization: Bearer zuno_live_sua_api_key_aqui" \\
+  -H "Idempotency-Key: unique-uuid-value"`,
+  
+    submitAnalysis: `curl -X POST "${API_BASE_URL}/uuid-do-lead/analysis" \\
+  -H "Authorization: Bearer zuno_live_sua_api_key_aqui" \\
+  -H "Content-Type: application/json" \\
+  -H "Idempotency-Key: unique-uuid-value" \\
+  -d '{
+    "lock_token": "token-recebido-no-claim",
+    "agent_name": "agente_claude_prospect",
+    "model_used": "claude-3-5-sonnet",
+    "priority": "high",
+    "opportunity_summary": "Lead não possui pixel instalado e site não é responsivo.",
+    "possible_pain": "Perda de conversão em anúncios móveis.",
+    "approach_angle": "Abordagem focada em redesenhar a landing page.",
+    "whatsapp_message": "Olá! Notei que seu site...",
+    "instagram_message": "Oi! Vi seu perfil...",
+    "email_subject": "Oportunidade de otimização",
+    "email_body": "Prezada equipe...",
+    "follow_up_message": "Olá, apenas reforçando...",
+    "metadata": {}
+  }'`,
 
-const API_KEY = 'zuno_sua_api_key_aqui';
+    updateStatus: `curl -X PATCH "${API_BASE_URL}/uuid-do-lead/status" \\
+  -H "Authorization: Bearer zuno_live_sua_api_key_aqui" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "status": "failed",
+    "error_message": "Website offline ou inacessível."
+  }'`
+  };
+
+  const nodeJsExamples = `const axios = require('axios');
+
+const API_KEY = 'zuno_live_sua_api_key_aqui';
 const API_URL = '${API_BASE_URL}';
 
-async function listLeads(page = 1, limit = 50) {
+// 1. Buscar Leads Pendentes
+async function getPendingLeads() {
   try {
-    const response = await axios.get(API_URL, {
-      headers: {
-        'x-api-key': API_KEY,
-        'Content-Type': 'application/json'
-      },
-      params: { page, limit }
+    const response = await axios.get(\`\${API_URL}/pending\`, {
+      headers: { 'Authorization': \`Bearer \${API_KEY}\` }
     });
-    
-    console.log('Leads:', response.data.data);
-    console.log('Pagination:', response.data.pagination);
+    return response.data.data; // Retorna lista de leads pendentes
+  } catch (error) {
+    console.error('Erro:', error.response?.data || error.message);
+  }
+}
+
+// 2. Reservar Lead com Lock Atômico
+async function claimLead(leadId) {
+  try {
+    const response = await axios.post(\`\${API_URL}/\${leadId}/claim\`, {}, {
+      headers: {
+        'Authorization': \`Bearer \${API_KEY}\`,
+        'Idempotency-Key': crypto.randomUUID()
+      }
+    });
+    return response.data.processing_lock_token; // Retorna o lock token
+  } catch (error) {
+    if (error.response?.status === 409) {
+      console.log('Lead já sendo processado por outro agente.');
+    } else {
+      console.error('Erro:', error.response?.data || error.message);
+    }
+  }
+}
+
+// 3. Submeter Análise da IA
+async function submitAnalysis(leadId, lockToken, analysisData) {
+  try {
+    const response = await axios.post(\`\${API_URL}/\${leadId}/analysis\`, {
+      lock_token: lockToken,
+      agent_name: 'node_prospector',
+      model_used: 'gpt-4o',
+      ...analysisData
+    }, {
+      headers: {
+        'Authorization': \`Bearer \${API_KEY}\`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': crypto.randomUUID()
+      }
+    });
     return response.data;
   } catch (error) {
     console.error('Erro:', error.response?.data || error.message);
   }
-}
+}`;
 
-// Uso
-listLeads(1, 20);`,
+  const pythonExamples = `import requests
+import uuid
 
-    getLead: `async function getLeadById(leadId) {
-  try {
-    const response = await axios.get(API_URL, {
-      headers: { 'x-api-key': API_KEY },
-      params: { id: leadId }
-    });
-    
-    console.log('Lead:', response.data.data);
-    return response.data.data;
-  } catch (error) {
-    console.error('Erro:', error.response?.data || error.message);
-  }
-}
-
-// Uso
-getLeadById('uuid-do-lead');`,
-
-    updateLead: `async function updateLead(leadId, updates) {
-  try {
-    const response = await axios.patch(API_URL, {
-      id: leadId,
-      ...updates
-    }, {
-      headers: { 
-        'x-api-key': API_KEY,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    console.log('Lead atualizado:', response.data.data);
-    return response.data.data;
-  } catch (error) {
-    console.error('Erro:', error.response?.data || error.message);
-  }
-}
-
-// Uso
-updateLead('uuid-do-lead', {
-  status: 'em_negociacao',
-  notas: 'Cliente interessado em tráfego pago'
-});`,
-
-    analytics: `async function getAnalytics() {
-  try {
-    const response = await axios.get(API_URL, {
-      headers: { 'x-api-key': API_KEY },
-      params: { action: 'analytics' }
-    });
-    
-    console.log('Analytics:', response.data.data);
-    return response.data.data;
-  } catch (error) {
-    console.error('Erro:', error.response?.data || error.message);
-  }
-}
-
-// Uso
-getAnalytics();`
-  };
-
-  const pythonExamples = {
-    listLeads: `import requests
-
-API_KEY = 'zuno_sua_api_key_aqui'
+API_KEY = 'zuno_live_sua_api_key_aqui'
 API_URL = '${API_BASE_URL}'
 
-def list_leads(page=1, limit=50):
-    headers = {
-        'x-api-key': API_KEY,
-        'Content-Type': 'application/json'
-    }
-    params = {'page': page, 'limit': limit}
-    
-    response = requests.get(API_URL, headers=headers, params=params)
-    
-    if response.status_code == 200:
-        data = response.json()
-        print(f"Total de leads: {data['pagination']['total']}")
-        return data['data']
-    else:
-        print(f"Erro: {response.json()}")
-        return None
-
-# Uso
-leads = list_leads(page=1, limit=20)
-for lead in leads:
-    print(f"- {lead['nome']} ({lead['cidade']})")`,
-
-    getLead: `def get_lead(lead_id):
-    headers = {'x-api-key': API_KEY}
-    params = {'id': lead_id}
-    
-    response = requests.get(API_URL, headers=headers, params=params)
-    
+# 1. Buscar Leads Pendentes
+def get_pending_leads():
+    headers = {'Authorization': f'Bearer {API_KEY}'}
+    response = requests.get(f"{API_URL}/pending", headers=headers)
     if response.status_code == 200:
         return response.json()['data']
-    else:
-        print(f"Erro: {response.json()}")
-        return None
+    return []
 
-# Uso
-lead = get_lead('uuid-do-lead')
-if lead:
-    print(f"Nome: {lead['nome']}")
-    print(f"Telefone: {lead['telefone']}")
-    print(f"Email: {lead['email']}")`,
-
-    updateLead: `def update_lead(lead_id, **updates):
+# 2. Reservar Lead
+def claim_lead(lead_id):
     headers = {
-        'x-api-key': API_KEY,
-        'Content-Type': 'application/json'
+        'Authorization': f'Bearer {API_KEY}',
+        'Idempotency-Key': str(uuid.uuid4())
     }
-    data = {'id': lead_id, **updates}
-    
-    response = requests.patch(API_URL, headers=headers, json=data)
-    
+    response = requests.post(f"{API_URL}/{lead_id}/claim", headers=headers)
     if response.status_code == 200:
-        print("Lead atualizado com sucesso!")
-        return response.json()['data']
-    else:
-        print(f"Erro: {response.json()}")
-        return None
+        return response.json()['processing_lock_token']
+    elif response.status_code == 409:
+        print("Lead em processamento concorrente.")
+    return None
 
-# Uso
-update_lead(
-    'uuid-do-lead',
-    status='em_negociacao',
-    notas='Cliente interessado em SEO'
-)`,
+# 3. Submeter Análise
+def submit_analysis(lead_id, lock_token, analysis):
+    headers = {
+        'Authorization': f'Bearer {API_KEY}',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': str(uuid.uuid4())
+    }
+    payload = {
+        'lock_token': lock_token,
+        'agent_name': 'python_bot',
+        'model_used': 'claude-3-5-sonnet',
+        **analysis
+    }
+    response = requests.post(f"{API_URL}/{lead_id}/analysis", headers=headers, json=payload)
+    return response.json()`;
 
-    analytics: `def get_analytics():
-    headers = {'x-api-key': API_KEY}
-    params = {'action': 'analytics'}
-    
-    response = requests.get(API_URL, headers=headers, params=params)
-    
-    if response.status_code == 200:
-        data = response.json()['data']
-        print(f"Total de leads: {data['total_leads']}")
-        print(f"Leads salvos: {data['saved_leads']}")
-        print("Por status:", data['by_status'])
-        print("Por foco:", data['by_foco'])
-        return data
-    else:
-        print(f"Erro: {response.json()}")
-        return None
+  const n8nSetup = `## Configuração no n8n
 
-# Uso
-analytics = get_analytics()`
-  };
+### Passo 1: Listar leads
+1. Adicione um nó **HTTP Request**.
+2. URL: \`${API_BASE_URL}/pending\`
+3. Method: **GET**
+4. Headers:
+   - \`Authorization\`: \`Bearer zuno_live_sua_api_key_aqui\`
 
-  const zapierSetup = `## Configuração no Zapier
+### Passo 2: Loop & Claim (Reserva)
+1. Para cada lead, adicione um nó **HTTP Request** para fazer o claim.
+2. URL: \`${API_BASE_URL}/{{$json.id}}/claim\`
+3. Method: **POST**
+4. Headers:
+   - \`Authorization\`: \`Bearer zuno_live_sua_api_key_aqui\`
+   - \`Idempotency-Key\`: \`{{$json.id}}\` (ou uuid único)
+5. Extraia o valor \`processing_lock_token\` retornado.
 
-### 1. Criar um Zap com Webhook
-1. Acesse zapier.com e crie um novo Zap
-2. Escolha "Webhooks by Zapier" como trigger ou action
-3. Selecione "Custom Request" para requisições personalizadas
+### Passo 3: Chamada ao Modelo de IA (Claude/GPT)
+1. Conecte o nó do Claude/OpenAI passando o contexto do lead recebido no Passo 1.
+2. Formate as saídas contendo oportunidade, dores e copies estruturadas.
 
-### 2. Configurar a Requisição
-
-**Para listar leads:**
-- Method: GET
-- URL: ${API_BASE_URL}
-- Headers:
-  - x-api-key: zuno_sua_api_key_aqui
-  - Content-Type: application/json
-
-**Para atualizar lead:**
-- Method: PATCH  
-- URL: ${API_BASE_URL}
-- Headers:
-  - x-api-key: zuno_sua_api_key_aqui
-  - Content-Type: application/json
-- Data (JSON):
-  {
-    "id": "{{lead_id}}",
-    "status": "{{novo_status}}",
-    "notas": "{{notas}}"
-  }
-
-### 3. Exemplo de Fluxo: CRM → Zuno
-1. Trigger: Novo lead no seu CRM
-2. Action: Webhook para atualizar status no Zuno
-
-### 4. Exemplo de Fluxo: Zuno → Planilha
-1. Trigger: Schedule (diário)
-2. Action 1: Webhook GET para buscar leads
-3. Action 2: Adicionar linha no Google Sheets`;
-
-  const makeSetup = `## Configuração no Make (Integromat)
-
-### 1. Criar Cenário com HTTP
-1. Acesse make.com e crie um novo cenário
-2. Adicione o módulo "HTTP" → "Make a request"
-
-### 2. Configurar Requisição
-
-**Headers (para todos os requests):**
-- x-api-key: zuno_sua_api_key_aqui
-
-**GET - Listar Leads:**
-- URL: ${API_BASE_URL}?page=1&limit=50
-- Method: GET
-
-**GET - Buscar Lead:**
-- URL: ${API_BASE_URL}?id={{leadId}}
-- Method: GET
-
-**PATCH - Atualizar Lead:**
-- URL: ${API_BASE_URL}
-- Method: PATCH
-- Body type: JSON
-- Request content:
-  {
-    "id": "{{leadId}}",
-    "status": "{{status}}"
-  }
-
-### 3. Parsear Resposta
-Use o módulo "JSON" → "Parse JSON" para extrair os dados da resposta.`;
+### Passo 4: Submeter Análise
+1. Adicione outro nó **HTTP Request**.
+2. URL: \`${API_BASE_URL}/{{$json.id}}/analysis\`
+3. Method: **POST**
+4. JSON Body:
+   {
+     "lock_token": "{{$json.processing_lock_token}}",
+     "agent_name": "n8n_agent",
+     "model_used": "claude-3-5-sonnet",
+     "priority": "high",
+     "opportunity_summary": "...",
+     "whatsapp_message": "..."
+   }`;
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      <div className="min-h-screen flex items-center justify-center bg-[#0b0f0e]">
+        <div className="animate-spin h-8 w-8 border-4 border-[#10d98a] border-t-transparent rounded-full" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/10 to-primary/5">
-      <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+    <div className="min-h-screen bg-[#0b0f0e] text-[#f4f4f5]">
+      <header className="border-b border-[#1f2d29] bg-[#111816]/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <Logo />
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => navigate("/profile")} className="gap-2">
+              <Button variant="ghost" size="sm" onClick={() => navigate("/profile")} className="gap-2 text-[#9ca3af] hover:text-[#f4f4f5]">
                 <ArrowLeft className="h-4 w-4" />
                 Voltar ao Perfil
               </Button>
@@ -338,46 +262,45 @@ Use o módulo "JSON" → "Parse JSON" para extrair os dados da resposta.`;
       <main className="container mx-auto px-4 py-8 max-w-5xl">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <BookOpen className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Documentação da API</h1>
-            <Badge variant="secondary">Agência</Badge>
+            <BookOpen className="h-8 w-8 text-[#10d98a]" />
+            <h1 className="text-3xl font-bold">Documentação da API do Agente Externo</h1>
+            <Badge className="bg-[#10d98a] text-[#0b0f0e] border-none font-bold">Admin Only</Badge>
           </div>
-          <p className="text-muted-foreground">
-            Integre o Zuno Prospect com seu CRM, automações e outras ferramentas
+          <p className="text-[#9ca3af]">
+            Integre agentes de IA externos (como Claude, GPT ou Make/n8n) de forma segura para analisar e prospectar leads.
           </p>
         </div>
 
         {/* Overview */}
-        <Card className="mb-6">
+        <Card className="mb-6 bg-[#111816] border-[#1f2d29]">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Server className="h-5 w-5" />
-              Visão Geral
+            <CardTitle className="flex items-center gap-2 text-[#f4f4f5]">
+              <Server className="h-5 w-5 text-[#10d98a]" />
+              Configurações Gerais
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="p-4 rounded-lg border bg-card">
-                <h3 className="font-semibold mb-2">Base URL</h3>
-                <code className="text-sm bg-muted px-2 py-1 rounded break-all">
+              <div className="p-4 rounded-lg border border-[#1f2d29] bg-[#0b0f0e]">
+                <h3 className="font-semibold mb-2 text-[#9ca3af]">Base URL</h3>
+                <code className="text-sm text-[#10d98a] bg-black/40 px-2 py-1 rounded break-all">
                   {API_BASE_URL}
                 </code>
               </div>
-              <div className="p-4 rounded-lg border bg-card">
-                <h3 className="font-semibold mb-2">Autenticação</h3>
-                <code className="text-sm bg-muted px-2 py-1 rounded">
-                  Header: x-api-key
+              <div className="p-4 rounded-lg border border-[#1f2d29] bg-[#0b0f0e]">
+                <h3 className="font-semibold mb-2 text-[#9ca3af]">Autenticação</h3>
+                <code className="text-sm text-[#10d98a] bg-black/40 px-2 py-1 rounded">
+                  Header: Authorization: Bearer zuno_live_xxx
                 </code>
               </div>
             </div>
-            <div className="p-4 rounded-lg border bg-amber-500/10 border-amber-500/20">
+            <div className="p-4 rounded-lg border border-amber-500/20 bg-amber-500/10">
               <div className="flex items-start gap-2">
                 <Shield className="h-5 w-5 text-amber-500 mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-amber-500">Segurança</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Nunca exponha sua API Key em código frontend. Use variáveis de ambiente e 
-                    faça requisições apenas do lado do servidor.
+                  <h3 className="font-semibold text-amber-500">Controle de Permissão ADM</h3>
+                  <p className="text-sm text-[#9ca3af]">
+                    Esta API opera sob escopos estritos de permissão. Toda chave de API deve ser gerada por administradores. Chaves geradas por usuários sem perfil Admin falharão com erro HTTP 403.
                   </p>
                 </div>
               </div>
@@ -386,207 +309,133 @@ Use o módulo "JSON" → "Parse JSON" para extrair os dados da resposta.`;
         </Card>
 
         {/* Endpoints */}
-        <Card className="mb-6">
+        <Card className="mb-6 bg-[#111816] border-[#1f2d29]">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileJson className="h-5 w-5" />
-              Endpoints Disponíveis
+            <CardTitle className="flex items-center gap-2 text-[#f4f4f5]">
+              <FileJson className="h-5 w-5 text-[#10d98a]" />
+              Endpoints Operacionais
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="p-4 rounded-lg border">
+              <div className="p-4 rounded-lg border border-[#1f2d29] bg-[#0b0f0e]">
                 <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">GET</Badge>
-                  <code className="text-sm">/api-leads</code>
+                  <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">GET</Badge>
+                  <code className="text-sm text-[#f4f4f5]">/api-leads/pending</code>
                 </div>
-                <p className="text-sm text-muted-foreground mb-2">Lista todos os leads com paginação</p>
-                <div className="text-xs text-muted-foreground">
-                  <strong>Query Params:</strong> page, limit, status, foco, salvo
+                <p className="text-sm text-[#9ca3af]">Lista leads aguardando processamento operacional do agente (com dados de contato descriptografados).</p>
+              </div>
+
+              <div className="p-4 rounded-lg border border-[#1f2d29] bg-[#0b0f0e]">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20">POST</Badge>
+                  <code className="text-sm text-[#f4f4f5]">/api-leads/&#123;id&#125;/claim</code>
+                </div>
+                <p className="text-sm text-[#9ca3af] mb-1">
+                  Reserva o lead de forma atômica para processamento por 15 minutos (evita concorrência).
+                </p>
+                <div className="text-xs text-[#10d98a]">
+                  <strong>Retorno:</strong> processing_lock_token (UUID necessário para submeter a análise)
                 </div>
               </div>
 
-              <div className="p-4 rounded-lg border">
+              <div className="p-4 rounded-lg border border-[#1f2d29] bg-[#0b0f0e]">
                 <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">GET</Badge>
-                  <code className="text-sm">/api-leads?id=uuid</code>
+                  <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20">POST</Badge>
+                  <code className="text-sm text-[#f4f4f5]">/api-leads/&#123;id&#125;/analysis</code>
                 </div>
-                <p className="text-sm text-muted-foreground">Retorna detalhes de um lead específico</p>
-              </div>
-
-              <div className="p-4 rounded-lg border">
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">PATCH</Badge>
-                  <code className="text-sm">/api-leads</code>
-                </div>
-                <p className="text-sm text-muted-foreground mb-2">Atualiza um lead existente</p>
-                <div className="text-xs text-muted-foreground">
-                  <strong>Body:</strong> id (obrigatório), status, notas, salvo
+                <p className="text-sm text-[#9ca3af] mb-1">Submete os textos e a análise gerada pelo agente de IA de forma transacional.</p>
+                <div className="text-xs text-[#9ca3af]">
+                  Requer o header <code className="text-[#10d98a] bg-black/40 px-1 py-0.5 rounded">Idempotency-Key</code> e o token recebido no claim.
                 </div>
               </div>
 
-              <div className="p-4 rounded-lg border">
+              <div className="p-4 rounded-lg border border-[#1f2d29] bg-[#0b0f0e]">
                 <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">GET</Badge>
-                  <code className="text-sm">/api-leads?action=analytics</code>
+                  <Badge className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">PATCH</Badge>
+                  <code className="text-sm text-[#f4f4f5]">/api-leads/&#123;id&#125;/status</code>
                 </div>
-                <p className="text-sm text-muted-foreground">Retorna métricas resumidas dos leads</p>
+                <p className="text-sm text-[#9ca3af]">Atualiza manualmente o status operacional do lead (ex: `failed`, `completed`).</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Response Format */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Formato de Resposta</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CodeBlock
-              id="response-format"
-              language="json"
-              code={`{
-  "success": true,
-  "data": [...],
-  "pagination": {
-    "page": 1,
-    "limit": 50,
-    "total": 150,
-    "total_pages": 3
-  }
-}`}
-            />
-          </CardContent>
-        </Card>
-
         {/* Code Examples */}
-        <Card className="mb-6">
+        <Card className="mb-6 bg-[#111816] border-[#1f2d29]">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Code className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-[#f4f4f5]">
+              <Code className="h-5 w-5 text-[#10d98a]" />
               Exemplos de Código
             </CardTitle>
-            <CardDescription>
-              Copie e adapte os exemplos para sua linguagem preferida
-            </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="nodejs" className="w-full">
-              <TabsList className="grid w-full grid-cols-4 mb-4">
-                <TabsTrigger value="nodejs" className="gap-2">
-                  <Code className="h-4 w-4" />
-                  Node.js
-                </TabsTrigger>
-                <TabsTrigger value="python" className="gap-2">
-                  <Code className="h-4 w-4" />
-                  Python
-                </TabsTrigger>
-                <TabsTrigger value="zapier" className="gap-2">
-                  <ZapIcon className="h-4 w-4" />
-                  Zapier
-                </TabsTrigger>
-                <TabsTrigger value="make" className="gap-2">
-                  <ZapIcon className="h-4 w-4" />
-                  Make
-                </TabsTrigger>
+            <Tabs defaultValue="curl" className="w-full">
+              <TabsList className="grid w-full grid-cols-4 mb-4 bg-[#0b0f0e] border border-[#1f2d29]">
+                <TabsTrigger value="curl" className="data-[state=active]:bg-[#10d98a] data-[state=active]:text-[#0b0f0e] text-[#9ca3af]">cURL</TabsTrigger>
+                <TabsTrigger value="nodejs" className="data-[state=active]:bg-[#10d98a] data-[state=active]:text-[#0b0f0e] text-[#9ca3af]">Node.js</TabsTrigger>
+                <TabsTrigger value="python" className="data-[state=active]:bg-[#10d98a] data-[state=active]:text-[#0b0f0e] text-[#9ca3af]">Python</TabsTrigger>
+                <TabsTrigger value="n8n" className="data-[state=active]:bg-[#10d98a] data-[state=active]:text-[#0b0f0e] text-[#9ca3af]">n8n / Make</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="nodejs" className="space-y-6">
+              <TabsContent value="curl" className="space-y-6">
                 <div>
-                  <h3 className="font-semibold mb-2">1. Listar Leads</h3>
-                  <CodeBlock id="nodejs-list" language="javascript" code={nodeJsExamples.listLeads} />
+                  <h3 className="font-semibold mb-2 text-[#9ca3af]">1. Listar Leads Pendentes</h3>
+                  <CodeBlock id="curl-list" language="bash" code={curlExamples.listPending} />
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-2">2. Buscar Lead por ID</h3>
-                  <CodeBlock id="nodejs-get" language="javascript" code={nodeJsExamples.getLead} />
+                  <h3 className="font-semibold mb-2 text-[#9ca3af]">2. Reservar Lead (Claim)</h3>
+                  <CodeBlock id="curl-claim" language="bash" code={curlExamples.claimLead} />
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-2">3. Atualizar Lead</h3>
-                  <CodeBlock id="nodejs-update" language="javascript" code={nodeJsExamples.updateLead} />
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">4. Obter Analytics</h3>
-                  <CodeBlock id="nodejs-analytics" language="javascript" code={nodeJsExamples.analytics} />
+                  <h3 className="font-semibold mb-2 text-[#9ca3af]">3. Enviar Análise</h3>
+                  <CodeBlock id="curl-analysis" language="bash" code={curlExamples.submitAnalysis} />
                 </div>
               </TabsContent>
 
-              <TabsContent value="python" className="space-y-6">
-                <div>
-                  <h3 className="font-semibold mb-2">1. Listar Leads</h3>
-                  <CodeBlock id="python-list" language="python" code={pythonExamples.listLeads} />
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">2. Buscar Lead por ID</h3>
-                  <CodeBlock id="python-get" language="python" code={pythonExamples.getLead} />
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">3. Atualizar Lead</h3>
-                  <CodeBlock id="python-update" language="python" code={pythonExamples.updateLead} />
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">4. Obter Analytics</h3>
-                  <CodeBlock id="python-analytics" language="python" code={pythonExamples.analytics} />
-                </div>
+              <TabsContent value="nodejs">
+                <CodeBlock id="nodejs-code" language="javascript" code={nodeJsExamples} />
               </TabsContent>
 
-              <TabsContent value="zapier">
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                  <pre className="bg-muted/50 rounded-lg p-4 overflow-x-auto text-sm whitespace-pre-wrap">
-                    {zapierSetup}
-                  </pre>
-                </div>
+              <TabsContent value="python">
+                <CodeBlock id="python-code" language="python" code={pythonExamples} />
               </TabsContent>
 
-              <TabsContent value="make">
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                  <pre className="bg-muted/50 rounded-lg p-4 overflow-x-auto text-sm whitespace-pre-wrap">
-                    {makeSetup}
-                  </pre>
-                </div>
+              <TabsContent value="n8n">
+                <pre className="bg-muted/50 rounded-lg p-4 overflow-x-auto text-sm text-[#9ca3af] whitespace-pre-wrap leading-6">
+                  {n8nSetup}
+                </pre>
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
 
-        {/* Status Values */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Valores de Status</CardTitle>
-            <CardDescription>Valores aceitos para o campo "status" ao atualizar leads</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {['novo', 'em_contato', 'em_negociacao', 'convertido', 'perdido', 'arquivado'].map((status) => (
-                <Badge key={status} variant="outline" className="font-mono">
-                  {status}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Error Codes */}
-        <Card>
+        <Card className="bg-[#111816] border-[#1f2d29]">
           <CardHeader>
-            <CardTitle>Códigos de Erro</CardTitle>
+            <CardTitle className="text-[#f4f4f5]">Códigos de Erro</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-4 p-2 rounded border">
+              <div className="flex items-center gap-4 p-2 rounded border border-[#1f2d29] bg-[#0b0f0e]">
                 <Badge variant="destructive">401</Badge>
-                <span>API Key não fornecida ou inválida</span>
+                <span className="font-mono text-[#10d98a]">INVALID_API_KEY / EXPIRED_API_KEY</span>
+                <span className="text-[#9ca3af] ml-auto">API Key inválida, revogada ou expirada.</span>
               </div>
-              <div className="flex items-center gap-4 p-2 rounded border">
+              <div className="flex items-center gap-4 p-2 rounded border border-[#1f2d29] bg-[#0b0f0e]">
                 <Badge variant="destructive">403</Badge>
-                <span>Plano não autorizado (requer Agência)</span>
+                <span className="font-mono text-[#10d98a]">ADMIN_ACCESS_REQUIRED</span>
+                <span className="text-[#9ca3af] ml-auto">Disponível apenas para contas de administrador.</span>
               </div>
-              <div className="flex items-center gap-4 p-2 rounded border">
-                <Badge variant="destructive">404</Badge>
-                <span>Lead não encontrado</span>
+              <div className="flex items-center gap-4 p-2 rounded border border-[#1f2d29] bg-[#0b0f0e]">
+                <Badge variant="destructive">409</Badge>
+                <span className="font-mono text-[#10d98a]">PROCESSING_CONFLICT</span>
+                <span className="text-[#9ca3af] ml-auto">Lead já em processamento ou colisão de Idempotency-Key.</span>
               </div>
-              <div className="flex items-center gap-4 p-2 rounded border">
-                <Badge variant="destructive">500</Badge>
-                <span>Erro interno do servidor</span>
+              <div className="flex items-center gap-4 p-2 rounded border border-[#1f2d29] bg-[#0b0f0e]">
+                <Badge variant="destructive">422</Badge>
+                <span className="font-mono text-[#10d98a]">INVALID_LOCK_TOKEN / EXPIRED_LOCK</span>
+                <span className="text-[#9ca3af] ml-auto">Token de reserva do lead incorreto ou tempo expirado (15m).</span>
               </div>
             </div>
           </CardContent>

@@ -413,3 +413,14 @@ Evento de rastreamento disparado na finalização segura do checkout (`app_event
 3. **Recuperação Amigável:** O aviso no app (banner ou modal central leve) deve usar linguagem empática e humana, explicando que o pagamento não foi concluído por possíveis motivos como limite do cartão, cartão virtual ou bloqueio bancário.
 4. **Tratamento de E-mail Único:** Nunca enviar mais de um e-mail de recuperação para a mesma fatura (`invoice_id`). Checar se já existe um registro correspondente em `payment_recovery_email_logs` com status de sucesso antes do envio.
 5. **Bypass de Admin:** Admins (`isAdmin === true`) têm acesso total e irrestrito, ignorando quaisquer bloqueios ou validações de pagamento pendente.
+
+### Regras Comportamentais de Logout no Checkout
+1. **Reatividade do Estado:** O estado do formulário de checkout (`email`, `nome`, `senha`) deve reagir dinamicamente a mudanças na sessão do usuário (`user`). Ao deslogar (`user` torna-se `null`), o formulário deve ser limpo e a exibição de senha/OAuth Google deve ser reativada (`hasSession === false`).
+2. **Duplo Ponto de Acesso:** O botão de desconectar deve ser acessível tanto no header geral do checkout quanto acima do campo de E-mail (através de um link "Usar outra conta") para facilitar a experiência caso o e-mail pré-preenchido não seja o desejado pelo usuário.
+3. **Bloqueio de Cliques Concorrentes:** O botão de sair deve respeitar a variável global de processamento da tela (`isAnyProcessing`), ficando desabilitado enquanto o formulário de pagamento ou cadastro está sendo enviado.
+
+### Regras de Navegação e Redirecionamento da LP
+1. **Bypass de Redirecionamento da LP:** Quando a Landing Page (`LandingProspeccaoIA`) for carregada com o parâmetro de busca `no_redirect=true`, ela não deve redirecionar o usuário autenticado para o painel `/prospeccao`. Isso permite que usuários logados consigam ver e navegar no site institucional original a partir de links como "Voltar ao site" na página de preços.
+2. **Coexistência de Sessão:** A verificação de autenticação na LP deve continuar funcionando perfeitamente em acessos sem o parâmetro `no_redirect=true`, garantindo que usuários logados caiam diretamente no painel `/prospeccao` ao acessar o domínio principal.
+
+

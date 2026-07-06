@@ -238,3 +238,14 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
   - [x] Impedida a geração de análises e reanálises com IA em `LeadsList.tsx` (reanalyzeLead), `LeadPlanDialog.tsx` (handleReanalyze) e `LeadsSalvos.tsx` (handleReanalyze), mostrando Toast de pagamento pendente.
 - [x] **Validação Técnica:**
   - [x] Executada compilação de produção do frontend (`npm run build`) com 100% de sucesso, livre de erros de tipos ou referências.
+
+### Iteração 17: Resiliência em IA (Gemini 2.5) e Integração Total com IA Claude Externa (06/07/2026)
+- [x] **API Externa (api-leads):** Modificada a Edge Function `api-leads/index.ts` para mapear e expor 100° dos dados descriptografados do lead (incluindo CNPJ, nome de sócio responsável, redes sociais, pixels de rastreamento, status de CRM, copies de prospecção e chaves de processamento) no payload JSON retornado nas rotas `GET /api-leads` e `GET /api-leads/:id`. Isso concede contexto total de administrador para a IA Claude externa tomar decisões de abordagem personalizadas de forma autônoma.
+- [x] **Backend & Scraper:** Flexibilizado o regex de busca por links de WhatsApp na função `analyzeSiteHTML` da Edge Function `buscar-leads` e sincronizado na Edge Function `analisar-lead-ia` para capturar links flexíveis com barras opcionais (`/send/?phone=...`) e parâmetros gerais de `phone=`, aumentando a taxa de sucesso de captação de WhatsApp nos sites das empresas.
+- [x] **Backend & Fallbacks de IA:**
+  - [x] Atualizada a lista de modelos vigentes da Google no loop de fallbacks de `analisar-lead-ia/index.ts` para testar os modelos reais de produção de 2026: `gemini-2.5-flash`, `gemini-1.5-flash`, `gemini-1.5-pro`.
+  - [x] Implementado tratamento de erro HTTP status 400 que indique "modelo não suportado" ou "modelo não encontrado" no loop de fallbacks, evitando que o loop quebre na primeira tentativa caso novas transições de modelos ocorram na API do Google AI Studio.
+- [x] **Frontend & Resiliência:**
+  - [x] Criado o helper `sanitizeBrazilianPhone` em `LeadsList.tsx` e `LeadPlanDialog.tsx` para remover o `55` opcional e o `0` do DDD inicial (ex: tratar `011999999999` -> `11999999999`), evitando quebras na validação de tamanho que ocultavam os botões de WhatsApp.
+  - [x] Importado o componente `Button` em `LeadPlanDialog.tsx` para corrigir a compilação.
+

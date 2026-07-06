@@ -1156,9 +1156,10 @@ serve(async (req) => {
         // 1. Padrões de links WhatsApp (mais completos)
         const whatsappLinkPatterns = [
           /wa\.me\/(\+?[0-9]+)/gi,
-          /api\.whatsapp\.com\/send\?phone=(\+?[0-9]+)/gi,
-          /web\.whatsapp\.com\/send\?phone=(\+?[0-9]+)/gi,
-          /whatsapp:\/\/send\?phone=(\+?[0-9]+)/gi,
+          /api\.whatsapp\.com\/send\/?\?phone=(\+?[0-9]+)/gi,
+          /web\.whatsapp\.com\/send\/?\?phone=(\+?[0-9]+)/gi,
+          /whatsapp:\/\/send\/?\?phone=(\+?[0-9]+)/gi,
+          /phone=(\+?[0-9]+)/gi,
         ];
         
         for (const pattern of whatsappLinkPatterns) {

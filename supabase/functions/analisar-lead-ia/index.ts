@@ -978,9 +978,10 @@ async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
     // 1. Padrões de links WhatsApp
     const whatsappLinkPatterns = [
       /wa\.me\/(\+?[0-9]+)/gi,
-      /api\.whatsapp\.com\/send\?phone=(\+?[0-9]+)/gi,
-      /web\.whatsapp\.com\/send\?phone=(\+?[0-9]+)/gi,
-      /whatsapp:\/\/send\?phone=(\+?[0-9]+)/gi,
+      /api\.whatsapp\.com\/send\/?\?phone=(\+?[0-9]+)/gi,
+      /web\.whatsapp\.com\/send\/?\?phone=(\+?[0-9]+)/gi,
+      /whatsapp:\/\/send\/?\?phone=(\+?[0-9]+)/gi,
+      /phone=(\+?[0-9]+)/gi,
     ];
     
     for (const pattern of whatsappLinkPatterns) {
@@ -1807,7 +1808,7 @@ async function analyzeWithGeminiDirect(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
 
-  const modelsToTry = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash"];
+  const modelsToTry = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
   let lastResponseError = "";
 
   for (const model of modelsToTry) {
@@ -1929,14 +1930,22 @@ async function analyzeWithGeminiDirect(
         onRetry
       );
 
-      if (response.status === 404) {
-        console.warn(`⚠️ Modelo ${model} retornou 404 (indisponível). Tentando o próximo...`);
-        lastResponseError = `Modelo ${model} indisponível (404)`;
-        continue;
-      }
-
       if (!response.ok) {
         const errorText = await response.text();
+        const isModelUnavailableError = 
+          response.status === 404 || 
+          (response.status === 400 && (
+            errorText.toLowerCase().includes("not found") || 
+            errorText.toLowerCase().includes("not supported") || 
+            errorText.toLowerCase().includes("invalid_argument")
+          ));
+
+        if (isModelUnavailableError) {
+          console.warn(`⚠️ Modelo ${model} indisponível (Status: ${response.status}). Tentando o próximo... Detalhes: ${errorText}`);
+          lastResponseError = `Modelo ${model} indisponível (${response.status}): ${errorText}`;
+          continue;
+        }
+
         console.error(`❌ Gemini API error para o modelo ${model}:`, response.status, errorText);
         throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
       }

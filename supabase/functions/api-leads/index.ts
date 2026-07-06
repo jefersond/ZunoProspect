@@ -64,6 +64,73 @@ function buildErrorResponse(
   });
 }
 
+// Função para mapear o lead de forma completa descriptografada para o Claude externo
+const mapLeadForClaude = (lead: any) => {
+  const whatsappNumberClean = lead.whatsapp_number ? lead.whatsapp_number.replace(/\D/g, "") : "";
+  const phoneClean = lead.telefone ? lead.telefone.replace(/\D/g, "") : "";
+  
+  // Link dinâmico de WhatsApp wa.me/55...
+  let whatsappLink = "";
+  if (whatsappNumberClean) {
+    whatsappLink = `https://wa.me/${whatsappNumberClean.startsWith('55') ? whatsappNumberClean : '55' + whatsappNumberClean}`;
+  } else if (phoneClean && phoneClean.length >= 10 && phoneClean.length <= 12) {
+    whatsappLink = `https://wa.me/${phoneClean.startsWith('55') ? phoneClean : '55' + phoneClean}`;
+  }
+
+  return {
+    id: lead.id,
+    user_id: lead.user_id,
+    company_name: lead.nome,
+    website: lead.website || "",
+    city: lead.cidade || "",
+    niche: lead.nicho || "",
+    phone: lead.telefone || "",
+    email: lead.email || "",
+    instagram: lead.instagram_url || "",
+    description: lead.instagram_context || lead.notas || "",
+    source: lead.search_run_id || "manual",
+    status: lead.processing_status || "pending",
+    created_at: lead.created_at,
+    
+    // Dados adicionais 360° para IA Claude
+    focus: lead.foco || "",
+    whatsapp_number: lead.whatsapp_number || "",
+    whatsapp_on_site: lead.whatsapp_on_site || false,
+    whatsapp_link: whatsappLink,
+    rating: lead.rating || null,
+    total_reviews: lead.total_reviews || 0,
+    latitude: lead.latitude || null,
+    longitude: lead.longitude || null,
+    address: lead.endereco || "",
+    crm_status: lead.status || "novo",
+    notes: lead.notas || "",
+    country: lead.pais || "BR",
+    has_meta_pixel: lead.has_meta_pixel || false,
+    has_gtag: lead.has_gtag || false,
+    has_gtm: lead.has_gtm || false,
+    digital_signals: lead.digital_signals || {},
+    diagnostico_bullets: lead.diagnostico_bullets || [],
+    probabilidade_conversao: lead.probabilidade_conversao || null,
+    plano_prospeccao: lead.plano_prospeccao || null,
+    ai_analise_gerada_em: lead.ai_analise_gerada_em || null,
+    
+    // CNPJ corporativo
+    cnpj: lead.cnpj || "",
+    razao_social: lead.razao_social || "",
+    nome_responsavel: lead.nome_responsavel || "",
+    cnpj_telefone: lead.cnpj_telefone || "",
+    cnpj_email: lead.cnpj_email || "",
+    situacao_cadastral: lead.situacao_cadastral || "",
+    porte_empresa: lead.porte_empresa || "",
+    cnae_principal: lead.cnae_principal || "",
+    
+    // Controle
+    processing_status: lead.processing_status || "pending",
+    processing_attempts: lead.processing_attempts || 0,
+    last_processing_error: lead.last_processing_error || null
+  };
+};
+
 serve(async (req) => {
   const startTime = Date.now();
   const corsCheck = handleCorsRequest(req);
@@ -303,22 +370,8 @@ serve(async (req) => {
       const totalCount = filteredLeads.length;
       const paginatedLeads = filteredLeads.slice(offset, offset + limit);
 
-      // Mapeamento do payload de leitura simplificado
-      const mappedLeads = paginatedLeads.map(lead => ({
-        id: lead.id,
-        user_id: lead.user_id,
-        company_name: lead.nome,
-        website: lead.website || "",
-        city: lead.cidade || "",
-        niche: lead.nicho || "",
-        phone: lead.telefone || "",
-        email: lead.email || "",
-        instagram: lead.instagram_url || "",
-        description: lead.instagram_context || lead.notas || "",
-        source: lead.search_run_id || "manual",
-        status: lead.processing_status || "pending",
-        created_at: lead.created_at
-      }));
+      // Mapeamento do payload de leitura completo para o Claude
+      const mappedLeads = paginatedLeads.map(mapLeadForClaude);
 
       const responseBody = {
         success: true,
@@ -374,21 +427,7 @@ serve(async (req) => {
         return buildErrorResponse('LEAD_NOT_FOUND', 'Lead não encontrado.', 404, requestId, corsHeaders);
       }
 
-      const mappedLead = {
-        id: lead.id,
-        user_id: lead.user_id,
-        company_name: lead.nome,
-        website: lead.website || "",
-        city: lead.cidade || "",
-        niche: lead.nicho || "",
-        phone: lead.telefone || "",
-        email: lead.email || "",
-        instagram: lead.instagram_url || "",
-        description: lead.instagram_context || lead.notas || "",
-        source: lead.search_run_id || "manual",
-        status: lead.processing_status || "pending",
-        created_at: lead.created_at
-      };
+      const mappedLead = mapLeadForClaude(lead);
 
       // Registrar log
       await supabaseAdmin.from('api_logs').insert({

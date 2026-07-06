@@ -157,14 +157,21 @@ export const LeadsList = () => {
     setShowUpgradeDialog(true);
   };
 
+  // Função para sanitizar e padronizar número de telefone brasileiro
+  const sanitizeBrazilianPhone = (phone: string): string => {
+    let cleaned = phone.replace(/\D/g, '');
+    if (cleaned.startsWith('55') && cleaned.length >= 12 && cleaned.length <= 14) {
+      cleaned = cleaned.slice(2);
+    }
+    if (cleaned.startsWith('0') && cleaned.length > 2) {
+      cleaned = cleaned.slice(1);
+    }
+    return cleaned;
+  };
+
   // Função para validar se um número de telefone brasileiro é válido
   const isValidBrazilianPhone = (phone: string): boolean => {
-    const cleanNumber = phone.replace(/\D/g, '');
-    
-    // Remove código do país se presente
-    const numberWithoutCountry = cleanNumber.startsWith('55') 
-      ? cleanNumber.slice(2) 
-      : cleanNumber;
+    const numberWithoutCountry = sanitizeBrazilianPhone(phone);
     
     // Deve ter 10 (fixo) ou 11 (celular) dígitos
     if (numberWithoutCountry.length < 10 || numberWithoutCountry.length > 11) {
@@ -194,8 +201,7 @@ export const LeadsList = () => {
   // Função para verificar se é número de celular
   const isMobileNumber = (phone: string): boolean => {
     if (!phone) return false;
-    const cleaned = phone.replace(/\D/g, "");
-    const number = cleaned.startsWith("55") ? cleaned.substring(2) : cleaned;
+    const number = sanitizeBrazilianPhone(phone);
     // Celular brasileiro: DDD (2 dígitos) + 9 + 8 dígitos = 11 dígitos total
     return number.length === 11 && number.charAt(2) === '9';
   };
@@ -204,20 +210,16 @@ export const LeadsList = () => {
   const generateWhatsAppLink = (whatsappNumber: string | null, telefone: string | null): string | null => {
     // Prioriza whatsapp_number encontrado no site
     if (whatsappNumber) {
-      const cleanWhatsapp = whatsappNumber.replace(/\D/g, '');
+      const cleanWhatsapp = sanitizeBrazilianPhone(whatsappNumber);
       if (cleanWhatsapp.length >= 10) {
-        // Adiciona código do país se não tiver
-        const fullNumber = cleanWhatsapp.startsWith('55') ? cleanWhatsapp : `55${cleanWhatsapp}`;
-        return `https://wa.me/${fullNumber}`;
+        return `https://wa.me/55${cleanWhatsapp}`;
       }
     }
     
     // Se não houver, usa o telefone como fallback (apenas se for celular)
     if (telefone && isValidBrazilianPhone(telefone) && isMobileNumber(telefone)) {
-      const cleanNumber = telefone.replace(/\D/g, '');
-      const numberWithoutCountry = cleanNumber.startsWith('55') ? cleanNumber.substring(2) : cleanNumber;
-      // Sempre adiciona o código do Brasil +55
-      return `https://wa.me/55${numberWithoutCountry}`;
+      const cleanNumber = sanitizeBrazilianPhone(telefone);
+      return `https://wa.me/55${cleanNumber}`;
     }
     
     return null;

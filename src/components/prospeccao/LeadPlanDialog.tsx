@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { LeadAnalysis } from "./LeadAnalysis";
 import { CopyableField } from "./CopyableField";
 import { TemplateSelector } from "@/components/templates/TemplateSelector";
@@ -24,9 +25,21 @@ import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { normalizeLeadForAI } from "@/utils/normalizeLead";
 
+// Função para sanitizar e padronizar número de telefone brasileiro
+const sanitizeBrazilianPhone = (phone: string): string => {
+  let cleaned = phone.replace(/\D/g, '');
+  if (cleaned.startsWith('55') && cleaned.length >= 12 && cleaned.length <= 14) {
+    cleaned = cleaned.slice(2);
+  }
+  if (cleaned.startsWith('0') && cleaned.length > 2) {
+    cleaned = cleaned.slice(1);
+  }
+  return cleaned;
+};
+
 // Função para formatar número de telefone brasileiro
 const formatPhoneNumber = (phone: string): string => {
-  const cleaned = phone.replace(/\D/g, '');
+  const cleaned = sanitizeBrazilianPhone(phone);
   if (cleaned.length === 11) {
     return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
   } else if (cleaned.length === 10) {

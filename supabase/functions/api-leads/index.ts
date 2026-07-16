@@ -501,14 +501,21 @@ serve(async (req) => {
 
       const leadId = pathParts[0];
       const body = JSON.parse(payloadText || await req.text());
-      const { notas, salvo } = body;
+      const { notas, salvo, status, custom_fields } = body;
 
       const updateFields: Record<string, any> = {};
       if (notas !== undefined) updateFields.notas = notas;
       if (salvo !== undefined) updateFields.salvo = salvo;
+      if (status !== undefined) updateFields.status = status;
+      if (custom_fields !== undefined) {
+        if (typeof custom_fields !== 'object' || Array.isArray(custom_fields)) {
+          return buildErrorResponse('INVALID_PAYLOAD', 'custom_fields deve ser um objeto chave-valor.', 400, requestId, corsHeaders);
+        }
+        updateFields.custom_fields = custom_fields;
+      }
 
       if (Object.keys(updateFields).length === 0) {
-        return buildErrorResponse('INVALID_PAYLOAD', 'Nenhum campo válido para atualização fornecido (notas, salvo).', 400, requestId, corsHeaders);
+        return buildErrorResponse('INVALID_PAYLOAD', 'Nenhum campo válido para atualização fornecido (notas, salvo, status, custom_fields).', 400, requestId, corsHeaders);
       }
 
       const { data: updatedLead, error: updateError } = await supabaseAdmin
@@ -516,7 +523,7 @@ serve(async (req) => {
         .update(updateFields)
         .eq('id', leadId)
         .eq('user_id', currentUserId)
-        .select('id, nome, notas, salvo')
+        .select('id, nome, notas, salvo, status, custom_fields')
         .single();
 
       if (updateError || !updatedLead) {

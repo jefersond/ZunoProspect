@@ -76,4 +76,26 @@ export interface LeadProspeccao {
   
   // Lead bloqueado (além da cota)
   isLocked?: boolean;
+
+  // Admin: campos customizáveis (chave-valor livre, só admin escreve)
+  custom_fields?: Record<string, string>;
+
+  // Admin: rastreamento de qualidade dos dados
+  data_sources?: Record<string, 'google_places' | 'scraped' | 'cnpj_api' | 'manual' | 'estimado'>;
+  ai_used_fallback?: boolean;
+  ai_fallback_reason?: string | null;
+}
+
+export interface LeadCustomField {
+  key: string;
+  value: string;
+}
+
+export type DataSourceLevel = 'alto' | 'medio' | 'baixo';
+
+export interface DataQualitySummary {
+  level: DataSourceLevel;
+  usedFallback: boolean;
+  fallbackReason?: string | null;
+  sources: Record<string, string>;
 }

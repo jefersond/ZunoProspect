@@ -24,14 +24,14 @@ export function PainPointsSection() {
       <div className="container mx-auto px-4">
         <div className="mb-12 text-center">
           <h2 className="mb-4 text-2xl font-bold sm:text-3xl md:text-4xl">
-            Prospectar clientes não precisa ser{" "}
+            Você reconhece esse ciclo?{" "}
             <span className="relative inline-block">
-              no escuro
+              A maioria reconhece.
               <span className="absolute bottom-0 left-0 h-1 w-full rounded-full bg-destructive/50" />
             </span>
           </h2>
           <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-            O Zuno ajuda a transformar busca, análise e abordagem em uma rotina mais clara.
+            Pesquisa manual, abordagem no chute e taxa de resposta baixa. Isso não é falta de esforço, é falta de sistema.
           </p>
         </div>
 

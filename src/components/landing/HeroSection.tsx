@@ -8,13 +8,13 @@ import { useEffect, useState } from "react";
 const ATIVIDADES = [
   { cidade: "São Paulo · SP", acao: "encontrou 47 leads em clínicas estéticas", tempo: "agora" },
   { cidade: "Belo Horizonte · MG", acao: "gerou 12 abordagens por WhatsApp", tempo: "1min atrás" },
-  { cidade: "Curitiba · PR", acao: "iniciou o teste grátis", tempo: "2min atrás" },
+  { cidade: "Curitiba · PR", acao: "ativou o teste de 7 dias", tempo: "2min atrás" },
   { cidade: "Campinas · SP", acao: "encontrou 31 leads em academias", tempo: "3min atrás" },
   { cidade: "Fortaleza · CE", acao: "gerou copy para 8 restaurantes", tempo: "4min atrás" },
 ];
 
 export function HeroSection() {
-  const headline = "Encontre, analise e aborde empresas sem improviso.";
+  const headline = "Pare de prospectar no escuro. Encontre empresas certas e saiba o que falar.";
   const [atividadeIndex, setAtividadeIndex] = useState(0);
   const [visivel, setVisivel] = useState(true);
   useEffect(() => {
@@ -55,7 +55,7 @@ export function HeroSection() {
             <div className="rounded-2xl border border-[#1f2d29] bg-[#111816]/80 p-6 shadow-[0_0_50px_rgba(16,217,138,0.02)] backdrop-blur-md md:p-8">
               <div className="inline-flex items-center gap-1.5 rounded-full border border-[#10d98a]/30 bg-[#10d98a]/10 px-3 py-1 text-xs font-semibold text-[#10d98a] mb-4">
                 <Sparkles className="h-3.5 w-3.5" />
-                Máquina de prospecção inteligente
+                Prospecção B2B com IA para agências e freelancers
               </div>
 
               <h1 className="mt-2 max-w-3xl text-4xl font-extrabold leading-[1.05] tracking-tight text-[#f4f4f5] sm:text-5xl lg:text-6xl">
@@ -63,7 +63,7 @@ export function HeroSection() {
               </h1>
 
               <p className="mt-5 max-w-xl text-base leading-relaxed text-[#9ca3af] sm:text-lg">
-                Encontre empresas por cidade e nicho, analise oportunidades com IA e gere abordagens personalizadas — em minutos, não horas.
+                Escolha cidade e nicho. Em segundos você vê empresas reais, entende a oportunidade com IA e tem a abordagem pronta para WhatsApp, Instagram ou e-mail.
               </p>
 
               {/* Chips de Públicos Alvo */}
@@ -131,7 +131,7 @@ export function HeroSection() {
                 <div className="flex items-start gap-2 sm:items-center">
                   <ShieldCheck className="h-4 w-4 shrink-0 text-[#10d98a] mt-0.5 sm:mt-0" />
                   <p className="text-xs text-[#9ca3af] font-medium leading-snug">
-                    Sem cartão de crédito · Hoje R$0
+                    Hoje R$0 · Cartão necessário
                     <br className="sm:hidden" />
                     <span className="hidden sm:inline"> · </span>
                     Cancele antes dos 7 dias sem cobrança

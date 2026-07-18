@@ -15,14 +15,14 @@ export function CTAFinalSection() {
       <div className="container mx-auto px-4 text-center relative z-10">
         <div className="mx-auto mb-4 inline-flex items-center gap-1.5 rounded-full border border-[#10d98a]/20 bg-[#10d98a]/5 px-3 py-1 text-xs font-semibold text-[#10d98a]">
           <Sparkles className="h-3.5 w-3.5" />
-          Acesso imediato e simplificado
+          7 dias grátis, acesso imediato
         </div>
 
         <h2 className="mx-auto mb-4 max-w-3xl text-3xl font-extrabold text-[#f4f4f5] md:text-5xl tracking-tight">
-          Comece sua prospecção com mais clareza.
+          Seus próximos clientes já existem. Falta você saber onde estão.
         </h2>
         <p className="mx-auto mb-8 max-w-2xl text-base text-[#9ca3af] md:text-lg">
-          Teste grátis por 7 dias com acesso completo às ferramentas de busca e IA, sem taxas de configuração.
+          Ative o teste agora e em menos de 5 minutos você tem uma lista de empresas reais, com análise de oportunidade e a abordagem pronta para enviar.
         </p>
 
         <div className="mx-auto flex max-w-md flex-col justify-center gap-3 sm:max-w-none sm:flex-row">

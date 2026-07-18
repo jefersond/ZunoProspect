@@ -202,10 +202,10 @@ export function PrecosSection() {
             Teste disponível agora — comece hoje e tenha leads em minutos
           </div>
           <h2 className="mb-4 text-3xl font-extrabold tracking-tight text-[#f4f4f5] md:text-5xl">
-            Teste a Zuno grátis por 7 dias
+            7 dias para encontrar seus próximos clientes
           </h2>
           <p className="text-base text-[#9ca3af] md:text-lg leading-relaxed max-w-2xl mx-auto font-medium mb-8">
-            <span className="text-[#10d98a] font-bold">Hoje você paga R$0.</span> Escolha um plano, ative o teste com cartão e use a Zuno por 7 dias. Depois do teste, sua assinatura começa automaticamente no plano escolhido. <span className="text-[#f4f4f5] font-bold">Cancele antes do fim do teste para não ser cobrado.</span>
+            <span className="text-[#10d98a] font-bold">Hoje você paga R$0.</span> Escolha um plano, ative o teste com cartão e use o Zuno por 7 dias completos. Depois do teste, a assinatura começa automaticamente. <span className="text-[#f4f4f5] font-bold">Cancele antes do fim do teste e não será cobrado.</span>
           </p>
 
           <div className="flex flex-col items-center gap-2">

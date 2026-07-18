@@ -75,11 +75,11 @@ export function ComoFuncionaSection() {
             Como funciona
           </Badge>
           <h2 className="mb-4 text-3xl font-extrabold tracking-tight text-[#f4f4f5] md:text-5xl">
-            Da busca à abordagem em poucos passos
+            De zero a abordagem pronta em menos de 5 minutos
           </h2>
           <p className="text-base text-[#9ca3af] md:text-lg">
-            Escolha onde e quem quer prospectar. A Zuno ajuda a encontrar empresas, entender oportunidades e gerar mensagens com IA.{" "}
-            <span className="text-[#10d98a] font-medium">Dados reais, consultados ao vivo a cada busca — nenhuma lista desatualizada.</span>
+            Você escolhe cidade e nicho. O Zuno encontra as empresas, a IA analisa as oportunidades e gera a mensagem certa para cada lead.{" "}
+            <span className="text-[#10d98a] font-medium">Dados consultados ao vivo a cada busca. Nenhuma lista desatualizada.</span>
           </p>
         </div>
 

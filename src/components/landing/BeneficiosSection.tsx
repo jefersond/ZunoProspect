@@ -40,10 +40,10 @@ export function BeneficiosSection() {
     <section className="overflow-hidden bg-secondary/30 py-16 dark:bg-secondary/10">
       <div className="container mx-auto mb-8 px-4">
         <h2 className="mb-2 text-center text-2xl font-bold sm:text-3xl">
-          Tudo que você precisa para prospectar melhor
+          Encontre, priorize e aborde sem sair da plataforma
         </h2>
         <p className="text-center text-muted-foreground">
-          Recursos pensados para encontrar, priorizar e abordar leads B2B.
+          Cada recurso foi pensado para eliminar uma etapa manual da sua rotina de prospecção.
         </p>
       </div>
 

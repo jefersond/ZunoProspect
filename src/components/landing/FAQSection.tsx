@@ -30,7 +30,7 @@ export function FAQSection() {
         <div className="text-center mb-16">
           <Badge variant="outline" className="mb-4 border-[#1f2d29] text-[#9ca3af] bg-[#111816]/50">Dúvidas frequentes</Badge>
           <h2 className="text-3xl md:text-4xl font-bold mb-4 text-[#f4f4f5]">
-            Perguntas frequentes
+            Antes de sair, leia isso
           </h2>
         </div>
 

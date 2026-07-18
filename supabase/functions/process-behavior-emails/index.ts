@@ -149,11 +149,11 @@ const emailTemplates: Record<string, (metadata: any) => EmailTemplatePayload> = 
     title: "Faça sua primeira busca",
     preheader: "Comece encontrando empresas por cidade e nicho.",
     body: `Você criou sua conta no Zuno Propect, mas ainda não fez sua primeira busca.
- 
+
 Comece escolhendo uma cidade e um nicho. O Zuno encontra empresas e ajuda você a transformar isso em oportunidades de abordagem.`,
     ctaLabel: "Fazer minha primeira busca",
     ctaUrl: "https://www.zunopropect.com.br/prospeccao?utm_source=email&utm_medium=behavior&utm_campaign=signup_no_search_1h",
-    microcopy: "Você começa com 20 leads grátis e 3 análises IA."
+    microcopy: "O trial dura 7 dias. Use bem."
   }),
   
   search_no_ai_1h: () => ({
@@ -181,8 +181,8 @@ Agora escolha outro lead com potencial e gere uma nova mensagem antes de tomar a
   ai_limit_no_upgrade_1h: () => ({
     title: "Libere mais análises IA",
     preheader: "Continue gerando abordagens com mais análises IA.",
-    body: `Você usou suas análises IA grátis no Zuno Propect.
- 
+    body: `Você usou suas análises IA do trial no Zuno Propect.
+
 Com um plano pago, você pode continuar transformando leads em abordagens com mais contexto para WhatsApp, Instagram e e-mail.`,
     ctaLabel: "Ver planos",
     ctaUrl: "https://www.zunopropect.com.br/precos?utm_source=email&utm_medium=behavior&utm_campaign=ai_limit_no_upgrade_1h",
@@ -204,12 +204,98 @@ Com o Starter, você libera 30 análises IA por mês para continuar transformand
     title: "Continue sua prospecção",
     preheader: "Volte para continuar sua prospecção no Zuno.",
     body: `Você já encontrou leads e usou a IA do Zuno para gerar abordagens com contexto.
- 
+
 Volte para continuar analisando oportunidades e organizar sua próxima abordagem.`,
     ctaLabel: "Voltar para o Zuno",
     ctaUrl: "https://www.zunopropect.com.br/prospeccao?utm_source=email&utm_medium=behavior&utm_campaign=hot_user_inactive_24h",
     microcopy: "Continue de onde parou e mantenha sua prospecção em movimento."
-  })
+  }),
+
+  // ======= SEQUÊNCIA DE ATIVAÇÃO DO TRIAL =======
+
+  trial_welcome: () => ({
+    title: "Sua primeira busca leva 3 minutos",
+    preheader: "O Zuno está pronto. Veja como começar.",
+    body: `O Zuno está pronto para você.
+
+Para começar, escolha uma cidade e um nicho. Em poucos segundos, você vê empresas reais, com dados que ajudam a decidir com quem vale a pena falar.
+
+Depois você pode pedir uma análise de oportunidade com IA e gerar a abordagem certa para WhatsApp, Instagram ou e-mail.`,
+    ctaLabel: "Fazer minha primeira busca",
+    ctaUrl: "https://www.zunopropect.com.br/prospeccao?utm_source=email&utm_medium=behavior&utm_campaign=trial_welcome",
+    microcopy: "O trial dura 7 dias. Sem surpresas."
+  }),
+
+  trial_day1_no_search: () => ({
+    title: "Ainda não testou? Aqui está por onde começar",
+    preheader: "Leva 3 minutos para ver sua primeira lista de leads.",
+    body: `Você criou sua conta no Zuno, mas ainda não fez sua primeira busca.
+
+Leva 3 minutos. Escolha a cidade e o nicho do seu cliente ideal. O Zuno encontra empresas, você decide com quem falar.`,
+    ctaLabel: "Fazer minha primeira busca",
+    ctaUrl: "https://www.zunopropect.com.br/prospeccao?utm_source=email&utm_medium=behavior&utm_campaign=trial_day1_no_search",
+    microcopy: "O trial dura 7 dias. Use bem."
+  }),
+
+  trial_day2_no_ai: () => ({
+    title: "Você encontrou os leads. Mas ainda não viu o melhor",
+    preheader: "A análise de oportunidade com IA é o diferencial.",
+    body: `Você já fez uma busca e viu empresas no Zuno.
+
+Agora vem a parte que muda o jogo: a análise de oportunidade com IA.
+
+Em vez de abordar qualquer empresa, a IA avalia o site, identifica se o nicho combina com o que você oferece e gera uma mensagem específica para aquela empresa.`,
+    ctaLabel: "Gerar análise com IA",
+    ctaUrl: "https://www.zunopropect.com.br/prospeccao?utm_source=email&utm_medium=behavior&utm_campaign=trial_day2_no_ai",
+    microcopy: "Você tem análises disponíveis no seu trial."
+  }),
+
+  trial_day3_no_send: () => ({
+    title: "Os leads estão prontos. O próximo passo é enviar",
+    preheader: "A abordagem está gerada. Só falta mandar.",
+    body: `Você já usou a IA do Zuno para gerar uma abordagem.
+
+Agora só falta enviar.
+
+Use a mensagem gerada como base, ajuste se quiser, e mande para a empresa. O Zuno também copia a mensagem direto para o WhatsApp, se preferir.`,
+    ctaLabel: "Voltar para meus leads",
+    ctaUrl: "https://www.zunopropect.com.br/prospeccao?utm_source=email&utm_medium=behavior&utm_campaign=trial_day3_no_send",
+    microcopy: "O contato certo, na hora certa, muda a resposta."
+  }),
+
+  trial_day5_upgrade: (metadata: any) => {
+    const planName = metadata?.planName || "Starter";
+    const planPrice = metadata?.planPrice || "47";
+    return {
+      title: "Seu trial acaba em 2 dias",
+      preheader: "Garanta seu acesso antes da cobrança.",
+      body: `Seu trial no plano ${planName} acaba em 2 dias.
+
+Se você gostou do Zuno, o próximo passo é garantir seu acesso antes da cobrança.
+
+Caso não queira continuar, cancele no painel antes da cobrança. Sem cobranças surpresa.`,
+      ctaLabel: "Garantir meu acesso",
+      ctaUrl: "https://www.zunopropect.com.br/profile?utm_source=email&utm_medium=behavior&utm_campaign=trial_day5_upgrade",
+      microcopy: `Plano ${planName}: R$ ${planPrice}/mês. Cancele a qualquer momento em Perfil.`
+    };
+  },
+
+  trial_day7_last: (metadata: any) => {
+    const planName = metadata?.planName || "Starter";
+    const planPrice = metadata?.planPrice || "47";
+    return {
+      title: "Último dia de trial",
+      preheader: "Hoje é o último dia. Decida agora.",
+      body: `Hoje é o último dia do seu trial no plano ${planName}.
+
+Se quiser continuar usando o Zuno, não precisa fazer nada. A assinatura renova automaticamente por R$ ${planPrice}/mês.
+
+Se preferir cancelar, faça isso antes da meia-noite de hoje.`,
+      ctaLabel: "Gerenciar minha assinatura",
+      ctaUrl: "https://www.zunopropect.com.br/profile?utm_source=email&utm_medium=behavior&utm_campaign=trial_day7_last",
+      microcopy: "Cancele a qualquer momento em Perfil."
+    };
+  }
 };
 
 // ============= RESEND SENDER HELPER =============
@@ -555,6 +641,51 @@ serve(async (req: Request): Promise<Response> => {
               }
             }
           }
+        }
+
+        // --- AUTOMATION: trial_welcome (15min após cadastro) ---
+        if (hoursSinceRegistration >= 0.25 && !hasPurchase) {
+          const scheduledTime = new Date(new Date(user.created_at).getTime() + 15 * 60 * 1000);
+          await enqueueEmail(user.id, userEmail, "trial_welcome", scheduledTime);
+        }
+
+        // --- AUTOMATION: trial_day1_no_search (24h, sem busca) ---
+        if (hoursSinceRegistration >= 24 && !hasSearch && !hasPurchase) {
+          const scheduledTime = new Date(new Date(user.created_at).getTime() + 24 * 60 * 60 * 1000);
+          await enqueueEmail(user.id, userEmail, "trial_day1_no_search", scheduledTime);
+        }
+
+        // --- AUTOMATION: trial_day2_no_ai (48h, fez busca mas sem IA) ---
+        if (hoursSinceRegistration >= 48 && hasSearch && !hasAi && !hasPurchase) {
+          const scheduledTime = new Date(new Date(user.created_at).getTime() + 48 * 60 * 60 * 1000);
+          await enqueueEmail(user.id, userEmail, "trial_day2_no_ai", scheduledTime);
+        }
+
+        // --- AUTOMATION: trial_day3_no_send (72h, usou IA mas não enviou) ---
+        const hasMessageSent = events.some(e => ["message_sent", "whatsapp_message_sent", "message_copied", "approach_sent"].includes(e.event_name));
+        if (hoursSinceRegistration >= 72 && hasAi && !hasMessageSent && !hasPurchase) {
+          const scheduledTime = new Date(new Date(user.created_at).getTime() + 72 * 60 * 60 * 1000);
+          await enqueueEmail(user.id, userEmail, "trial_day3_no_send", scheduledTime);
+        }
+
+        // --- AUTOMATION: trial_day5_upgrade (5 dias, qualquer estado) ---
+        if (hoursSinceRegistration >= 120 && hoursSinceRegistration < 168 && !hasPurchase) {
+          const planName = subscription?.plan_name
+            ? (String(subscription.plan_name).toLowerCase() === "pro" ? "Pro" : String(subscription.plan_name).toLowerCase() === "agency" || String(subscription.plan_name).toLowerCase() === "agencia" ? "Agency" : "Starter")
+            : "Starter";
+          const planPrice = planName === "Pro" ? "97" : planName === "Agency" ? "247" : "47";
+          const scheduledTime = new Date(new Date(user.created_at).getTime() + 120 * 60 * 60 * 1000);
+          await enqueueEmail(user.id, userEmail, "trial_day5_upgrade", scheduledTime, { planName, planPrice });
+        }
+
+        // --- AUTOMATION: trial_day7_last (7 dias, qualquer estado) ---
+        if (hoursSinceRegistration >= 168 && hoursSinceRegistration < 192 && !hasPurchase) {
+          const planName = subscription?.plan_name
+            ? (String(subscription.plan_name).toLowerCase() === "pro" ? "Pro" : String(subscription.plan_name).toLowerCase() === "agency" || String(subscription.plan_name).toLowerCase() === "agencia" ? "Agency" : "Starter")
+            : "Starter";
+          const planPrice = planName === "Pro" ? "97" : planName === "Agency" ? "247" : "47";
+          const scheduledTime = new Date(new Date(user.created_at).getTime() + 168 * 60 * 60 * 1000);
+          await enqueueEmail(user.id, userEmail, "trial_day7_last", scheduledTime, { planName, planPrice });
         }
 
         // --- AUTOMATION 7: trial_ending_24h ---

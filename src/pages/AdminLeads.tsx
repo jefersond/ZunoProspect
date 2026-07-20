@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppHeader } from "@/components/AppHeader";
 import { useSubscription } from "@/hooks/useSubscription";
 import { LeadCustomFieldsEditor } from "@/components/admin/LeadCustomFieldsEditor";
+import { LeadCoreFieldsEditor } from "@/components/admin/LeadCoreFieldsEditor";
 import { LeadDataQualityBadge, buildDataQualitySummary } from "@/components/admin/LeadDataQualityBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -251,6 +252,29 @@ export default function AdminLeads() {
                       </div>
                     ) : null
                   )}
+                </section>
+
+                {/* Dados principais (editáveis) */}
+                <section className="border-t pt-4">
+                  <LeadCoreFieldsEditor
+                    leadId={selected.id}
+                    initialFields={{
+                      nome: selected.nome,
+                      whatsapp_link: selected.whatsapp_link,
+                      email: selected.email,
+                      website: selected.website,
+                      instagram_url: selected.instagram_url,
+                      cidade: selected.cidade,
+                      endereco: selected.endereco,
+                      nome_responsavel: selected.nome_responsavel,
+                    }}
+                    onSave={(fields) => {
+                      setSelected((prev) => prev ? { ...prev, ...fields } : prev);
+                      setLeads((prev) =>
+                        prev.map((l) => l.id === selected.id ? { ...l, ...fields } : l)
+                      );
+                    }}
+                  />
                 </section>
 
                 {/* Campos customizáveis */}

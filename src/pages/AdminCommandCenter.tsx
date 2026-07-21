@@ -24,6 +24,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
+import { CommandCenterOperations } from "@/components/admin/CommandCenterOperations";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -257,6 +258,8 @@ export default function AdminCommandCenter() {
             </div>
           </div>
         </section>
+
+        <CommandCenterOperations onNavigate={navigate} />
 
         <div className="grid gap-6 xl:grid-cols-[1.45fr_0.75fr]">
           <Card className="min-w-0 overflow-hidden">

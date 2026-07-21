@@ -26,19 +26,13 @@ import {
   FileText,
   Bookmark,
   Kanban,
-  Mail,
   Menu,
   TrendingUp,
   Zap,
   RefreshCw,
   MoreHorizontal,
-  Megaphone,
-  Activity,
-  ShoppingCart,
-  Shield,
-  Instagram,
   BrainCircuit,
-  Workflow,
+  Shield,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -96,16 +90,10 @@ export function AppHeader({
     ...(isAdmin
       ? [
           { to: "/admin/central", icon: BrainCircuit, label: "Central", isAdmin: true },
-          { to: "/admin/realtime", icon: Activity, label: "Tempo Real", isAdmin: true },
-          { to: "/admin/checkouts-abandonados", icon: ShoppingCart, label: "Checkouts", isAdmin: true },
-          { to: "/admin/email", icon: Mail, label: "Email", isAdmin: true },
-          { to: "/admin/instagram", icon: Instagram, label: "Instagram", isAdmin: true },
-          { to: "/admin/marketing", icon: Megaphone, label: "Marketing", isAdmin: true },
-          { to: "/admin/funil", icon: Workflow, label: "Funil", isAdmin: true },
           { to: "/admin/system-health", icon: Shield, label: "Saúde", isAdmin: true },
         ]
       : []),
-  ];
+  ].filter((item) => !item.isAdmin || item.to === "/admin/central");
   const primaryNavItems = navItems.slice(0, 4);
   const secondaryNavItems = navItems.slice(4);
 

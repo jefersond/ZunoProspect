@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
+  Activity,
   Bell,
   BrainCircuit,
   CalendarDays,
@@ -10,12 +11,16 @@ import {
   Clock3,
   Instagram,
   Loader2,
+  Mail,
   Megaphone,
   MessageSquareText,
   Palette,
   RefreshCw,
+  ShieldCheck,
+  ShoppingCart,
   Target,
   Users,
+  Workflow,
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -259,11 +264,13 @@ export function CommandCenterOperations({ onNavigate }: { onNavigate: (path: str
           <div className="flex min-h-48 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div>
         ) : (
           <Tabs defaultValue="today" className="space-y-4">
-            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-muted/50 p-1 sm:grid-cols-4">
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-muted/50 p-1 sm:grid-cols-5 [&>button:nth-child(2)]:hidden">
               <TabsTrigger value="today" className="gap-2"><Clock3 className="h-4 w-4" /> Hoje {todayPosts.length > 0 && <Badge className="h-5 min-w-5 px-1.5">{todayPosts.length}</Badge>}</TabsTrigger>
               <TabsTrigger value="calendar" className="gap-2"><CalendarDays className="h-4 w-4" /> Calendário</TabsTrigger>
+              <TabsTrigger value="calendar" className="gap-2"><Instagram className="h-4 w-4" /> Instagram</TabsTrigger>
               <TabsTrigger value="approvals" className="gap-2"><Check className="h-4 w-4" /> Aprovações {actionCount > 0 && <Badge variant="destructive" className="h-5 min-w-5 px-1.5">{actionCount}</Badge>}</TabsTrigger>
               <TabsTrigger value="team" className="gap-2"><Users className="h-4 w-4" /> Equipe</TabsTrigger>
+              <TabsTrigger value="system" className="gap-2"><ShieldCheck className="h-4 w-4" /> Sistema</TabsTrigger>
             </TabsList>
 
             <TabsContent value="today" className="space-y-4">
@@ -295,6 +302,30 @@ export function CommandCenterOperations({ onNavigate }: { onNavigate: (path: str
                 </TabsList>
                 {agents.map((agent) => { const task = latestTaskFor(agent.key); const Icon = agent.icon; return <TabsContent key={agent.key} value={agent.key} className="mt-4"><div className="rounded-xl border bg-card p-4 sm:p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-start"><div className="rounded-xl bg-muted p-3"><Icon className={`h-7 w-7 ${agent.color}`} /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{agent.name}</h3>{task && <Badge variant="outline" className={statusClass[task.status] || ""}>{statusLabel[task.status] || task.status}</Badge>}</div><p className="mt-1 text-sm text-muted-foreground">{agent.role}</p>{task ? <div className="mt-4 rounded-lg border bg-muted/20 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Última entrega</p><p className="mt-1 font-medium">{task.title}</p><p className="mt-1 text-sm text-muted-foreground">{task.brief}</p><p className="mt-3 text-xs text-muted-foreground">Campanha: {task.marketing_campaigns?.name || "Campanha da Zuno"}</p></div> : <div className="mt-4 rounded-lg border border-dashed p-5 text-sm text-muted-foreground">Este agente ainda não recebeu uma campanha.</div>}<Button variant="outline" className="mt-4 gap-2" onClick={() => onNavigate("/admin/marketing")}>Ver trabalho completo <ChevronRight className="h-4 w-4" /></Button></div></div></div></TabsContent>; })}
               </Tabs>
+            </TabsContent>
+
+            <TabsContent value="system" className="space-y-4">
+              <div>
+                <h3 className="font-semibold">{"Administra\u00e7\u00e3o da Zuno"}</h3>
+                <p className="text-xs text-muted-foreground">As ferramentas exclusivas do ADM ficam organizadas aqui, sem ocupar o menu superior.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  { title: "Tempo Real", description: "Acompanhe usu\u00e1rios e eventos acontecendo agora.", icon: Activity, path: "/admin/realtime" },
+                  { title: "Checkouts", description: "Veja pagamentos iniciados e oportunidades de recupera\u00e7\u00e3o.", icon: ShoppingCart, path: "/admin/checkouts-abandonados" },
+                  { title: "E-mail", description: "Campanhas, mensagens e comunica\u00e7\u00e3o com usu\u00e1rios.", icon: Mail, path: "/admin/email" },
+                  { title: "Funil", description: "Jornada completa da descoberta ao p\u00f3s-venda.", icon: Workflow, path: "/admin/funil" },
+                  { title: "Sa\u00fade do sistema", description: "Verifique servi\u00e7os, integra\u00e7\u00f5es e disponibilidade.", icon: ShieldCheck, path: "/admin/system-health" },
+                  { title: "Marketing completo", description: "Abra campanhas e entregas detalhadas dos agentes.", icon: Megaphone, path: "/admin/marketing" },
+                ].map((item) => (
+                  <button key={item.path} type="button" onClick={() => onNavigate(item.path)} className="group rounded-xl border bg-card p-4 text-left transition hover:border-primary/40 hover:shadow-sm">
+                    <item.icon className="h-5 w-5 text-primary" />
+                    <p className="mt-3 font-semibold">{item.title}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</p>
+                    <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary">Abrir <ChevronRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" /></span>
+                  </button>
+                ))}
+              </div>
             </TabsContent>
           </Tabs>
         )}

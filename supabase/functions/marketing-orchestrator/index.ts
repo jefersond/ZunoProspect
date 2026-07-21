@@ -105,6 +105,68 @@ const agents: AgentDefinition[] = [
   },
 ];
 
+const contextSources: Record<string, string[]> = {
+  marketing_director: [],
+  traffic_manager: ["marketing_director"],
+  copywriter: ["marketing_director", "traffic_manager"],
+  creative_director: ["marketing_director", "traffic_manager", "copywriter"],
+  social_media: ["marketing_director", "copywriter", "creative_director"],
+  sdr: ["marketing_director", "copywriter", "social_media"],
+  closer: ["marketing_director", "copywriter", "sdr"],
+  performance_analyst: [
+    "marketing_director", "traffic_manager", "copywriter", "creative_director", "social_media", "sdr", "closer",
+  ],
+};
+
+const handoffFields: Record<string, string[]> = {
+  marketing_director: ["executive_summary", "positioning", "primary_goal", "offer_strategy", "audience_hypotheses", "priorities_next_7_days", "success_criteria"],
+  traffic_manager: ["objective", "recommended_channel", "budget", "campaign_structure", "audiences", "optimization_event", "tests", "stop_rules", "scale_rules", "utm_pattern"],
+  copywriter: ["message_strategy", "objections", "organic_ctas", "ads", "landing_page", "copy_guardrails"],
+  creative_director: ["visual_direction", "brand_rules", "creatives", "production_checklist"],
+  social_media: ["monthly_strategy", "content_mix", "cadence", "weekly_focus", "posts", "community_actions"],
+  sdr: ["icp", "sourcing_filters", "instagram_entry_playbook", "whatsapp_handoff", "qualification_questions", "whatsapp_sequence", "handoff_to_closer", "compliance_rules"],
+  closer: ["whatsapp_opening", "discovery_questions", "async_demo_flow", "qualification_scorecard", "objection_handling", "plan_recommendation_rules", "checkout_handoff", "human_handoff_message"],
+  performance_analyst: ["north_star", "funnel_metrics", "dashboard_cards", "baseline_plan", "decision_cadence", "decision_rules", "data_quality_checks", "risks"],
+};
+
+function compactContext(value: unknown, depth = 0): unknown {
+  if (value === null || value === undefined || typeof value === "number" || typeof value === "boolean") return value;
+  if (typeof value === "string") return value.slice(0, 1600);
+  if (depth >= 4) return Array.isArray(value) ? `[${value.length} itens]` : "[detalhe compactado]";
+  if (Array.isArray(value)) return value.slice(0, 12).map((item) => compactContext(item, depth + 1));
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Json).slice(0, 20)
+        .map(([key, item]) => [key, compactContext(item, depth + 1)]),
+    );
+  }
+  return String(value).slice(0, 800);
+}
+
+function buildRelevantHandoffs(agentKey: string, tasks: Json[]) {
+  const allowedSources = new Set(contextSources[agentKey] || []);
+  return tasks
+    .filter((item) => allowedSources.has(String(item.agent_key || "")))
+    .slice(agentKey === "performance_analyst" ? -7 : -4)
+    .map((item) => {
+      const sourceKey = String(item.agent_key || "");
+      const output = item.output && typeof item.output === "object" ? item.output as Json : {};
+      const selected: Json = {};
+      for (const field of handoffFields[sourceKey] || []) {
+        if (output[field] !== undefined) selected[field] = compactContext(output[field]);
+      }
+      if (sourceKey === "marketing_director" && output.handoffs && typeof output.handoffs === "object") {
+        const handoffs = output.handoffs as Json;
+        if (handoffs[agentKey] !== undefined) selected.handoff_for_this_agent = compactContext(handoffs[agentKey]);
+      }
+      return {
+        agent_key: sourceKey,
+        title: safeText(item.title),
+        decisions_and_assets: selected,
+      };
+    });
+}
+
 function reply(body: Json, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -331,7 +393,14 @@ async function runNextTask(admin: SupabaseClient, aiKey: string, campaignId?: st
   }).eq("id", campaign.id);
 
   const model = Deno.env.get("MARKETING_TEAM_MODEL") || "gemini-2.5-flash";
+  const relevantHandoffs = buildRelevantHandoffs(agent.key, (contextTasks || []) as Json[]);
   const runInput = {
+    assignment: {
+      specialist: agent.title,
+      task_title: safeText(task.title, agent.title),
+      task_brief: safeText(task.brief, agent.brief),
+      approval_required: task.requires_approval === true,
+    },
     campaign: {
       name: campaign.name,
       objective: campaign.objective,
@@ -348,7 +417,8 @@ async function runNextTask(admin: SupabaseClient, aiKey: string, campaignId?: st
       brand_voice: settings?.brand_voice || "",
       guardrails: settings?.guardrails || {},
     },
-    previous_handoffs: contextTasks || [],
+    relevant_handoffs: relevantHandoffs,
+    context_policy: "Somente handoffs necessarios para esta especialidade foram incluidos.",
   };
 
   const { data: run, error: runError } = await admin.from("marketing_agent_runs").insert({
@@ -362,21 +432,26 @@ async function runNextTask(admin: SupabaseClient, aiKey: string, campaignId?: st
   if (runError) throw new Error("Falha ao registrar execucao: " + runError.message);
 
   try {
-    const context = JSON.stringify(runInput, null, 2).slice(0, 55000);
+    const context = JSON.stringify(runInput, null, 2).slice(0, 32000);
     const output = await gemini([
       agent.mission,
       "\nPLAYBOOK OPERACIONAL ADAPTADO PARA A ZUNO:\n" + getMarketingPlaybook(agent.key),
       "\nCONTEXTO REAL DA ZUNO E DA CAMPANHA:\n" + context,
+      "\nA ORDEM INDIVIDUAL EM assignment E A SUA PRIORIDADE. Use os handoffs apenas como contexto e nao refaca o trabalho de outro especialista.",
+      "Resolva em uma unica passagem: diagnostique, decida, produza, audite e corrija silenciosamente antes do JSON final.",
       "\nREGRAS INEGOCIAVEIS:",
       "- Trabalhe somente com os fatos do contexto. Quando faltar evidencia, sinalize a validacao necessaria.",
       "- O teto financeiro vale exclusivamente para compra de midia paga. Ele nao limita agentes, conteudo organico, prospeccao ou uso das ferramentas da Zuno.",
       "- Respeite os tetos de midia paga; nao publique anuncios, envie mensagem, altere investimento ou afirme que executou integracoes.",
       "- Separe hipotese de fato. Nao prometa vendas, leads, CPL ou retorno.",
       "- Entregue material pratico em portugues do Brasil.",
+      "- Nao preencha campos com texto generico para parecer completo. Use vazio quando nao se aplicar e seja especifico quando se aplicar.",
+      "- Verifique consistencia entre objetivo, publico, oferta, canal, verba, CTA, metrica e proximo passo.",
+      "- Nao exponha raciocinio interno, rascunhos ou autocritica; entregue somente a versao final corrigida.",
       "- Retorne somente JSON valido seguindo exatamente esta estrutura-base:\n" + agent.schema,
     ].join("\n"), aiKey);
 
-    const finalStatus = agent.requiresApproval ? "pending_approval" : "completed";
+    const finalStatus = task.requires_approval === true ? "pending_approval" : "completed";
     const now = new Date().toISOString();
     const { error: completeError } = await admin.from("marketing_tasks").update({
       status: finalStatus,
@@ -532,6 +607,34 @@ async function directorCommand(
 ) {
   const instruction = safeText(input.instruction ?? input.command ?? input.objective);
   if (instruction.length < 8) throw new Error("Descreva com mais detalhes o que o Diretor deve fazer.");
+
+  const duplicateWindow = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data: recentCampaigns } = await admin.from("marketing_campaigns")
+    .select("id,name,status,approval_status,created_at,metadata")
+    .gte("created_at", duplicateWindow)
+    .neq("status", "failed")
+    .order("created_at", { ascending: false })
+    .limit(12);
+  const duplicate = ((recentCampaigns || []) as Json[]).find((item) => {
+    const metadata = item.metadata && typeof item.metadata === "object" ? item.metadata as Json : {};
+    return safeText(metadata.director_instruction).toLocaleLowerCase("pt-BR") === instruction.toLocaleLowerCase("pt-BR");
+  });
+  if (duplicate) {
+    const metadata = duplicate.metadata && typeof duplicate.metadata === "object" ? duplicate.metadata as Json : {};
+    const routingPlan = metadata.routing_plan && typeof metadata.routing_plan === "object" ? metadata.routing_plan as Json : {};
+    const route = safeText(routingPlan.route, "general_marketing");
+    const routedAgents = allowedAgentKeys(metadata.routed_agents);
+    return {
+      route,
+      summary: "Esse pedido identico ja foi distribuido recentemente. Reaproveitei o trabalho em andamento para nao gastar tokens em duplicidade.",
+      agents: routedAgents,
+      campaign: duplicate,
+      accepted: true,
+      reused: true,
+      planning_only: true,
+      meta_connection_required: route === "paid_campaign",
+    };
+  }
 
   const specialistCatalog = agents.map((agent) => ({
     key: agent.key,

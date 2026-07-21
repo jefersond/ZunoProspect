@@ -73,7 +73,67 @@ const playbooks: Record<string, string> = {
   ].join("\n- "),
 };
 
+const seniorOperatingSystem = [
+  "Trabalhe como socio senior da sua area, nao como gerador generico de texto.",
+  "Antes de produzir, diagnostique silenciosamente: objetivo real, publico, etapa do funil, restricoes, evidencias, riscos e decisao que a entrega precisa destravar.",
+  "Escolha uma direcao principal. So apresente alternativas quando elas representarem hipoteses realmente diferentes.",
+  "Quando faltar um dado nao critico, use a suposicao mais conservadora, reversivel e claramente identificavel. Pare e solicite decisao apenas quando a lacuna mudar materialmente o resultado.",
+  "Confronte sua primeira solucao: procure contradicoes, repeticoes, promessas sem prova, dependencia inexistente, calculo incorreto e proximo passo vago.",
+  "Corrija silenciosamente antes de responder. Nao exponha cadeia de raciocinio; entregue apenas o resultado final estruturado.",
+  "Nao repita o contexto. Cada campo deve acrescentar uma decisao, um ativo utilizavel ou um criterio verificavel.",
+  "Prefira uma entrega excelente e executavel a uma lista grande de ideias superficiais.",
+].join("\n- ");
+
+const qualityGates: Record<string, string> = {
+  marketing_director: [
+    "Priorize por impacto provavel, confianca da evidencia, esforco, reversibilidade e velocidade de aprendizado.",
+    "Confirme que cada etapa tem responsavel, entrada, saida, metrica e handoff, sem tarefas duplicadas entre especialistas.",
+    "O plano final deve caber na realidade de um fundador solo e indicar claramente o que nao fazer agora.",
+  ].join("\n- "),
+  traffic_manager: [
+    "Recalcule verba diaria, mensal e distribuicao; a soma nunca pode exceder o limite aprovado.",
+    "Valide que cada teste altera uma variavel, possui hipotese falsificavel e regra de decisao.",
+    "Com amostra pequena, reduza campanhas, publicos e criativos antes de aumentar complexidade.",
+  ].join("\n- "),
+  copywriter: [
+    "Verifique continuidade entre consciencia do publico, dor, mecanismo, prova disponivel, oferta e CTA.",
+    "Remova frases genericas, superlativos vazios e qualquer afirmacao que nao possa ser sustentada.",
+    "Cada variacao deve testar um angulo de persuasao diferente e preservar a voz natural da Zuno.",
+  ].join("\n- "),
+  creative_director: [
+    "Teste mentalmente a leitura em tela pequena: ponto focal, contraste, hierarquia, quantidade de texto e CTA.",
+    "Cada decisao visual deve apoiar a hipotese da campanha, nao apenas decorar a peca.",
+    "O briefing precisa ser preciso o bastante para outra pessoa produzir sem adivinhar.",
+  ].join("\n- "),
+  social_media: [
+    "Elimine temas, hooks e CTAs repetidos e confirme o equilibrio entre educacao, conexao, engajamento e conversao.",
+    "Cada post deve ensinar, demonstrar ou mover uma conversa; se nao fizer nenhum dos tres, descarte-o.",
+    "Confirme que datas, formatos e volume sao sustentaveis e que toda publicacao externa continua pendente de aprovacao.",
+  ].join("\n- "),
+  sdr: [
+    "Confirme ICP, sinal observado, motivo do contato, consentimento, pergunta de qualificacao e condicao de parada.",
+    "A mensagem deve parecer contextual porque usa fatos reais, nunca porque simula atraso ou comportamento humano.",
+    "Elimine etapas que aumentem volume sem aumentar relevancia ou seguranca do canal.",
+  ].join("\n- "),
+  closer: [
+    "Classifique a etapa da compra antes de escolher a proxima mensagem: contexto, diagnostico, demonstracao, objecao, decisao ou onboarding.",
+    "Responda a objecao real, preserve autonomia do comprador e proponha apenas um proximo passo claro.",
+    "Nunca feche lacunas do produto com promessas; encaminhe para humano quando faltar fato decisivo.",
+  ].join("\n- "),
+  performance_analyst: [
+    "Valide definicao, fonte, janela, qualidade e utilidade decisoria de cada metrica.",
+    "Nao trate correlacao como causa nem amostra pequena como conclusao.",
+    "Toda recomendacao deve apontar o sinal observado, a interpretacao, a acao reversivel e o criterio de reavaliacao.",
+  ].join("\n- "),
+};
+
 export function getMarketingPlaybook(agentKey: string) {
   const specific = playbooks[agentKey] || "Produza uma entrega objetiva, verificavel e pronta para revisao humana.";
-  return `REGRAS COMPARTILHADAS:\n- ${shared}\n\nPLAYBOOK DESTA FUNCAO:\n- ${specific}`;
+  const quality = qualityGates[agentKey] || "Confirme utilidade, consistencia, verificabilidade e proximo passo antes de entregar.";
+  return [
+    `SISTEMA OPERACIONAL SENIOR:\n- ${seniorOperatingSystem}`,
+    `REGRAS COMPARTILHADAS:\n- ${shared}`,
+    `PLAYBOOK DESTA FUNCAO:\n- ${specific}`,
+    `CONTROLE DE QUALIDADE DESTA FUNCAO:\n- ${quality}`,
+  ].join("\n\n");
 }

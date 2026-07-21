@@ -239,6 +239,7 @@ async function createCampaign(admin: SupabaseClient, userId: string, input: Json
       source: safeText(input.source, "admin_marketing_center"),
       director_instruction: safeText(input.director_instruction) || null,
       routed_agents: Array.isArray(input.agent_keys) ? input.agent_keys.map(String) : [],
+      routing_plan: input.routing_plan && typeof input.routing_plan === "object" ? input.routing_plan : null,
       explicit_budget_approval: explicitBudgetApproval,
       planning_only: true,
     },
@@ -254,15 +255,35 @@ async function createCampaign(admin: SupabaseClient, userId: string, input: Json
   const selectedAgents = requestedAgentKeys.size
     ? agents.filter((agent) => requestedAgentKeys.has(agent.key))
     : agents;
-  const tasks = selectedAgents.map((agent) => ({
-    campaign_id: campaign.id,
-    agent_key: agent.key,
-    stage_order: agent.stage,
-    title: agent.title,
-    brief: agent.brief,
-    status: "queued",
-    requires_approval: agent.requiresApproval,
-  }));
+  const routedTaskEntries = Array.isArray(input.routed_tasks)
+    ? input.routed_tasks.filter((item) => item && typeof item === "object") as Json[]
+    : [];
+  const routedTaskByAgent = new Map(
+    routedTaskEntries.map((item) => [safeText(item.agent_key), item]),
+  );
+  const tasks = selectedAgents.map((agent) => {
+    const taskPlan = routedTaskByAgent.get(agent.key);
+    const dependsOn = Array.isArray(taskPlan?.depends_on) ? taskPlan.depends_on.map(String) : [];
+    const criteria = Array.isArray(taskPlan?.acceptance_criteria)
+      ? taskPlan.acceptance_criteria.map(String)
+      : [];
+    const specialistBrief = safeText(taskPlan?.brief, agent.brief);
+    const context = [
+      "Ordem do fundador: " + safeText(input.director_instruction, safeText(input.objective)),
+      safeText(taskPlan?.expected_output) ? "Entregavel esperado: " + safeText(taskPlan?.expected_output) : "",
+      criteria.length ? "Criterios de aceite: " + criteria.join(" | ") : "",
+      dependsOn.length ? "Depende de: " + dependsOn.join(", ") : "",
+    ].filter(Boolean).join("\n");
+    return {
+      campaign_id: campaign.id,
+      agent_key: agent.key,
+      stage_order: agent.stage,
+      title: safeText(taskPlan?.title, agent.title),
+      brief: specialistBrief + "\n\n" + context,
+      status: "queued",
+      requires_approval: agent.requiresApproval || taskPlan?.requires_approval === true,
+    };
+  });
   const { error: taskError } = await admin.from("marketing_tasks").insert(tasks);
   if (taskError) throw new Error("Campanha criada, mas as tarefas falharam: " + taskError.message);
   return campaign;
@@ -485,7 +506,6 @@ async function retryTask(admin: SupabaseClient, taskId: string) {
   return task;
 }
 
-function normalizeHashtags(value: unknown) {
 function saoPauloDay(value: string | Date) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
@@ -513,22 +533,63 @@ async function directorCommand(
   const instruction = safeText(input.instruction ?? input.command ?? input.objective);
   if (instruction.length < 8) throw new Error("Descreva com mais detalhes o que o Diretor deve fazer.");
 
+  const specialistCatalog = agents.map((agent) => ({
+    key: agent.key,
+    title: agent.title,
+    responsibility: agent.brief,
+    requires_approval: agent.requiresApproval,
+    execution_order: agent.stage,
+  }));
   const routing = await gemini([
-    "Voce e o Diretor central da Zuno e deve encaminhar a ordem do fundador.",
-    "Classifique sem executar gasto, publicacao ou promessa.",
-    "Use instagram_revision quando ele pedir para alterar, refazer ou revisar um post existente, especialmente o post de hoje.",
-    "Use paid_campaign quando houver anuncio, trafego pago, verba diaria, publico, palavra-chave ou teste A/B.",
-    "Use organic_campaign para conteudo novo, calendario ou campanha organica.",
-    "Use sales_operation para SDR, prospeccao, WhatsApp, objecoes ou fechamento.",
-    "Use general_marketing nos demais pedidos de marketing.",
-    "ORDEM: " + instruction,
-    "Retorne somente JSON:",
-    '{"route":"instagram_revision|paid_campaign|organic_campaign|sales_operation|general_marketing","summary":"","daily_budget":0,"monthly_budget":0,"keyword":"","audience":"","agent_keys":[]}',
+    "Voce e o Diretor central e orquestrador operacional da Zuno.",
+    "Sua funcao e transformar a ordem do fundador em um plano claro e encaminhar cada parte ao especialista correto.",
+    "Leia objetivo, contexto, publico, prazo, verba, riscos e dependencias. Nao invente informacoes ausentes.",
+    "Selecione o menor time suficiente entre os especialistas cadastrados. Novos especialistas do catalogo tambem podem ser usados.",
+    "Cada tarefa precisa de um briefing exclusivo, entregavel esperado, dependencias e criterios objetivos de aceite.",
+    "Gasto, publicacao, disparo, contato externo e alteracoes irreversiveis sempre exigem aprovacao humana.",
+    "Programacao, alteracao de produto, banco ou deploy exigem Codex: marque requires_codex e nao finja que o time de marketing executou.",
+    "Se faltar uma decisao que muda materialmente o resultado, marque needs_clarification e formule uma unica pergunta estrategica.",
+    "Use instagram_revision para alterar ou revisar post existente; paid_campaign para anuncios; organic_campaign para conteudo; sales_operation para SDR, WhatsApp ou vendas; product_development para produto e codigo; general_marketing nos demais casos.",
+    "ESPECIALISTAS DISPONIVEIS: " + JSON.stringify(specialistCatalog),
+    "ORDEM DO FUNDADOR: " + instruction,
+    "Retorne somente JSON no esquema:",
+    '{"route":"instagram_revision|paid_campaign|organic_campaign|sales_operation|general_marketing|product_development","summary":"","daily_budget":0,"monthly_budget":0,"keyword":"","audience":"","requires_codex":false,"needs_clarification":false,"clarifying_question":"","agent_keys":[],"tasks":[{"agent_key":"","title":"","brief":"","depends_on":[],"expected_output":"","acceptance_criteria":[],"requires_approval":true}],"director_return_format":""}',
   ].join("\n"), aiKey);
 
-  const route = safeText(routing.route, "general_marketing");
+  const validRoutes = new Set([
+    "instagram_revision",
+    "paid_campaign",
+    "organic_campaign",
+    "sales_operation",
+    "general_marketing",
+    "product_development",
+  ]);
+  const requestedRoute = safeText(routing.route, "general_marketing");
+  const route = validRoutes.has(requestedRoute) ? requestedRoute : "general_marketing";
   const summary = safeText(routing.summary, instruction);
 
+  if (routing.needs_clarification === true) {
+    return {
+      route,
+      summary,
+      agents: allowedAgentKeys(routing.agent_keys),
+      needs_clarification: true,
+      clarifying_question: safeText(routing.clarifying_question, "Qual decisao principal devo considerar antes de distribuir este trabalho?"),
+      accepted: false,
+    };
+  }
+
+  if (routing.requires_codex === true || route === "product_development") {
+    return {
+      route: "product_development",
+      summary,
+      agents: allowedAgentKeys(routing.agent_keys),
+      requires_codex: true,
+
+      accepted: false,
+      director_return_format: safeText(routing.director_return_format),
+    };
+  }
   if (route === "instagram_revision") {
     let post: Json | null = null;
     const targetId = safeText(input.target_post_id);
@@ -604,10 +665,18 @@ async function directorCommand(
     paid_campaign: ["marketing_director", "traffic_manager", "copywriter", "creative_director", "performance_analyst"],
     organic_campaign: ["marketing_director", "copywriter", "creative_director", "social_media", "performance_analyst"],
     sales_operation: ["marketing_director", "copywriter", "sdr", "closer", "performance_analyst"],
-    general_marketing: agents.map((agent) => agent.key),
+    general_marketing: ["marketing_director"],
   };
   const routed = allowedAgentKeys(routing.agent_keys);
-  const agentKeys = Array.from(new Set(["marketing_director", ...(routeAgents[route] || routeAgents.general_marketing), ...routed]));
+  const routedTaskCandidates = (Array.isArray(routing.tasks) ? routing.tasks as Json[] : [])
+    .filter((task) => task && typeof task === "object" && allowedAgentKeys([task.agent_key]).length > 0);
+  const taskAgentKeys = allowedAgentKeys(routedTaskCandidates.map((task) => task.agent_key));
+  const agentKeys = Array.from(new Set([
+    "marketing_director", ...(routeAgents[route] || routeAgents.general_marketing), ...routed, ...taskAgentKeys,
+  ]));
+  const routedTasks = routedTaskCandidates
+    .filter((task) => agentKeys.includes(safeText(task.agent_key)));
+
   const dailyBudget = Math.max(0, Number(routing.daily_budget || 0));
   const monthlyBudget = Math.max(0, Number(routing.monthly_budget || dailyBudget * 30));
   const campaign = await createCampaign(admin, userId, {
@@ -622,6 +691,14 @@ async function directorCommand(
     director_instruction: instruction,
     source: "zuno_director_command",
     agent_keys: agentKeys,
+    routed_tasks: routedTasks,
+    routing_plan: {
+      route,
+      summary,
+      keyword: safeText(routing.keyword) || null,
+      audience: safeText(routing.audience) || null,
+      director_return_format: safeText(routing.director_return_format) || null,
+    },
   });
   keepBackgroundAlive(processCampaignInBackground(admin, aiKey, url, service, String(campaign.id)));
   return {
@@ -629,12 +706,14 @@ async function directorCommand(
     summary,
     agents: agentKeys,
     campaign,
+    tasks: routedTasks,
     accepted: true,
     planning_only: true,
     meta_connection_required: route === "paid_campaign",
   };
 }
 
+function normalizeHashtags(value: unknown) {
   const list = Array.isArray(value) ? value : String(value || "").split(/[\s,]+/);
   return Array.from(new Set(list.map(String).map((item) => item.trim()).filter(Boolean)
     .map((item) => item.startsWith("#") ? item : "#" + item))).slice(0, 12);

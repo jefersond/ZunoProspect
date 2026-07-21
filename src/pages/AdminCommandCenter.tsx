@@ -182,7 +182,13 @@ export default function AdminCommandCenter() {
       setProgress(55);
 
       let detail = "";
-      if (result.route === "instagram_revision" && result.post) {
+      if (result.needs_clarification) {
+        detail = result.clarifying_question || "O Diretor precisa de uma decisao sua antes de distribuir o trabalho.";
+        setStatus("O Diretor encontrou uma decisao que precisa da sua confirmacao.");
+      } else if (result.requires_codex) {
+        detail = "Este pedido exige programacao, banco de dados ou publicacao de codigo. Troque para o modo Codex para executar com acesso ao projeto.";
+        setStatus("O Diretor identificou que este trabalho precisa do Codex no computador.");
+      } else if (result.route === "instagram_revision" && result.post) {
         setStatus("Social Media, Copy e Design conclu\u00edram a revis\u00e3o. Refazendo as artes...");
         try {
           const urls = await createDirectorArtwork(result.post);
@@ -216,7 +222,9 @@ export default function AdminCommandCenter() {
       setDirectorResult(finalResult);
       saveHistory("cloud");
       setProgress(100);
-      setStatus("O Diretor recebeu o retorno do time e trouxe o resultado para voc\u00ea.");
+      if (!result.needs_clarification && !result.requires_codex) {
+        setStatus("O Diretor recebeu o retorno do time e trouxe o resultado para voc\u00ea.");
+      }
       toast({
         title: result.route === "instagram_revision" ? "Post revisado pelo time" : "Diretor distribuiu o trabalho",
         description: detail || finalResult.summary,

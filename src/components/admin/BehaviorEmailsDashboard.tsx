@@ -31,7 +31,7 @@ const BEHAVIOR_TEMPLATES: Record<string, BehaviorTemplate> = {
     body: "Você criou sua conta no Zuno Propect, mas ainda não fez sua primeira busca.\n\nComece escolhendo uma cidade e um nicho. O Zuno encontra empresas e ajuda você a transformar isso em oportunidades de abordagem.",
     ctaLabel: "Fazer minha primeira busca",
     ctaUrl: "https://www.zunopropect.com.br/prospeccao?utm_source=email&utm_medium=behavior&utm_campaign=signup_no_search_1h",
-    microcopy: "Você começa com 20 leads grátis e 3 análises IA."
+    microcopy: "Você começa com 7 dias de teste no plano escolhido e paga R$0 hoje."
   },
   search_no_ai_1h: {
     key: "search_no_ai_1h",

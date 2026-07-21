@@ -99,7 +99,7 @@ export function AntesDepoisSection() {
             </ul>
 
             <div className="mt-8 rounded-lg bg-[#10d98a]/8 p-4 border border-[#10d98a]/20 text-center text-xs text-[#10d98a] font-mono">
-              Resultado: lista de 30 leads com contatos em ~5 minutos.
+              Resultado: lista organizada, diagnóstico e abordagem no mesmo fluxo.
             </div>
           </Card>
         </div>
@@ -117,7 +117,7 @@ export function AntesDepoisSection() {
             <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
           <p className="text-xs font-semibold text-[#9ca3af] mt-3 tracking-wide">
-            Hoje R$0 • Cancele antes da cobrança
+            Hoje R$0 • Cartão necessário • Cancele antes da cobrança
           </p>
         </div>
       </div>

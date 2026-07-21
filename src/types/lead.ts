@@ -20,6 +20,11 @@ export interface SinaisDigitais {
 export interface PlanoProspeccaoDia {
   dia: number;
   canal: "whatsapp" | "email" | "instagram";
+  objetivo?: string;
+  goal?: string;
+  personalization_basis?: string[];
+  angle?: string;
+  signal_used?: string;
   acao_sugerida: string;
   mensagem: string;
   objecao_provavel: string;
@@ -32,11 +37,19 @@ export interface PlanoProspeccaoDia {
   };
 }
 
+export interface LeadPersonalizationSnapshot {
+  lead_id?: string | null;
+  company_name?: string | null;
+  personalization_used?: string[];
+  data_signals?: string[];
+}
+
 export interface LeadProspeccao {
   id: string;
   placeId: string | null;
   nome: string;
   telefone: string | null;
+  whatsapp_number?: string | null;
   whatsapp_link: string | null;
   email: string | null;
   website: string | null;
@@ -98,4 +111,5 @@ export interface DataQualitySummary {
   usedFallback: boolean;
   fallbackReason?: string | null;
   sources: Record<string, string>;
+  ai_personalization?: LeadPersonalizationSnapshot | null;
 }

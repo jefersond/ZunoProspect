@@ -15,7 +15,6 @@ import { AntesDepoisSection } from "@/components/landing/AntesDepoisSection";
 import { ComoFuncionaSection } from "@/components/landing/ComoFuncionaSection";
 import { ParaQuemSection } from "@/components/landing/ParaQuemSection";
 import { CasosDeUsoSection } from "@/components/landing/CasosDeUsoSection";
-import { TestimonialsSection } from "@/components/landing/TestimonialsSection";
 import { StickyCtaBar } from "@/components/landing/StickyCtaBar";
 
 
@@ -129,8 +128,6 @@ export default function LandingProspeccaoIA() {
       <ParaQuemSection />
       
       <CasosDeUsoSection />
-
-      <TestimonialsSection />
 
       <Suspense fallback={<SectionSkeleton />}>
         <PrecosSection />

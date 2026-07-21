@@ -22,7 +22,7 @@ export function CTAFinalSection() {
           Seus próximos clientes já existem. Falta você saber onde estão.
         </h2>
         <p className="mx-auto mb-8 max-w-2xl text-base text-[#9ca3af] md:text-lg">
-          Ative o teste agora e em menos de 5 minutos você tem uma lista de empresas reais, com análise de oportunidade e a abordagem pronta para enviar.
+          Ative o teste agora e comece sua primeira busca com empresas, análise de oportunidade e abordagem pronta para enviar.
         </p>
 
         <div className="mx-auto flex max-w-md flex-col justify-center gap-3 sm:max-w-none sm:flex-row">

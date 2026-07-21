@@ -1,26 +1,26 @@
-# Descobertas e Restrições Técnicas — IA & Atribuição de Origem
+# Descobertas e Restrições Técnicas — IA & Atribuição & Regras por Foco
 
-Este arquivo centraliza o mapeamento de vulnerabilidades, restrições arquiteturais e hipóteses de falhas para o fluxo de IA e atribuição de tráfego multitoque do Zuno Propect.
+Este arquivo centraliza o mapeamento de descobertas, limitações de plataforma, soluções adotadas e restrições arquiteturais identificadas durante o desenvolvimento.
 
 ---
 
-## 🔍 Mapeamento Técnico de Falhas e Hipóteses
+## 🔍 Mapeamento Técnico de Descobertas e Soluções
 
-### 1. Desconto de Créditos em Falhas de IA
-- **Análise:** A Edge Function `analisar-lead-ia` executa a chamada ao Gemini e realiza o update do lead no banco ANTES de chamar a RPC `increment_ai_usage` (que decrementa os créditos). Assim, se o Gemini falhar, a Edge Function cai no `catch` e não consome créditos do usuário.
-- **Vulnerabilidade:** Se a Edge Function retornar sucesso técnico mas com uma resposta ou plano de prospecção vazio ou incompleto devido a uma falha silenciosa do modelo, o crédito seria consumido mesmo com experiência ruim. Blindaremos a Edge Function para validar a qualidade da resposta antes de incrementar o uso, e garantiremos que qualquer exceção não desconte saldo.
+### 1. Quebras de Linha CRLF no Windows e matching de código
+- **Descoberta:** Ao rodar ferramentas de substituição ou scripts de edição automática em sistemas Windows, a presença de finais de linha CRLF (`\r\n`) impede o matching perfeito de strings literais escritas com LF (`\n`).
+- **Solução:** No script de atualização automática em Node.js (`update_index.cjs`), implementamos uma normalização de quebras de linha (`content.replace(/\r\n/g, "\n")`) no início do processamento. Após as substituições, os finais de linha são convertidos de volta para CRLF (`content.replace(/\n/g, "\r\n")`) mantendo a integridade do arquivo original para o Git.
 
-### 2. Concorrência e Cliques Redundantes (Duplo clique)
-- **Análise:** Se o usuário clicar várias vezes de forma rápida no botão de IA antes que o estado local reflita a desabilitação (ou se houver latência na rede), múltiplas requisições paralelas podem ser enviadas à Edge Function para o mesmo lead, gerando consumo indevido de cota da chave Gemini ou conflitos de banco.
-- **Solução:** Implementaremos um controle síncrono no clique por `lead_id` (`reanalyzingLeads` / `analyzingLeadIds`) para ignorar imediatamente qualquer requisição adicional e registrar o evento `AI_Analysis_Duplicate_Click_Prevented` se necessário.
+### 2. Mudança de Tipo de Dados (Array para Objeto JSONB) no Banco de Dados
+- **Descoberta:** O banco de dados salva a cadência no formato JSONB estruturado completo `{ cadence: { day_1: ... }, likely_objection: ..., objection_response: ..., conversion_strategy: ... }`. Porém, o frontend e os relatórios em planilha Excel esperam que a propriedade `plano_prospecao_7dias` do lead seja um array de 7 objetos.
+- **Solução:** Criamos a função utilitária `normalizePlanoProspeccao(plano)` no frontend que detecta se o plano recebido é o novo formato de objeto e o converte dinamicamente em um array de 7 elementos compatível, preservando a retrocompatibilidade e evitando qualquer quebra visual de visualização ou exportação.
 
-### 3. Seção First & Last Touch Vazia
-- **Análise:** A Edge Function `admin-get-users` retorna corretamente todos os campos de atribuição multitoque do `profiles` do usuário. No entanto, se o cadastro for efetuado a partir de dispositivos onde os cookies/localStorage de UTM falharam em sincronizar (ex: em navegação anônima, Safari com bloqueio, ou Google redirect rápido que limpou parâmetros), o profile do usuário é criado com essas colunas vazias.
-- **Solução:** No painel ADM (`AdminRealtime.tsx`), quando a atribuição no profile estiver vazia, o sistema varrerá a jornada (`selectedJourney`) para extrair de forma consultiva a primeira e a última ocorrência de UTMs/origens conhecidas. Exibiremos como "First Touch inferido dos eventos", evitando a perda da inteligência de aquisição.
+### 3. Validação Balanceada contra Fallbacks Excessivos
+- **Descoberta:** Regras de validação estritas que rejeitam qualquer copy com termos genéricos comuns de marketing fariam com que a Edge Function descartasse a resposta da IA na maioria das vezes, aplicando o plano de fallback estático e anulando a personalização da IA.
+- **Solução:** A validação em `applyQualityFallbackIfNeeded` foi calibrada para focar na detecção de termos proibidos do foco (`avoid_terms`), promessas comerciais exageradas ("resultado garantido", "dobrar faturamento") e planos incompletos (menos de 7 dias ou dias sem CTAs/mensagens). Se o plano gerado for completo e respeitar essas balizas, ele é aceito.
 
-### 4. Mapeamento de Criativos de Tráfego Pago
-- **Análise:** Criativos de campanhas Meta Ads chegam como IDs numéricos gigantescos (ex: `120248028635250725`). Sem um mapeamento amigável, o painel do administrador mostra apenas esses números, dificultando a análise de performance.
-- **Solução:** Adicionaremos a chave no mapeamento `CREATIVE_NAME_MAP` com um placeholder amigável de identificação que pode ser customizado.
+### 4. Isolamento e Segurança de Focos de Prospecção Admin
+- **Descoberta:** O foco comercial "Prospecção para a Zuno" (`zuno_internal_prospecting`) destina-se a fins comerciais internos da própria Zuno e possui regras estritas de proibição de disclosures (ex: não citar que encontrou o lead através da Zuno).
+- **Solução:** Mantivemos o bloqueio de segurança que impede usuários não-administradores de executarem análises usando esse foco, retornando o código de erro `ADMIN_ONLY_FOCUS` com status HTTP 403.
 
 
 ### 5. Busca Incremental & Persistência de Filtros
@@ -94,3 +94,4 @@ Este arquivo centraliza o mapeamento de vulnerabilidades, restrições arquitetu
 - **Bloqueio de IA no Frontend:** Integramos o helper `canUsePaidFeatures` em todas as ações de IA e reanálise: no `LeadsList.tsx` (reanalyzeLead), no `LeadPlanDialog.tsx` (handleReanalyze) e no `LeadsSalvos.tsx` (handleReanalyze). Com isso, qualquer tentativa de gerar novas análises sob assinatura pendente é interceptada com um Toast amigável no padrão premium da Zuno, contendo um botão que redireciona o usuário diretamente para a fatura aberta (`hosted_invoice_url`) ou Stripe Customer Portal.
 - **WhatsApp de Suporte:** O contato de suporte via WhatsApp foi unificado na constante `ZUNO_SUPPORT_WHATSAPP = "553298511685"` para direcionar o usuário à conversa com mensagem pré-formatada.
 - **Idempotência no Webhook:** Para evitar múltiplos disparos concorrentes de e-mails de cobrança/recuperação para a mesma fatura, a Edge Function `stripe-webhook` grava o envio na tabela `payment_recovery_email_logs` e realiza um double-check indexado antes de disparar o e-mail via Resend.
+- **Bypass de Admin:** O e-mail de admin principal (`jeferson.zanotell@gmail.com`) possui bypass imediato de limites e acesso ilimitado a todos os recursos.

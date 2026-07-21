@@ -374,6 +374,7 @@ const Profile = () => {
                     variant="destructive" 
                     onClick={() => setCancelConfirmOpen(true)}
                     className="gap-2"
+                    disabled={managingSubLoading}
                   >
                     Cancelar teste grátis
                   </Button>

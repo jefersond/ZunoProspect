@@ -122,6 +122,32 @@ function getAngleSentence(angle: ApproachAngle, context: NicheCopyContext) {
   return sentences[angle];
 }
 
+function getLeadSignalSentence(lead?: Partial<LeadProspeccao> | null) {
+  if (!lead) return "";
+
+  if (typeof lead.total_reviews === "number" && lead.total_reviews >= 50) {
+    return `A quantidade de avaliacoes sugere que voces ja tem presenca local; o ponto pode ser transformar essa reputacao em mais conversas comerciais.`;
+  }
+
+  if (typeof lead.total_reviews === "number" && lead.total_reviews > 0 && lead.total_reviews < 15) {
+    return `Pelas avaliacoes disponiveis, parece haver espaco para fortalecer presenca digital e atrair mais demanda local.`;
+  }
+
+  if (lead.website) {
+    return `Vi que voces ja tem site informado, entao a ideia seria conectar essa presenca online com prospeccao mais ativa.`;
+  }
+
+  if (lead.instagram_url) {
+    return `Vi Instagram informado nos dados, entao parece existir uma vitrine que pode virar conversa comercial com mais clareza.`;
+  }
+
+  if (lead.sinais?.has_meta_pixel || lead.sinais?.has_gtag || lead.sinais?.has_gtm) {
+    return `Tambem apareceram sinais de mensuracao, o que pode ajudar a entender melhor quais canais geram contatos bons.`;
+  }
+
+  return "Nos dados disponiveis, nao encontrei site informado; por isso pensei em uma abordagem mais simples, pelo nome, segmento e cidade.";
+}
+
 export function generateSmartProspectingCopy({
   lead,
   niche,
@@ -147,6 +173,7 @@ export function generateSmartProspectingCopy({
   const approach_angle = selectApproachAngle({ niche: effectiveNiche, focus: effectiveFocus, lead });
   const cityText = effectiveCity ? ` em ${effectiveCity}` : "";
   const angleSentence = getAngleSentence(approach_angle, context);
+  const signalSentence = getLeadSignalSentence(lead);
   const isZunoInternal = effectiveFocus === ZUNO_INTERNAL_PROSPECTING_FOCUS;
   const isTrafficFocus = normalizeKey(effectiveFocus).includes("trafego") || normalizeKey(effectiveFocus).includes("traf");
   const cta =
@@ -160,7 +187,7 @@ export function generateSmartProspectingCopy({
     return {
       approach_angle,
       context,
-      message: `${companyName}, tudo bem?\n\nVi que voces atuam com ${effectiveNiche}${cityText} e fiquei com uma duvida rapida.\n\nHoje voces ja tem um processo mais previsivel para gerar novas conversas comerciais ou isso ainda depende muito de indicacao e tentativa manual?\n\nPosso te mandar uma observacao objetiva sobre isso?`,
+      message: `${companyName}, tudo bem?\n\nVi que voces atuam com ${effectiveNiche}${cityText}. ${signalSentence}\n\nHoje voces ja tem um processo mais previsivel para gerar novas conversas comerciais ou isso ainda depende muito de indicacao e tentativa manual?\n\nPosso te mandar uma observacao objetiva sobre isso?`,
     };
   }
 
@@ -177,7 +204,7 @@ export function generateSmartProspectingCopy({
     return {
       approach_angle,
       context,
-      message: `${companyName}, tudo bem?\n\nAnalisei alguns sinais digitais de voces${cityText} pensando em trafego pago.\n\n${trackingLine}\n\nHoje voces ja rodam campanhas ou ainda estao ajustando pagina, Instagram e WhatsApp para receber leads mais qualificados?\n\nPosso te mandar uma sugestao rapida do que eu olharia primeiro?`,
+      message: `${companyName}, tudo bem?\n\nAnalisei alguns sinais digitais de voces${cityText} pensando em trafego pago.\n\n${trackingLine} ${signalSentence}\n\nHoje voces ja rodam campanhas ou ainda estao ajustando pagina, Instagram e WhatsApp para receber leads mais qualificados?\n\nPosso te mandar uma sugestao rapida do que eu olharia primeiro?`,
     };
   }
 
@@ -185,7 +212,7 @@ export function generateSmartProspectingCopy({
     return {
       approach_angle,
       context,
-      message: `Oi, ${companyName}. Tudo bem?\n\nVi que voces atuam com ${effectiveNiche}${cityText} e pensei em uma ideia rapida sobre ${context.desired_outcome}.\n\n${angleSentence}\n\n${cta}`,
+      message: `Oi, ${companyName}. Tudo bem?\n\nVi que voces atuam com ${effectiveNiche}${cityText}. ${signalSentence}\n\n${angleSentence}\n\n${cta}`,
     };
   }
 
@@ -193,13 +220,13 @@ export function generateSmartProspectingCopy({
     return {
       approach_angle,
       context,
-      message: `Assunto: Ideia rapida para ${effectiveNiche}\n\n${companyName}, tudo bem?\n\nVi que voces atuam com ${effectiveNiche}${cityText} e imaginei que ${context.pain} seja um ponto importante da rotina.\n\n${angleSentence}\n\nTenho uma abordagem simples para ajudar a ${context.desired_outcome}, sem transformar isso em um pitch longo.\n\n${cta}`,
+      message: `Assunto: Ideia rapida para ${effectiveNiche}\n\n${companyName}, tudo bem?\n\nVi que voces atuam com ${effectiveNiche}${cityText}. ${signalSentence}\n\n${angleSentence}\n\nTenho uma abordagem simples para ajudar a ${context.desired_outcome}, sem transformar isso em um pitch longo.\n\n${cta}`,
     };
   }
 
   const opener = tone === "direto"
     ? `${companyName}, tudo bem?`
-    : `${companyName}, tudo bem?\n\nVi que voces atuam com ${effectiveNiche}${cityText}.`;
+    : `${companyName}, tudo bem?\n\nVi que voces atuam com ${effectiveNiche}${cityText}. ${signalSentence}`;
   const middle = tone === "consultivo"
     ? `Queria entender se hoje voces ja tem um processo claro para ${context.desired_outcome}.`
     : `Imaginei que ${context.pain} seja uma parte importante da rotina.`;

@@ -29,6 +29,7 @@ const LeadsSalvos = lazy(() => import("./pages/LeadsSalvos"));
 const Pipeline = lazy(() => import("./pages/Pipeline"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const AdminCommandCenter = lazy(() => import("./pages/AdminCommandCenter"));
 const ApiDocs = lazy(() => import("./pages/ApiDocs"));
 const Relatorios = lazy(() => import("./pages/Relatorios"));
 const AdminEmail = lazy(() => import("./pages/AdminEmail"));
@@ -36,6 +37,9 @@ const AdminRealtime = lazy(() => import("./pages/AdminRealtime"));
 const AdminAbandonedCheckouts = lazy(() => import("./pages/AdminAbandonedCheckouts"));
 const AdminSystemHealth = lazy(() => import("./pages/AdminSystemHealth"));
 const AdminLeads = lazy(() => import("./pages/AdminLeads"));
+const AdminInstagram = lazy(() => import("./pages/AdminInstagram"));
+const AdminMarketing = lazy(() => import("./pages/AdminMarketing"));
+const AdminFunnel = lazy(() => import("./pages/AdminFunnel"));
 const Precos = lazy(() => import("./pages/Precos"));
 const DesignTokens = lazy(() => import("./pages/DesignTokens"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -79,17 +83,21 @@ const AppContent = () => {
           <Route path="/prospeccao" element={<ProtectedRoute><Prospeccao /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/admin/central" element={<AdminRoute><AdminErrorBoundary><AdminCommandCenter /></AdminErrorBoundary></AdminRoute>} />
           <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
           <Route path="/historico" element={<ProtectedRoute><Historico /></ProtectedRoute>} />
           <Route path="/leads-salvos" element={<ProtectedRoute><LeadsSalvos /></ProtectedRoute>} />
           <Route path="/pipeline" element={<ProtectedRoute><Pipeline /></ProtectedRoute>} />
           <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
-          <Route path="/admin" element={<Navigate to="/admin/email" replace />} />
+          <Route path="/admin" element={<Navigate to="/admin/central" replace />} />
           <Route path="/admin/email" element={<AdminRoute><AdminErrorBoundary><AdminEmail /></AdminErrorBoundary></AdminRoute>} />
           <Route path="/admin/realtime" element={<AdminRoute><AdminErrorBoundary><AdminRealtime /></AdminErrorBoundary></AdminRoute>} />
           <Route path="/admin/checkouts-abandonados" element={<AdminRoute><AdminErrorBoundary><AdminAbandonedCheckouts /></AdminErrorBoundary></AdminRoute>} />
           <Route path="/admin/system-health" element={<AdminRoute><AdminErrorBoundary><AdminSystemHealth /></AdminErrorBoundary></AdminRoute>} />
           <Route path="/admin/leads" element={<AdminRoute><AdminErrorBoundary><AdminLeads /></AdminErrorBoundary></AdminRoute>} />
+          <Route path="/admin/instagram" element={<AdminRoute><AdminErrorBoundary><AdminInstagram /></AdminErrorBoundary></AdminRoute>} />
+          <Route path="/admin/marketing" element={<AdminRoute><AdminErrorBoundary><AdminMarketing /></AdminErrorBoundary></AdminRoute>} />
+          <Route path="/admin/funil" element={<AdminRoute><AdminErrorBoundary><AdminFunnel /></AdminErrorBoundary></AdminRoute>} />
           <Route path="/api-docs" element={<ProtectedRoute><ApiDocs /></ProtectedRoute>} />
           <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
           

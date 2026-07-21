@@ -18,20 +18,6 @@ import { appendReferralToPath } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
 import { getFunnelContext } from "@/lib/funnelContext";
 
-const freePlan = {
-  displayName: "Free",
-  subtitle: "Para testar a plataforma e entender como o Zuno funciona.",
-  leadsLimit: 20,
-  aiLimit: 3,
-  cta: "Começar a prospectar",
-  features: [
-    "20 leads por mês",
-    "3 análises com IA por mês",
-    "Busca por cidade e nicho",
-    "Acesso direto pelo navegador",
-  ],
-};
-
 export function PrecosSection() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -68,24 +54,6 @@ export function PrecosSection() {
     return () => observer.disconnect();
   }, []);
 
-  const handleFreeSignup = () => {
-    trackMetaCustomEvent("Pricing_Click", {
-      page: "landing",
-      plan_id: "free",
-      plan_name: "Free",
-      value: 0,
-      currency: "BRL",
-    });
-    trackLead({
-      content_name: "Free Plan Signup",
-      content_category: "Free Plan",
-      value: 0,
-      currency: "BRL",
-    });
-    trackEvent("cta_clicked", { cta: "comecar_gratis", location: "pricing" });
-    trackEvent("plan_clicked", { plan_id: "free", location: "pricing" });
-    navigate(appendReferralToPath("/auth?tab=signup"));
-  };
 
   const handleSelectPlano = async (plan: PlanConfig) => {
     const price = getPlanPrice(plan.id, billingCycle);
@@ -195,10 +163,7 @@ export function PrecosSection() {
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-12 max-w-2xl text-center">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#10d98a]/30 bg-[#10d98a]/10 px-3 py-1 text-xs font-semibold text-[#10d98a]">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10d98a] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#10d98a]"></span>
-            </span>
+            <Sparkles className="h-3.5 w-3.5" />
             Teste disponível agora — comece hoje e tenha leads em minutos
           </div>
           <h2 className="mb-4 text-3xl font-extrabold tracking-tight text-[#f4f4f5] md:text-5xl">

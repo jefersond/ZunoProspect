@@ -69,3 +69,11 @@ verify_jwt = false
 [functions.debug-users]
 verify_jwt = false
 
+[functions.instagram-content-agent]
+verify_jwt = true
+
+[functions.instagram-publisher]
+verify_jwt = true
+
+[functions.marketing-orchestrator]
+verify_jwt = true

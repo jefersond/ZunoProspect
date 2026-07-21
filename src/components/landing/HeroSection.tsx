@@ -1,32 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Play, ShieldCheck, Sparkles, MapPin } from "lucide-react";
+import { ArrowRight, CheckCircle2, Play, ShieldCheck, Sparkles } from "lucide-react";
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
-import { useEffect, useState } from "react";
-
-const ATIVIDADES = [
-  { cidade: "São Paulo · SP", acao: "encontrou 47 leads em clínicas estéticas", tempo: "agora" },
-  { cidade: "Belo Horizonte · MG", acao: "gerou 12 abordagens por WhatsApp", tempo: "1min atrás" },
-  { cidade: "Curitiba · PR", acao: "ativou o teste de 7 dias", tempo: "2min atrás" },
-  { cidade: "Campinas · SP", acao: "encontrou 31 leads em academias", tempo: "3min atrás" },
-  { cidade: "Fortaleza · CE", acao: "gerou copy para 8 restaurantes", tempo: "4min atrás" },
-];
 
 export function HeroSection() {
-  const headline = "Pare de prospectar no escuro. Encontre empresas certas e saiba o que falar.";
-  const [atividadeIndex, setAtividadeIndex] = useState(0);
-  const [visivel, setVisivel] = useState(true);
-  useEffect(() => {
-    const intervalo = setInterval(() => {
-      setVisivel(false);
-      setTimeout(() => {
-        setAtividadeIndex((i) => (i + 1) % ATIVIDADES.length);
-        setVisivel(true);
-      }, 400);
-    }, 3500);
-    return () => clearInterval(intervalo);
-  }, []);
+  const headline = "Encontre negócios locais que precisam do seu serviço — e saiba como abordar cada um.";
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -50,10 +29,10 @@ export function HeroSection() {
       <div className="absolute left-1/3 top-1/4 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-[#10d98a]/5 blur-[120px] pointer-events-none" />
 
       <div className="container relative z-10 mx-auto px-4">
-        <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8">
-          <div className="relative">
+        <div className="grid min-w-0 items-center gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8">
+          <div className="relative min-w-0">
             <div className="rounded-2xl border border-[#1f2d29] bg-[#111816]/80 p-6 shadow-[0_0_50px_rgba(16,217,138,0.02)] backdrop-blur-md md:p-8">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-[#10d98a]/30 bg-[#10d98a]/10 px-3 py-1 text-xs font-semibold text-[#10d98a] mb-4">
+              <div className="mb-4 inline-flex max-w-full items-start gap-1.5 rounded-full border border-[#10d98a]/30 bg-[#10d98a]/10 px-3 py-1 text-left text-xs font-semibold leading-relaxed text-[#10d98a]">
                 <Sparkles className="h-3.5 w-3.5" />
                 Prospecção B2B com IA para agências e freelancers
               </div>
@@ -63,7 +42,7 @@ export function HeroSection() {
               </h1>
 
               <p className="mt-5 max-w-xl text-base leading-relaxed text-[#9ca3af] sm:text-lg">
-                Escolha cidade e nicho. Em segundos você vê empresas reais, entende a oportunidade com IA e tem a abordagem pronta para WhatsApp, Instagram ou e-mail.
+                Escolha uma cidade e um nicho. A Zuno organiza empresas e contatos públicos, analisa oportunidades com IA e gera uma abordagem contextual para WhatsApp, Instagram ou e-mail.
               </p>
 
               {/* Chips de Públicos Alvo */}
@@ -78,24 +57,13 @@ export function HeroSection() {
                 ))}
               </div>
 
-              {/* Social Proof — atividade ao vivo */}
-              <div className="mt-6">
-                <div
-                  className="inline-flex items-center gap-2.5 rounded-xl border border-[#1f2d29] bg-[#111816]/80 px-3 py-2.5 shadow-sm backdrop-blur transition-opacity duration-300"
-                  style={{ opacity: visivel ? 1 : 0 }}
-                >
-                  <span className="relative flex h-2 w-2 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10d98a] opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-[#10d98a]" />
-                  </span>
-                  <MapPin className="h-3.5 w-3.5 shrink-0 text-[#10d98a]" />
-                  <p className="text-xs text-[#9ca3af] leading-tight">
-                    <span className="font-semibold text-[#f4f4f5]">{ATIVIDADES[atividadeIndex].cidade}</span>
-                    {" "}
-                    {ATIVIDADES[atividadeIndex].acao}
-                    <span className="ml-1.5 text-[#9ca3af]/60">· {ATIVIDADES[atividadeIndex].tempo}</span>
-                  </p>
-                </div>
+              <div className="mt-6 grid gap-2 text-xs text-[#9ca3af] sm:grid-cols-3">
+                {["Busca por região", "Diagnóstico com IA", "Mensagem pronta"].map((beneficio) => (
+                  <div key={beneficio} className="flex items-center gap-2 rounded-lg border border-[#1f2d29] bg-[#0b0f0e]/50 px-3 py-2">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-[#10d98a]" />
+                    <span>{beneficio}</span>
+                  </div>
+                ))}
               </div>
 
               <div className="mt-7 flex flex-col gap-4">
@@ -131,17 +99,14 @@ export function HeroSection() {
                 <div className="flex items-start gap-2 sm:items-center">
                   <ShieldCheck className="h-4 w-4 shrink-0 text-[#10d98a] mt-0.5 sm:mt-0" />
                   <p className="text-xs text-[#9ca3af] font-medium leading-snug">
-                    Hoje R$0 · Cartão necessário
-                    <br className="sm:hidden" />
-                    <span className="hidden sm:inline"> · </span>
-                    Cancele antes dos 7 dias sem cobrança
+                    Hoje R$0 · Cartão necessário · Cancele antes dos 7 dias sem cobrança
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="relative mx-auto w-full max-w-[560px] lg:max-w-none">
+          <div className="relative mx-auto min-w-0 w-full max-w-[560px] lg:max-w-none">
             <MockupHeroProspeccao />
           </div>
         </div>

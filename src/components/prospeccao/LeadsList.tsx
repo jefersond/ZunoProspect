@@ -12,10 +12,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck, Sparkles, Plus, Search, Check, X } from "lucide-react";
+import { Loader2, ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck, Sparkles, Plus, Search, Check, X, Pencil } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
+import { LeadEditDialog } from "./LeadEditDialog";
 import { Progress } from "@/components/ui/progress";
 import { exportLeadsToExcel } from "@/utils/exportToExcel";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
@@ -40,6 +41,39 @@ const normalizeLeadsResponse = (response: any): any[] => {
   if (Array.isArray(response.items)) return response.items;
   return [];
 };
+
+const getLeadKey = (lead: Partial<LeadProspeccao> & Record<string, any>): string => {
+  const fallback = `${lead.nome || lead.company_name || "lead"}_${lead.endereco || lead.address || ""}`;
+  return String(lead.id || lead.placeId || lead.place_id || lead.google_place_id || fallback);
+};
+
+const buildAILeadPayload = (lead: LeadProspeccao, normalizedLead: ReturnType<typeof normalizeLeadForAI>) => ({
+  id: lead.id,
+  place_id: lead.placeId,
+  google_place_id: lead.placeId,
+  company_name: lead.nome,
+  name: lead.nome,
+  category: lead.nicho,
+  niche: lead.nicho,
+  city: lead.cidade,
+  state: null,
+  address: lead.endereco,
+  phone: lead.telefone,
+  website: lead.website,
+  instagram: lead.instagram_url,
+  email: lead.email,
+  rating: lead.rating,
+  reviews_count: lead.total_reviews,
+  google_category: lead.nicho,
+  business_status: lead.status,
+  raw_data: lead,
+  digital_signals: {
+    ...lead.sinais,
+    whatsapp_link: lead.whatsapp_link,
+    instagram_context: lead.instagram_context,
+  },
+  ...normalizedLead,
+});
 
 export const LeadsList = () => {
   const { toast } = useToast();
@@ -85,6 +119,7 @@ export const LeadsList = () => {
   const [searchCompleted, setSearchCompleted] = useState(false);
   const [searchErrorState, setSearchErrorState] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
+  const [leadBeingEdited, setLeadBeingEdited] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgradeSource, setUpgradeSource] = useState<UpgradeSource>("unknown");
@@ -245,6 +280,7 @@ export const LeadsList = () => {
     return {
       id: lead.id,
       placeId: lead.google_place_id,
+      whatsapp_number: lead.whatsapp_number || null,
       nome: lead.nome,
       telefone: lead.telefone,
       whatsapp_link: generateWhatsAppLink(lead.whatsapp_number, lead.telefone),
@@ -396,8 +432,9 @@ export const LeadsList = () => {
   };
 
   const updateLeadLocally = (updatedLead: LeadProspeccao) => {
-    setLeads((prev) => prev.map((lead) => (lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead)));
-    setSelectedLead((prev) => (prev?.id === updatedLead.id ? { ...prev, ...updatedLead } : prev));
+    const updatedLeadKey = getLeadKey(updatedLead);
+    setLeads((prev) => prev.map((lead) => (getLeadKey(lead) === updatedLeadKey ? { ...lead, ...updatedLead } : lead)));
+    setSelectedLead((prev) => (prev && getLeadKey(prev) === updatedLeadKey ? { ...prev, ...updatedLead } : prev));
   };
 
   const refreshSingleLead = async (leadId: string) => {
@@ -892,10 +929,11 @@ export const LeadsList = () => {
       return;
     }
 
-    if (activeRequestsRef.current.has(lead.id) || reanalyzingLeads.has(lead.id)) {
-      console.log("Clique duplo detectado e prevenido para o lead:", lead.id);
+    const leadKey = getLeadKey(lead);
+    if (activeRequestsRef.current.has(leadKey) || reanalyzingLeads.has(leadKey)) {
+      console.log("Clique duplo detectado e prevenido para o lead:", leadKey);
       trackEvent("AI_Analysis_Duplicate_Click_Prevented", {
-        lead_id: lead.id,
+        lead_id: leadKey,
         lead_name: lead.nome,
         source,
         timestamp: new Date().toISOString()
@@ -913,17 +951,17 @@ export const LeadsList = () => {
 
     if (!canAnalyzeAI) {
       // Debounce de 5 segundos para o mesmo lead
-      const lastTrackedTime = recentlyTrackedLimitBlockRef.current[lead.id] || 0;
+      const lastTrackedTime = recentlyTrackedLimitBlockRef.current[leadKey] || 0;
       if (Date.now() - lastTrackedTime < 5000) {
         setUpgradeSource("ai_limit_reached");
         setShowUpgradeDialog(true);
         return;
       }
-      recentlyTrackedLimitBlockRef.current[lead.id] = Date.now();
+      recentlyTrackedLimitBlockRef.current[leadKey] = Date.now();
 
       // Rastrear evento de bloqueio por limite
       trackEvent("AI_Analysis_Blocked_By_Limit", {
-        lead_id: lead.id,
+        lead_id: leadKey,
         lead_name: lead.nome,
         source,
         path: window.location.pathname,
@@ -949,11 +987,11 @@ export const LeadsList = () => {
       return;
     }
 
-    activeRequestsRef.current.add(lead.id);
-    setReanalyzingLeads(prev => new Set(prev).add(lead.id));
+    activeRequestsRef.current.add(leadKey);
+    setReanalyzingLeads(prev => new Set(prev).add(leadKey));
     
     trackEvent("AI_Analysis_Started", {
-      lead_id: lead.id,
+      lead_id: leadKey,
       lead_name: lead.nome,
       user_plan: normalizedPlanName,
       ai_used_before: aiUsedBefore,
@@ -965,17 +1003,17 @@ export const LeadsList = () => {
     });
     
     trackMetaCustomEvent("AI_Analysis_Started", {
-      lead_id: lead.id,
+      lead_id: leadKey,
       lead_name: lead.nome,
       source: "prospection_page",
     });
     
     const firstAnalysisKeyPrefix = "zuno_first_ai_analysis_completed_";
-    trackEvent("ai_analysis_clicked", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source });
+    trackEvent("ai_analysis_clicked", { lead_id: leadKey, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source });
     
     if (!hasDoneFirstAi) {
       trackEvent("First_AI_Analysis_Started", {
-        lead_id: lead.id,
+        lead_id: leadKey,
         lead_name: lead.nome,
         source,
         ai_available: aiAvailableBefore,
@@ -996,6 +1034,27 @@ export const LeadsList = () => {
 
     console.log("[AI Lead Payload]", lead);
     const normalizedLead = normalizeLeadForAI(lead, searchContext);
+    const previousCadenceMessages = leads
+      .filter((item) => getLeadKey(item) !== leadKey)
+      .reduce<Record<string, string[]>>((acc, item) => {
+        item.plano_prospecao_7dias.forEach((dia) => {
+          const day = Number(dia.dia);
+          if (day >= 2 && day <= 7 && dia.mensagem) {
+            const key = `day_${day}`;
+            acc[key] = [...(acc[key] || []), dia.mensagem].slice(-8);
+          }
+        });
+        return acc;
+      }, {});
+    const searchPayload = {
+      city: (searchContext as any).city || (searchContext as any).cidade || lead.cidade,
+      state: (searchContext as any).state || (searchContext as any).estado || null,
+      niche: (searchContext as any).niche || (searchContext as any).nicho || lead.nicho,
+      focus: (searchContext as any).focus || (searchContext as any).foco || lead.foco,
+      channels: ["email", "whatsapp", "instagram"],
+      country: (searchContext as any).country || (searchContext as any).pais || "BR",
+      ...searchContext,
+    };
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -1007,9 +1066,18 @@ export const LeadsList = () => {
       const { error } = await supabase.functions.invoke("analisar-lead-ia", {
         body: {
           leadId: lead.id,
+          lead_id: leadKey,
           user_id: user.id,
-          lead: normalizedLead,
-          search_context: searchContext,
+          lead: buildAILeadPayload(lead, normalizedLead),
+          search_context: searchPayload,
+          analysis_context: {
+            focus: lead.foco,
+            goal: "gerar_abordagem_personalizada",
+            tone: "natural_consultivo",
+            selected_channels: ["email", "whatsapp", "instagram"],
+            previous_cadence_messages: previousCadenceMessages,
+            previous_day2_messages: previousCadenceMessages.day_2 || [],
+          },
           canaisProspeccao: ["email", "whatsapp", "instagram"],
         },
         headers: { Authorization: `Bearer ${token}` },
@@ -1027,7 +1095,7 @@ export const LeadsList = () => {
       const newAiRemaining = nextUsage?.data?.ai_remaining ?? Math.max(0, aiAvailableBefore - 1);
 
       trackEvent("AI_Analysis_Completed", {
-        lead_id: lead.id,
+        lead_id: leadKey,
         lead_name: lead.nome,
         user_plan: normalizedPlanName,
         ai_used_before: aiUsedBefore,
@@ -1039,7 +1107,7 @@ export const LeadsList = () => {
       });
 
       trackMetaCustomEvent("AI_Analysis_Completed", {
-        lead_id: lead.id,
+        lead_id: leadKey,
         lead_name: lead.nome,
       });
 
@@ -1048,11 +1116,11 @@ export const LeadsList = () => {
         localStorage.setItem(firstAnalysisKey, new Date().toISOString());
         
         trackMetaCustomEvent("First_AI_Analysis_Completed", {
-          lead_id: lead.id,
+          lead_id: leadKey,
         });
 
         trackEvent("First_AI_Analysis_Completed", {
-          lead_id: lead.id,
+          lead_id: leadKey,
           lead_name: lead.nome,
           user_plan: normalizedPlanName,
           ai_used: newAiUsed,
@@ -1063,7 +1131,7 @@ export const LeadsList = () => {
         });
       }
       
-      trackEvent("ai_analysis_completed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source });
+      trackEvent("ai_analysis_completed", { lead_id: leadKey, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source });
       await refreshSingleLead(lead.id);
     } catch (error: any) {
       console.error("Erro ao reanalisar:", error);
@@ -1101,7 +1169,7 @@ export const LeadsList = () => {
 
       if (isPayloadError) {
         trackEvent("AI_Analysis_Blocked_Insufficient_Data", {
-          lead_id: lead.id,
+          lead_id: leadKey,
           lead_name: lead.nome,
           available_fields: Object.keys(lead || {}),
           missing_required_fields: ["nome", "cidade/nicho/contato"],
@@ -1116,7 +1184,7 @@ export const LeadsList = () => {
         });
       } else {
         const failedMetadata = {
-          lead_id: lead.id,
+          lead_id: leadKey,
           lead_name: lead.nome,
           user_plan: normalizedPlanName,
           ai_used_before: aiUsedBefore,
@@ -1140,12 +1208,12 @@ export const LeadsList = () => {
         trackEvent("AI_Analysis_Failed", failedMetadata);
 
         trackMetaCustomEvent("AI_Analysis_Failed", {
-          lead_id: lead.id,
+          lead_id: leadKey,
           error_message: errorMsg,
         });
         
         trackEvent("ai_analysis_failed", { 
-          lead_id: lead.id, 
+          lead_id: leadKey,
           lead_name: lead.nome, 
           city: lead.cidade, 
           niche: lead.nicho, 
@@ -1164,10 +1232,10 @@ export const LeadsList = () => {
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
       });
     } finally {
-      activeRequestsRef.current.delete(lead.id);
+      activeRequestsRef.current.delete(leadKey);
       setReanalyzingLeads(prev => {
         const next = new Set(prev);
-        next.delete(lead.id);
+        next.delete(leadKey);
         return next;
       });
     }
@@ -1287,10 +1355,10 @@ export const LeadsList = () => {
                 <Button
                   type="button"
                   onClick={handleFirstAiCtaClick}
-                  disabled={reanalyzingLeads.has(firstAnalyzableLead.id)}
+                  disabled={reanalyzingLeads.has(getLeadKey(firstAnalyzableLead))}
                   className="h-10 bg-emerald-600 text-white hover:bg-emerald-500 shadow-md font-semibold text-xs transition-transform active:scale-95"
                 >
-                  {reanalyzingLeads.has(firstAnalyzableLead.id) ? (
+                  {reanalyzingLeads.has(getLeadKey(firstAnalyzableLead)) ? (
                     <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <Zap className="mr-2 h-4 w-4" />
@@ -1473,6 +1541,25 @@ export const LeadsList = () => {
                       <div className="min-w-0 space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="min-w-0 truncate font-medium" title={lead.nome}>{lead.nome}</p>
+                          {isAdmin && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setLeadBeingEdited(lead)}
+                                    className="h-7 w-7 shrink-0 text-amber-600 hover:bg-amber-500/10 hover:text-amber-700"
+                                    aria-label={`Editar dados de ${lead.nome}`}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Corrigir dados do lead (teste admin)</p></TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           {lead.salvo && (
                             <Badge variant="secondary" className="shrink-0 text-xs">
                               <Archive className="h-3 w-3 mr-1" />
@@ -1638,7 +1725,7 @@ export const LeadsList = () => {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => reanalyzeLead(lead, "leads_list")}
-                                    disabled={reanalyzingLeads.has(lead.id)}
+                                    disabled={reanalyzingLeads.has(getLeadKey(lead))}
                                     className={`h-8 whitespace-nowrap text-xs ${
                                       !canAnalyzeAI
                                         ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 font-semibold shadow-sm transition-all duration-200"
@@ -1647,12 +1734,12 @@ export const LeadsList = () => {
                                             : "")
                                     }`}
                                   >
-                                    {reanalyzingLeads.has(lead.id) ? (
+                                    {reanalyzingLeads.has(getLeadKey(lead)) ? (
                                       <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
                                     ) : (
                                       <Zap className="h-3 w-3 mr-1" />
                                     )}
-                                    {reanalyzingLeads.has(lead.id) ? "Refinando com IA..." : (canAnalyzeAI ? "Refinar com IA" : "Liberar mais análises")}
+                                    {reanalyzingLeads.has(getLeadKey(lead)) ? "Refinando com IA..." : (canAnalyzeAI ? "Refinar com IA" : "Liberar mais análises")}
                                   </Button>
                                   {isFree && aiUsed === 0 && lead.id === firstAnalyzableLead?.id && (
                                     <span className="text-[10px] text-emerald-600 font-medium whitespace-nowrap bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 animate-pulse">
@@ -1904,9 +1991,22 @@ export const LeadsList = () => {
           if (selectedLead?.id) {
             refreshSingleLead(selectedLead.id);
           }
+
         }}
         onLeadRefined={updateLeadLocally}
       />
+
+      {isAdmin && (
+        <LeadEditDialog
+          lead={leadBeingEdited}
+          open={!!leadBeingEdited}
+          onOpenChange={(open) => !open && setLeadBeingEdited(null)}
+          onSaved={(updatedLead) => {
+            updateLeadLocally(updatedLead);
+            setLeadBeingEdited(null);
+          }}
+        />
+      )}
       
       <UpgradePlanDialog 
         open={showUpgradeDialog} 

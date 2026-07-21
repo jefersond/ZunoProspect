@@ -314,8 +314,8 @@ const Auth = () => {
 
     // Track Lead event when user attempts signup
     trackLead({
-      content_name: 'Free Signup',
-      content_category: 'Registration'
+      content_name: 'Trial Signup',
+      content_category: 'Paid Plan Trial'
     });
 
     // Validação de nome

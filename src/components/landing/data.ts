@@ -130,11 +130,11 @@ export const FAQ_ITEMS = [
   },
   {
     pergunta: "Vou ser cobrado hoje?",
-    resposta: "Não. Ao ativar o teste de 7 dias, você paga R$0 hoje.",
+    resposta: "Não. Ao ativar o teste de 7 dias, você paga R$0 hoje. A cobrança do plano escolhido só acontece depois do período de teste, se você não cancelar antes.",
   },
   {
     pergunta: "Por que preciso colocar cartão?",
-    resposta: "O cartão é usado para ativar o teste do plano escolhido e evitar cadastros sem intenção real. A cobrança só acontece depois dos 7 dias, se você não cancelar antes.",
+    resposta: "O cartão é usado para ativar o teste do plano escolhido e qualificar o cadastro. A cobrança só acontece depois dos 7 dias, se você não cancelar antes.",
   },
   {
     pergunta: "Posso cancelar antes da cobrança?",
@@ -161,7 +161,7 @@ export const FAQ_ITEMS = [
     resposta: "Para gestores de tráfego, social medias, designers, freelancers, agências e operações que precisam prospectar empresas com mais clareza.",
   },
   {
-    pergunta: "Posso usar a Zuno sem cartão?",
-    resposta: "A principal forma de acesso é o teste grátis de 7 dias nos planos pagos, que exige cartão para ativação. Existe também um plano Free com acesso limitado (20 leads e 3 análises por mês) que não requer cartão — disponível na tela de cadastro.",
+    pergunta: "Preciso de cartão para começar?",
+    resposta: "Sim. A oferta pública atual é o teste de 7 dias no plano escolhido, com cartão obrigatório. Você paga R$0 hoje e pode cancelar antes do fim do teste para não ser cobrado.",
   },
 ];

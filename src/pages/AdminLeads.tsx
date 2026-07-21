@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppHeader } from "@/components/AppHeader";
 import { useSubscription } from "@/hooks/useSubscription";
 import { LeadCustomFieldsEditor } from "@/components/admin/LeadCustomFieldsEditor";
-import { LeadCoreFieldsEditor } from "@/components/admin/LeadCoreFieldsEditor";
+import { LeadEditDialog } from "@/components/prospeccao/LeadEditDialog";
+import { transformSecureLead } from "@/hooks/useSecureLeads";
+import { toast } from "sonner";
 import { LeadDataQualityBadge, buildDataQualitySummary } from "@/components/admin/LeadDataQualityBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, ExternalLink, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, RefreshCw, ChevronLeft, ChevronRight, Loader2, Pencil } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 
 const PAGE_SIZE = 50;
@@ -35,6 +37,8 @@ export default function AdminLeads() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<LeadProspeccao | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -43,9 +47,9 @@ export default function AdminLeads() {
         .from("leads")
         .select(
           `id, nome, cidade, nicho, foco, status, probabilidade_conversao,
-           website, whatsapp_link, email, rating, total_reviews,
+           rating, total_reviews, nome_responsavel,
            custom_fields, data_sources, ai_used_fallback, ai_fallback_reason,
-           sinais, created_at, notas, salvo`,
+           created_at, notas, salvo`,
           { count: "exact" }
         )
         .order("created_at", { ascending: false })
@@ -67,6 +71,28 @@ export default function AdminLeads() {
   }, [page, query]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
+  async function openLeadDetails(lead: LeadProspeccao) {
+    setSelected(lead);
+    setDetailLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("get-leads-secure", {
+        body: { action: "view_detail", leadId: lead.id },
+      });
+      if (error) throw error;
+      if (!data?.data) throw new Error(data?.error || "Detalhes do lead nao encontrados.");
+
+      const secureLead = transformSecureLead(data.data);
+      setSelected((current) =>
+        current?.id === lead.id ? { ...current, ...secureLead } : current
+      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Nao foi possivel carregar os dados seguros.";
+      toast.error(message);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -137,7 +163,7 @@ export default function AdminLeads() {
                   <TableRow
                     key={lead.id}
                     className="cursor-pointer hover:bg-muted/40"
-                    onClick={() => setSelected(lead)}
+                    onClick={() => openLeadDetails(lead)}
                   >
                     <TableCell className="font-medium truncate max-w-[180px]">
                       {lead.nome}
@@ -158,18 +184,19 @@ export default function AdminLeads() {
                       {customCount > 0 ? `${customCount} campo${customCount > 1 ? "s" : ""}` : "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      {lead.website && (
-                        <a
-                          href={lead.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          Site
-                        </a>
-                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openLeadDetails(lead);
+                        }}
+                        className="h-8 text-xs text-amber-600 hover:bg-amber-500/10 hover:text-amber-700"
+                      >
+                        <Pencil className="mr-1 h-3.5 w-3.5" />
+                        Editar
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -218,6 +245,24 @@ export default function AdminLeads() {
                 </p>
               </SheetHeader>
 
+              <div className="mb-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditDialogOpen(true)}
+                  disabled={detailLoading}
+                  className="w-full border-amber-500/30 text-amber-700 hover:bg-amber-500/10"
+                >
+                  {detailLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Pencil className="mr-2 h-4 w-4" />
+                  )}
+                  {detailLoading ? "Carregando dados seguros..." : "Corrigir dados do lead"}
+                </Button>
+              </div>
+
               <div className="space-y-6">
                 {/* Qualidade dos dados */}
                 <section className="space-y-2">
@@ -255,27 +300,6 @@ export default function AdminLeads() {
                 </section>
 
                 {/* Dados principais (editáveis) */}
-                <section className="border-t pt-4">
-                  <LeadCoreFieldsEditor
-                    leadId={selected.id}
-                    initialFields={{
-                      nome: selected.nome,
-                      whatsapp_link: selected.whatsapp_link,
-                      email: selected.email,
-                      website: selected.website,
-                      instagram_url: selected.instagram_url,
-                      cidade: selected.cidade,
-                      endereco: selected.endereco,
-                      nome_responsavel: selected.nome_responsavel,
-                    }}
-                    onSave={(fields) => {
-                      setSelected((prev) => prev ? { ...prev, ...fields } : prev);
-                      setLeads((prev) =>
-                        prev.map((l) => l.id === selected.id ? { ...l, ...fields } : l)
-                      );
-                    }}
-                  />
-                </section>
 
                 {/* Campos customizáveis */}
                 <section className="border-t pt-4">
@@ -305,6 +329,18 @@ export default function AdminLeads() {
           )}
         </SheetContent>
       </Sheet>
+
+      <LeadEditDialog
+        lead={selected}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSaved={(updatedLead) => {
+          setSelected(updatedLead);
+          setLeads((current) =>
+            current.map((lead) => lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead)
+          );
+        }}
+      />
     </div>
   );
 }

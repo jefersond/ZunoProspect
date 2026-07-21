@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zuno Growth Team"
+  short_description: "Playbooks seguros para o time de marketing da Zuno"
+  default_prompt: "Use $zuno-growth-team para planejar uma acao de crescimento da Zuno com fatos verificaveis e aprovacao humana."

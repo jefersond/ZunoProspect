@@ -132,3 +132,34 @@ export function normalizeLeadForAI(lead: any, searchContext: any = {}): Normaliz
     objetivo: isProfessional ? (lead.objetivo || "parceria comercial e rede de indicações") : undefined,
   };
 }
+
+export function normalizePlanoProspeccao(plano: any): any[] {
+  if (!plano) return [];
+  if (Array.isArray(plano)) return plano;
+  if (typeof plano === 'object' && plano.cadence) {
+    const cadence = plano.cadence;
+    const likelyObjection = plano.likely_objection || '';
+    const objectionResponse = plano.objection_response || '';
+    const planoArray: any[] = [];
+    const daysKeys = ["day_1", "day_2", "day_3", "day_4", "day_5", "day_6", "day_7"] as const;
+    for (let i = 0; i < 7; i++) {
+      const dayKey = daysKeys[i];
+      const dayData = cadence[dayKey];
+      if (dayData) {
+        planoArray.push({
+          dia: i + 1,
+          canal: dayData.channel || 'whatsapp',
+          objetivo: dayData.objective || '',
+          acao_sugerida: dayData.action || '',
+          mensagem: dayData.message || '',
+          objecao_provavel: dayData.likely_objection || likelyObjection,
+          resposta_sugerida: dayData.objection_response || objectionResponse,
+          cta: dayData.cta || '',
+          angle: dayData.angle || ''
+        });
+      }
+    }
+    return planoArray;
+  }
+  return [];
+}

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getFocusBehavior, replacePlaceholders } from "./focusBehavior.ts";
 
 const globalCorsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -740,158 +741,52 @@ function buildFallbackWhatsappMessage(lead: LeadData): string {
 }
 
 function buildFallbackProspectingPlan(lead: LeadData): AnaliseResult["plano_prospeccao_7dias"] {
-  const company = isFilledLeadValue(lead.nome) ? lead.nome : "pessoal";
-  const niche = isFilledLeadValue(lead.nicho) ? lead.nicho : "seu segmento";
-  const city = isFilledLeadValue(lead.cidade) ? ` em ${lead.cidade}` : "";
-  const focus = isFilledLeadValue(lead.foco) ? getSafeFocusLabel(lead.foco) : "presenca digital";
-  const normalizedFocus = normalizeDisclosureText(focus);
-  const isCommercialFocus = isZunoInternalProspectingFocus(lead.foco);
-  const isTrafficFocus = normalizedFocus.includes("trafego") || normalizedFocus.includes("traf");
-  const trackingTools = [
-    lead.has_meta_pixel ? "Meta Pixel" : null,
-    lead.has_gtag ? "Google Analytics" : null,
-    lead.has_gtm ? "Google Tag Manager" : null,
-  ].filter(Boolean).join(", ");
-  const trackingLine = trackingTools
-    ? `Vi que o site ja tem sinais de mensuracao (${trackingTools}), entao parece existir uma base para acompanhar campanhas.`
-    : "Nos dados que analisei, nao ficou claro se a mensuracao de campanhas ja esta preparada.";
-  const commercialContext = isTrafficFocus
-    ? `Para uma empresa de ${niche}, o ponto nao e so gerar visita; e fazer a pessoa chegar no WhatsApp ja interessada.`
-    : `Para uma empresa de ${niche}, o ponto e transformar presenca digital em conversa comercial mais qualificada.`;
+  const behavior = getFocusBehavior(lead.foco);
+  const likelyObjection = behavior.likely_objections[0] || "Não tenho interesse";
+  const objectionResponse = behavior.objection_responses[0] || "Entendo perfeitamente. Fico à disposição se mudar de ideia.";
+  const cta = behavior.cta_examples[0] || "Posso te mandar mais detalhes?";
 
-  if (isCommercialFocus) {
-    return [
-      {
-        dia: 1,
-        canal: "whatsapp",
-        acao_sugerida: "Enviar texto curto primeiro. Se responder, aprofundar com um audio curto ou mais contexto.",
-        mensagem: `Ola, ${company}, tudo bem?\n\nVi que voces atuam com ${niche}${city} e fiquei com uma duvida rapida.\n\nHoje a entrada de novas conversas comerciais acontece de forma previsivel ou ainda depende muito de indicacao e tentativa manual?\n\nPosso te mandar 1 observacao objetiva sobre isso?`,
-        objecao_provavel: "Quem e voce e como conseguiu meu contato?",
-        resposta_sugerida: "Justo. Peguei o contato pelos canais publicos da empresa. Vi alguns sinais da presenca digital de voces e achei que valia te mandar uma observacao curta, sem compromisso.",
-        cta: "Posso te mandar essa observacao em 2 linhas?",
-      },
-      {
-        dia: 2,
-        canal: "instagram",
-        acao_sugerida: "Curtir 2 posts recentes, reagir a 1 story se houver e depois enviar uma DM curta.",
-        mensagem: `Oi, ${company}. Passei pelo perfil de voces e me chamou atencao que a empresa ja passa uma boa presenca inicial.\n\nFiquei com a duvida se isso hoje esta virando conversa comercial com frequencia ou se o perfil funciona mais como vitrine.\n\nSe fizer sentido, te mando o ponto que observei.`,
-        objecao_provavel: "Manda por aqui.",
-        resposta_sugerida: "Claro. O ponto principal e entender se quem encontra voces online sabe rapido qual o proximo passo para conversar e virar oportunidade real.",
-        cta: "Quer que eu te mande esse ponto agora?",
-      },
-      {
-        dia: 3,
-        canal: "whatsapp",
-        acao_sugerida: "Enviar follow-up curto, sem repetir a abertura do Dia 1.",
-        mensagem: `${company}, so complementando a mensagem anterior.\n\nO que mais me chamou atencao foi a chance de existir demanda, mas sem uma rotina clara para aproveitar melhor essas oportunidades.\n\nEm ${niche}, isso costuma aparecer quando a empresa ate gera interesse, mas nao transforma isso em conversa com consistencia.`,
-        objecao_provavel: "Ja temos alguem cuidando disso.",
-        resposta_sugerida: "Perfeito. Nao e para substituir ninguem. A ideia e so te mostrar um ponto para comparar com o que ja esta sendo feito e ver se existe espaco para melhorar.",
-        cta: "Posso te mandar esse ponto para voce comparar internamente?",
-      },
-      {
-        dia: 4,
-        canal: "email",
-        acao_sugerida: "Enviar e-mail curto, direto ao ponto e sem anexo.",
-        mensagem: `Assunto: Ponto rapido sobre novas oportunidades na ${company}\n\nOla, ${company}.\n\nOlhando os sinais publicos da empresa${city}, vi uma oportunidade simples: ganhar mais previsibilidade na entrada de novas conversas comerciais.\n\n${isFilledLeadValue(lead.website) || isFilledLeadValue(lead.instagram_url) || !!(lead.whatsapp_number || lead.whatsapp_on_site || lead.telefone) ? "A empresa ja passa sinais de presenca digital e canal aberto, o que sugere base para melhorar abordagem e conversao." : "Mesmo com poucos sinais publicos, a leitura sugere espaco para organizar melhor a forma de abrir e aproveitar novas conversas."}\n\nSe fizer sentido, posso te responder este e-mail com uma observacao objetiva sobre onde eu olharia primeiro.`,
-        objecao_provavel: "Pode mandar por e-mail.",
-        resposta_sugerida: "Perfeito. Vou resumir em um ponto pratico, sem teoria e sem proposta longa.",
-        cta: "Posso responder este e-mail com esse ponto?",
-      },
-      {
-        dia: 5,
-        canal: "whatsapp",
-        acao_sugerida: "Enviar pergunta diagnostica curta para abrir conversa.",
-        mensagem: `${company}, uma pergunta direta:\n\nHoje voces sabem de onde costumam vir as melhores conversas comerciais ou isso ainda fica meio espalhado entre indicacao, Instagram, WhatsApp e outros canais?\n\nPergunto porque, quando existe base digital, o maior ganho costuma estar em priorizar melhor o que realmente vira oportunidade.`,
-        objecao_provavel: "Nao sei te dizer agora.",
-        resposta_sugerida: "Sem problema. So essa resposta ja costuma mostrar uma oportunidade: organizar melhor a origem e a qualidade das conversas para nao investir energia onde nao retorna.",
-        cta: "Faz sentido eu te mostrar como eu avaliaria isso?",
-      },
-      {
-        dia: 6,
-        canal: "instagram",
-        acao_sugerida: "Interagir com um story ou post recente antes da DM de follow-up.",
-        mensagem: `Passando rapidinho, ${company}.\n\nA ideia aqui nao e te mandar pitch pronto, e sim uma leitura curta sobre onde a empresa pode estar deixando conversa na mesa.\n\nSe fizer sentido, te mando o ponto principal e voce ve se vale aprofundar.`,
-        objecao_provavel: "Agora nao e prioridade.",
-        resposta_sugerida: "Entendo. Pode ser algo para depois. O ponto que pensei e simples e ajuda ate a decidir se vale mexer nisso agora ou em outro momento.",
-        cta: "Quer que eu te mande mesmo assim para deixar registrado?",
-      },
-      {
-        dia: 7,
-        canal: "whatsapp",
-        acao_sugerida: "Enviar ultimo toque respeitoso, curto e com porta aberta.",
-        mensagem: `${company}, ultima mensagem sobre isso.\n\nSo te chamei porque vi sinais de que voces ja tem uma base que pode render conversas melhores com um pouco mais de clareza e rotina comercial.\n\nSe nao for prioridade agora, tudo certo. Fico por aqui para nao insistir.`,
-        objecao_provavel: "Nao tenho interesse.",
-        resposta_sugerida: "Tranquilo, obrigado por responder. Se em outro momento fizer sentido revisar essa frente, posso te mandar uma observacao objetiva sem compromisso.",
-        cta: "Posso deixar meu contato caso voces queiram olhar isso depois?",
-      },
-    ];
+  const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp", "instagram"] as const;
+  const canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
+  const canalTexto = canaisDisponiveis.length > 0 ? canaisDisponiveis : ["whatsapp", "instagram", "email"];
+
+  const days: AnaliseResult["plano_prospeccao_7dias"] = [];
+  const daysKeys = ["day_1", "day_2", "day_3", "day_4", "day_5", "day_6", "day_7"] as const;
+
+  for (let i = 0; i < 7; i++) {
+    const dayKey = daysKeys[i];
+    const rawMsg = behavior.fallback_messages[dayKey] || "";
+    const msg = replacePlaceholders(rawMsg, lead);
+
+    // Determinar canal para o dia
+    let canal: "whatsapp" | "email" | "instagram" = "whatsapp";
+    if (canalTexto.includes("whatsapp") && i % 2 === 0) {
+      canal = "whatsapp";
+    } else if (canalTexto.includes("instagram") && i % 3 === 1) {
+      canal = "instagram";
+    } else if (canalTexto.includes("email")) {
+      canal = "email";
+    } else {
+      canal = canalTexto[i % canalTexto.length] as "whatsapp" | "email" | "instagram";
+    }
+
+    const objIndex = i % behavior.likely_objections.length;
+    const dayObjection = behavior.likely_objections[objIndex] || likelyObjection;
+    const dayResponse = behavior.objection_responses[objIndex] || objectionResponse;
+    const dayCta = behavior.cta_examples[i % behavior.cta_examples.length] || cta;
+
+    days.push({
+      dia: i + 1,
+      canal,
+      acao_sugerida: replacePlaceholders(behavior.cadence_strategy[dayKey] || "Contato de prospecção", lead),
+      mensagem: msg,
+      objecao_provavel: dayObjection,
+      resposta_sugerida: dayResponse,
+      cta: dayCta,
+    });
   }
 
-  return [
-    {
-      dia: 1,
-      canal: "whatsapp",
-      acao_sugerida: "Enviar texto curto primeiro. Se responder, mandar audio explicando o ponto principal.",
-      mensagem: `Ola, ${company}, tudo bem?\n\nVi que voces tem uma estrutura digital interessante para ${niche}${city}. ${trackingLine}\n\n${isTrafficFocus ? "Voces ja estao rodando trafego pago hoje?" : `Hoje essa frente de ${focus} ja esta ajudando a gerar conversas melhores ou ainda esta em ajuste?`}\n\n${commercialContext}\n\nPosso te mandar 1 ponto que eu olharia antes de investir mais nessa frente?`,
-      objecao_provavel: "Quem e voce e como conseguiu meu contato?",
-      resposta_sugerida: "Justo. Peguei o contato pelos canais publicos da empresa. Vi alguns pontos na presenca digital de voces e achei que valia te mandar uma observacao rapida, sem compromisso.",
-      cta: "Posso te mandar 1 ponto que eu olharia?",
-    },
-    {
-      dia: 2,
-      canal: "instagram",
-      acao_sugerida: "Curtir 2 posts recentes, reagir a 1 story se houver e enviar uma DM curta.",
-      mensagem: `Oi, ${company}. Passei pelo perfil de voces e fiquei com uma duvida rapida.\n\nHoje o Instagram ajuda a gerar conversas de clientes ou funciona mais como vitrine?\n\nPergunto porque, olhando junto com site e canais de contato, parece ter espaco para transformar mais interesse em chamada no WhatsApp.`,
-      objecao_provavel: "Manda por aqui.",
-      resposta_sugerida: "Claro. O ponto principal e revisar se quem chega pelo Instagram ou anuncio encontra rapido o caminho para falar com voces e pedir informacao sem friccao.",
-      cta: "Quer que eu te mande esse ponto em 2 linhas?",
-    },
-    {
-      dia: 3,
-      canal: "whatsapp",
-      acao_sugerida: "Enviar follow-up curto em texto, sem repetir a primeira mensagem.",
-      mensagem: `${company}, passando so para complementar.\n\nQuando olhei a estrutura digital de voces, o que me chamou atencao foi a chance de melhorar a passagem entre visita e conversa.\n\nEm ${niche}, muita oportunidade se perde quando a pessoa visita, olha, mas nao chama no WhatsApp com clareza do proximo passo.`,
-      objecao_provavel: "Ja temos alguem cuidando disso.",
-      resposta_sugerida: "Perfeito. Nao e para substituir ninguem. A ideia e te mostrar um ponto especifico para comparar com o que ja esta sendo feito e ver se faz sentido ajustar.",
-      cta: "Posso te mandar esse ponto para voce comparar internamente?",
-    },
-    {
-      dia: 4,
-      canal: "email",
-      acao_sugerida: "Enviar e-mail curto com assunto especifico e sem anexo.",
-      mensagem: `Assunto: Ponto rapido sobre ${focus} na ${company}\n\nOla, ${company}.\n\nAnalisei alguns sinais digitais de voces${city} e vi uma oportunidade simples: melhorar a conexao entre quem chega pelos canais online e quem realmente chama para conversar.\n\n${trackingTools ? `Como existe sinal de mensuracao (${trackingTools}), vale entender se esses dados estao mostrando contatos qualificados ou apenas acessos.` : "Como nao ficou claro se existe mensuracao pronta, vale entender se hoje voces conseguem saber quais canais geram os melhores contatos."}\n\nPosso te enviar uma sugestao objetiva sobre isso?`,
-      objecao_provavel: "Pode mandar por e-mail.",
-      resposta_sugerida: "Envio sim. Para nao te mandar algo generico, vou resumir em um ponto pratico: onde eu olharia primeiro para melhorar a chegada de contatos qualificados.",
-      cta: "Posso responder este e-mail com esse ponto?",
-    },
-    {
-      dia: 5,
-      canal: "whatsapp",
-      acao_sugerida: "Enviar mensagem consultiva com uma pergunta de diagnostico.",
-      mensagem: `${company}, uma pergunta direta:\n\nHoje voces sabem qual canal traz os melhores contatos: Google, Instagram, anuncio ou indicacao?\n\nPergunto porque, quando a empresa ja tem alguma base digital, o maior ganho costuma estar em medir melhor e ajustar o caminho ate o WhatsApp.`,
-      objecao_provavel: "Nao sei te dizer agora.",
-      resposta_sugerida: "Sem problema. Essa resposta ja mostra uma oportunidade: organizar a origem dos contatos para investir mais no que traz cliente bom e cortar o que so gera volume.",
-      cta: "Faz sentido eu te mostrar como eu avaliaria isso?",
-    },
-    {
-      dia: 6,
-      canal: "instagram",
-      acao_sugerida: "Reagir a um story ou interagir com post recente antes da DM de follow-up.",
-      mensagem: `Passando rapidinho, ${company}.\n\nA ideia nao e mandar uma proposta do nada. E te mostrar uma leitura simples sobre como a presenca digital de voces pode gerar conversas melhores.\n\nSe fizer sentido, eu te mando o ponto principal e voce ve se vale aprofundar.`,
-      objecao_provavel: "Agora nao e prioridade.",
-      resposta_sugerida: "Entendo. Pode ser algo para depois. O ponto que pensei e simples e ajuda justamente a decidir se vale mexer nisso agora ou deixar para outro momento.",
-      cta: "Quer que eu te mande mesmo assim para ficar registrado?",
-    },
-    {
-      dia: 7,
-      canal: "whatsapp",
-      acao_sugerida: "Enviar ultimo toque respeitoso, curto e com porta aberta.",
-      mensagem: `${company}, ultima mensagem sobre isso.\n\nSe ${focus} nao for prioridade agora, tudo certo. So quis te chamar porque vi sinais de que voces ja tem uma base digital que pode ser melhor aproveitada para gerar conversas mais qualificadas.\n\nFico por aqui para nao insistir.`,
-      objecao_provavel: "Nao tenho interesse.",
-      resposta_sugerida: "Tranquilo, obrigado por responder. Se em outro momento fizer sentido revisar essa parte, posso te mandar uma analise objetiva sem compromisso.",
-      cta: "Posso deixar meu contato caso voces queiram olhar isso depois?",
-    },
-  ];
+  return days;
 }
 
 function applyQualityFallbackIfNeeded(
@@ -899,46 +794,100 @@ function applyQualityFallbackIfNeeded(
   lead: LeadData,
   logPrefix = "[analisar-lead-ia]"
 ): { analise: AnaliseResult; fallbackUsed: boolean; missingFields: string[] } {
+  const behavior = getFocusBehavior(lead.foco);
+  const missingFields: string[] = [];
+
   if (!Array.isArray(analise.plano_prospeccao_7dias) || analise.plano_prospeccao_7dias.length === 0) {
-    console.log(`${logPrefix} Fallback ativado: plano_prospeccao_7dias ausente ou vazio.`);
+    console.warn(`${logPrefix} Fallback ativado: plano_prospeccao_7dias ausente ou vazio.`);
     analise.plano_prospeccao_7dias = buildFallbackProspectingPlan(lead);
     return { analise, fallbackUsed: true, missingFields: ["plano_prospeccao_7dias"] };
   }
 
   const message = analise.plano_prospeccao_7dias[0]?.mensagem || "";
-  const missingFields: string[] = [];
-
+  const diagnosisText = (analise.diagnostico_bullets || []).join(" ");
   const hasIncompletePlan =
-    analise.plano_prospeccao_7dias.length < 5 ||
-    analise.plano_prospeccao_7dias.some((dia) => !dia.acao_sugerida || !dia.mensagem || !dia.cta);
+    analise.plano_prospeccao_7dias.length < 7 ||
+    analise.plano_prospeccao_7dias.some(
+      (dia) => !dia.acao_sugerida || !dia.mensagem || !dia.objecao_provavel || !dia.resposta_sugerida || !dia.cta
+    );
+  const hasGenericDiagnosis = GENERIC_ANALYSIS_TERMS.some((term) =>
+    normalizeDisclosureText(diagnosisText).includes(normalizeDisclosureText(term))
+  );
+  const containsAvoidTerms = analise.plano_prospeccao_7dias.some((dia) => {
+    const normalizedMessage = normalizeDisclosureText(dia.mensagem || "");
+    return behavior.avoid_terms.some((term) =>
+      normalizedMessage.includes(normalizeDisclosureText(term))
+    );
+  });
+  const exaggeratedPromises = [
+    "resultado garantido",
+    "dobrar faturamento",
+    "faturar o dobro",
+    "fique rico",
+    "garanto vendas",
+    "garantimos vendas",
+  ];
+  const containsExaggeratedPromise = analise.plano_prospeccao_7dias.some((dia) => {
+    const normalizedMessage = normalizeDisclosureText(dia.mensagem || "");
+    return exaggeratedPromises.some((term) => normalizedMessage.includes(term));
+  });
+  const hasDisclosure =
+    containsForbiddenZunoDisclosure(message) ||
+    analysisContainsForbiddenZunoDisclosure(analise);
 
   if (hasIncompletePlan) missingFields.push("plano_incompleto");
   if (!hasGreeting(message)) missingFields.push("primeira_mensagem_sem_saudacao");
-  if (!hasContext(message, lead)) missingFields.push("primeira_mensagem_sem_contexto");
   if (!hasSimpleCta(message)) missingFields.push("primeira_mensagem_sem_cta_leve");
+  if (!hasContext(message, lead) && hasGenericDiagnosis) {
+    missingFields.push("primeira_mensagem_sem_contexto");
+  }
+  if (hasDisclosure) missingFields.push("zuno_disclosure_proibido");
+  if (containsAvoidTerms) missingFields.push("termos_proibidos_do_foco");
+  if (containsExaggeratedPromise) missingFields.push("promessa_exagerada");
 
-  const hasDisclosure = containsForbiddenZunoDisclosure(message) || analysisContainsForbiddenZunoDisclosure(analise);
-
-  if (hasDisclosure) {
-    console.warn(`${logPrefix} Fallback ativado: disclosure proibido da Zuno encontrado nas copies.`);
-    analise.plano_prospeccao_7dias = buildFallbackProspectingPlan(lead);
-    return { analise, fallbackUsed: true, missingFields: [...missingFields, "zuno_disclosure_proibido"] };
+  if (missingFields.length === 0) {
+    analise.plano_prospeccao_7dias = analise.plano_prospeccao_7dias.map((dia) => {
+      const { variations, ...cleanDay } = dia;
+      return cleanDay;
+    });
+    console.log(`${logPrefix} Sucesso: análise validada com copies geradas pelo Gemini.`);
+    return { analise, fallbackUsed: false, missingFields };
   }
 
-  if (hasIncompletePlan) {
-    console.warn(`${logPrefix} Fallback ativado: plano de prospeccao incompleto (menos de 5 dias ou campos em branco).`);
-    analise.plano_prospeccao_7dias = buildFallbackProspectingPlan(lead);
-    return { analise, fallbackUsed: true, missingFields };
+  console.warn(
+    `${logPrefix} Validação de qualidade falhou para ${lead.nome} (foco: ${lead.foco}): ${missingFields.join(", ")}.`
+  );
+  analise.plano_prospeccao_7dias = buildFallbackProspectingPlan(lead);
+
+  if (!analise.data_signals?.length) {
+    analise.data_signals = buildLeadDataSignals(lead);
+  }
+  if (!analise.company_reading) {
+    analise.company_reading = `${lead.nome} parece atuar em ${lead.nicho}${lead.cidade ? ` em ${lead.cidade}` : ""}. A leitura deve considerar ${behavior.diagnosis_lens}.`;
+  }
+  if (!analise.commercial_opportunity && !analise.why_good_lead) {
+    analise.commercial_opportunity = `Os sinais digitais indicam oportunidade para ${behavior.commercial_goal}`;
+  }
+  if (!analise.probable_pain && !analise.pain_point) {
+    analise.probable_pain = behavior.likely_pains[0] || "Dificuldade de estruturar um processo comercial previsível.";
+  }
+  if (!analise.approach_gap) {
+    analise.approach_gap = `Conectar a dor de ${behavior.likely_pains[0] || "captar clientes"} ao ângulo de ${behavior.approach_angles[0] || "processo comercial"}.`;
+  }
+  if (!analise.best_angle && !analise.commercial_angle) {
+    analise.best_angle = behavior.approach_angles[0] || "abordagem comercial consultiva";
+  }
+  if (!analise.likely_objection) {
+    analise.likely_objection = behavior.likely_objections[0] || "Não tenho interesse agora.";
+  }
+  if (!analise.objection_response) {
+    analise.objection_response = behavior.objection_responses[0] || "Sem problemas. Fico à disposição.";
+  }
+  if (!analise.conversion_strategy && !analise.conversion_path) {
+    analise.conversion_strategy = `Abordagem focada em ${behavior.commercial_goal}`;
   }
 
-  console.log(`${logPrefix} Sucesso: Análise da IA validada com êxito! Usando copies geradas pelo Gemini.`);
-  
-  analise.plano_prospeccao_7dias = analise.plano_prospeccao_7dias.map((dia) => {
-    const { variations, ...cleanDay } = dia;
-    return cleanDay;
-  });
-
-  return { analise, fallbackUsed: false, missingFields };
+  return { analise, fallbackUsed: true, missingFields };
 }
 
 async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
@@ -3435,6 +3384,9 @@ TAREFA
 REGRAS DAS MENSAGENS
 - Nunca diga que o lead foi encontrado usando a Zuno ou qualquer ferramenta.
 - Nunca escreva "zuno_internal_prospecting" no texto final.
+- Use obrigatoriamente as regras comportamentais do foco selecionado. Não gere uma copy genérica. A copy precisa respeitar o objetivo, as dores, os ângulos, os termos recomendados e os termos proibidos desse foco.
+• Termos recomendados: prospecção com IA, empresas por cidade e nicho, abordagem contextualizada, oportunidades, conversas comerciais, economia de tempo, rotina de prospecção.
+• Termos proibidos: "encontrei você usando a Zuno", "achei você pela Zuno", "a Zuno encontrou você", "usei a Zuno para encontrar sua empresa", revelar método de busca.
 - Comece pelo contexto, por um achado real ou por uma pergunta comercial plausivel.
 - Exemplo seguro: "${lead.nome}, tudo bem? Vi que voces atuam com ${lead.nicho} e fiquei com uma duvida rapida: hoje a entrada de novas conversas comerciais acontece de forma previsivel ou ainda depende muito de indicacao e tentativa manual?"
 - Alternativa consultiva: "${lead.nome}, tudo bem? Olhando a presenca digital de voces, fiquei com a impressao de que existe base para gerar mais conversa comercial. Queria entender se isso hoje ja acontece com consistencia."
@@ -3484,7 +3436,19 @@ function buildBRUserPrompt(
     cadencia = `Cadência 3 canais: D1 WhatsApp, D2 Email, D3 Instagram, D4 WhatsApp, D5 Email, D6 Instagram, D7 WhatsApp`;
   }
 
-  const focoArgs = getFocoArguments(lead.foco);
+  const behavior = getFocusBehavior(lead.foco);
+  const focusBehaviorRules = `
+🎯 REGRAS COMPORTAMENTAIS DO FOCO COMERCIAL: "${behavior.label}"
+• Objetivo Comercial: ${behavior.commercial_goal}
+• Lente de Diagnóstico: ${behavior.diagnosis_lens}
+• Dores Prováveis: ${behavior.likely_pains.join(", ")}
+• Ângulos de Abordagem: ${behavior.approach_angles.join(", ")}
+• Termos Recomendados (use sempre que puder): ${behavior.recommended_terms.join(", ")}
+• Termos Proibidos (NUNCA utilize in hipótese alguma): ${behavior.avoid_terms.join(", ")}
+• Exemplos de CTAs recomendadas: ${behavior.cta_examples.map(c => `"${c}"`).join(" ou ")}
+• Objeções Prováveis e Respostas Recomendadas:
+${behavior.likely_objections.map((obj, idx) => `   - Objeção: "${obj}"\\n   - Resposta sugerida: "${behavior.objection_responses[idx] || ''}"`).join("\\n")}
+`;
   
   // Get niche-specific context
   const nichoContext = getNichoExamples(lead.nicho);
@@ -3566,6 +3530,7 @@ ${lead.nome_responsavel
 🎯 FOCO DO SERVIÇO: ${lead.foco}
 ${focoArgs}
 ${campanhaTexto}
+${focusBehaviorRules}
 ${nichoSection}
 📊 SINAIS DE MARKETING DETECTADOS:
 ${sinaisMarketing.length > 0 ? sinaisMarketing.map(s => `• ${s}`).join("\n") : "• Nenhum sinal detectado - empresa com baixa maturidade digital"}
@@ -3615,7 +3580,9 @@ Os exemplos acima são REFERÊNCIA - adapte para os dados REAIS:
 • Nicho: ${lead.nicho}
 • Foco: ${lead.foco}
 ${buildPremiumCopyOutputRules()}
-${lead.nome_responsavel ? `• Responsável: ${lead.nome_responsavel}` : ""}`;
+${lead.nome_responsavel ? `• Responsável: ${lead.nome_responsavel}` : ""}
+• INSTRUÇÃO CRÍTICA DE PROSPEÇÃO:
+Use obrigatoriamente as regras comportamentais do foco selecionado. Não gere uma copy genérica. A copy precisa respeitar o objetivo, as dores, os ângulos, os termos recomendados e os termos proibidos desse foco.`;
 }
 
 // =============================================================================
@@ -3961,5 +3928,42 @@ function generateMockAnalise(lead: LeadData): AnaliseResult {
     diagnostico_bullets: buildStrategicDiagnosisBullets(lead),
     probabilidade_conversao: temMarketing && temContato ? 65 : temContato ? 45 : 25,
     plano_prospeccao_7dias: buildFallbackProspectingPlan(lead),
+  };
+}
+
+
+function convertToPersonalizedCadence(analise: AnaliseResult, lead: LeadData): Record<string, any> {
+  const cadence: Record<string, any> = {};
+  const daysKeys = ["day_1", "day_2", "day_3", "day_4", "day_5", "day_6", "day_7"] as const;
+
+  const behavior = getFocusBehavior(lead.foco);
+
+  for (let i = 0; i < 7; i++) {
+    const dayKey = daysKeys[i];
+    const rawDay = analise.plano_prospeccao_7dias?.[i] || {
+      dia: i + 1,
+      canal: "whatsapp",
+      acao_sugerida: "",
+      mensagem: "",
+      cta: ""
+    };
+
+    cadence[dayKey] = {
+      objective: rawDay.objetivo || rawDay.goal || behavior.cadence_strategy[dayKey] || "Contato de prospecção",
+      channel: rawDay.canal || "whatsapp",
+      action: rawDay.acao_sugerida || "",
+      angle: rawDay.angle || behavior.approach_angles[i % behavior.approach_angles.length] || "",
+      message: rawDay.mensagem || "",
+      cta: rawDay.cta || ""
+    };
+  }
+
+  return {
+    cadence,
+    likely_objection: analise.likely_objection || behavior.likely_objections[0] || "",
+    objection_response: analise.objection_response || behavior.objection_responses[0] || "",
+    conversion_strategy: analise.conversion_strategy || behavior.commercial_goal || "",
+    generated_at: new Date().toISOString(),
+    version: "v2_personalized_cadence"
   };
 }

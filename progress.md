@@ -1,17 +1,18 @@
-# Registro de Progresso — IA & Atribuição de Origem
+# Registro de Progresso — IA & Atribuição de Origem & Regras por Foco
 
-Este arquivo acompanha as iterações, erros analisados, correções efetuadas e resultados de homologação para blindagem da IA e correção da atribuição multitoque no Zuno Propect.
+Este arquivo acompanha as iterações, erros analisados, correções efetuadas e resultados de homologação para blindagem da IA, correção da atribuição e regras comportamentais no Zuno Propect.
 
 ---
 
-## 🚀 Estado Atual (02/06/2026)
+## 🚀 Estado Atual (08/06/2026)
 
-- **Fase de Planejamento:** Identificadas falhas críticas relatadas por usuários pagos vindo de campanhas Meta Ads que não conseguem rodar análises de IA consecutivas.
-- **Mapeamento Concluído:**
-  - Lógica de IA e controle de concorrência em `LeadsList.tsx`.
-  - Atribuição multitoque no profile e inferência de eventos em `AdminRealtime.tsx`.
-  - Tratamento de CORS, OPTIONS e erros na Edge Function `analisar-lead-ia`.
-  - Mapeamento de criativos de campanhas Meta Ads em `creativeMap.ts`.
+- **Auditoria de Copies e Focos Concluída**:
+  - Criado o arquivo de comportamento central `focusBehavior.ts` com o `FOCUS_BEHAVIOR_MAP` cobrindo todos os 11 focos comerciales da Zuno.
+  - Injeção das regras de foco (`focus_behavior_rules`) nos prompts User/System em português.
+  - Validação e fallback de copies aprimorados no `applyQualityFallbackIfNeeded`.
+  - Persistência estruturada do plano de prospecção em formato JSONB por lead (`convertToPersonalizedCadence`).
+  - Normalização e tratamento transparente de dados no frontend (`normalizePlanoProspeccao`) em hooks e páginas de exibição.
+  - **Homologação:** O comando `npm run build` foi executado no frontend Vite/React com 100% de sucesso (sem erros de tipagem TypeScript).
 
 ---
 
@@ -30,10 +31,18 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
 - [x] Criar o botão premium `"Buscar mais leads"` no cabeçalho de `LeadsList.tsx`.
 - [x] Mesclar os leads no topo no frontend e recarregar todos os leads não salvos de forma determinística na conclusão.
 - [x] Validar que o build de produção passou com 100% de sucesso.
+### Iteração 2: Implementação de Regras por Foco e Persistência Estruturada
+- [x] Criar módulo `focusBehavior.ts` com regras comportamentais, fallbacks, CTAs, objeções de todos os 11 focos comerciales.
+- [x] Atualizar a Edge Function `analisar-lead-ia` para injetar regras e restrições nos prompts do Gemini.
+- [x] Ajustar validação de qualidade `applyQualityFallbackIfNeeded` na Edge Function de forma equilibrada.
+- [x] Implementar função `convertToPersonalizedCadence` salvando o plano no formato JSONB estruturado por lead.
+- [x] Adicionar o helper `normalizePlanoProspeccao` no frontend (`src/utils/normalizeLead.ts`).
+- [x] Mapear e normalizar o carregamento de leads em `useSecureLeads.ts`, `LeadsSalvos.tsx` e `LeadPlanDialog.tsx`.
+- [x] Validar que o comando `npm run build` compila perfeitamente sem erros.
 
 ---
 
-## 📊 Acompanhamento Técnico de Bugs (IA & Atribuição)
+## 📊 Acompanhamento Técnico de Bugs
 
 | Bug Relatado / Funcionalidade | Causa Provável | Ação Efetuada | Status |
 | :--- | :--- | :--- | :--- |
@@ -249,3 +258,10 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
   - [x] Criado o helper `sanitizeBrazilianPhone` em `LeadsList.tsx` e `LeadPlanDialog.tsx` para remover o `55` opcional e o `0` do DDD inicial (ex: tratar `011999999999` -> `11999999999`), evitando quebras na validação de tamanho que ocultavam os botões de WhatsApp.
   - [x] Importado o componente `Button` em `LeadPlanDialog.tsx` para corrigir a compilação.
 
+| Bug / Requisito | Causa / Impacto | Ação Efetuada | Status |
+| :--- | :--- | :--- | :--- |
+| **1. Copies de prospecção genéricas** | IA sem contexto específico do foco e fallbacks estáticos genéricos. | Criado mapa de 11 focos com injeção no prompt e fallback dinâmico baseado no foco do lead. | ✅ Concluído |
+| **2. Persistência do plano por lead** | Evitar estado global de cadência e salvar cadência personalizada de forma segura no banco. | Gravação em formato JSONB estruturado individual na tabela `leads` (coluna `plano_prospeccao`). | ✅ Concluído |
+| **3. Quebra do frontend com objeto JSONB** | O frontend esperava array de 7 dias e receberia objeto estruturado. | Adicionado normalizador `normalizePlanoProspeccao` no frontend mapeando transparente para array de 7 dias. | ✅ Concluído |
+| **4. Validação de termos proibidos** | Evitar promessas exageradas ou termos impróprios gerados pela IA. | Implementada validação no backend que aplica fallback do foco caso detecte termos proibidos ou promessas. | ✅ Concluído |
+| **5. Build do frontend** | Risco de quebra de tipagem em build após refatoração dos types de leads. | Executado `npm run build` confirmando sucesso na compilação do Vite. | ✅ Concluído |

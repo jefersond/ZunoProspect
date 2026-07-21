@@ -23,7 +23,7 @@ import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe, Sti
 import type { LeadProspeccao } from "@/types/lead";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
-import { normalizeLeadForAI } from "@/utils/normalizeLead";
+import { normalizeLeadForAI, normalizePlanoProspeccao } from "@/utils/normalizeLead";
 
 // Função para sanitizar e padronizar número de telefone brasileiro
 const sanitizeBrazilianPhone = (phone: string): string => {
@@ -54,6 +54,39 @@ const extractWhatsAppNumber = (link: string | null): string | null => {
   const match = link.match(/(\d{10,13})/);
   return match ? match[1] : null;
 };
+
+const getLeadKey = (lead: Partial<LeadProspeccao> & Record<string, any>): string => {
+  const fallback = `${lead.nome || lead.company_name || "lead"}_${lead.endereco || lead.address || ""}`;
+  return String(lead.id || lead.placeId || lead.place_id || lead.google_place_id || fallback);
+};
+
+const buildAILeadPayload = (lead: LeadProspeccao, normalizedLead: ReturnType<typeof normalizeLeadForAI>) => ({
+  id: lead.id,
+  place_id: lead.placeId,
+  google_place_id: lead.placeId,
+  company_name: lead.nome,
+  name: lead.nome,
+  category: lead.nicho,
+  niche: lead.nicho,
+  city: lead.cidade,
+  state: null,
+  address: lead.endereco,
+  phone: lead.telefone,
+  website: lead.website,
+  instagram: lead.instagram_url,
+  email: lead.email,
+  rating: lead.rating,
+  reviews_count: lead.total_reviews,
+  google_category: lead.nicho,
+  business_status: lead.status,
+  raw_data: lead,
+  digital_signals: {
+    ...lead.sinais,
+    whatsapp_link: lead.whatsapp_link,
+    instagram_context: lead.instagram_context,
+  },
+  ...normalizedLead,
+});
 
 interface LeadPlanDialogProps {
   lead: LeadProspeccao | null;
@@ -345,6 +378,7 @@ export const LeadPlanDialog = ({
 
   const handleReanalyze = async () => {
     if (!lead) return;
+    const leadKey = getLeadKey(lead);
     
     if (!canUsePaidFeatures(null, subscription)) {
       toast({
@@ -364,9 +398,9 @@ export const LeadPlanDialog = ({
     }
     
     if (activeRequestRef.current || isReanalyzing) {
-      console.log("Clique duplo detectado e prevenido para o lead no dialog:", lead.id);
+      console.log("Clique duplo detectado e prevenido para o lead no dialog:", leadKey);
       trackEvent("AI_Analysis_Duplicate_Click_Prevented", {
-        lead_id: lead.id,
+        lead_id: leadKey,
         lead_name: lead.nome,
         source: "lead_dialog",
         timestamp: new Date().toISOString()
@@ -383,16 +417,16 @@ export const LeadPlanDialog = ({
 
     if (!canAnalyzeLead) {
       // Debounce de 5 segundos para o mesmo lead
-      const lastTrackedTime = recentlyTrackedLimitBlockRef.current[lead.id] || 0;
+      const lastTrackedTime = recentlyTrackedLimitBlockRef.current[leadKey] || 0;
       if (Date.now() - lastTrackedTime < 5000) {
         setShowUpgradeDialog(true);
         return;
       }
-      recentlyTrackedLimitBlockRef.current[lead.id] = Date.now();
+      recentlyTrackedLimitBlockRef.current[leadKey] = Date.now();
 
       // Rastrear evento de bloqueio por limite
       trackEvent("AI_Analysis_Blocked_By_Limit", {
-        lead_id: lead.id,
+        lead_id: leadKey,
         lead_name: lead.nome,
         source: "lead_dialog",
         path: window.location.pathname,
@@ -419,14 +453,14 @@ export const LeadPlanDialog = ({
     activeRequestRef.current = true;
     setIsReanalyzing(true);
     trackMetaCustomEvent("AI_Analysis_Started", {
-      lead_id: lead.id,
+      lead_id: leadKey,
       lead_name: lead.nome,
       source: "prospection_page",
     });
-    trackEvent("ai_analysis_clicked", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "lead_dialog" });
+    trackEvent("ai_analysis_clicked", { lead_id: leadKey, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "lead_dialog" });
     if (!hasDoneFirstAi) {
       trackEvent("First_AI_Analysis_Started", {
-        lead_id: lead.id,
+        lead_id: leadKey,
         lead_name: lead.nome,
         source: "lead_dialog",
         ai_available: aiAvailableBefore,
@@ -446,6 +480,15 @@ export const LeadPlanDialog = ({
 
     console.log("[AI Lead Payload]", lead);
     const normalizedLead = normalizeLeadForAI(lead, searchContext);
+    const searchPayload = {
+      city: (searchContext as any).city || (searchContext as any).cidade || lead.cidade,
+      state: (searchContext as any).state || (searchContext as any).estado || null,
+      niche: (searchContext as any).niche || (searchContext as any).nicho || lead.nicho,
+      focus: (searchContext as any).focus || (searchContext as any).foco || lead.foco,
+      channels: ["email", "whatsapp", "instagram"],
+      country: (searchContext as any).country || (searchContext as any).pais || "BR",
+      ...searchContext,
+    };
 
     try {
       // Obter user_id do usuário atual
@@ -461,9 +504,16 @@ export const LeadPlanDialog = ({
           body: {
             lead_id: lead.id,
             leadId: lead.id,
+            lead_key: leadKey,
             user_id: user?.id,
-            lead: normalizedLead,
-            search_context: searchContext,
+            lead: buildAILeadPayload(lead, normalizedLead),
+            search_context: searchPayload,
+            analysis_context: {
+              focus: lead.foco,
+              goal: "gerar_abordagem_personalizada",
+              tone: "natural_consultivo",
+              selected_channels: ["email", "whatsapp", "instagram"],
+            },
             nome: lead.nome,
             nicho: lead.nicho,
             cidade: lead.cidade,
@@ -509,27 +559,24 @@ export const LeadPlanDialog = ({
         ...lead,
         diagnostico_bullets: updatedLead.diagnostico_bullets as string[],
         probabilidade_conversao: updatedLead.probabilidade_conversao || 0,
-        plano_prospecao_7dias: Array.isArray(updatedLead.plano_prospeccao)
-          ? updatedLead.plano_prospeccao
-          : (updatedLead.plano_prospeccao?.plano_prospeccao_7dias || []),
-        ai_analise_gerada_em: updatedLead.ai_analise_gerada_em,
+        plano_prospecao_7dias: normalizePlanoProspeccao(updatedLead.plano_prospeccao),        ai_analise_gerada_em: updatedLead.ai_analise_gerada_em,
       };
 
       setCurrentLead(transformedLead);
       await refetchUsage();
       onLeadRefined?.(transformedLead);
       trackMetaCustomEvent("AI_Analysis_Completed", {
-        lead_id: lead.id,
+        lead_id: leadKey,
         lead_name: lead.nome,
       });
       const firstAnalysisKey = `zuno_first_ai_analysis_completed_${user.id}`;
       if (!localStorage.getItem(firstAnalysisKey)) {
         localStorage.setItem(firstAnalysisKey, new Date().toISOString());
         trackMetaCustomEvent("First_AI_Analysis_Completed", {
-          lead_id: lead.id,
+          lead_id: leadKey,
         });
         trackEvent("First_AI_Analysis_Completed", {
-          lead_id: lead.id,
+          lead_id: leadKey,
           lead_name: lead.nome,
           source: "lead_dialog",
           ai_available_before: aiAvailableBefore,
@@ -537,7 +584,7 @@ export const LeadPlanDialog = ({
           user_plan: normalizedPlanName,
         });
       }
-      trackEvent("ai_analysis_completed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "lead_dialog" });
+      trackEvent("ai_analysis_completed", { lead_id: leadKey, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "lead_dialog" });
 
       toast({
         title: "Análise concluída",
@@ -577,7 +624,7 @@ export const LeadPlanDialog = ({
 
       if (isPayloadError) {
         trackEvent("AI_Analysis_Blocked_Insufficient_Data", {
-          lead_id: lead.id,
+          lead_id: leadKey,
           lead_name: lead.nome,
           available_fields: Object.keys(lead || {}),
           missing_required_fields: ["nome", "cidade/nicho/contato"],
@@ -592,10 +639,10 @@ export const LeadPlanDialog = ({
         });
       } else {
         trackMetaCustomEvent("AI_Analysis_Failed", {
-          lead_id: lead.id,
+          lead_id: leadKey,
           error_message: errorMsg,
         });
-        trackEvent("ai_analysis_failed", { lead_id: lead.id, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: errorMsg, source: "lead_dialog" });
+        trackEvent("ai_analysis_failed", { lead_id: leadKey, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: errorMsg, source: "lead_dialog" });
       }
 
       toast({

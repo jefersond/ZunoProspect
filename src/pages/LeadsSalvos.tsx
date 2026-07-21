@@ -24,7 +24,7 @@ import {
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { LeadPlanDialog } from "@/components/prospeccao/LeadPlanDialog";
 import type { LeadProspeccao } from "@/types/lead";
-import { normalizeLeadForAI } from "@/utils/normalizeLead";
+import { normalizeLeadForAI, normalizePlanoProspeccao } from "@/utils/normalizeLead";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -242,10 +242,7 @@ const LeadsSalvos = () => {
           },
           diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
           probabilidade_conversao: lead.probabilidade_conversao || 0,
-          plano_prospecao_7dias: Array.isArray(lead.plano_prospeccao)
-            ? lead.plano_prospeccao
-            : (lead.plano_prospeccao?.plano_prospeccao_7dias || []),
-          rating: lead.rating,
+          plano_prospecao_7dias: normalizePlanoProspeccao(lead.plano_prospeccao),          rating: lead.rating,
           total_reviews: lead.total_reviews,
           status: lead.status || "novo",
           created_at: lead.created_at,

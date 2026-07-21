@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { LeadProspeccao } from '@/types/lead';
+import { normalizePlanoProspeccao } from '@/utils/normalizeLead';
 
 interface RateLimitInfo {
   remaining: number;
@@ -70,7 +71,7 @@ const readEdgeFunctionError = async (functionName: string, error: any, payload: 
 };
 
 // Transform raw lead data to LeadProspeccao type
-const transformLead = (lead: any): LeadProspeccao => {
+export const transformSecureLead = (lead: any): LeadProspeccao => {
   const websiteIsInstagram = isInstagramUrl(lead.website);
   const finalInstagramUrl = lead.instagram_url || (websiteIsInstagram ? lead.website : null);
   const finalWebsite = websiteIsInstagram ? null : lead.website;
@@ -80,6 +81,7 @@ const transformLead = (lead: any): LeadProspeccao => {
     placeId: lead.google_place_id,
     nome: lead.nome,
     telefone: lead.telefone,
+    whatsapp_number: lead.whatsapp_number || null,
     whatsapp_link: generateWhatsAppLink(lead.whatsapp_number, lead.telefone),
     email: lead.email || null,
     website: finalWebsite,
@@ -99,10 +101,7 @@ const transformLead = (lead: any): LeadProspeccao => {
     },
     diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
     probabilidade_conversao: lead.probabilidade_conversao || 0,
-    plano_prospecao_7dias: Array.isArray(lead.plano_prospeccao)
-      ? lead.plano_prospeccao
-      : (lead.plano_prospeccao?.plano_prospeccao_7dias || []),
-    rating: lead.rating,
+    plano_prospecao_7dias: normalizePlanoProspeccao(lead.plano_prospeccao),    rating: lead.rating,
     total_reviews: lead.total_reviews,
     status: lead.status || 'novo',
     created_at: lead.created_at,
@@ -168,7 +167,7 @@ export const useSecureLeads = (options: UseSecureLeadsOptions = {}) => {
         setRateLimitInfo(data.rate_limit);
       }
 
-      const transformedLeads = (data.data?.leads || []).map(transformLead);
+      const transformedLeads = (data.data?.leads || []).map(transformSecureLead);
       setLeads(transformedLeads);
       
       return transformedLeads;
@@ -203,7 +202,7 @@ export const useSecureLeads = (options: UseSecureLeadsOptions = {}) => {
         setRateLimitInfo(data.rate_limit);
       }
 
-      return data.data ? transformLead(data.data) : null;
+      return data.data ? transformSecureLead(data.data) : null;
     } catch (err: any) {
       console.error('❌ Error fetching lead detail:', err);
       toast({
@@ -239,7 +238,7 @@ export const useSecureLeads = (options: UseSecureLeadsOptions = {}) => {
         throw new Error(data.error);
       }
 
-      return (data.data?.leads || []).map(transformLead);
+      return (data.data?.leads || []).map(transformSecureLead);
     } catch (err: any) {
       console.error('❌ Error exporting leads:', err);
       toast({

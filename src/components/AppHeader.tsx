@@ -32,9 +32,13 @@ import {
   Zap,
   RefreshCw,
   MoreHorizontal,
+  Megaphone,
   Activity,
   ShoppingCart,
   Shield,
+  Instagram,
+  BrainCircuit,
+  Workflow,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -91,9 +95,13 @@ export function AppHeader({
     ...defaultNavItems,
     ...(isAdmin
       ? [
+          { to: "/admin/central", icon: BrainCircuit, label: "Central", isAdmin: true },
           { to: "/admin/realtime", icon: Activity, label: "Tempo Real", isAdmin: true },
           { to: "/admin/checkouts-abandonados", icon: ShoppingCart, label: "Checkouts", isAdmin: true },
           { to: "/admin/email", icon: Mail, label: "Email", isAdmin: true },
+          { to: "/admin/instagram", icon: Instagram, label: "Instagram", isAdmin: true },
+          { to: "/admin/marketing", icon: Megaphone, label: "Marketing", isAdmin: true },
+          { to: "/admin/funil", icon: Workflow, label: "Funil", isAdmin: true },
           { to: "/admin/system-health", icon: Shield, label: "Saúde", isAdmin: true },
         ]
       : []),
@@ -273,7 +281,7 @@ export function AppHeader({
                   <span className="sr-only">Menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-72">
+              <SheetContent side="right" className="w-[min(18rem,calc(100vw-1rem))] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
                 <SheetHeader>
                   <SheetTitle>Menu</SheetTitle>
                 </SheetHeader>

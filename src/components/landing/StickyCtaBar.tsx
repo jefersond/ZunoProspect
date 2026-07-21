@@ -47,7 +47,7 @@ export function StickyCtaBar({ heroRef }: StickyCtaBarProps) {
           className="ml-auto h-10 rounded-lg bg-[#10d98a] px-6 font-bold text-[#0b0f0e] shadow-[0_0_20px_rgba(16,217,138,0.3)] hover:bg-[#10d98a]/90 hover:scale-[1.02] transition-all"
           onClick={handleClick}
         >
-          Começar grátis agora
+          Começar teste grátis
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>

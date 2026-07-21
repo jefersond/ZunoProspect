@@ -1,6 +1,6 @@
-# Planejamento de Tarefas — Estabilização de IA & Atribuição de Origem
+# Planejamento de Tarefas — Estabilização de IA & Atribuição & Regras por Foco
 
-Este plano estabelece a checklist operacional e memória de estabilização para corrigir falhas críticas de IA, blindar créditos, prevenir cliques concorrentes e resolver problemas de atribuição de tráfego multitoque vazios.
+Este plano estabelece a checklist operacional e memória de estabilização para corrigir copies genéricas da IA, persistir a cadência estruturada por lead e aplicar regras comportamentais a todos os 11 focos.
 
 ---
 
@@ -8,30 +8,24 @@ Este plano estabelece a checklist operacional e memória de estabilização para
 
 ### 🟢 Fase 1: Visão e Lógica (Descoberta & Planejamento)
 - [x] Analisar o comportamento da Edge Function `analisar-lead-ia` e o fluxo de IA em `LeadsList.tsx`.
-- [x] Analisar o mapeamento de criativos em `creativeMap.ts` e visualização de atribuição em `AdminRealtime.tsx`.
 - [x] Criar o plano de implementação em `implementation_plan.md` no diretório de artefatos.
 - [x] Atualizar a Constituição do Projeto em `gemini.md`.
-- [ ] Obter as respostas do usuário para as 5 Perguntas de Descoberta e aprovação do Blueprint.
+- [x] Obter as respostas do usuário para as Perguntas de Descoberta e aprovação do Blueprint.
 
 ### ⚡ Fase 2: Link e Conectividade
-- [ ] Validar acessos a tabelas de logs e conectividade da Edge Function `/analisar-lead-ia`.
-- [ ] Certificar CORS e respostas de erro estruturadas da Edge Function.
+- [x] Validar acessos a tabelas de logs e conectividade da Edge Function `/analisar-lead-ia`.
+- [x] Certificar CORS e respostas de erro estruturadas da Edge Function.
 
 ### ⚙️ Fase 3: Desenvolvimento Arquitetural (A.N.T.)
 
 #### Camada 1: POPs Técnicos (`architecture/`)
-- [ ] Criar POP de estabilização do fluxo de IA e prevenção de cliques duplicados na pasta `architecture/`.
+- [x] Criar/atualizar definições de regras comportamentais dos 11 focos comerciales em `focusBehavior.ts`.
 
-#### Camada 2: Navegação e Componentes
-- [ ] **LeadsList.tsx:** Implementar controle concorrente via `reanalyzingLeads` (ou `analyzingLeadIds`) impedindo cliques redundantes adicionais e tratando erros com mensagens amigáveis contextualizadas.
-- [ ] **creativeMap.ts:** Adicionar o ID de criativo numérico `120248028635250725` no mapeamento de criativos.
-- [ ] **AdminRealtime.tsx:**
-  - Atualizar tipos de `AdminUserSummary` para atribuição.
-  - Implementar inferência de First/Last Touch a partir de `selectedJourney` se estiverem vazios no profile.
-  - Adicionar o Alerta Crítico vermelho de tráfego pago com IA quebrando no topo do modal de Jornada.
-  - Adicionar badge vermelho na listagem principal de atividade ao vivo.
-  - Ajustar a função `classifyAiFailure` para contemplar as 9 categorias exatas.
-  - Exibir os 21 campos requeridos na auditoria de falhas de IA.
+#### Camada 2: Navegação e Componentes (Frontend)
+- [x] **normalizeLead.ts:** Adicionar helper `normalizePlanoProspeccao` para converter formato de objeto estruturado em array de 7 dias de forma transparente.
+- [x] **useSecureLeads.ts:** Integrar normalização do plano de prospecção do lead.
+- [x] **LeadsSalvos.tsx:** Garantir normalização robusta do plano de prospecção ao mapear leads salvos.
+- [x] **LeadPlanDialog.tsx:** Aplicar normalizador no lead atualizado retornado após reanálise.
 
 36: #### Camada 3: Ferramentas / Edge Functions
 37: - [ ] **analisar-lead-ia (index.ts):** Ajustar o catch para retornar JSON de erro estruturado completo e garantir CORS em OPTIONS e falhas.
@@ -57,6 +51,16 @@ Este plano estabelece a checklist operacional e memória de estabilização para
   - [x] **kiwify-webhook/index.ts:** Substituir o `listUsers` pela chamada à RPC `get_user_id_by_email` com fallback secundário.
   - [x] **process-behavior-emails/index.ts:** Implementar loop de paginação no `listUsers` para varrer 100% dos usuários.
   - [x] **send-onboarding-email/index.ts:** Implementar loop de paginação ou obter e-mail diretamente.
+#### Camada 3: Ferramentas / Edge Functions (Backend)
+- [x] **focusBehavior.ts:** Declarar o mapa central `FOCUS_BEHAVIOR_MAP` e as funções auxiliares `getFocusBehavior` e `replacePlaceholders`.
+- [x] **index.ts:**
+  - Importar o módulo `focusBehavior.ts`.
+  - Injetar `focusBehaviorRules` e a instrução crítica obrigatória nos prompts de IA.
+  - Reescrever `buildFallbackProspectingPlan` para gerar mensagens de fallback por foco dinamicamente.
+  - Ajustar `applyQualityFallbackIfNeeded` para validar termos proibidos e promessas de forma balanceada.
+  - Criar helper `convertToPersonalizedCadence` para estruturar o payload no formato JSONB da Zuno.
+  - Atualizar o salvamento no banco de dados da tabela `leads` para persistir o plano formatado por lead.
+  - Atualizar o retorno HTTP para enviar a chave `plano_prospeccao` estruturada com `success` e `lead_id`.
 
 ---
 
@@ -131,3 +135,7 @@ Este plano estabelece a checklist operacional e memória de estabilização para
 - [ ] **Teste de Voltar da Página de Preços para a LP (Logado):** Na página de preços `/precos`, com o usuário logado, clicar em "Voltar ao site". Validar que o usuário é redirecionado para `/?no_redirect=true` e a LP institucional é exibida sem ser redirecionado para `/prospeccao`.
 
 
+- [x] **Teste de Build:** Executar `npm run build` na pasta `reach-gen` e atestar que compila sem erros.
+- [x] **Teste de Validação de Focos:** Garantir que o mapa `FOCUS_BEHAVIOR_MAP` contemple as diretrizes e CTAs de todos os focos comerciais.
+- [x] **Teste de Persistência:** Confirmar que a Edge Function persiste o objeto estruturado JSONB individualmente por lead no banco de dados.
+- [x] **Teste de Normalização do Frontend:** Assegurar que o frontend consegue ler e exibir a cadência de 7 dias a partir do objeto JSONB de forma transparente.

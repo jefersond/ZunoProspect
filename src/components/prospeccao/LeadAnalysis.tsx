@@ -206,6 +206,17 @@ export const LeadAnalysis = ({
                 </div>
 
                 <div className="pl-4 space-y-2 text-sm">
+                  {(dia.objetivo || dia.goal) && (
+                    <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-md border border-slate-200 dark:border-slate-800">
+                      <p className="font-semibold text-slate-700 dark:text-slate-300 text-xs mb-1">
+                        Objetivo do dia:
+                      </p>
+                      <p className="text-sm text-slate-900 dark:text-slate-200 font-medium">
+                        {dia.objetivo || dia.goal}
+                      </p>
+                    </div>
+                  )}
+
                   {dia.acao_sugerida && (
                     <div className="bg-purple-50 dark:bg-purple-950/30 p-3 rounded-md border border-purple-200 dark:border-purple-800">
                       <p className="font-semibold text-purple-700 dark:text-purple-400 text-xs mb-1">

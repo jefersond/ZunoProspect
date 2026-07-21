@@ -42,15 +42,63 @@ const ADMIN_EMAILS = new Set([
   "jeferson.zanotell@gmail.com",
   "jefeson.zanotell@gmail.com",
 ]);
+interface EditableLeadFields {
+  nome?: string;
+  nome_responsavel?: string;
+  telefone?: string;
+  whatsapp_number?: string;
+  email?: string;
+  website?: string;
+  instagram_url?: string;
+  cidade?: string;
+  endereco?: string;
+  nicho?: string;
+}
+
+function cleanText(value: unknown, maxLength: number): string {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
+function normalizeExternalUrl(value: unknown, instagram = false): string {
+  let normalized = cleanText(value, 300);
+  if (!normalized) return "";
+
+  if (instagram && normalized.startsWith("@")) {
+    normalized = "https://instagram.com/" + normalized.slice(1);
+  } else if (!/^https?:\/\//i.test(normalized)) {
+    normalized = "https://" + normalized;
+  }
+
+  const url = new URL(normalized);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("Protocolo de URL invalido");
+  }
+
+  if (instagram) {
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+    if (hostname !== "instagram.com" && !hostname.endsWith(".instagram.com")) {
+      throw new Error("Instagram precisa apontar para instagram.com");
+    }
+  }
+
+  return url.toString().replace(/\/$/, "");
+}
+
+function hasValidPhoneLength(value: string): boolean {
+  if (!value) return true;
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 8 && digits.length <= 15;
+}
 
 interface GetLeadsRequest {
-  action: 'list' | 'view_detail' | 'export';
+  action: 'list' | 'view_detail' | 'export' | 'update_core_fields';
   salvo?: boolean | string | null;
   leadId?: string;
   page?: number;
   limit?: number;
   noPagination?: boolean;
   searchRunId?: string;
+  fields?: EditableLeadFields;
 }
 
 serve(async (req) => {
@@ -106,7 +154,7 @@ serve(async (req) => {
 
     // Parse request
     const body: GetLeadsRequest = await req.json();
-    const { action = 'list', salvo, leadId, page = 1, limit = 200, noPagination = false, searchRunId } = body;
+    const { action = 'list', salvo, leadId, page = 1, limit = 200, noPagination = false, searchRunId, fields } = body;
 
     // IMPORTANT: Normalize salvo parameter - handle string/boolean conversion
     // The value can come as string "true"/"false" or boolean true/false
@@ -114,7 +162,7 @@ serve(async (req) => {
                        salvo === false || salvo === 'false' ? false : null;
 
     // Validate inputs
-    const validActions = ['list', 'view_detail', 'export'];
+    const validActions = ['list', 'view_detail', 'export', 'update_core_fields'];
     if (!validActions.includes(action)) {
       return new Response(JSON.stringify({ error: "Ação inválida" }), {
         status: 400,
@@ -168,7 +216,97 @@ serve(async (req) => {
     let leadIds: string[] = [];
 
     // Handle different actions
-    if (action === 'view_detail' && leadId) {
+    if (action === 'update_core_fields') {
+      if (!isAdminUser) {
+        return new Response(JSON.stringify({ error: "Recurso disponivel somente para administradores" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!leadId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(leadId)) {
+        return new Response(JSON.stringify({ error: "Lead invalido" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const editableFields = fields || {};
+      let normalizedWebsite = "";
+      let normalizedInstagram = "";
+
+      try {
+        normalizedWebsite = normalizeExternalUrl(editableFields.website);
+        normalizedInstagram = normalizeExternalUrl(editableFields.instagram_url, true);
+      } catch (validationError) {
+        return new Response(JSON.stringify({
+          error: validationError instanceof Error ? validationError.message : "URL invalida",
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const normalizedFields = {
+        nome: cleanText(editableFields.nome, 160),
+        nome_responsavel: cleanText(editableFields.nome_responsavel, 160),
+        telefone: cleanText(editableFields.telefone, 30),
+        whatsapp_number: cleanText(editableFields.whatsapp_number, 30),
+        email: cleanText(editableFields.email, 254).toLowerCase(),
+        website: normalizedWebsite,
+        instagram_url: normalizedInstagram,
+        cidade: cleanText(editableFields.cidade, 120),
+        endereco: cleanText(editableFields.endereco, 300),
+        nicho: cleanText(editableFields.nicho, 120),
+      };
+
+      if (!normalizedFields.nome || !normalizedFields.cidade || !normalizedFields.nicho) {
+        return new Response(JSON.stringify({ error: "Nome, cidade e nicho sao obrigatorios" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (normalizedFields.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedFields.email)) {
+        return new Response(JSON.stringify({ error: "E-mail invalido" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!hasValidPhoneLength(normalizedFields.telefone) || !hasValidPhoneLength(normalizedFields.whatsapp_number)) {
+        return new Response(JSON.stringify({ error: "Telefone e WhatsApp devem ter entre 8 e 15 digitos" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: updatedLead, error: updateError } = await supabaseAdmin
+        .rpc("admin_update_lead_core_fields", {
+          p_encryption_key: encryptionKey,
+          p_lead_id: leadId,
+          p_edited_by: user.id,
+          p_nome: normalizedFields.nome,
+          p_nome_responsavel: normalizedFields.nome_responsavel,
+          p_telefone: normalizedFields.telefone,
+          p_whatsapp_number: normalizedFields.whatsapp_number,
+          p_email: normalizedFields.email,
+          p_website: normalizedFields.website,
+          p_instagram_url: normalizedFields.instagram_url,
+          p_cidade: normalizedFields.cidade,
+          p_endereco: normalizedFields.endereco,
+          p_nicho: normalizedFields.nicho,
+        });
+
+      if (updateError) {
+        console.error("Erro ao atualizar dados do lead:", updateError);
+        throw updateError;
+      }
+
+      responseData = updatedLead;
+      leadsCount = 1;
+      leadIds = [leadId];
+    } else if (action === 'view_detail' && leadId) {
       // Get single lead with full details using secure wrapper
       // SECURITY: Encryption key passed as parameter, restricted to service_role
       const { data: leads, error } = await supabaseAdmin

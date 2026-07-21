@@ -194,18 +194,30 @@ async function createCampaign(admin: SupabaseClient, userId: string, input: Json
     .from("marketing_settings").select("*").eq("singleton", true).single();
   if (settingsError) throw new Error("Configuracoes de marketing indisponiveis: " + settingsError.message);
 
-  const requestedMonthly = Number(input.paid_media_monthly_budget ?? input.monthly_budget ?? settings.monthly_paid_media_cap ?? 0);
+  const hasDailyBudget = input.paid_media_daily_budget !== undefined || input.daily_budget !== undefined;
+  const requestedDailyInput = Number(input.paid_media_daily_budget ?? input.daily_budget ?? 0);
+  const requestedMonthly = Number(
+    input.paid_media_monthly_budget ?? input.monthly_budget ??
+      (hasDailyBudget ? requestedDailyInput * 30 : settings.monthly_paid_media_cap ?? 0),
+  );
   const monthlyCap = Number(settings.monthly_paid_media_cap ?? 0);
+  const dailyCap = Number(settings.daily_paid_media_cap ?? 0);
+  const explicitBudgetApproval = input.explicit_budget_approval === true;
   if (!Number.isFinite(requestedMonthly) || requestedMonthly < 0) {
     throw new Error("Orcamento mensal invalido.");
   }
-  if (requestedMonthly > monthlyCap) {
+  if (!Number.isFinite(requestedDailyInput) || requestedDailyInput < 0) {
+    throw new Error("Orcamento diario invalido.");
+  }
+  if (requestedMonthly > monthlyCap && !explicitBudgetApproval) {
     throw new Error("A verba de midia paga excede o teto de R$ " + monthlyCap.toFixed(2) + ". Altere o teto conscientemente antes.");
   }
-  const derivedDaily = requestedMonthly === 0 ? 0 : Math.min(
-    Number(settings.daily_paid_media_cap ?? 0),
-    requestedMonthly / 30,
-  );
+  if (hasDailyBudget && requestedDailyInput > dailyCap && !explicitBudgetApproval) {
+    throw new Error("A verba diaria excede o teto de R$ " + dailyCap.toFixed(2) + ".");
+  }
+  const derivedDaily = requestedMonthly === 0 ? 0 : hasDailyBudget
+    ? requestedDailyInput
+    : Math.min(dailyCap, requestedMonthly / 30);
 
   const payload = {
     created_by: userId,
@@ -224,7 +236,11 @@ async function createCampaign(admin: SupabaseClient, userId: string, input: Json
     metadata: {
       approval_mode: settings.approval_mode,
       guardrails: settings.guardrails,
-      source: "admin_marketing_center",
+      source: safeText(input.source, "admin_marketing_center"),
+      director_instruction: safeText(input.director_instruction) || null,
+      routed_agents: Array.isArray(input.agent_keys) ? input.agent_keys.map(String) : [],
+      explicit_budget_approval: explicitBudgetApproval,
+      planning_only: true,
     },
   };
 
@@ -232,7 +248,13 @@ async function createCampaign(admin: SupabaseClient, userId: string, input: Json
     .from("marketing_campaigns").insert(payload).select("*").single();
   if (error) throw new Error("Falha ao criar campanha: " + error.message);
 
-  const tasks = agents.map((agent) => ({
+  const requestedAgentKeys = new Set(
+    Array.isArray(input.agent_keys) ? input.agent_keys.map(String) : [],
+  );
+  const selectedAgents = requestedAgentKeys.size
+    ? agents.filter((agent) => requestedAgentKeys.has(agent.key))
+    : agents;
+  const tasks = selectedAgents.map((agent) => ({
     campaign_id: campaign.id,
     agent_key: agent.key,
     stage_order: agent.stage,
@@ -464,6 +486,155 @@ async function retryTask(admin: SupabaseClient, taskId: string) {
 }
 
 function normalizeHashtags(value: unknown) {
+function saoPauloDay(value: string | Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value instanceof Date ? value : new Date(value));
+}
+
+function allowedAgentKeys(value: unknown) {
+  const allowed = new Set(agents.map((agent) => agent.key));
+  return Array.isArray(value)
+    ? value.map(String).filter((key) => allowed.has(key))
+    : [];
+}
+
+async function directorCommand(
+  admin: SupabaseClient,
+  aiKey: string,
+  userId: string,
+  input: Json,
+  url: string,
+  service: string,
+) {
+  const instruction = safeText(input.instruction ?? input.command ?? input.objective);
+  if (instruction.length < 8) throw new Error("Descreva com mais detalhes o que o Diretor deve fazer.");
+
+  const routing = await gemini([
+    "Voce e o Diretor central da Zuno e deve encaminhar a ordem do fundador.",
+    "Classifique sem executar gasto, publicacao ou promessa.",
+    "Use instagram_revision quando ele pedir para alterar, refazer ou revisar um post existente, especialmente o post de hoje.",
+    "Use paid_campaign quando houver anuncio, trafego pago, verba diaria, publico, palavra-chave ou teste A/B.",
+    "Use organic_campaign para conteudo novo, calendario ou campanha organica.",
+    "Use sales_operation para SDR, prospeccao, WhatsApp, objecoes ou fechamento.",
+    "Use general_marketing nos demais pedidos de marketing.",
+    "ORDEM: " + instruction,
+    "Retorne somente JSON:",
+    '{"route":"instagram_revision|paid_campaign|organic_campaign|sales_operation|general_marketing","summary":"","daily_budget":0,"monthly_budget":0,"keyword":"","audience":"","agent_keys":[]}',
+  ].join("\n"), aiKey);
+
+  const route = safeText(routing.route, "general_marketing");
+  const summary = safeText(routing.summary, instruction);
+
+  if (route === "instagram_revision") {
+    let post: Json | null = null;
+    const targetId = safeText(input.target_post_id);
+    if (targetId) {
+      const result = await admin.from("instagram_content_posts").select("*").eq("id", targetId).single();
+      if (result.error) throw new Error("Post indicado nao encontrado: " + result.error.message);
+      post = result.data as Json;
+    } else {
+      const result = await admin.from("instagram_content_posts").select("*")
+        .not("scheduled_at", "is", null).order("scheduled_at", { ascending: true }).limit(100);
+      if (result.error) throw new Error("Calendario indisponivel: " + result.error.message);
+      const rows = (result.data || []) as Json[];
+      const today = saoPauloDay(new Date());
+      post = rows.find((item) => item.scheduled_at && saoPauloDay(String(item.scheduled_at)) === today && item.status !== "published") ||
+        rows.find((item) => item.status === "pending_review" && new Date(String(item.scheduled_at)).getTime() >= Date.now()) ||
+        rows.find((item) => item.status === "pending_review") || null;
+    }
+    if (!post) throw new Error("Nao encontrei um post pendente no calendario para alterar.");
+
+    const revision = await gemini([
+      "Voce representa um squad com Social Media senior, Copywriter senior e Diretor de Arte da Zuno.",
+      "Revise o MESMO post conforme a ordem do fundador. Preserve scheduled_at e nao publique.",
+      "A marca e um SaaS B2B premium, escuro, verde e branco. Nao invente provas, clientes, numeros ou funcionalidades.",
+      "Se a ordem pedir mudanca de design, ajuste hook, slides, texto na arte e visual_brief de forma coerente.",
+      "POST ATUAL:", JSON.stringify(post),
+      "ORDEM DO FUNDADOR:", instruction,
+      "Retorne somente JSON:",
+      '{"post":{"objective":"","format":"single|carousel","pillar":"","theme":"","target_audience":"","hook":"","caption":"","hashtags":[],"cta":"","alt_text":"","visual_brief":"","slides":[{"title":"","body":""}]},"director_summary":""}',
+    ].join("\n"), aiKey);
+    const candidate = (revision.post && typeof revision.post === "object" ? revision.post : revision) as Json;
+    const format = candidate.format === "carousel" ? "carousel" : candidate.format === "single" ? "single" : post.format;
+    const updatedValues = {
+      objective: safeText(candidate.objective, String(post.objective || "awareness")),
+      format,
+      pillar: safeText(candidate.pillar, String(post.pillar || "")) || null,
+      theme: safeText(candidate.theme, String(post.theme || "Conteudo Zuno")),
+      target_audience: safeText(candidate.target_audience, String(post.target_audience || "")) || null,
+      hook: safeText(candidate.hook, String(post.hook || "")),
+      caption: safeText(candidate.caption, String(post.caption || "")),
+      hashtags: normalizeHashtags(candidate.hashtags ?? post.hashtags),
+      cta: safeText(candidate.cta, String(post.cta || "")) || null,
+      alt_text: safeText(candidate.alt_text, String(post.alt_text || "")) || null,
+      visual_brief: safeText(candidate.visual_brief, String(post.visual_brief || "")) || null,
+      slides: Array.isArray(candidate.slides) ? candidate.slides.slice(0, 8) : post.slides,
+      media_url: null,
+      media_urls: [],
+      status: "pending_review",
+      approved_at: null,
+      approved_by: null,
+      last_error: null,
+      metadata: {
+        ...((post.metadata && typeof post.metadata === "object") ? post.metadata as Json : {}),
+        director_revision: { instruction, revised_at: new Date().toISOString(), agents: ["social_media", "copywriter", "creative_director"] },
+      },
+      agent_trace: {
+        ...((post.agent_trace && typeof post.agent_trace === "object") ? post.agent_trace as Json : {}),
+        director_revision: { instruction, model: Deno.env.get("MARKETING_TEAM_MODEL") || "gemini-2.5-flash" },
+      },
+    };
+    const result = await admin.from("instagram_content_posts").update(updatedValues)
+      .eq("id", String(post.id)).select("*").single();
+    if (result.error) throw new Error("Nao foi possivel salvar a revisao: " + result.error.message);
+    return {
+      route,
+      summary: safeText(revision.director_summary, "Social Media, Copy e Design revisaram o post. A nova versao aguarda sua aprovacao."),
+      agents: ["social_media", "copywriter", "creative_director"],
+      post: result.data,
+      needs_artwork: true,
+    };
+  }
+
+  const routeAgents: Record<string, string[]> = {
+    paid_campaign: ["marketing_director", "traffic_manager", "copywriter", "creative_director", "performance_analyst"],
+    organic_campaign: ["marketing_director", "copywriter", "creative_director", "social_media", "performance_analyst"],
+    sales_operation: ["marketing_director", "copywriter", "sdr", "closer", "performance_analyst"],
+    general_marketing: agents.map((agent) => agent.key),
+  };
+  const routed = allowedAgentKeys(routing.agent_keys);
+  const agentKeys = Array.from(new Set(["marketing_director", ...(routeAgents[route] || routeAgents.general_marketing), ...routed]));
+  const dailyBudget = Math.max(0, Number(routing.daily_budget || 0));
+  const monthlyBudget = Math.max(0, Number(routing.monthly_budget || dailyBudget * 30));
+  const campaign = await createCampaign(admin, userId, {
+    name: "Diretor - " + summary.slice(0, 90),
+    objective: instruction,
+    offer: input.offer,
+    target_audience: safeText(routing.audience) || input.target_audience,
+    channels: route === "paid_campaign" ? ["meta_ads", "instagram", "website"] : ["instagram", "whatsapp", "website"],
+    paid_media_daily_budget: dailyBudget,
+    paid_media_monthly_budget: monthlyBudget,
+    explicit_budget_approval: true,
+    director_instruction: instruction,
+    source: "zuno_director_command",
+    agent_keys: agentKeys,
+  });
+  keepBackgroundAlive(processCampaignInBackground(admin, aiKey, url, service, String(campaign.id)));
+  return {
+    route,
+    summary,
+    agents: agentKeys,
+    campaign,
+    accepted: true,
+    planning_only: true,
+    meta_connection_required: route === "paid_campaign",
+  };
+}
+
   const list = Array.isArray(value) ? value : String(value || "").split(/[\s,]+/);
   return Array.from(new Set(list.map(String).map((item) => item.trim()).filter(Boolean)
     .map((item) => item.startsWith("#") ? item : "#" + item))).slice(0, 12);
@@ -536,6 +707,13 @@ serve(async (req) => {
       return reply({ success: false, error: "Acao interna nao permitida." }, 403);
     }
     if (action === "create_campaign") {
+    if (action === "director_command") {
+      if (!auth.user) throw new Error("UNAUTHORIZED:Usuario obrigatorio.");
+      if (!aiKey) throw new Error("GOOGLE_GEMINI_API_KEY nao configurada.");
+      const result = await directorCommand(admin, aiKey, auth.user.id, input, url, service);
+      return reply({ success: true, ...result });
+    }
+
       if (!auth.user) throw new Error("UNAUTHORIZED:Usuario obrigatorio.");
       const campaign = await createCampaign(admin, auth.user.id, input);
       return reply({ success: true, campaign, agents: agents.map(({ key, title, stage }) => ({ key, title, stage })) });

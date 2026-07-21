@@ -32,14 +32,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { renderInstagramArtwork } from "@/lib/instagramPostRenderer";
 
 type WorkMode = "cloud" | "codex";
 type HistoryItem = { text: string; mode: WorkMode; createdAt: string };
+
+type DirectorResult = {
+  route: string;
+  summary: string;
+  agents: string[];
+  detail?: string;
+};
 
 const REPOSITORY_URL = "https://github.com/jefersond/ZunoProspect.git";
 const HISTORY_KEY = "zuno-command-center-history";
 
 const quickCommands = [
+  "Altere o post de hoje: deixe a copy mais direta e refa\u00e7a o design com foco na demonstra\u00e7\u00e3o da Zuno.",
+  "Crie uma campanha sobre prospec\u00e7\u00e3o B2B com R$ 15 por dia, dois testes A/B, p\u00fablico, copy e criativos.",
   "Crie 7 posts educativos para o Instagram da Zuno, com CTA para o teste grátis de 7 dias no plano escolhido.",
   "Monte uma campanha orgânica para conquistar os primeiros clientes da Zuno sem tráfego pago.",
   "Crie uma sequência de prospecção humana para Instagram e WhatsApp, sem reunião e sem promessas exageradas.",
@@ -78,6 +88,7 @@ export default function AdminCommandCenter() {
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState("Pronto para receber seu pedido.");
   const [listening, setListening] = useState(false);
+  const [directorResult, setDirectorResult] = useState<DirectorResult | null>(null);
   const [interimTranscript, setInterimTranscript] = useState("");
   const speechRecognitionRef = useRef<any>(null);
 
@@ -99,7 +110,7 @@ export default function AdminCommandCenter() {
     return data;
   };
 
-  const runCloudTeam = async () => {
+  const runLegacyCloudTeam = async () => {
     if (!canSend) return;
     setRunning(true);
     setProgress(4);
@@ -131,6 +142,92 @@ export default function AdminCommandCenter() {
     }
   };
 
+
+  const createDirectorArtwork = async (post: any) => {
+    const blobs = await renderInstagramArtwork(post);
+    const urls: string[] = [];
+    const revision = Date.now();
+    for (let index = 0; index < blobs.length; index += 1) {
+      const path = `director/${post.id}/revision-${revision}-${String(index + 1).padStart(2, "0")}.png`;
+      const { error } = await supabase.storage.from("instagram-assets").upload(path, blobs[index], {
+        contentType: "image/png",
+        upsert: true,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from("instagram-assets").getPublicUrl(path);
+      urls.push(`${data.publicUrl}?v=${revision}`);
+    }
+    const { error } = await (supabase as any).from("instagram_content_posts").update({
+      media_url: urls[0] || null,
+      media_urls: urls,
+      status: "pending_review",
+    }).eq("id", post.id);
+    if (error) throw error;
+    return urls;
+  };
+
+  const runCloudTeam = async () => {
+    if (!canSend) return;
+    setRunning(true);
+    setDirectorResult(null);
+    setProgress(5);
+    setStatus("O Diretor da Zuno est\u00e1 entendendo sua ordem...");
+    try {
+      const result = await invokeMarketing({
+        action: "director_command",
+        instruction: command.trim(),
+        offer: "Teste gr\u00e1tis de 7 dias da Zuno Propect no plano escolhido, com cart\u00e3o obrigat\u00f3rio e R$0 cobrados hoje.",
+        target_audience: "Prestadores de servi\u00e7os B2B, ag\u00eancias e profissionais comerciais que precisam prospectar com consist\u00eancia.",
+      });
+      setProgress(55);
+
+      let detail = "";
+      if (result.route === "instagram_revision" && result.post) {
+        setStatus("Social Media, Copy e Design conclu\u00edram a revis\u00e3o. Refazendo as artes...");
+        try {
+          const urls = await createDirectorArtwork(result.post);
+          detail = `${urls.length} arte(s) refeita(s). O post voltou para sua aprova\u00e7\u00e3o.`;
+        } catch (artError: any) {
+          detail = "O texto e o briefing foram revisados, mas a arte ficou pendente: " + artError.message;
+        }
+      } else {
+        const labels: Record<string, string> = {
+          marketing_director: "Diretor",
+          traffic_manager: "Gestor de Tr\u00e1fego",
+          copywriter: "Copywriter",
+          creative_director: "Design",
+          social_media: "Social Media",
+          sdr: "SDR",
+          closer: "Closer",
+          performance_analyst: "Performance",
+        };
+        detail = "Encaminhado para: " + (result.agents || []).map((key: string) => labels[key] || key).join(" -> ") + ".";
+        if (result.meta_connection_required) {
+          detail += " O plano ser\u00e1 criado, mas a ativa\u00e7\u00e3o do an\u00fancio aguarda a conex\u00e3o oficial da Meta e sua aprova\u00e7\u00e3o.";
+        }
+      }
+
+      const finalResult: DirectorResult = {
+        route: result.route || "general_marketing",
+        summary: result.summary || "O Diretor encaminhou a ordem.",
+        agents: result.agents || [],
+        detail,
+      };
+      setDirectorResult(finalResult);
+      saveHistory("cloud");
+      setProgress(100);
+      setStatus("O Diretor recebeu o retorno do time e trouxe o resultado para voc\u00ea.");
+      toast({
+        title: result.route === "instagram_revision" ? "Post revisado pelo time" : "Diretor distribuiu o trabalho",
+        description: detail || finalResult.summary,
+      });
+    } catch (error: any) {
+      setStatus("O Diretor n\u00e3o conseguiu concluir essa ordem. Ajuste o pedido ou tente novamente.");
+      toast({ variant: "destructive", title: "N\u00e3o foi poss\u00edvel concluir", description: error.message });
+    } finally {
+      setRunning(false);
+    }
+  };
   const openInCodex = () => {
     if (!canSend) return;
     const prompt = [
@@ -324,6 +421,18 @@ export default function AdminCommandCenter() {
                 <Button size="lg" variant="outline" className="gap-2" onClick={copyForCodex} disabled={!command.trim()}><Copy className="h-4 w-4" /> Copiar pedido</Button>
               </div>
               {!running && <p className="text-xs text-muted-foreground">{status}</p>}
+              {directorResult && (
+                <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-lg bg-emerald-500/10 p-2"><BrainCircuit className="h-5 w-5 text-emerald-500" /></div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-500">Retorno do Diretor</p>
+                      <p className="mt-1 text-sm font-medium leading-6">{directorResult.summary}</p>
+                      {directorResult.detail && <p className="mt-2 text-xs leading-5 text-muted-foreground">{directorResult.detail}</p>}
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

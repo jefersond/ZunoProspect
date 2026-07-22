@@ -45,7 +45,7 @@ type DirectorResult = {
 };
 
 const REPOSITORY_URL = "https://github.com/jefersond/ZunoProspect.git";
-const CODEX_WORKSPACE_PATH = "C:\\Users\\jefer\\Desktop\\Jeferson\\Saas em teste\\Zuno propec\u00e7\u00e3o\\reach-gen";
+const CODEX_WORKSPACE_PATH = "C:\\Users\\jefer\\Desktop\\Jeferson\\Saas em teste\\Zuno propec\u00e7\u00e3o";
 const HISTORY_KEY = "zuno-command-center-history";
 
 const quickCommands = [

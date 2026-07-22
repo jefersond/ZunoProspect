@@ -251,7 +251,7 @@ export function LeadEditDialog({ lead, open, onOpenChange, onSaved }: LeadEditDi
             <div>
               <DialogTitle>Corrigir dados do lead</DialogTitle>
               <DialogDescription className="mt-1">
-                Recurso experimental visivel somente para administradores.
+                Disponivel em todos os planos para corrigir os seus proprios leads.
               </DialogDescription>
             </div>
           </div>
@@ -259,7 +259,7 @@ export function LeadEditDialog({ lead, open, onOpenChange, onSaved }: LeadEditDi
 
         <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-          <span>Os campos corrigidos ficam marcados como fonte manual. Dados vazios serao removidos.</span>
+          <span>Os dados corrigidos ficam salvos no lead e seguem para o pipeline quando voce salvar o resultado.</span>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">

@@ -217,13 +217,6 @@ serve(async (req) => {
 
     // Handle different actions
     if (action === 'update_core_fields') {
-      if (!isAdminUser) {
-        return new Response(JSON.stringify({ error: "Recurso disponivel somente para administradores" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
       if (!leadId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(leadId)) {
         return new Response(JSON.stringify({ error: "Lead invalido" }), {
           status: 400,
@@ -282,7 +275,7 @@ serve(async (req) => {
       }
 
       const { data: updatedLead, error: updateError } = await supabaseAdmin
-        .rpc("admin_update_lead_core_fields", {
+        .rpc("update_owned_lead_core_fields", {
           p_encryption_key: encryptionKey,
           p_lead_id: leadId,
           p_edited_by: user.id,

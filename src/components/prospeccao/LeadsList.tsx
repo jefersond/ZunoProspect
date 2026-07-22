@@ -1541,25 +1541,23 @@ export const LeadsList = () => {
                       <div className="min-w-0 space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="min-w-0 truncate font-medium" title={lead.nome}>{lead.nome}</p>
-                          {isAdmin && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setLeadBeingEdited(lead)}
-                                    className="h-7 w-7 shrink-0 text-amber-600 hover:bg-amber-500/10 hover:text-amber-700"
-                                    aria-label={`Editar dados de ${lead.nome}`}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent><p>Corrigir dados do lead (teste admin)</p></TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setLeadBeingEdited(lead)}
+                                  className="h-7 w-7 shrink-0 text-amber-600 hover:bg-amber-500/10 hover:text-amber-700"
+                                  aria-label={`Editar dados de ${lead.nome}`}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent><p>Corrigir dados do lead</p></TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           {lead.salvo && (
                             <Badge variant="secondary" className="shrink-0 text-xs">
                               <Archive className="h-3 w-3 mr-1" />
@@ -1996,17 +1994,15 @@ export const LeadsList = () => {
         onLeadRefined={updateLeadLocally}
       />
 
-      {isAdmin && (
-        <LeadEditDialog
-          lead={leadBeingEdited}
-          open={!!leadBeingEdited}
-          onOpenChange={(open) => !open && setLeadBeingEdited(null)}
-          onSaved={(updatedLead) => {
-            updateLeadLocally(updatedLead);
-            setLeadBeingEdited(null);
-          }}
-        />
-      )}
+      <LeadEditDialog
+        lead={leadBeingEdited}
+        open={!!leadBeingEdited}
+        onOpenChange={(open) => !open && setLeadBeingEdited(null)}
+        onSaved={(updatedLead) => {
+          updateLeadLocally(updatedLead);
+          setLeadBeingEdited(null);
+        }}
+      />
       
       <UpgradePlanDialog 
         open={showUpgradeDialog} 

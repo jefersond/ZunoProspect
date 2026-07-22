@@ -45,6 +45,7 @@ type DirectorResult = {
 };
 
 const REPOSITORY_URL = "https://github.com/jefersond/ZunoProspect.git";
+const CODEX_WORKSPACE_PATH = "C:\\Users\\jefer\\Desktop\\Jeferson\\Saas em teste\\Zuno propec\u00e7\u00e3o\\reach-gen";
 const HISTORY_KEY = "zuno-command-center-history";
 
 const quickCommands = [
@@ -76,6 +77,15 @@ function summarizeCommand(value: string) {
   const clean = value.replace(/\s+/g, " ").trim();
   return clean.length > 58 ? `${clean.slice(0, 58)}…` : clean;
 }
+function buildCodexPrompt(command: string) {
+  return [
+    "Voc\u00ea est\u00e1 trabalhando no projeto Zuno Prospect.",
+    "Pedido do fundador:",
+    command.trim(),
+    "Considere a arquitetura e as mudan\u00e7as j\u00e1 existentes no reposit\u00f3rio. Preserve altera\u00e7\u00f5es do usu\u00e1rio, implemente, valide e explique o que ficou pronto.",
+  ].join("\n\n");
+}
+
 
 export default function AdminCommandCenter() {
   const navigate = useNavigate();
@@ -246,11 +256,19 @@ export default function AdminCommandCenter() {
     ].join("\n\n");
     saveHistory("codex");
     setStatus("Abrindo o Codex neste computador…");
-    window.location.href = `codex://threads/new?prompt=${encodeURIComponent(prompt)}&originUrl=${encodeURIComponent(REPOSITORY_URL)}`;
+    void navigator.clipboard.writeText(prompt).catch(() => undefined);
+    const deepLink = [
+      "codex://new?prompt=" + encodeURIComponent(prompt),
+      "path=" + encodeURIComponent(CODEX_WORKSPACE_PATH),
+      "originUrl=" + encodeURIComponent(REPOSITORY_URL),
+    ].join("&");
+    window.location.assign(deepLink);
+    toast({ title: "Pedido preparado no Codex", description: "O texto foi preenchido e copiado. Revise e pressione Enviar." });
   };
 
   const copyForCodex = async () => {
-    await navigator.clipboard.writeText(command.trim());
+    const prompt = buildCodexPrompt(command);
+    await navigator.clipboard.writeText(prompt);
     toast({ title: "Pedido copiado", description: "Você pode colar em qualquer conversa do Codex." });
   };
 
@@ -424,10 +442,11 @@ export default function AdminCommandCenter() {
                 {mode === "cloud" ? (
                   <Button size="lg" className="gap-2" onClick={runCloudTeam} disabled={!canSend}>{running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Executar com o time na nuvem</Button>
                 ) : (
-                  <Button size="lg" className="gap-2 bg-violet-600 text-white hover:bg-violet-500" onClick={openInCodex} disabled={!canSend}><Sparkles className="h-4 w-4" /> Abrir pedido no Codex</Button>
+                  <Button size="lg" className="gap-2 bg-violet-600 text-white hover:bg-violet-500" onClick={openInCodex} disabled={!canSend}><Sparkles className="h-4 w-4" /> Abrir rascunho no Codex</Button>
                 )}
                 <Button size="lg" variant="outline" className="gap-2" onClick={copyForCodex} disabled={!command.trim()}><Copy className="h-4 w-4" /> Copiar pedido</Button>
               </div>
+              {mode === "codex" && <p className="text-xs leading-5 text-muted-foreground">O aplicativo abre uma nova tarefa com o texto pronto. Por seguran\u00e7a, o Codex n\u00e3o envia automaticamente: revise e pressione Enviar.</p>}
               {!running && <p className="text-xs text-muted-foreground">{status}</p>}
               {directorResult && (
                 <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4">

@@ -70,18 +70,21 @@ const quickIssues = [
   "Imagem com baixa qualidade",
 ];
 
-export function CreativePreviewDialog({ post, onClose, onSaveReview }: {
+export function CreativePreviewDialog({ post, onClose, onSaveReview, onRevise }: {
   post: CreativePreviewPost | null;
   onClose: () => void;
   onSaveReview: (postId: string, slideIndex: number, note: string) => Promise<void>;
+  onRevise: (postId: string) => Promise<void>;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [revising, setRevising] = useState(false);
   const media = post ? getPostMedia(post) : [];
   const reviewNotes = getReviewNotes(post);
   const savedNote = reviewNotes[String(activeIndex)] || "";
+  const issueCount = Object.values(reviewNotes).filter((item) => item.trim()).length;
 
   useEffect(() => {
     setActiveIndex(0);
@@ -122,6 +125,27 @@ export function CreativePreviewDialog({ post, onClose, onSaveReview }: {
     setSaving(true);
     try {
       await onSaveReview(post.id, activeIndex, note.trim());
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const reviseCreative = async () => {
+    if (!post) return;
+    setRevising(true);
+    try {
+      await onRevise(post.id);
+    } finally {
+      setRevising(false);
+    }
+  };
+
+  const confirmCorrection = async () => {
+    if (!post) return;
+    setSaving(true);
+    try {
+      await onSaveReview(post.id, activeIndex, "");
+      setNote("");
     } finally {
       setSaving(false);
     }
@@ -174,12 +198,20 @@ export function CreativePreviewDialog({ post, onClose, onSaveReview }: {
             </div>
 
             <div className={`shrink-0 rounded-xl border p-3 ${savedNote ? "border-red-500/40 bg-red-500/5" : "bg-background/50"}`}>
-              <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <AlertCircle className={`h-4 w-4 ${savedNote ? "text-red-400" : "text-muted-foreground"}`} />
                   Apontar erro no slide {activeIndex + 1}
                 </div>
-                {savedNote && <Badge variant="destructive">Ajuste pendente</Badge>}
+                <div className="flex flex-wrap items-center gap-2">
+                  {savedNote && <Badge variant="destructive">Ajuste pendente</Badge>}
+                  {issueCount > 0 && (
+                    <Button type="button" size="sm" onClick={reviseCreative} disabled={revising || saving || note.trim() !== savedNote.trim()}>
+                      {revising && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Revisar e refazer {media.length > 1 ? "carrossel" : "arte"}
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {quickIssues.map((issue) => (
@@ -188,10 +220,15 @@ export function CreativePreviewDialog({ post, onClose, onSaveReview }: {
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={2} className="min-h-16 resize-none" placeholder="Ex.: a segunda frase ficou em cima da primeira; reduzir o texto e aumentar o espacamento." />
-                <Button type="button" className="shrink-0" onClick={saveReview} disabled={saving || note.trim() === savedNote.trim()}>
+                <Button type="button" className="shrink-0" onClick={saveReview} disabled={saving || revising || note.trim() === savedNote.trim()}>
                   {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {note.trim() ? "Salvar apontamento" : "Remover apontamento"}
                 </Button>
+                {savedNote && (
+                  <Button type="button" variant="outline" className="shrink-0" onClick={confirmCorrection} disabled={saving || revising}>
+                    Confirmar correcao
+                  </Button>
+                )}
               </div>
             </div>
           </>

@@ -535,6 +535,76 @@ export default function AdminInstagram() {
       });
     }
   };
+  const reviseCreative = async (postId: string) => {
+    const currentPost = posts.find((post) => post.id === postId);
+    if (!currentPost) return;
+
+    const creativeReview = currentPost.agent_trace?.creative_review;
+    const notes = creativeReview && typeof creativeReview === "object" && creativeReview.notes
+      ? creativeReview.notes as Record<string, string>
+      : {};
+    const issues = Object.entries(notes)
+      .filter(([, value]) => value.trim())
+      .map(([index, value]) => `Slide ${Number(index) + 1}: ${value.trim()}`);
+    if (!issues.length) {
+      toast({ title: "Nenhum ajuste pendente", description: "Marque o erro no slide antes de pedir a revisao." });
+      return;
+    }
+
+    setBusyPost(postId);
+    try {
+      const instruction = [
+        "Revise este mesmo post do Instagram e corrija exatamente os apontamentos abaixo.",
+        "Preserve a ideia, o formato e a data. Encurte os textos somente quando for necessario para evitar cortes ou sobreposicoes.",
+        ...issues,
+        `Identificador desta revisao: ${Date.now()}`,
+      ].join("\n");
+      const { data, error } = await supabase.functions.invoke("marketing-orchestrator", {
+        body: {
+          action: "director_command",
+          target_post_id: postId,
+          instruction,
+        },
+      });
+      if (error || !data?.post || data.route !== "instagram_revision") {
+        throw new Error(parseFunctionError(error, data) || "O time nao conseguiu revisar este criativo.");
+      }
+
+      const revisedPost = data.post as ContentPost;
+      const urls = await createArtwork(revisedPost, false);
+      const agentTrace = {
+        ...(revisedPost.agent_trace || {}),
+        creative_review: {
+          ...(creativeReview && typeof creativeReview === "object" ? creativeReview : {}),
+          notes,
+          revision_generated_at: new Date().toISOString(),
+        },
+      };
+      await updatePost(postId, { agent_trace: agentTrace });
+
+      const updatedPost: ContentPost = {
+        ...revisedPost,
+        agent_trace: agentTrace,
+        media_url: urls[0] || null,
+        media_urls: urls,
+        status: "pending_review",
+      };
+      setPosts((current) => current.map((post) => post.id === postId ? updatedPost : post));
+      setPreviewPost(updatedPost);
+      toast({
+        title: "Carrossel revisado e refeito",
+        description: "Confira os slides marcados e use Confirmar correcao quando cada problema estiver resolvido.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Nao foi possivel revisar o criativo",
+        description: error.message,
+      });
+    } finally {
+      setBusyPost(null);
+    }
+  };
   const runPostAction = async (
     post: ContentPost,
     action: "approve" | "reject" | "schedule" | "media" | "publish"
@@ -1197,6 +1267,7 @@ export default function AdminInstagram() {
           post={previewPost}
           onClose={() => setPreviewPost(null)}
           onSaveReview={saveCreativeReview}
+          onRevise={reviseCreative}
         />
       </main>
     </div>

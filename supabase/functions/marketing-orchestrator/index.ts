@@ -888,19 +888,17 @@ serve(async (req) => {
     if (auth.isInternal && action !== "run_background") {
       return reply({ success: false, error: "Acao interna nao permitida." }, 403);
     }
-    if (action === "create_campaign") {
     if (action === "director_command") {
       if (!auth.user) throw new Error("UNAUTHORIZED:Usuario obrigatorio.");
       if (!aiKey) throw new Error("GOOGLE_GEMINI_API_KEY nao configurada.");
       const result = await directorCommand(admin, aiKey, auth.user.id, input, url, service);
       return reply({ success: true, ...result });
     }
-
+    if (action === "create_campaign") {
       if (!auth.user) throw new Error("UNAUTHORIZED:Usuario obrigatorio.");
       const campaign = await createCampaign(admin, auth.user.id, input);
       return reply({ success: true, campaign, agents: agents.map(({ key, title, stage }) => ({ key, title, stage })) });
     }
-    if (action === "run_next") {
     if (action === "run_campaign_async" || action === "run_background") {
       if (action === "run_campaign_async" && !auth.user) {
         throw new Error("UNAUTHORIZED:Usuario obrigatorio.");
@@ -914,7 +912,7 @@ serve(async (req) => {
       keepBackgroundAlive(processCampaignInBackground(admin, aiKey, url, service, campaignId));
       return reply({ success: true, accepted: true, campaign_id: campaignId }, 202);
     }
-
+    if (action === "run_next") {
       if (!aiKey) throw new Error("GOOGLE_GEMINI_API_KEY nao configurada.");
       const result = await runNextTask(admin, aiKey, safeText(input.campaign_id) || undefined);
       return reply({ success: true, ...result });

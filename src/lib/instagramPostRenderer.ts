@@ -174,7 +174,7 @@ function drawCover(
   context.fillStyle = COLORS.primary;
   context.fillRect(MARGIN, 260, 12, 370);
 
-  const fitted = fitText(context, post.hook, WIDTH - MARGIN * 2 - 72, 7, 86, 58, 800);
+  const fitted = fitText(context, post.hook, WIDTH - MARGIN * 2 - 72, 5, 80, 48, 800);
   context.fillStyle = COLORS.foreground;
   context.font = `800 ${fitted.size}px Inter, Arial, sans-serif`;
   drawLines(context, fitted.lines, MARGIN + 48, 334, fitted.size, fitted.size * 1.13);

@@ -28,6 +28,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { renderInstagramArtwork } from "@/lib/instagramPostRenderer";
+import { CreativePreviewDialog, CreativeThumbnail } from "@/components/admin/CreativePreviewDialog";
 
 type ContentPost = {
   id: string;
@@ -190,6 +191,15 @@ function buildEditorialPlan(startValue: string, postsPerWeek: number): Editorial
 function parseFunctionError(error: any, data: any) {
   return data?.error || error?.message || "Nao foi possivel concluir a operacao.";
 }
+function hasCreativeReviewIssues(post: ContentPost) {
+  const review = post.agent_trace?.creative_review;
+  const notes = review && typeof review === "object" ? review.notes : null;
+  return Boolean(
+    notes &&
+    typeof notes === "object" &&
+    Object.values(notes).some((note) => typeof note === "string" && note.trim())
+  );
+}
 
 export default function AdminInstagram() {
   const { isAdmin } = useAuth();
@@ -208,6 +218,7 @@ export default function AdminInstagram() {
   const [calendarFrequency, setCalendarFrequency] = useState("3");
   const [calendarGenerating, setCalendarGenerating] = useState(false);
   const [calendarProgress, setCalendarProgress] = useState("");
+  const [previewPost, setPreviewPost] = useState<ContentPost | null>(null);
   const [brief, setBrief] = useState({
     theme: "",
     objective: "awareness",
@@ -474,6 +485,56 @@ export default function AdminInstagram() {
     if (error) throw error;
   };
 
+  const saveCreativeReview = async (postId: string, slideIndex: number, note: string) => {
+    const currentPost = posts.find((post) => post.id === postId);
+    if (!currentPost) return;
+
+    try {
+      const currentReview = currentPost.agent_trace?.creative_review;
+      const currentNotes = currentReview && typeof currentReview === "object" && currentReview.notes
+        ? currentReview.notes as Record<string, string>
+        : {};
+      const notes = { ...currentNotes };
+
+      if (note) notes[String(slideIndex)] = note;
+      else delete notes[String(slideIndex)];
+
+      const agentTrace = {
+        ...(currentPost.agent_trace || {}),
+        creative_review: {
+          ...(currentReview && typeof currentReview === "object" ? currentReview : {}),
+          notes,
+          updated_at: new Date().toISOString(),
+        },
+      };
+      const hasIssues = Object.values(notes).some((value) => value.trim());
+      const nextStatus = hasIssues && currentPost.status !== "published"
+        ? "pending_review"
+        : currentPost.status;
+
+      await updatePost(postId, {
+        agent_trace: agentTrace,
+        status: nextStatus,
+        ...(hasIssues ? { approved_at: null } : {}),
+      });
+
+      const updatedPost = { ...currentPost, agent_trace: agentTrace, status: nextStatus };
+      setPosts((current) => current.map((post) => post.id === postId ? updatedPost : post));
+      setPreviewPost(updatedPost);
+      toast({
+        title: note ? `Erro marcado no slide ${slideIndex + 1}` : `Apontamento removido do slide ${slideIndex + 1}`,
+        description: hasIssues
+          ? "O criativo voltou para revisao e nao podera ser aprovado enquanto houver ajustes pendentes."
+          : "Nao ha mais ajustes pendentes neste criativo.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Nao foi possivel salvar o apontamento",
+        description: error.message,
+      });
+    }
+  };
   const runPostAction = async (
     post: ContentPost,
     action: "approve" | "reject" | "schedule" | "media" | "publish"
@@ -865,10 +926,10 @@ export default function AdminInstagram() {
                 return (
                   <Card key={post.id} className="min-w-0 overflow-hidden">
                     {preview ? (
-                      <img
-                        src={preview}
-                        alt={post.alt_text || post.hook}
-                        className="aspect-[4/5] w-full object-cover"
+                      <CreativeThumbnail
+                        post={post}
+                        imageClassName="aspect-[4/5] w-full object-cover"
+                        onOpen={() => setPreviewPost(post)}
                       />
                     ) : (
                       <div className="flex aspect-[4/5] items-center justify-center bg-gradient-to-br from-emerald-500/10 to-violet-500/10 p-8 text-center">
@@ -928,7 +989,7 @@ export default function AdminInstagram() {
                             size="sm"
                             className="bg-emerald-600 text-white hover:bg-emerald-500"
                             onClick={() => runPostAction(post, "approve")}
-                            disabled={busy || !hasMedia}
+                            disabled={busy || !hasMedia || hasCreativeReviewIssues(post)}
                           >
                             <Check className="mr-2 h-4 w-4" /> Aprovar e agendar
                           </Button>
@@ -986,10 +1047,11 @@ export default function AdminInstagram() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {preview && (
-                      <img
-                        src={preview}
-                        alt={post.alt_text || post.hook}
-                        className="aspect-[4/5] w-full rounded-xl border object-cover"
+                      <CreativeThumbnail
+                        post={post}
+                        className="rounded-xl border"
+                        imageClassName="aspect-[4/5] w-full object-cover"
+                        onOpen={() => setPreviewPost(post)}
                       />
                     )}
                     <div className="whitespace-pre-wrap rounded-lg border bg-muted/30 p-4 text-sm leading-6">
@@ -1070,7 +1132,7 @@ export default function AdminInstagram() {
                       <Button
                         variant="outline"
                         onClick={() => runPostAction(post, "schedule")}
-                        disabled={busy || !hasMedia}
+                        disabled={busy || !hasMedia || hasCreativeReviewIssues(post)}
                       >
                         <CalendarClock className="mr-2 h-4 w-4" />
                         Agendar
@@ -1094,7 +1156,7 @@ export default function AdminInstagram() {
                             size="sm"
                             className="bg-emerald-600 text-white hover:bg-emerald-500"
                             onClick={() => runPostAction(post, "approve")}
-                            disabled={busy || (Boolean(post.scheduled_at) && !hasMedia)}
+                            disabled={busy || hasCreativeReviewIssues(post) || (Boolean(post.scheduled_at) && !hasMedia)}
                           >
                             <Check className="mr-2 h-4 w-4" />
                             {post.scheduled_at ? "Aprovar e agendar" : "Aprovar"}
@@ -1114,7 +1176,7 @@ export default function AdminInstagram() {
                         <Button
                           size="sm"
                           onClick={() => runPostAction(post, "publish")}
-                          disabled={busy || !hasMedia}
+                          disabled={busy || !hasMedia || hasCreativeReviewIssues(post)}
                         >
                           {busy ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1131,6 +1193,11 @@ export default function AdminInstagram() {
             })}
           </div>
         ))}
+        <CreativePreviewDialog
+          post={previewPost}
+          onClose={() => setPreviewPost(null)}
+          onSaveReview={saveCreativeReview}
+        />
       </main>
     </div>
   );

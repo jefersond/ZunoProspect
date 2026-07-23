@@ -1760,13 +1760,21 @@ async function analyzeWithGeminiDirect(
     ? buildZunoInternalProspectingUserPrompt(lead, canaisDisponiveis)
     : buildEliteUserPrompt(lead, canaisDisponiveis, injectedCampaign, isUS);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
+  // Cada modelo recebe seu próprio orçamento de tempo (timeout independente).
+  // Antes, um único AbortController de 90s era compartilhado entre os 3 modelos e suas
+  // retentativas (até 5 por modelo, com backoff de 3/6/12/24/48s). Isso fazia com que um
+  // rate limit (429) sustentado no primeiro modelo consumisse sozinho todo o orçamento de
+  // 90s, e a cascata de fallback para os próximos modelos nunca chegava a ser tentada de
+  // fato (o abort já havia disparado). Agora cada modelo tem seu próprio relógio, então um
+  // modelo com problema não impede que os próximos sejam tentados.
+  const PER_MODEL_TIMEOUT_MS = 28000; // ~28s por modelo x 3 modelos = ~84s no pior caso
 
   const modelsToTry = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
   let lastResponseError = "";
 
   for (const model of modelsToTry) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PER_MODEL_TIMEOUT_MS);
     try {
       console.log(`🤖 Tentando analisar com o modelo: ${model}`);
       const response = await fetchWithRetry(
@@ -1880,8 +1888,8 @@ async function analyzeWithGeminiDirect(
           }),
           signal: controller.signal,
         },
-        5, // maxRetries
-        3000, // baseDelay 3s
+        2, // maxRetries (baixo de propósito: cada modelo tem orçamento próprio de PER_MODEL_TIMEOUT_MS,
+        2500, // baseDelay 2.5s   e a cascata para o próximo modelo é a estratégia principal de resiliência)
         onRetry
       );
 
@@ -1898,6 +1906,7 @@ async function analyzeWithGeminiDirect(
         if (isModelUnavailableError) {
           console.warn(`⚠️ Modelo ${model} indisponível (Status: ${response.status}). Tentando o próximo... Detalhes: ${errorText}`);
           lastResponseError = `Modelo ${model} indisponível (${response.status}): ${errorText}`;
+          clearTimeout(timeoutId);
           continue;
         }
 
@@ -1945,21 +1954,22 @@ async function analyzeWithGeminiDirect(
       clearTimeout(timeoutId);
       return analise;
     } catch (err: any) {
+      clearTimeout(timeoutId);
       console.warn(`⚠️ Falha ao processar com modelo ${model}:`, err.message);
-      lastResponseError = err.message;
-      
-      // Se não for o último modelo, continua o loop
+      lastResponseError = err.name === 'AbortError'
+        ? `Modelo ${model} excedeu ${PER_MODEL_TIMEOUT_MS / 1000}s`
+        : err.message;
+
+      // Se não for o último modelo, continua o loop e tenta o próximo
       if (model === modelsToTry[modelsToTry.length - 1]) {
-        clearTimeout(timeoutId);
         if (err.name === 'AbortError') {
-          throw new Error("Timeout: IA demorou mais de 90 segundos");
+          throw new Error(`Timeout: modelo ${model} demorou mais de ${PER_MODEL_TIMEOUT_MS / 1000}s`);
         }
         throw err;
       }
     }
   }
 
-  clearTimeout(timeoutId);
   throw new Error(`Todos os modelos do Gemini falharam. Último erro: ${lastResponseError}`);
 }
 

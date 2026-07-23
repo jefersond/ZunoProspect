@@ -498,37 +498,44 @@ export const LeadPlanDialog = ({
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Sessão expirada. Faça login novamente.");
       
-      const { data: functionData, error: functionError } = await supabase.functions.invoke(
-        'analisar-lead-ia',
-        {
-          body: {
-            lead_id: lead.id,
-            leadId: lead.id,
-            lead_key: leadKey,
-            user_id: user?.id,
-            lead: buildAILeadPayload(lead, normalizedLead),
-            search_context: searchPayload,
-            analysis_context: {
-              focus: lead.foco,
-              goal: "gerar_abordagem_personalizada",
-              tone: "natural_consultivo",
-              selected_channels: ["email", "whatsapp", "instagram"],
-            },
-            nome: lead.nome,
-            nicho: lead.nicho,
-            cidade: lead.cidade,
-            website: lead.website,
-            foco: lead.foco,
-            whatsapp_on_site: lead.sinais.has_whatsapp_on_site,
-            has_meta_pixel: lead.sinais.has_meta_pixel,
-            has_gtag: lead.sinais.has_gtag,
-            has_gtm: lead.sinais.has_gtm,
-            instagram_url: lead.instagram_url,
-            instagram_context: lead.instagram_context,
+      const invokeOptions = {
+        body: {
+          lead_id: lead.id,
+          leadId: lead.id,
+          lead_key: leadKey,
+          user_id: user?.id,
+          lead: buildAILeadPayload(lead, normalizedLead),
+          search_context: searchPayload,
+          analysis_context: {
+            focus: lead.foco,
+            goal: "gerar_abordagem_personalizada",
+            tone: "natural_consultivo",
+            selected_channels: ["email", "whatsapp", "instagram"],
           },
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+          nome: lead.nome,
+          nicho: lead.nicho,
+          cidade: lead.cidade,
+          website: lead.website,
+          foco: lead.foco,
+          whatsapp_on_site: lead.sinais.has_whatsapp_on_site,
+          has_meta_pixel: lead.sinais.has_meta_pixel,
+          has_gtag: lead.sinais.has_gtag,
+          has_gtm: lead.sinais.has_gtm,
+          instagram_url: lead.instagram_url,
+          instagram_context: lead.instagram_context,
+        },
+        headers: { Authorization: `Bearer ${token}` },
+      };
+
+      let invokeResult = await supabase.functions.invoke('analisar-lead-ia', invokeOptions);
+
+      if (invokeResult.error) {
+        console.warn("⚠️ 1ª tentativa de IA sofreu oscilação. Retentando automaticamente...");
+        await new Promise((r) => setTimeout(r, 1000));
+        invokeResult = await supabase.functions.invoke('analisar-lead-ia', invokeOptions);
+      }
+
+      const functionError = invokeResult.error;
 
       if (functionError) {
         let message = functionError.message;

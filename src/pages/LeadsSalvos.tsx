@@ -362,15 +362,24 @@ const LeadsSalvos = () => {
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Sessão expirada. Faça login novamente.");
 
-      const { error } = await supabase.functions.invoke("analisar-lead-ia", {
+      const invokeOptions = {
         body: { 
           leadId,
           lead: normalizedLead,
           search_context: searchContext
         },
         headers: { Authorization: `Bearer ${token}` },
-      });
+      };
 
+      let invokeResult = await supabase.functions.invoke("analisar-lead-ia", invokeOptions);
+
+      if (invokeResult.error) {
+        console.warn("⚠️ 1ª tentativa de IA sofreu oscilação. Retentando automaticamente...");
+        await new Promise((r) => setTimeout(r, 1000));
+        invokeResult = await supabase.functions.invoke("analisar-lead-ia", invokeOptions);
+      }
+
+      const error = invokeResult.error;
       if (error) {
         console.error("Erro analisar-lead-ia:", error);
         throw error;

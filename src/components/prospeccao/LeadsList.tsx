@@ -1063,7 +1063,7 @@ export const LeadsList = () => {
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Sessão expirada. Faça login novamente.");
 
-      const { error } = await supabase.functions.invoke("analisar-lead-ia", {
+      const invokeOptions = {
         body: {
           leadId: lead.id,
           lead_id: leadKey,
@@ -1081,9 +1081,18 @@ export const LeadsList = () => {
           canaisProspeccao: ["email", "whatsapp", "instagram"],
         },
         headers: { Authorization: `Bearer ${token}` },
-      });
+      };
 
-      if (error) throw new Error(await getFunctionErrorMessage(error));
+      let invokeResult = await supabase.functions.invoke("analisar-lead-ia", invokeOptions);
+
+      // Auto-retry transparente 1x em caso de oscilação ou cold start do container Supabase
+      if (invokeResult.error) {
+        console.warn("⚠️ 1ª tentativa de IA sofreu oscilação. Retentando automaticamente...");
+        await new Promise((r) => setTimeout(r, 1000));
+        invokeResult = await supabase.functions.invoke("analisar-lead-ia", invokeOptions);
+      }
+
+      if (invokeResult.error) throw new Error(await getFunctionErrorMessage(invokeResult.error));
 
       toast({
         title: "Análise concluída",

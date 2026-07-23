@@ -1767,12 +1767,13 @@ async function analyzeWithGeminiDirect(
   // 90s, e a cascata de fallback para os próximos modelos nunca chegava a ser tentada de
   // fato (o abort já havia disparado). Agora cada modelo tem seu próprio relógio, então um
   // modelo com problema não impede que os próximos sejam tentados.
-  // Cada modelo recebe 26s para gerar o plano completo de 7 dias com Function Calling
-  const PER_MODEL_TIMEOUT_MS = 26000; 
+  // Cada modelo recebe 25s para gerar o plano completo de 7 dias com Function Calling
+  const PER_MODEL_TIMEOUT_MS = 25000; 
 
   const modelsToTry = [
     "gemini-2.5-flash",
-    "gemini-2.0-flash"
+    "gemini-flash-latest",
+    "gemini-2.5-flash-lite"
   ];
   let lastResponseError = "";
 

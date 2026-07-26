@@ -44,6 +44,24 @@ describe("RefineErrorPanel", () => {
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>.*Tentar novamente/s);
   });
 
+  it("keeps retry disabled and shows a countdown during provider cooldown", () => {
+    const html = renderToStaticMarkup(
+      <RefineErrorPanel
+        error={{
+          success: false,
+          request_id: "request-private",
+          public_error_code: "ZUN-REF-000001",
+          category: "rate_limit_error",
+          safe_message: "Serviço temporariamente ocupado.",
+          retryable: true,
+          retry_after_seconds: 12,
+        }}
+        onRetry={() => undefined}
+      />,
+    );
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>.*Tentar novamente \(12s\)/s);
+  });
+
   it("does not offer retry for a permanent error", () => {
     const html = renderToStaticMarkup(
       <RefineErrorPanel error={{

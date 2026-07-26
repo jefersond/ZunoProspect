@@ -1,0 +1,49 @@
+import { describe, expect, it, vi } from "vitest";
+import {
+  RefinePersistenceError,
+  persistOwnedRefineAnalysis,
+  type RefinePersistenceValues,
+} from "./refine-persistence";
+
+const values: RefinePersistenceValues = {
+  diagnostico_bullets: ["Leitura comercial específica"],
+  probabilidade_conversao: 72,
+  plano_prospeccao: { plano_prospeccao_7dias: [{ dia: 1 }] },
+  ai_analise_gerada_em: "2026-07-26T12:00:00.000Z",
+};
+
+describe("refine persistence", () => {
+  it("returns only after the owned lead update is confirmed", async () => {
+    const update = vi.fn().mockResolvedValue({
+      data: [{
+        id: "lead-1",
+        diagnostico_bullets: values.diagnostico_bullets,
+        probabilidade_conversao: 72,
+        plano_prospeccao: values.plano_prospeccao,
+        ai_analise_gerada_em: values.ai_analise_gerada_em,
+      }],
+      error: null,
+    });
+
+    await expect(persistOwnedRefineAnalysis(update, "lead-1", "user-1", values))
+      .resolves.toMatchObject({ id: "lead-1", probabilidade_conversao: 72 });
+    expect(update).toHaveBeenCalledWith("lead-1", "user-1", values);
+  });
+
+  it("fails when the database update returns an error", async () => {
+    const update = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "database unavailable" },
+    });
+
+    await expect(persistOwnedRefineAnalysis(update, "lead-1", "user-1", values))
+      .rejects.toBeInstanceOf(RefinePersistenceError);
+  });
+
+  it("fails when no owned row was persisted", async () => {
+    const update = vi.fn().mockResolvedValue({ data: [], error: null });
+
+    await expect(persistOwnedRefineAnalysis(update, "lead-1", "user-1", values))
+      .rejects.toMatchObject({ code: "REFINE_SAVE_FAILED" });
+  });
+});

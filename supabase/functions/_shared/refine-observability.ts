@@ -100,6 +100,7 @@ export function structuredLog(
 }
 
 export function toSafeErrorResponse(error: AppError) {
+  const retryAfter = error.metadata?.retry_after_seconds;
   return {
     success: false as const,
     request_id: error.requestId,
@@ -109,6 +110,8 @@ export function toSafeErrorResponse(error: AppError) {
     retryable: error.retryable,
     error_code: error.internalCode,
     error_message: error.safeMessage,
+    ...(error.category === "rate_limit_error" ? { credit_consumed: false } : {}),
+    ...(typeof retryAfter === "number" ? { retry_after_seconds: retryAfter } : {}),
   };
 }
 

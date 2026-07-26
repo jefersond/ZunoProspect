@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertCircle, Clipboard, RotateCcw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,19 @@ export function RefineErrorPanel({ error, onRetry, retrying = false }: RefineErr
   const [reportOpen, setReportOpen] = useState(false);
   const [description, setDescription] = useState("");
   const occurredAt = useState(() => new Date())[0];
+  const initialCooldown = error.category === "rate_limit_error"
+    ? Math.max(1, Math.min(60, Math.ceil(error.retry_after_seconds || 30)))
+    : 0;
+  const [cooldownSeconds, setCooldownSeconds] = useState(initialCooldown);
+
+  useEffect(() => {
+    setCooldownSeconds(initialCooldown);
+    if (initialCooldown <= 0) return;
+    const intervalId = window.setInterval(() => {
+      setCooldownSeconds((current) => Math.max(0, current - 1));
+    }, 1_000);
+    return () => window.clearInterval(intervalId);
+  }, [error.request_id, initialCooldown]);
 
   const openProblemReport = () => {
     dispatchInternalProblemReport(buildInternalProblemReport(error, description, occurredAt));
@@ -43,7 +56,7 @@ export function RefineErrorPanel({ error, onRetry, retrying = false }: RefineErr
       await navigator.clipboard.writeText(text);
       toast({ title: label });
     } catch {
-      toast({ title: "Não foi possível copiar", description: "Selecione o código e copie manualmente.", variant: "destructive" });
+      toast({ title: "Não foi possível copiar", description: "Tente novamente em instantes.", variant: "destructive" });
     }
   };
 
@@ -56,9 +69,9 @@ export function RefineErrorPanel({ error, onRetry, retrying = false }: RefineErr
           <p>{getRefineDisplayMessage(error)}</p>
           <div className="flex flex-wrap items-center gap-2">
             {error.retryable && onRetry && (
-              <Button type="button" size="sm" variant="outline" disabled={retrying} onClick={onRetry}>
+              <Button type="button" size="sm" variant="outline" disabled={retrying || cooldownSeconds > 0} onClick={onRetry}>
                 <RotateCcw className={`mr-1 h-3 w-3 ${retrying ? "animate-spin" : ""}`} />
-                Tentar novamente
+                {cooldownSeconds > 0 ? `Tentar novamente (${cooldownSeconds}s)` : "Tentar novamente"}
               </Button>
             )}
             <Button type="button" size="sm" variant="ghost" onClick={openProblemReport}>

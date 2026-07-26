@@ -38,20 +38,15 @@ describe("refineWithAI retry policy", () => {
     expect(invokeMock).toHaveBeenCalledTimes(1);
   });
 
-  it("retries once when the backend explicitly confirms a transient 429", async () => {
-    vi.useFakeTimers();
-    vi.spyOn(Math, "random").mockReturnValue(0);
-    try {
-      invokeMock
-        .mockResolvedValueOnce({ data: null, error: structuredError(429, "REFINE_PROVIDER_RATE_LIMITED", true) })
-        .mockResolvedValueOnce({ data: { success: true }, error: null });
-      const result = refineWithAI({ leadId: "lead-1" }, "test-token", requestId);
-      await vi.advanceTimersByTimeAsync(500);
-      await expect(result).resolves.toMatchObject({ data: { success: true } });
-      expect(invokeMock).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
+  it("does not repeat the whole Edge Function for a transient 429", async () => {
+    invokeMock.mockResolvedValue({
+      data: null,
+      error: structuredError(429, "REFINE_PROVIDER_RATE_LIMITED", true),
+    });
+    await expect(refineWithAI({ leadId: "lead-1" }, "test-token", requestId)).rejects.toMatchObject({
+      payload: { retryable: true, error_code: "REFINE_PROVIDER_RATE_LIMITED" },
+    });
+    expect(invokeMock).toHaveBeenCalledTimes(1);
   });
 
   it("does not retry an ambiguous network error that could hide a completed request", async () => {

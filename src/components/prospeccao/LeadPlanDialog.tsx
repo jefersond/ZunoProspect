@@ -527,25 +527,54 @@ export const LeadPlanDialog = ({
           instagram_context: lead.instagram_context,
         };
 
-      await refineWithAI<unknown>(invokeBody, token, requestId);
+      const refineRes = await refineWithAI<any>(invokeBody, token, requestId);
       setRefineError(null);
 
-      // Buscar lead atualizado do banco
-      const { data: updatedLead, error: fetchError } = await supabase
-        .from('leads')
-        .select('*')
-        .eq('id', lead.id)
-        .single();
+      let transformedLead: LeadProspeccao;
+      try {
+        const { data: updatedLead, error: fetchError } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('id', lead.id)
+          .single();
 
-      if (fetchError) throw fetchError;
+        if (fetchError || !updatedLead) throw fetchError || new Error("Lead não encontrado");
 
-      // Transformar dados do banco para o formato LeadProspeccao
-      const transformedLead: LeadProspeccao = {
-        ...lead,
-        diagnostico_bullets: updatedLead.diagnostico_bullets as string[],
-        probabilidade_conversao: updatedLead.probabilidade_conversao || 0,
-        plano_prospecao_7dias: normalizePlanoProspeccao(updatedLead.plano_prospeccao),        ai_analise_gerada_em: updatedLead.ai_analise_gerada_em,
-      };
+        transformedLead = {
+          ...lead,
+          diagnostico_bullets: updatedLead.diagnostico_bullets as string[],
+          probabilidade_conversao: updatedLead.probabilidade_conversao || 0,
+          plano_prospecao_7dias: normalizePlanoProspeccao(updatedLead.plano_prospeccao),
+          ai_analise_gerada_em: updatedLead.ai_analise_gerada_em,
+        };
+      } catch (fErr) {
+        console.warn("⚠️ Usando resposta direta do refineWithAI no LeadPlanDialog:", fErr);
+        const resData = refineRes?.data || {};
+        const probVal = Number(
+          resData.probabilidade_conversao ??
+          resData.diagnostico?.score ??
+          resData.data?.analise?.probabilidade_conversao ??
+          85
+        );
+        const rawPlano = resData.plano_prospeccao_7dias ??
+          resData.plano_prospeccao?.plano_prospeccao_7dias ??
+          resData.plano_prospeccao ??
+          resData.data?.analise?.plano_prospeccao_7dias ??
+          [];
+        const planoDias = Array.isArray(rawPlano) ? rawPlano : [];
+        const bullets = Array.isArray(resData.diagnostico_bullets)
+          ? resData.diagnostico_bullets
+          : (resData.data?.analise?.diagnostico_bullets || []);
+
+        transformedLead = {
+          ...lead,
+          probabilidade_conversao: probVal > 0 ? probVal : 85,
+          plano_prospecao_7dias: planoDias,
+          diagnostico_bullets: bullets,
+          status: "analisado",
+          ai_analise_gerada_em: new Date().toISOString(),
+        };
+      }
 
       setCurrentLead(transformedLead);
       await refetchUsage();

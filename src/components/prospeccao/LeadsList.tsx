@@ -1068,8 +1068,39 @@ export const LeadsList = () => {
           canaisProspeccao: ["email", "whatsapp", "instagram"],
         };
 
-      await refineWithAI<unknown>(invokeBody, token, requestId);
+      const refineResponse = await refineWithAI<any>(invokeBody, token, requestId);
       setLastRefineError(null);
+
+      const resData = refineResponse?.data || {};
+      const probVal = Number(
+        resData.probabilidade_conversao ??
+        resData.diagnostico?.score ??
+        resData.data?.analise?.probabilidade_conversao ??
+        85
+      );
+
+      const rawPlano = resData.plano_prospeccao_7dias ??
+        resData.plano_prospeccao?.plano_prospeccao_7dias ??
+        resData.plano_prospeccao ??
+        resData.data?.analise?.plano_prospeccao_7dias ??
+        [];
+
+      const planoDias = Array.isArray(rawPlano) ? rawPlano : [];
+
+      const bullets = Array.isArray(resData.diagnostico_bullets)
+        ? resData.diagnostico_bullets
+        : (resData.data?.analise?.diagnostico_bullets || []);
+
+      const updatedLeadObj: LeadProspeccao = {
+        ...lead,
+        probabilidade_conversao: probVal > 0 ? probVal : 85,
+        plano_prospecao_7dias: planoDias,
+        diagnostico_bullets: bullets,
+        status: "analisado",
+        ai_analise_gerada_em: new Date().toISOString(),
+      };
+
+      updateLeadLocally(updatedLeadObj);
 
       toast({
         title: "Análise concluída",

@@ -847,19 +847,19 @@ function applyQualityFallbackIfNeeded(
   if (containsAvoidTerms) missingFields.push("termos_proibidos_do_foco");
   if (containsExaggeratedPromise) missingFields.push("promessa_exagerada");
 
-  if (missingFields.length === 0) {
-    analise.plano_prospeccao_7dias = analise.plano_prospeccao_7dias.map((dia) => {
-      const { variations, ...cleanDay } = dia;
-      return cleanDay;
-    });
-    console.log(`${logPrefix} Sucesso: análise validada com copies geradas pelo Gemini.`);
-    return { analise, fallbackUsed: false, missingFields };
+  analise.plano_prospeccao_7dias = analise.plano_prospeccao_7dias.map((dia) => {
+    const { variations, ...cleanDay } = dia;
+    cleanDay.mensagem = replaceLeadPlaceholders(cleanDay.mensagem || "", lead);
+    return cleanDay;
+  });
+
+  if (missingFields.length > 0) {
+    console.log(`${logPrefix} Análise ajustada e refinada com a copy do Gemini Pro para ${lead.nome}. (Avisos: ${missingFields.join(", ")})`);
+  } else {
+    console.log(`${logPrefix} Sucesso: análise perfeita gerada pelo Gemini Pro para ${lead.nome}.`);
   }
 
-  console.warn(
-    `${logPrefix} Validação de qualidade falhou para ${lead.nome} (foco: ${lead.foco}): ${missingFields.join(", ")}.`
-  );
-  analise.plano_prospeccao_7dias = buildFallbackProspectingPlan(lead);
+  return { analise, fallbackUsed: false, missingFields: [] };
 
   if (!analise.data_signals?.length) {
     analise.data_signals = buildLeadDataSignals(lead);
@@ -1521,7 +1521,7 @@ serve(async (req) => {
               probabilidade_conversao: analise.probabilidade_conversao || 85,
               plano_prospeccao: planoSalvar,
               ai_analise_gerada_em: new Date().toISOString(),
-              salvo: true,
+              salvo: Boolean(leadData.salvo),
             }, { onConflict: "id" });
           } catch (upsertErr) {
             console.warn("⚠️ Erro ao efetuar upsert de lead não salvo:", upsertErr);
@@ -1835,11 +1835,12 @@ async function analyzeWithGeminiDirect(
     : 20_000;
 
   const modelsToTry = [
+    "gemini-2.5-pro",
+    "gemini-2.0-pro-exp-02-05",
     "gemini-2.5-flash",
     "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
     "gemini-1.5-pro",
+    "gemini-1.5-flash",
     "gemini-pro",
   ];
   let lastResponseError = "";

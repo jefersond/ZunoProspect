@@ -23,7 +23,7 @@ import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe, Sti
 import type { LeadProspeccao } from "@/types/lead";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
-import { normalizeLeadForAI, normalizePlanoProspeccao } from "@/utils/normalizeLead";
+import { normalizeLeadForAI, normalizePlanoProspeccao, normalizeDiagnosticoBullets } from "@/utils/normalizeLead";
 import { refineWithAI } from "@/services/refineWithAI";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
@@ -847,9 +847,9 @@ export const LeadPlanDialog = ({
             ) : (
               <LeadAnalysis
                 lead={displayLead}
-                diagnostico={displayLead.diagnostico_bullets}
-                probabilidade={displayLead.probabilidade_conversao}
-                plano={displayLead.plano_prospecao_7dias}
+                diagnostico={normalizeDiagnosticoBullets(displayLead.diagnostico_bullets, displayLead)}
+                probabilidade={displayLead.probabilidade_conversao || 85}
+                plano={normalizePlanoProspeccao(displayLead.plano_prospecao_7dias && displayLead.plano_prospecao_7dias.length > 0 ? displayLead.plano_prospecao_7dias : (displayLead as any).plano_prospeccao)}
                 geradoEm={displayLead.ai_analise_gerada_em}
                 onReanalyze={handleReanalyze}
                 isReanalyzing={isReanalyzing}

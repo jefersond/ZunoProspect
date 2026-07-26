@@ -135,31 +135,137 @@ export function normalizeLeadForAI(lead: any, searchContext: any = {}): Normaliz
 
 export function normalizePlanoProspeccao(plano: any): any[] {
   if (!plano) return [];
-  if (Array.isArray(plano)) return plano;
-  if (typeof plano === 'object' && plano.cadence) {
-    const cadence = plano.cadence;
-    const likelyObjection = plano.likely_objection || '';
-    const objectionResponse = plano.objection_response || '';
-    const planoArray: any[] = [];
-    const daysKeys = ["day_1", "day_2", "day_3", "day_4", "day_5", "day_6", "day_7"] as const;
-    for (let i = 0; i < 7; i++) {
-      const dayKey = daysKeys[i];
-      const dayData = cadence[dayKey];
-      if (dayData) {
+  if (Array.isArray(plano) && plano.length > 0) return plano;
+  
+  if (typeof plano === 'object') {
+    // 1. Caso venha de `plano_prospeccao_7dias` (formato principal)
+    if (Array.isArray(plano.plano_prospeccao_7dias) && plano.plano_prospeccao_7dias.length > 0) {
+      return plano.plano_prospeccao_7dias;
+    }
+
+    // 2. Caso venha de `plano_prospeccao` interno
+    if (Array.isArray(plano.plano_prospeccao) && plano.plano_prospeccao.length > 0) {
+      return plano.plano_prospeccao;
+    }
+
+    // 3. Caso venha de `copies` ({ dia_1, dia_2, ... })
+    if (plano.copies && typeof plano.copies === 'object') {
+      const planoArray: any[] = [];
+      const canais: ("whatsapp" | "email" | "instagram")[] = ["whatsapp", "instagram", "email", "whatsapp", "email", "instagram", "whatsapp"];
+      for (let i = 1; i <= 7; i++) {
+        const msgKey = `dia_${i}` as keyof typeof plano.copies;
+        const msg = plano.copies[msgKey];
+        if (msg) {
+          planoArray.push({
+            dia: i,
+            canal: canais[(i - 1) % canais.length],
+            acao_sugerida: i === 1 ? "Envio de mensagem inicial no WhatsApp" : `Follow-up do dia ${i}`,
+            mensagem: msg,
+            objecao_provavel: "Sem tempo para conversar agora",
+            resposta_sugerida: "Compreendo perfeitamente. Qual o melhor horário para um contato rápido de 3 minutos?",
+            cta: "Podemos agendar para amanhã?",
+          });
+        }
+      }
+      if (planoArray.length > 0) return planoArray;
+    }
+
+    // 4. Caso venha de `abordagens_por_canal` ({ whatsapp, instagram, email })
+    if (plano.abordagens_por_canal && typeof plano.abordagens_por_canal === 'object') {
+      const planoArray: any[] = [];
+      if (plano.abordagens_por_canal.whatsapp) {
         planoArray.push({
-          dia: i + 1,
-          canal: dayData.channel || 'whatsapp',
-          objetivo: dayData.objective || '',
-          acao_sugerida: dayData.action || '',
-          mensagem: dayData.message || '',
-          objecao_provavel: dayData.likely_objection || likelyObjection,
-          resposta_sugerida: dayData.objection_response || objectionResponse,
-          cta: dayData.cta || '',
-          angle: dayData.angle || ''
+          dia: 1,
+          canal: "whatsapp",
+          acao_sugerida: "Contato direto via WhatsApp",
+          mensagem: plano.abordagens_por_canal.whatsapp,
+          objecao_provavel: "Não estou buscando novos serviços no momento",
+          resposta_sugerida: "Entendo perfeitamente! Fico à disposição para quando surgir a necessidade.",
+          cta: "Qual o melhor canal para manter contato?",
         });
       }
+      if (plano.abordagens_por_canal.instagram) {
+        planoArray.push({
+          dia: 2,
+          canal: "instagram",
+          acao_sugerida: "Interação e mensagem no Instagram",
+          mensagem: plano.abordagens_por_canal.instagram,
+          objecao_provavel: "Já temos agência responsável",
+          resposta_sugerida: "Ótimo! Podemos atuar como parceiros em demandas específicas ou auditoria sem custo.",
+          cta: "Posso te mandar nosso portfólio?",
+        });
+      }
+      if (plano.abordagens_por_canal.email) {
+        planoArray.push({
+          dia: 3,
+          canal: "email",
+          acao_sugerida: "Envio de proposta/diagnóstico por E-mail",
+          mensagem: plano.abordagens_por_canal.email,
+          objecao_provavel: "Qual o valor do investimento?",
+          resposta_sugerida: "Nosso modelo é totalmente personalizado após entender seu objetivo atual.",
+          cta: "Consegue falar 5 minutos esta semana?",
+        });
+      }
+      if (planoArray.length > 0) return planoArray;
     }
-    return planoArray;
+
+    // 5. Suporte legado a `cadence`
+    if (plano.cadence && typeof plano.cadence === 'object') {
+      const cadence = plano.cadence;
+      const likelyObjection = plano.likely_objection || '';
+      const objectionResponse = plano.objection_response || '';
+      const planoArray: any[] = [];
+      const daysKeys = ["day_1", "day_2", "day_3", "day_4", "day_5", "day_6", "day_7"] as const;
+      for (let i = 0; i < 7; i++) {
+        const dayKey = daysKeys[i];
+        const dayData = cadence[dayKey];
+        if (dayData) {
+          planoArray.push({
+            dia: i + 1,
+            canal: dayData.channel || 'whatsapp',
+            objetivo: dayData.objective || '',
+            acao_sugerida: dayData.action || '',
+            mensagem: dayData.message || '',
+            objecao_provavel: dayData.likely_objection || likelyObjection,
+            resposta_sugerida: dayData.objection_response || objectionResponse,
+            cta: dayData.cta || '',
+            angle: dayData.angle || ''
+          });
+        }
+      }
+      if (planoArray.length > 0) return planoArray;
+    }
   }
-  return [];
+
+  return Array.isArray(plano) ? plano : [];
+}
+
+export function normalizeDiagnosticoBullets(bullets: any, lead?: any): string[] {
+  if (Array.isArray(bullets) && bullets.length > 0) {
+    return bullets.filter((b) => typeof b === 'string' && b.trim() !== '');
+  }
+
+  if (lead && lead.plano_prospeccao && typeof lead.plano_prospeccao === 'object') {
+    const diag = lead.plano_prospeccao.diagnostico;
+    if (diag) {
+      const extracted: string[] = [];
+      if (diag.justificativa) extracted.push(`Oportunidade: ${diag.justificativa}`);
+      if (diag.dor_provavel) extracted.push(`Ponto de dor principal: ${diag.dor_provavel}`);
+      if (diag.oportunidade) extracted.push(`Ângulo comercial recomendado: ${diag.oportunidade}`);
+      if (diag.urgencia) extracted.push(`Urgência estimada para contato: ${diag.urgencia}`);
+      if (extracted.length > 0) return extracted;
+    }
+  }
+
+  const nome = lead?.nome || "a empresa";
+  const nicho = lead?.nicho || "seu segmento";
+  const cidade = lead?.cidade || "sua região";
+  const foco = lead?.foco || "Full Service";
+
+  return [
+    `Análise estratégica identificada para ${nome} no segmento de ${nicho} em ${cidade}.`,
+    `Abordagem consultiva focada no modelo de serviço ${foco}.`,
+    `Presença digital e canais de contato verificados para máxima taxa de resposta.`,
+    `Sequência de prospecção em 7 dias personalizada para conversão direta.`
+  ];
 }

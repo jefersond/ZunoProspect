@@ -1,4 +1,4 @@
-export const REFINE_PROVIDER_TOTAL_BUDGET_MS = 55_000;
+export const REFINE_PROVIDER_TOTAL_BUDGET_MS = 45_000;
 export const REFINE_PROVIDER_MIN_ATTEMPT_MS = 5_000;
 
 export function parseRetryAfterSeconds(

@@ -1806,7 +1806,7 @@ async function analyzeWithGeminiDirect(
     ? Math.min(25_000, Math.max(5_000, configuredTimeout))
     : 20_000;
   const providerBudgetStartedAt = performance.now();
-  const attemptPlan = ["gemini-2.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
+  const attemptPlan = ["gemini-2.5-pro", "gemini-2.5-flash"];
   let lastResponseError = "";
   let lastStatus = 0;
   let retryAfterSeconds = 30;

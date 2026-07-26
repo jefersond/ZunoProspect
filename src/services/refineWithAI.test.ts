@@ -6,7 +6,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { functions: { invoke: invokeMock } },
 }));
 
-import { refineWithAI } from "./refineWithAI";
+import { refineWithAI, resetRefineRequestGateForTests } from "./refineWithAI";
 
 const requestId = "8fd50939-bbef-4dc6-a337-aa8168cc25d1";
 
@@ -25,6 +25,7 @@ const structuredError = (status: number, errorCode: string, retryable: boolean) 
 
 describe("refineWithAI retry policy", () => {
   beforeEach(() => {
+    resetRefineRequestGateForTests();
     invokeMock.mockReset();
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -45,6 +46,34 @@ describe("refineWithAI retry policy", () => {
     });
     await expect(refineWithAI({ leadId: "lead-1" }, "test-token", requestId)).rejects.toMatchObject({
       payload: { retryable: true, error_code: "REFINE_PROVIDER_RATE_LIMITED" },
+    });
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("coalesces concurrent requests for the same lead", async () => {
+    let release: ((value: { data: { success: boolean }; error: null }) => void) | undefined;
+    invokeMock.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+
+    const first = refineWithAI({ leadId: "lead-1" }, "test-token", requestId);
+    const second = refineWithAI({ leadId: "lead-1" }, "test-token", "second-request-id");
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+
+    release?.({ data: { success: true }, error: null });
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { data: { success: true }, requestId },
+      { data: { success: true }, requestId },
+    ]);
+  });
+
+  it("blocks another network call for the same lead during rate-limit cooldown", async () => {
+    invokeMock.mockResolvedValue({
+      data: null,
+      error: structuredError(429, "REFINE_PROVIDER_RATE_LIMITED", true),
+    });
+    await expect(refineWithAI({ leadId: "lead-1" }, "test-token", requestId)).rejects.toBeInstanceOf(Error);
+    await expect(refineWithAI({ leadId: "lead-1" }, "test-token", "second-request-id")).rejects.toMatchObject({
+      status: 429,
+      payload: { category: "rate_limit_error" },
     });
     expect(invokeMock).toHaveBeenCalledTimes(1);
   });

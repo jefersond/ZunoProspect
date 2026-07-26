@@ -1,10 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getFocusBehavior, replacePlaceholders } from "./focusBehavior.ts";
+import { AppError, createRequestId, normalizeAppError, structuredLog, toSafeErrorResponse } from "../_shared/refine-observability.ts";
+import { createCreditConsumer } from "../_shared/credit-policy.ts";
 
 const globalCorsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-request-id",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -1037,7 +1039,6 @@ async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
     const mailtoMatch = html.match(/mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
     if (mailtoMatch && !excludeEmailPatterns.test(mailtoMatch[1])) {
       signals.email = mailtoMatch[1].toLowerCase();
-      console.log(`📧 Email encontrado via mailto: ${signals.email}`);
     }
 
     // 2. Emails em texto (regex geral)
@@ -1050,7 +1051,6 @@ async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
         const validEmail = emailMatches.find(e => !excludeEmailPatterns.test(e));
         if (validEmail) {
           signals.email = validEmail.toLowerCase();
-          console.log(`📧 Email encontrado via regex: ${signals.email}`);
         }
       }
     }
@@ -1062,7 +1062,6 @@ async function scrapeSiteForSignals(websiteUrl: string): Promise<SiteSignals> {
       for (const match of contextMatches) {
         if (match[1] && !excludeEmailPatterns.test(match[1])) {
           signals.email = match[1].toLowerCase();
-          console.log(`📧 Email encontrado via contexto: ${signals.email}`);
           break;
         }
       }
@@ -1087,41 +1086,58 @@ serve(async (req) => {
     });
   }
 
+  const requestId = req.headers.get("x-request-id") || createRequestId();
+
   if (req.method !== "POST") {
-    return jsonResponse({
-      error: "Método não permitido",
-      details: "Use POST para analisar leads.",
-    }, 405);
+    const methodError = new AppError({
+      internalCode: "REFINE_METHOD_NOT_ALLOWED",
+      category: "validation_error",
+      stage: "validate_input",
+      safeMessage: "Método não permitido.",
+      requestId,
+      httpStatus: 405,
+    });
+    structuredLog("warn", { request_id: requestId, stage: methodError.stage, internal_code: methodError.internalCode });
+    return jsonResponse(toSafeErrorResponse(methodError), methodError.httpStatus);
   }
 
   const startTime = Date.now();
   let supabaseAdminForCatch: ReturnType<typeof createClient> | null = null;
   let userIdForCatch: string | null = null;
-  let leadIdForCatch: string | null = null;
-  let leadNameForCatch: string | null = null;
-  let aiRemainingForCatch: number | null = null;
-  let aiLimitForCatch: number | null = null;
-  let aiUsedForCatch: number | null = null;
-  let sourceForCatch = "app";
-  let pathForCatch = "prospeccao";
   let retryCountForCatch = 0;
   let leadData: LeadData | null = null;
-  const requestId = req.headers.get("x-request-id") || crypto.randomUUID();
+  let stage = "load_session";
+  let providerDurationMs: number | undefined;
+  let persistenceDurationMs: number | undefined;
 
   try {
     // ============= AUTHENTICATION VALIDATION =============
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      console.error("❌ Requisição sem Authorization header");
-      return jsonResponse({
-        error: "Usuario nao autenticado",
-        details: "Authorization header ausente",
-      }, 401);
+      throw new AppError({
+        internalCode: "REFINE_SESSION_MISSING",
+        category: "authentication_error",
+        stage,
+        safeMessage: "Sua sessão expirou. Entre novamente para continuar.",
+        requestId,
+        httpStatus: 401,
+      });
     }
 
     // Create authenticated Supabase client to validate user
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new AppError({
+        internalCode: "REFINE_CONFIGURATION_MISSING",
+        category: "configuration_error",
+        stage: "load_configuration",
+        safeMessage: "O serviço de refinamento está temporariamente indisponível.",
+        requestId,
+        retryable: false,
+        httpStatus: 503,
+      });
+    }
     
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
@@ -1129,30 +1145,35 @@ serve(async (req) => {
 
     const token = authHeader.replace(/^Bearer\s+/i, "");
     const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
-    console.log("analisar-lead-ia auth:", {
-      hasAuthHeader: !!authHeader,
-      userId: user?.id ?? null,
-      email: user?.email ?? null,
-    });
+    structuredLog("info", { request_id: requestId, stage, authenticated: !!user });
     if (authError || !user) {
-      console.error("❌ Token inválido ou usuário não autenticado:", authError?.message);
-      return jsonResponse({
-        error: "Usuario nao autenticado",
-        details: authError?.message || "Token invalido",
-      }, 401);
+      throw new AppError({
+        internalCode: "REFINE_SESSION_INVALID",
+        category: "authentication_error",
+        stage,
+        safeMessage: "Sua sessão expirou. Entre novamente para continuar.",
+        requestId,
+        httpStatus: 401,
+        cause: authError,
+      });
     }
 
     // Use authenticated user.id instead of request body
     const authenticatedUserId = user.id;
-    console.log("✅ Usuário autenticado:", authenticatedUserId);
+    structuredLog("info", { request_id: requestId, stage, authenticated: true });
     // ============= END AUTHENTICATION =============
 
+    stage = "validate_backend_input";
     const requestData = await req.json().catch(() => null);
-    if (!requestData || typeof requestData !== "object") {
-      return jsonResponse({
-        error: "Payload invalido",
-        details: "Envie um JSON com leadId/lead_id ou com o objeto lead.",
-      }, 400);
+    if (!requestData || typeof requestData !== "object" || JSON.stringify(requestData).length > 200_000) {
+      throw new AppError({
+        internalCode: "REFINE_INPUT_INVALID",
+        category: "validation_error",
+        stage,
+        safeMessage: "Os dados enviados para análise são inválidos ou muito grandes.",
+        requestId,
+        httpStatus: 400,
+      });
     }
 
     const payloadLead = requestData.lead && typeof requestData.lead === "object"
@@ -1162,21 +1183,17 @@ serve(async (req) => {
       ? requestData.context
       : {};
     const leadId = requestData.leadId || requestData.lead_id || payloadLead.id;
-    leadIdForCatch = leadId || null;
     // Use authenticated user ID, ignore any user_id from request body for security
     const userId = authenticatedUserId;
 
-    sourceForCatch = requestData.source || payloadLead.source || context.source || "app";
-    pathForCatch = requestData.path || payloadLead.path || context.path || "prospeccao";
-    
-    console.log("[AI Lead Payload]", payloadLead);
-
-    console.log("🔍 Iniciando análise:", {
-      leadId,
-      userId,
-      hasNome: !!(payloadLead.nome || payloadLead.name || payloadLead.business_name || payloadLead.company_name || payloadLead.title),
+    structuredLog("info", {
+      request_id: requestId,
+      stage: "prepare_request",
+      has_lead_reference: !!leadId,
+      has_name: !!(payloadLead.nome || payloadLead.name || payloadLead.business_name || payloadLead.company_name || payloadLead.title),
     });
 
+    stage = "load_configuration";
     let GOOGLE_GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("Gemini_API");
     if (GOOGLE_GEMINI_API_KEY) {
       GOOGLE_GEMINI_API_KEY = GOOGLE_GEMINI_API_KEY.trim().replace(/^["']|["']$/g, "");
@@ -1189,7 +1206,14 @@ serve(async (req) => {
     supabaseAdminForCatch = supabaseAdmin;
 
     if (!supabaseAdmin) {
-      throw new Error("Configuração Supabase incompleta");
+      throw new AppError({
+        internalCode: "REFINE_CONFIGURATION_MISSING",
+        category: "configuration_error",
+        stage,
+        safeMessage: "O serviço de refinamento está temporariamente indisponível.",
+        requestId,
+        httpStatus: 503,
+      });
     }
 
     userIdForCatch = userId;
@@ -1197,43 +1221,52 @@ serve(async (req) => {
     await logAppEvent(supabaseAdmin, {
       userId,
       eventType: "ai_analysis_started",
-      eventData: { leadId },
+      eventData: { leadId, request_id: requestId, stage: "authorize_user" },
       ipAddress: req.headers.get("x-forwarded-for"),
       userAgent: req.headers.get("user-agent"),
     });
 
+    stage = "authorize_user";
     const { data: usageData, error: usageError } = await supabaseAuth.rpc("get_current_user_usage");
 
     if (usageError) {
-      console.error("❌ Erro ao validar uso de IA:", usageError.message);
-      throw new Error("Erro ao validar limite de análises com IA.");
+      throw new AppError({
+        internalCode: "REFINE_USAGE_CHECK_FAILED",
+        category: "database_error",
+        stage,
+        safeMessage: "Não foi possível validar a disponibilidade da análise. Tente novamente.",
+        requestId,
+        retryable: true,
+        httpStatus: 503,
+        cause: usageError,
+      });
     }
 
     const usageInfo = usageData?.[0];
     const aiRemaining = Number(usageInfo?.ai_available_total ?? usageInfo?.ai_remaining ?? 0);
-    aiRemainingForCatch = aiRemaining;
-    aiLimitForCatch = Number(usageInfo?.ai_limit ?? 3);
-    aiUsedForCatch = Number(usageInfo?.ai_used_this_month ?? 0);
     const isAdminUser = isAdminUserHelper(user.email, usageInfo);
     const isUnlimited = isAdminUser || Number(usageInfo?.ai_limit ?? 0) >= 999999;
 
     if (!isUnlimited && aiRemaining <= 0) {
-      console.log(`🚫 Bloqueio de Limite de IA preventivo para o usuário ${user.email} (ai_remaining: ${aiRemaining})`);
-      return jsonResponse({
-        success: false,
-        blocked: true,
-        error_code: "AI_CREDITS_EXHAUSTED",
-        error_message: "Você não tem análises IA disponíveis.",
-        error: "Limite de IA atingido",
-        details: "Você atingiu seu limite de análises com IA.",
-      }, 402);
+      throw new AppError({
+        internalCode: "REFINE_PERMISSION_DENIED",
+        category: "authorization_error",
+        stage,
+        safeMessage: "Você não tem análises de IA disponíveis.",
+        requestId,
+        httpStatus: 402,
+      });
     }
 
     if (!GOOGLE_GEMINI_API_KEY) {
-      return jsonResponse({
-        error: "GEMINI_API_KEY nao configurada",
-        details: "Cadastre o secret GEMINI_API_KEY no projeto Supabase.",
-      }, 500);
+      throw new AppError({
+        internalCode: "REFINE_CONFIGURATION_MISSING",
+        category: "configuration_error",
+        stage: "load_configuration",
+        safeMessage: "O serviço de refinamento está temporariamente indisponível.",
+        requestId,
+        httpStatus: 503,
+      });
     }
 
     const searchContext = requestData.search_context || context || {};
@@ -1246,12 +1279,19 @@ serve(async (req) => {
         .rpc("get_lead_decrypted_by_id", { p_lead_id: leadId, p_user_id: userId });
         
       if (rpcError || !decryptedLeads?.length) {
-        console.error("❌ Erro RPC:", rpcError?.message || "Lead não encontrado");
-        throw new Error("Lead não encontrado");
+        throw new AppError({
+          internalCode: rpcError ? "REFINE_LEAD_LOAD_FAILED" : "REFINE_INPUT_INVALID",
+          category: rpcError ? "database_error" : "validation_error",
+          stage: "validate_backend_input",
+          safeMessage: rpcError ? "Não foi possível carregar o lead. Tente novamente." : "O lead informado não foi encontrado.",
+          requestId,
+          retryable: !!rpcError,
+          httpStatus: rpcError ? 503 : 404,
+          cause: rpcError,
+        });
       }
       
       const lead = decryptedLeads[0];
-      leadNameForCatch = lead.nome;
       
       const rawLead = {
         ...lead,
@@ -1309,8 +1349,6 @@ serve(async (req) => {
       console.log(`🌍 Lead country (from request): ${leadData.pais} | isUS: ${isUSLead(leadData)}`);
     }
 
-    leadNameForCatch = leadData.nome;
-
     if (isZunoInternalProspectingFocus(leadData.foco) && !isAdminUser) {
       await logAppEvent(supabaseAdmin, {
         userId,
@@ -1318,16 +1356,18 @@ serve(async (req) => {
         eventData: {
           attempted_focus: ZUNO_INTERNAL_PROSPECTING_FOCUS,
           user_id: userId,
-          user_email: user.email || null,
         },
         ipAddress: req.headers.get("x-forwarded-for"),
         userAgent: req.headers.get("user-agent"),
       });
-      return jsonResponse({
-        success: false,
-        error_code: "ADMIN_ONLY_FOCUS",
-        error_message: "Este foco está disponível apenas para administradores.",
-      }, 403);
+      throw new AppError({
+        internalCode: "REFINE_PERMISSION_DENIED",
+        category: "authorization_error",
+        stage,
+        safeMessage: "Este tipo de análise não está disponível para sua conta.",
+        requestId,
+        httpStatus: 403,
+      });
     }
 
     // Validação de dados mínimos do lead (INVALID_LEAD_PAYLOAD)
@@ -1347,16 +1387,21 @@ serve(async (req) => {
     const hasContext = has_city || has_address || has_category || has_website || has_phone || has_rating || has_reviews || has_instagram || has_place_id;
 
     if (!has_name || !hasContext) {
-      console.warn("🚫 Lead sem dados suficientes para análise:", { 
-        leadId, 
-        nome: leadData.nome, 
-        nicho: leadData.nicho, 
-        cidade: leadData.cidade, 
-        hasContext 
+      structuredLog("warn", {
+        request_id: requestId,
+        stage: "validate_backend_input",
+        internal_code: "REFINE_INPUT_INVALID",
+        has_name,
+        has_context: hasContext,
       });
-      const payloadError = new Error("Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho.");
-      (payloadError as any).code = "INVALID_LEAD_PAYLOAD";
-      throw payloadError;
+      throw new AppError({
+        internalCode: "REFINE_INPUT_INVALID",
+        category: "validation_error",
+        stage: "validate_backend_input",
+        safeMessage: "Esse lead não tem dados suficientes para análise. Tente outro lead.",
+        requestId,
+        httpStatus: 400,
+      });
     }
 
     // Canais selecionados para a análise
@@ -1386,16 +1431,18 @@ serve(async (req) => {
     };
 
     let analise: AnaliseResult;
+    stage = "call_ai_provider";
+    const providerStartedAt = performance.now();
     try {
       console.log("🚀 Usando Gemini 2.0 Flash para análise manual direta...");
-      analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY, campaignContext, () => {
+      analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY, campaignContext, requestId, () => {
         retryCountForCatch += 1;
       });
-    } catch (geminiError: any) {
-      console.error("❌ Falha na chamada direta ao Gemini:", geminiError.message || geminiError);
-      throw geminiError;
+    } finally {
+      providerDurationMs = Math.round(performance.now() - providerStartedAt);
     }
 
+    stage = "validate_ai_response";
     analise = sanitizeProspectingPlan(normalizePremiumCopyForStorage(analise), leadData);
 
     const qualityResult = applyQualityFallbackIfNeeded(analise, leadData);
@@ -1454,7 +1501,8 @@ serve(async (req) => {
       },
       plano_prospeccao_7dias: analise.plano_prospeccao_7dias,
       debug: {
-        raw_ai_response: JSON.stringify(analise),
+        response_size_bytes: JSON.stringify(analise).length,
+        request_id: requestId,
         fallback_used: qualityResult.fallbackUsed,
         cache_used: false,
         missing_fields: qualityResult.missingFields
@@ -1462,6 +1510,8 @@ serve(async (req) => {
     };
 
     // Save analysis to DB
+    stage = "persist_result";
+    const persistenceStartedAt = performance.now();
     if (leadId) {
       const { error: updateError } = await supabaseAdmin.from("leads").update({
         diagnostico_bullets: analise.diagnostico_bullets,
@@ -1475,28 +1525,45 @@ serve(async (req) => {
       }).eq("id", leadId);
 
       if (updateError) {
-        console.error("❌ Erro ao salvar análise:", updateError.message);
-        throw new Error("Erro ao salvar análise do lead.");
+        throw new AppError({
+          internalCode: "REFINE_SAVE_FAILED",
+          category: "database_error",
+          stage,
+          safeMessage: "A análise foi gerada, mas não pôde ser salva. Tente novamente.",
+          requestId,
+          retryable: true,
+          httpStatus: 503,
+          cause: updateError,
+        });
       }
 
-      console.log("✅ Análise estruturada e salva no banco");
+      structuredLog("info", { request_id: requestId, stage, persisted: true });
     }
+    persistenceDurationMs = Math.round(performance.now() - persistenceStartedAt);
 
-    let incrementOk = true;
     let creditWarning: string | null = null;
     if (!isAdminUser) {
-      const { data: rpcOk, error: incrementError } = await supabaseAdmin.rpc("increment_ai_usage", {
-        p_user_id: userId,
+      const creditConsumer = createCreditConsumer(async () => {
+        const { data: rpcOk, error: incrementError } = await supabaseAdmin.rpc("increment_ai_usage", {
+          p_user_id: userId,
+        });
+        if (incrementError || rpcOk !== true) {
+          return {
+            ok: false,
+            warning: "An\u00e1lise conclu\u00edda, mas houve um erro ao registrar o consumo do cr\u00e9dito. Entre em contato com o suporte se isso se repetir.",
+          };
+        }
+        return { ok: true };
       });
-      incrementOk = rpcOk === true;
-      if (incrementError || !rpcOk) {
-        // A análise já foi salva com sucesso no banco. Não devemos retornar erro 402 aqui,
-        // pois o usuário veria "erro" mas o lead já foi atualizado. Retornamos sucesso com warning.
-        console.warn("⚠️ Análise salva com sucesso, mas falha ao incrementar crédito de IA:", incrementError?.message || "increment_ai_usage returned false");
-        creditWarning = "Análise concluída, mas houve um erro ao registrar o consumo do crédito. Entre em contato com o suporte se isso se repetir.";
-      }
+      const creditResult = await creditConsumer.consume();
+      creditWarning = creditResult.warning || null;
+      structuredLog(creditResult.consumed ? "info" : "warn", {
+        request_id: requestId,
+        stage: "consume_credit",
+        credit_consumed: creditResult.consumed,
+      });
     } else {
-      console.log(`⚡ [analisar-lead-ia] Usuário é ADMIN (${user.email}). Bypass no consumo de crédito de IA.`);
+      structuredLog("info", { request_id: requestId, stage: "persist_result", admin_credit_bypass: true });
     }
 
     await logAppEvent(supabaseAdmin, {
@@ -1504,7 +1571,6 @@ serve(async (req) => {
       eventType: "ai_analysis_completed",
       eventData: {
         leadId,
-        leadName: leadData.nome,
         model: "Gemini Flash (Direct)",
         score: analise.probabilidade_conversao,
         fallback_used: qualityResult.fallbackUsed,
@@ -1530,130 +1596,66 @@ serve(async (req) => {
       userAgent: req.headers.get("user-agent"),
     });
 
+    stage = "return_response";
+    const totalDurationMs = Date.now() - startTime;
+    structuredLog("info", {
+      request_id: requestId,
+      stage,
+      duration_ms: totalDurationMs,
+      provider_duration_ms: providerDurationMs,
+      persistence_duration_ms: persistenceDurationMs,
+    });
     const successResponse = {
       ...planoSalvar,
       success: true,
+      request_id: requestId,
+      timing: { total_ms: totalDurationMs, provider_ms: providerDurationMs, persistence_ms: persistenceDurationMs },
       used_fallback: qualityResult.fallbackUsed,
       fallback_reason: qualityResult.fallbackUsed ? (qualityResult.missingFields.join(", ") || null) : null,
       ...(creditWarning ? { credit_warning: creditWarning } : {}),
     };
     return jsonResponse(successResponse as unknown as Record<string, unknown>);
-  } catch (error: any) {
-    console.error("Erro analisar-lead-ia:", error);
-    const duration = Date.now() - startTime;
-    
-    // Normalizar o código de erro, a mensagem amigável para o usuário e a de debug técnico seguro
-    let errorCode = error?.code || "AI_ANALYSIS_ERROR";
-    let errorMessage = "Não conseguimos concluir a análise agora. O uso de IA não foi descontado. Tente novamente em alguns instantes.";
-    let debugMessage = error instanceof Error ? error.message : String(error);
-    
-    if (error?.name === "AbortError" || debugMessage.toLowerCase().includes("timeout") || debugMessage.toLowerCase().includes("deadline")) {
-      errorCode = "GEMINI_TIMEOUT";
-      errorMessage = "A análise demorou mais que o esperado.";
-    } else if (errorCode === "INVALID_LEAD_PAYLOAD" || debugMessage.toLowerCase().includes("suficientes") || debugMessage.toLowerCase().includes("payload")) {
-      errorCode = "INVALID_LEAD_PAYLOAD";
-      errorMessage = "Esse lead não tem dados suficientes para análise. Tente outro lead.";
-    } else if (errorCode === "AI_LIMIT_REACHED" || errorCode === "AI_CREDITS_EXHAUSTED" || debugMessage.toLowerCase().includes("limite") || debugMessage.toLowerCase().includes("crédito") || debugMessage.toLowerCase().includes("saldo") || debugMessage.toLowerCase().includes("402")) {
-      errorCode = "AI_CREDITS_EXHAUSTED";
-      errorMessage = "Você atingiu seu limite de análises com IA.";
-    }
-    
-    // Garantir que não retornamos dados sensíveis no debugMessage
-    debugMessage = debugMessage.replace(/AIzaSy[A-Za-z0-9_-]{35}/g, "AIzaSy[SECRET_REDACTED]");
-    
+  } catch (error: unknown) {
+    const durationMs = Date.now() - startTime;
+    const appError = normalizeAppError(error, requestId, stage);
+    structuredLog("error", {
+      request_id: requestId,
+      public_error_code: appError.publicCode,
+      stage: appError.stage,
+      category: appError.category,
+      internal_code: appError.internalCode,
+      safe_message: appError.safeMessage,
+      duration_ms: durationMs,
+      provider: appError.provider,
+      http_status: appError.httpStatus,
+      retryable: appError.retryable,
+      retry_count: retryCountForCatch,
+      error,
+    });
+
     if (supabaseAdminForCatch && userIdForCatch) {
-      // Metadados de auditoria segura sobre campos de lead
-      const available_fields = (leadData as any) ? Object.keys(leadData) : [];
-      const has_name = (leadData as any) ? (!!leadData.nome && leadData.nome.trim() !== "" && leadData.nome.toLowerCase() !== "não informado" && leadData.nome.toLowerCase() !== "nao informado") : false;
-      const has_category = (leadData as any) ? (!!leadData.nicho && leadData.nicho.trim() !== "" && leadData.nicho.toLowerCase() !== "não informado" && leadData.nicho.toLowerCase() !== "nao informado") : false;
-      const has_city = (leadData as any) ? (!!leadData.cidade && leadData.cidade.trim() !== "" && leadData.cidade.toLowerCase() !== "não informada" && leadData.cidade.toLowerCase() !== "nao informada" && leadData.cidade.toLowerCase() !== "não informado" && leadData.cidade.toLowerCase() !== "nao informado") : false;
-      const has_address = (leadData as any) ? (!!leadData.endereco && leadData.endereco.trim() !== "") : false;
-      const has_phone = (leadData as any) ? (!!leadData.whatsapp_number && leadData.whatsapp_number.trim() !== "") : false;
-      const has_website = (leadData as any) ? (!!leadData.website && leadData.website.trim() !== "") : false;
-      const has_rating = (leadData as any) ? (leadData.rating !== undefined && leadData.rating !== null) : false;
-      const has_reviews = (leadData as any) ? (leadData.reviews !== undefined && leadData.reviews !== null) : false;
-
-      const missing_required_fields = [];
-      if (!has_name) missing_required_fields.push("nome");
-      const has_any_context = has_city || has_address || has_category || has_website || has_phone || has_rating || ((leadData as any) ? !!leadData.place_id : false);
-      if (!has_any_context) {
-        missing_required_fields.push("contexto_minimo");
-      }
-
       await logAppEvent(supabaseAdminForCatch, {
         userId: userIdForCatch,
         eventType: "ai_analysis_failed",
         eventData: {
-          lead_id: leadIdForCatch,
-          lead_name: leadNameForCatch || null,
-          source: sourceForCatch,
-          path: pathForCatch,
-          error_message: errorMessage,
-          error_code: errorCode,
-          debug_message: debugMessage,
-          error_type: error?.name || "UnknownError",
-          ai_used_before: aiUsedForCatch,
-          ai_used_after: aiUsedForCatch,
-          ai_available_before: aiRemainingForCatch,
-          ai_available_after: aiRemainingForCatch,
-          deducted_credit: false,
           request_id: requestId,
-          edge_function: "analisar-lead-ia",
-          provider: "gemini",
-          duration_ms: duration,
+          public_error_code: appError.publicCode,
+          stage: appError.stage,
+          category: appError.category,
+          internal_code: appError.internalCode,
+          safe_message: appError.safeMessage,
+          duration_ms: durationMs,
+          retryable: appError.retryable,
           retry_count: retryCountForCatch,
-          ...((leadData as any) && isZunoInternalProspectingFocus((leadData as any).foco)
-            ? {
-                focus: ZUNO_INTERNAL_PROSPECTING_FOCUS,
-                internal_zuno_prospecting: true,
-                admin_only: true,
-                is_internal_event: true,
-                event_source_type: "admin",
-              }
-            : {}),
-          
-          // Metadados seguros do lead
-          available_fields,
-          has_name,
-          has_category,
-          has_city,
-          has_address,
-          has_phone,
-          has_website,
-          has_rating,
-          has_reviews,
-          missing_required_fields
+          deducted_credit: false,
         },
         ipAddress: req.headers.get("x-forwarded-for"),
         userAgent: req.headers.get("user-agent"),
       });
     }
-    // Determinar o status HTTP correto baseado no tipo de erro
-    let httpStatus = 500;
-    if (errorCode === "AI_CREDITS_EXHAUSTED") httpStatus = 402;
-    else if (errorCode === "INVALID_LEAD_PAYLOAD") httpStatus = 400;
-    else if (errorCode === "GEMINI_TIMEOUT") httpStatus = 408;
 
-    return jsonResponse({
-      success: false,
-      blocked: errorCode === "AI_CREDITS_EXHAUSTED",
-      error_code: errorCode,
-      error_message: errorMessage,
-      debug_message: debugMessage,
-      error_type: error?.name || "UnknownError",
-      request_id: requestId,
-      duration_ms: duration,
-      retry_count: retryCountForCatch,
-      ai_used_before: aiUsedForCatch,
-      ai_used_after: aiUsedForCatch,
-      ai_available_before: aiRemainingForCatch,
-      ai_available_after: aiRemainingForCatch,
-      deducted_credit: false,
-      provider: "gemini",
-      edge_function: "analisar-lead-ia",
-      error: errorMessage,
-      details: debugMessage,
-    }, httpStatus);
+
+    return jsonResponse(toSafeErrorResponse(appError), appError.httpStatus);
   }
 });
 
@@ -1741,6 +1743,7 @@ async function analyzeWithGeminiDirect(
     canal: string | null;
     etapa: string | null;
   },
+  requestId: string,
   onRetry?: () => void
 ): Promise<AnaliseResult> {
   const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp", "instagram"] as const;
@@ -1768,7 +1771,10 @@ async function analyzeWithGeminiDirect(
   // fato (o abort já havia disparado). Agora cada modelo tem seu próprio relógio, então um
   // modelo com problema não impede que os próximos sejam tentados.
   // Cada modelo recebe 25s para gerar o plano completo de 7 dias com Function Calling
-  const PER_MODEL_TIMEOUT_MS = 25000; 
+  const configuredTimeout = Number(Deno.env.get("REFINE_AI_PROVIDER_TIMEOUT_MS") || "25000");
+  const PER_MODEL_TIMEOUT_MS = Number.isFinite(configuredTimeout)
+    ? Math.min(60_000, Math.max(5_000, configuredTimeout))
+    : 25_000;
 
   const modelsToTry = [
     "gemini-2.5-flash",
@@ -1777,12 +1783,22 @@ async function analyzeWithGeminiDirect(
   ];
   let lastResponseError = "";
 
-  for (const model of modelsToTry) {
+  for (const [modelIndex, model] of modelsToTry.entries()) {
+    const attempt = modelIndex + 1;
+    if (attempt > 1) onRetry?.();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), PER_MODEL_TIMEOUT_MS);
+    const attemptStartedAt = performance.now();
     try {
       console.log(`🤖 Tentando analisar com o modelo: ${model}`);
-      const response = await fetchWithRetry(
+      structuredLog("info", {
+        request_id: requestId,
+        stage: "call_ai_provider",
+        provider: "gemini",
+        model,
+        attempt,
+      });
+      const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
           method: "POST",
@@ -1893,9 +1909,6 @@ async function analyzeWithGeminiDirect(
           }),
           signal: controller.signal,
         },
-        2, // maxRetries (baixo de propósito: cada modelo tem orçamento próprio de PER_MODEL_TIMEOUT_MS,
-        2500, // baseDelay 2.5s   e a cascata para o próximo modelo é a estratégia principal de resiliência)
-        onRetry
       );
 
       if (!response.ok) {
@@ -1909,14 +1922,17 @@ async function analyzeWithGeminiDirect(
           ));
 
         if (isModelUnavailableError) {
-          console.warn(`⚠️ Modelo ${model} indisponível (Status: ${response.status}). Tentando o próximo... Detalhes: ${errorText}`);
-          lastResponseError = `Modelo ${model} indisponível (${response.status}): ${errorText}`;
+          structuredLog("warn", { request_id: requestId, stage: "call_ai_provider", provider: "gemini", model, attempt, http_status: response.status, duration_ms: Math.round(performance.now() - attemptStartedAt), retryable: true });
+          lastResponseError = `Modelo ${model} indisponível (${response.status})`;
           clearTimeout(timeoutId);
           continue;
         }
 
-        console.error(`❌ Gemini API error para o modelo ${model}:`, response.status, errorText);
-        throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+        structuredLog("warn", { request_id: requestId, stage: "call_ai_provider", provider: "gemini", model, attempt, http_status: response.status, duration_ms: Math.round(performance.now() - attemptStartedAt), retryable: response.status === 429 || response.status >= 500 });
+        if (response.status === 401 || response.status === 403) {
+          throw new AppError({ internalCode: "REFINE_PROVIDER_AUTH_FAILED", category: "configuration_error", stage: "call_ai_provider", safeMessage: "O provedor de IA recusou a configura\u00e7\u00e3o do servi\u00e7o.", requestId, retryable: false, httpStatus: 503, provider: "gemini" });
+        }
+        throw new Error(`Gemini API error: ${response.status}`);
       }
 
       const data = await response.json();
@@ -1956,11 +1972,13 @@ async function analyzeWithGeminiDirect(
 
       console.log(`✅ Análise gerada com sucesso via modelo: ${model}`);
       
+      structuredLog("info", { request_id: requestId, stage: "call_ai_provider", provider: "gemini", model, attempt, http_status: response.status, duration_ms: Math.round(performance.now() - attemptStartedAt), succeeded: true });
       clearTimeout(timeoutId);
       return analise;
     } catch (err: any) {
       clearTimeout(timeoutId);
-      console.warn(`⚠️ Falha ao processar com modelo ${model}:`, err.message);
+      structuredLog("warn", { request_id: requestId, stage: "call_ai_provider", provider: "gemini", model, attempt, duration_ms: Math.round(performance.now() - attemptStartedAt), error_type: err.name || "Error" });
+      if (err instanceof AppError) throw err;
       lastResponseError = err.name === 'AbortError'
         ? `Modelo ${model} excedeu ${PER_MODEL_TIMEOUT_MS / 1000}s`
         : err.message;

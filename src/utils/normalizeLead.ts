@@ -133,11 +133,84 @@ export function normalizeLeadForAI(lead: any, searchContext: any = {}): Normaliz
   };
 }
 
-export function normalizePlanoProspeccao(plano: any): any[] {
-  if (!plano) return [];
+function generateFallback7Days(lead?: any): any[] {
+  const nome = lead?.nome || "Empresa";
+  const nicho = lead?.nicho || "seu segmento";
+  const cidade = lead?.cidade || "sua região";
+  const focoRaw = lead?.foco || "Full Service";
+  const foco = focoRaw === "zuno_internal_prospecting" ? "Oportunidade comercial" : focoRaw;
+
+  return [
+    {
+      dia: 1,
+      canal: "whatsapp",
+      acao_sugerida: "Envio de áudio ou mensagem curta no WhatsApp comercial",
+      mensagem: `Olá, tudo bem? Vi o perfil da ${nome} aqui em ${cidade} no segmento de ${nicho}. Analisei a presença de vocês e notei uma oportunidade excelente para acelerar novos clientes com foco em ${foco}. Posso te enviar um diagnóstico de 2 minutos sem compromisso?`,
+      objecao_provavel: "Quem é você e onde conseguiu meu contato?",
+      resposta_sugerida: "Sou especialista em aquisição para empresas de " + nicho + ". Encontrei seu contato na busca comercial pública.",
+      cta: "Posso mandar por aqui?"
+    },
+    {
+      dia: 2,
+      canal: "instagram",
+      acao_sugerida: "Interação com publicação recente e envio de Direct",
+      mensagem: `Olá equipe da ${nome}! Acompanho o perfil de vocês em ${cidade}. Gostei muito do posicionamento, mas reparei que há um grande potencial para transformar visualizações em contatos diários no WhatsApp. Como está a demanda de vocês atualmente?`,
+      objecao_provavel: "Não temos interesse no momento",
+      resposta_sugerida: "Tranquilo! Nós atuamos como parceiros estratégicos focado em performance de receita.",
+      cta: "Vale 3 minutos para dar uma olhada?"
+    },
+    {
+      dia: 3,
+      canal: "email",
+      acao_sugerida: "Envio de e-mail consultivo curto com diagnóstico",
+      mensagem: `Assunto: Oportunidade de aquisição comercial - ${nome}\n\nOlá,\n\nAnalisei o posicionamento digital da ${nome} em ${cidade} e mapeamos um gap comercial importante no segmento de ${nicho}.\n\nFormatamos uma proposta estratégica em ${foco} focada em previsibilidade de vendas.\n\nQual o melhor dia esta semana para apresentarmos em 5 minutos?`,
+      objecao_provavel: "Qual o custo envolvido?",
+      resposta_sugerida: "Nosso investimento é flexível e condicionado ao retorno das metas acordadas.",
+      cta: "Consegue falar quinta-feira às 14h?"
+    },
+    {
+      dia: 4,
+      canal: "whatsapp",
+      acao_sugerida: "Follow-up objetivo com pergunta direta",
+      mensagem: `Passando só para saber se conseguiu dar uma olhada na mensagem anterior sobre a ${nome}. Sei que a rotina aí em ${cidade} é corrida!`,
+      objecao_provavel: "Estava muito corrido aqui",
+      resposta_sugerida: "Sem problemas! Quando a rotina aliviar um pouco me avisa por aqui.",
+      cta: "Podemos agendar 3 minutos na próxima semana?"
+    },
+    {
+      dia: 5,
+      canal: "email",
+      acao_sugerida: "Compartilhamento de estudo de caso do mesmo nicho",
+      mensagem: `Assunto: Estudo de caso - Crescimento em ${nicho}\n\nOlá!\n\nAjudamos uma empresa parecida com a ${nome} a estruturar um funil comercial que gerou +40% de contatos qualificados no primeiro mês.\n\nConsegue ver 5 minutos amanhã para um bate-papo rápido?`,
+      objecao_provavel: "Já fazemos isso internamente",
+      resposta_sugerida: "Excelente! Nosso trabalho entra para potencializar a equipe interna com novas frentes de tráfego e conversão.",
+      cta: "Posso enviar a apresentação?"
+    },
+    {
+      dia: 6,
+      canal: "instagram",
+      acao_sugerida: "Reação a story ou post recente da empresa",
+      mensagem: `Muito bom esse post recente de vocês! É exatamente esse diferencial da ${nome} em ${cidade} que pode ser amplificado para gerar clientes todos os dias.`,
+      objecao_provavel: "Obrigado pelo feedback!",
+      resposta_sugerida: "Por nada! Se quiser entender como escalar esse resultado, fico à disposição.",
+      cta: "Bora marcar um papo rápido?"
+    },
+    {
+      dia: 7,
+      canal: "whatsapp",
+      acao_sugerida: "Último contato com ultimato sutil e convite aberto",
+      mensagem: `Último contato por aqui para não tomar seu tempo! Vou deixar o canal aberto se em algum momento a ${nome} quiser estruturar um canal forte de aquisição de clientes em ${cidade}. Grande abraço e sucesso!`,
+      objecao_provavel: "Obrigado pelo contato!",
+      resposta_sugerida: "Disponha! Bom trabalho para vocês aí.",
+      cta: "Ficamos em contato!"
+    }
+  ];
+}
+
+export function normalizePlanoProspeccao(plano: any, lead?: any): any[] {
   if (Array.isArray(plano) && plano.length > 0) return plano;
   
-  if (typeof plano === 'object') {
+  if (plano && typeof plano === 'object') {
     // 1. Caso venha de `plano_prospeccao_7dias` (formato principal)
     if (Array.isArray(plano.plano_prospeccao_7dias) && plano.plano_prospeccao_7dias.length > 0) {
       return plano.plano_prospeccao_7dias;
@@ -237,35 +310,40 @@ export function normalizePlanoProspeccao(plano: any): any[] {
     }
   }
 
-  return Array.isArray(plano) ? plano : [];
+  return generateFallback7Days(lead);
 }
 
 export function normalizeDiagnosticoBullets(bullets: any, lead?: any): string[] {
+  let list: string[] = [];
+
   if (Array.isArray(bullets) && bullets.length > 0) {
-    return bullets.filter((b) => typeof b === 'string' && b.trim() !== '');
+    list = bullets.filter((b) => typeof b === 'string' && b.trim() !== '');
   }
 
-  if (lead && lead.plano_prospeccao && typeof lead.plano_prospeccao === 'object') {
+  if (list.length === 0 && lead && lead.plano_prospeccao && typeof lead.plano_prospeccao === 'object') {
     const diag = lead.plano_prospeccao.diagnostico;
     if (diag) {
-      const extracted: string[] = [];
-      if (diag.justificativa) extracted.push(`Oportunidade: ${diag.justificativa}`);
-      if (diag.dor_provavel) extracted.push(`Ponto de dor principal: ${diag.dor_provavel}`);
-      if (diag.oportunidade) extracted.push(`Ângulo comercial recomendado: ${diag.oportunidade}`);
-      if (diag.urgencia) extracted.push(`Urgência estimada para contato: ${diag.urgencia}`);
-      if (extracted.length > 0) return extracted;
+      if (diag.justificativa) list.push(`Oportunidade: ${diag.justificativa}`);
+      if (diag.dor_provavel) list.push(`Ponto de dor principal: ${diag.dor_provavel}`);
+      if (diag.oportunidade) list.push(`Ângulo comercial recomendado: ${diag.oportunidade}`);
+      if (diag.urgencia) list.push(`Urgência estimada para contato: ${diag.urgencia}`);
     }
   }
 
-  const nome = lead?.nome || "a empresa";
-  const nicho = lead?.nicho || "seu segmento";
-  const cidade = lead?.cidade || "sua região";
-  const foco = lead?.foco || "Full Service";
+  if (list.length === 0) {
+    const nome = lead?.nome || "a empresa";
+    const nicho = lead?.nicho || "seu segmento";
+    const cidade = lead?.cidade || "sua região";
+    const focoRaw = lead?.foco || "Full Service";
+    const foco = focoRaw === "zuno_internal_prospecting" ? "Oportunidade comercial" : focoRaw;
 
-  return [
-    `Análise estratégica identificada para ${nome} no segmento de ${nicho} em ${cidade}.`,
-    `Abordagem consultiva focada no modelo de serviço ${foco}.`,
-    `Presença digital e canais de contato verificados para máxima taxa de resposta.`,
-    `Sequência de prospecção em 7 dias personalizada para conversão direta.`
-  ];
+    list = [
+      `Análise estratégica identificada para ${nome} no segmento de ${nicho} em ${cidade}.`,
+      `Abordagem consultiva focada no modelo de serviço ${foco}.`,
+      `Presença digital e canais de contato verificados para máxima taxa de resposta.`,
+      `Sequência de prospecção em 7 dias personalizada para conversão direta.`
+    ];
+  }
+
+  return list.map(b => b.replace(/zuno_internal_prospecting/g, "Oportunidade comercial"));
 }

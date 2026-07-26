@@ -436,7 +436,30 @@ export const LeadsList = () => {
 
   const updateLeadLocally = (updatedLead: LeadProspeccao) => {
     const updatedLeadKey = getLeadKey(updatedLead);
-    setLeads((prev) => prev.map((lead) => (getLeadKey(lead) === updatedLeadKey ? { ...lead, ...updatedLead } : lead)));
+    setLeads((prev) =>
+      prev.map((lead) => {
+        if (getLeadKey(lead) === updatedLeadKey) {
+          const newProb = updatedLead.probabilidade_conversao > 0 
+            ? updatedLead.probabilidade_conversao 
+            : lead.probabilidade_conversao;
+          const newPlano = (updatedLead.plano_prospecao_7dias && updatedLead.plano_prospecao_7dias.length > 0)
+            ? updatedLead.plano_prospecao_7dias
+            : lead.plano_prospecao_7dias;
+          const newBullets = (updatedLead.diagnostico_bullets && updatedLead.diagnostico_bullets.length > 0)
+            ? updatedLead.diagnostico_bullets
+            : lead.diagnostico_bullets;
+
+          return {
+            ...lead,
+            ...updatedLead,
+            probabilidade_conversao: newProb,
+            plano_prospecao_7dias: newPlano,
+            diagnostico_bullets: newBullets,
+          };
+        }
+        return lead;
+      })
+    );
     setSelectedLead((prev) => (prev && getLeadKey(prev) === updatedLeadKey ? { ...prev, ...updatedLead } : prev));
   };
 
@@ -450,7 +473,10 @@ export const LeadsList = () => {
 
       if (error) throw error;
       if (data) {
-        updateLeadLocally(transformLeadFromDb(data));
+        const transformed = transformLeadFromDb(data);
+        if (transformed.probabilidade_conversao > 0 || transformed.plano_prospecao_7dias.length > 0) {
+          updateLeadLocally(transformed);
+        }
       }
     } catch (error) {
       console.warn("Nao foi possivel atualizar o lead localmente:", error);
@@ -607,15 +633,18 @@ export const LeadsList = () => {
           // Apenas atualizamos os campos da análise IA, preservando os dados descriptografados
           setLeads(prevLeads => 
             prevLeads.map(lead => {
-              if (lead.id === payload.new.id) {
-                // Atualiza apenas os campos de IA, mantendo os dados de contato existentes
+              if (lead.id === payload.new.id || getLeadKey(lead) === payload.new.id) {
+                const incomingProb = Number(payload.new.probabilidade_conversao || 0);
+                const rawPlano = payload.new.plano_prospeccao;
+                const incomingPlano = Array.isArray(rawPlano)
+                  ? rawPlano
+                  : (Array.isArray(rawPlano?.plano_prospeccao_7dias) ? rawPlano.plano_prospeccao_7dias : []);
+                
                 return {
                   ...lead,
                   diagnostico_bullets: (payload.new.diagnostico_bullets as string[]) || lead.diagnostico_bullets,
-                  probabilidade_conversao: payload.new.probabilidade_conversao || lead.probabilidade_conversao,
-                  plano_prospecao_7dias: Array.isArray(payload.new.plano_prospeccao)
-                    ? payload.new.plano_prospeccao
-                    : (payload.new.plano_prospeccao?.plano_prospeccao_7dias || lead.plano_prospecao_7dias),
+                  probabilidade_conversao: incomingProb > 0 ? incomingProb : lead.probabilidade_conversao,
+                  plano_prospecao_7dias: incomingPlano.length > 0 ? incomingPlano : lead.plano_prospecao_7dias,
                   ai_analise_gerada_em: payload.new.ai_analise_gerada_em || lead.ai_analise_gerada_em,
                   status: payload.new.status || lead.status,
                   salvo: payload.new.salvo ?? lead.salvo,

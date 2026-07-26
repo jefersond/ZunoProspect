@@ -51,6 +51,18 @@ export interface RefineErrorPayload {
   error_message?: string;
 }
 
+export interface RefineProblemReport {
+  correlation_id: string;
+  request_id: string;
+  safe_code: string;
+  occurred_at: string;
+  operation: "analisar-lead-ia";
+  app_version: string;
+  description: string;
+}
+
+export const REFINE_PROBLEM_REPORT_EVENT = "zuno:refine-problem-report";
+
 export interface RefineSuccessResponse<T> {
   success: true;
   request_id: string;
@@ -277,5 +289,36 @@ export function buildSafeProblemReport(
     `Data/hora: ${occurredAt.toISOString()}`,
     `Funcionalidade: ${REFINE_FEATURE}`,
     `Descrição: ${sanitizeText(description.trim() || "Não informada", 300)}`,
-  ].join("\n");
+  ].filter((line) => !line.includes(error.public_error_code)).join("\n");
+}
+
+export function buildInternalProblemReport(
+  error: RefineErrorPayload,
+  description: string,
+  occurredAt = new Date(),
+  appVersion = import.meta.env.VITE_APP_VERSION || "unknown",
+): RefineProblemReport {
+  return {
+    correlation_id: sanitizeText(error.public_error_code, 80),
+    request_id: sanitizeText(error.request_id, 80),
+    safe_code: sanitizeText(error.error_code || "REFINE_UNKNOWN_ERROR", 80),
+    occurred_at: occurredAt.toISOString(),
+    operation: "analisar-lead-ia",
+    app_version: sanitizeText(appVersion, 80),
+    description: sanitizeText(description.trim() || "N\u00e3o informada", 300),
+  };
+}
+
+export function dispatchInternalProblemReport(report: RefineProblemReport): void {
+  if (typeof window === "undefined" || typeof CustomEvent === "undefined") return;
+  window.dispatchEvent(new CustomEvent(REFINE_PROBLEM_REPORT_EVENT, { detail: report }));
+}
+
+export function getRefineDisplayMessage(error: RefineErrorPayload): string {
+  const withoutIdentifiers = error.safe_message
+    .replace(/ZUN-REF-[A-Z0-9-]+/gi, "")
+    .replace(error.public_error_code, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return withoutIdentifiers || "N\u00e3o foi poss\u00edvel concluir o refinamento neste momento.";
 }

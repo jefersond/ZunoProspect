@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildInternalProblemReport,
   buildRefineRequestBody,
   buildSafeProblemReport,
   classifyRefineError,
   createPublicErrorCode,
   createRefineRequestId,
+  getRefineDisplayMessage,
   maskEmail,
   normalizeRefineError,
   sanitizeForTelemetry,
@@ -103,19 +105,49 @@ describe("refine observability", () => {
     expect(shouldRetryRefineError(permanent, 1)).toBe(false);
   });
 
-  it("creates a safe report that preserves only the user description and public code", () => {
+  it("keeps technical identifiers internal while the visible report stays safe", () => {
     const requestId = createRefineRequestId();
-    const report = buildSafeProblemReport({
+    const error = {
       success: false,
       request_id: requestId,
       public_error_code: createPublicErrorCode(requestId),
       category: "unknown_error",
       safe_message: "Falha segura",
       retryable: false,
-    }, "Meu contato é pessoa@example.com e token Bearer abc123");
-    expect(report).toContain(createPublicErrorCode(requestId));
+      error_code: "REFINE_UNKNOWN_ERROR",
+    } as const;
+    const report = buildSafeProblemReport(error, "Meu contato é pessoa@example.com e token Bearer abc123");
+    const internal = buildInternalProblemReport(
+      error,
+      "Meu contato é pessoa@example.com e token Bearer abc123",
+      new Date("2026-07-26T10:00:00.000Z"),
+      "6fa7943",
+    );
+    expect(report).not.toContain(error.public_error_code);
+    expect(report).not.toContain(requestId);
     expect(report).toContain("pe***@example.com");
     expect(report).not.toContain("Bearer abc123");
+    expect(internal).toMatchObject({
+      correlation_id: error.public_error_code,
+      request_id: requestId,
+      safe_code: "REFINE_UNKNOWN_ERROR",
+      occurred_at: "2026-07-26T10:00:00.000Z",
+      operation: "analisar-lead-ia",
+      app_version: "6fa7943",
+    });
     expect(sanitizeText("x".repeat(1000), 20)).toContain("truncated");
+  });
+
+  it("removes the correlation id from the public message", () => {
+    const error = {
+      success: false,
+      request_id: "request-private",
+      public_error_code: "ZUN-REF-CC25D1",
+      category: "rate_limit_error",
+      safe_message: "Serviço ocupado. Informe ZUN-REF-CC25D1 ao suporte.",
+      retryable: true,
+      error_code: "REFINE_PROVIDER_RATE_LIMITED",
+    } as const;
+    expect(getRefineDisplayMessage(error)).toBe("Serviço ocupado. Informe ao suporte.");
   });
 });

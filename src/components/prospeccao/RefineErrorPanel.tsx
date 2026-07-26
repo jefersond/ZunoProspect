@@ -14,7 +14,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   type RefineErrorPayload,
+  buildInternalProblemReport,
   buildSafeProblemReport,
+  dispatchInternalProblemReport,
+  getRefineDisplayMessage,
 } from "@/lib/refineObservability";
 
 interface RefineErrorPanelProps {
@@ -28,6 +31,11 @@ export function RefineErrorPanel({ error, onRetry, retrying = false }: RefineErr
   const [reportOpen, setReportOpen] = useState(false);
   const [description, setDescription] = useState("");
   const occurredAt = useState(() => new Date())[0];
+
+  const openProblemReport = () => {
+    dispatchInternalProblemReport(buildInternalProblemReport(error, description, occurredAt));
+    setReportOpen(true);
+  };
 
   const copy = async (text: string, label: string) => {
     try {
@@ -45,19 +53,15 @@ export function RefineErrorPanel({ error, onRetry, retrying = false }: RefineErr
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Não foi possível refinar com IA</AlertTitle>
         <AlertDescription className="space-y-3">
-          <p>{error.safe_message}</p>
+          <p>{getRefineDisplayMessage(error)}</p>
           <div className="flex flex-wrap items-center gap-2">
-            <code className="rounded bg-muted px-2 py-1 text-xs">{error.public_error_code}</code>
-            <Button type="button" size="sm" variant="outline" onClick={() => copy(error.public_error_code, "Código copiado")}>
-              <Clipboard className="mr-1 h-3 w-3" /> Copiar código
-            </Button>
             {error.retryable && onRetry && (
               <Button type="button" size="sm" variant="outline" disabled={retrying} onClick={onRetry}>
                 <RotateCcw className={`mr-1 h-3 w-3 ${retrying ? "animate-spin" : ""}`} />
                 Tentar novamente
               </Button>
             )}
-            <Button type="button" size="sm" variant="ghost" onClick={() => setReportOpen(true)}>
+            <Button type="button" size="sm" variant="ghost" onClick={openProblemReport}>
               Reportar problema
             </Button>
           </div>
@@ -72,7 +76,6 @@ export function RefineErrorPanel({ error, onRetry, retrying = false }: RefineErr
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 text-sm">
-            <p><strong>Código:</strong> {error.public_error_code}</p>
             <p><strong>Horário:</strong> {occurredAt.toLocaleString("pt-BR")}</p>
             <p><strong>Funcionalidade:</strong> Refinar com IA</p>
             <Textarea

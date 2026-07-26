@@ -24,6 +24,9 @@ import type { LeadProspeccao } from "@/types/lead";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { normalizeLeadForAI, normalizePlanoProspeccao } from "@/utils/normalizeLead";
+import { refineWithAI } from "@/services/refineWithAI";
+import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
+import { RefineErrorPanel } from "./RefineErrorPanel";
 
 // Função para sanitizar e padronizar número de telefone brasileiro
 const sanitizeBrazilianPhone = (phone: string): string => {
@@ -106,6 +109,7 @@ export const LeadPlanDialog = ({
   onStatusChange 
 }: LeadPlanDialogProps) => {
   const [isReanalyzing, setIsReanalyzing] = useState(false);
+  const [refineError, setRefineError] = useState<RefineErrorPayload | null>(null);
   const activeRequestRef = useRef(false);
   const recentlyTrackedLimitBlockRef = useRef<Record<string, number>>({});
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
@@ -184,6 +188,7 @@ export const LeadPlanDialog = ({
   // Sempre que o lead mudar ou o dialog for reaberto, sincroniza o estado interno
   useEffect(() => {
     if (open && lead) {
+      setRefineError(null);
       setCurrentLead(lead);
       setNotes(lead.notas || "");
       if (lead.processing_status === 'awaiting_review') {
@@ -379,6 +384,7 @@ export const LeadPlanDialog = ({
   const handleReanalyze = async () => {
     if (!lead) return;
     const leadKey = getLeadKey(lead);
+    const requestId = createRefineRequestId();
     
     if (!canUsePaidFeatures(null, subscription)) {
       toast({
@@ -477,8 +483,6 @@ export const LeadPlanDialog = ({
     } catch (e) {
       console.error("Erro ao ler search_context do localStorage:", e);
     }
-
-    console.log("[AI Lead Payload]", lead);
     const normalizedLead = normalizeLeadForAI(lead, searchContext);
     const searchPayload = {
       city: (searchContext as any).city || (searchContext as any).cidade || lead.cidade,
@@ -498,8 +502,7 @@ export const LeadPlanDialog = ({
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Sessão expirada. Faça login novamente.");
       
-      const invokeOptions = {
-        body: {
+      const invokeBody = {
           lead_id: lead.id,
           leadId: lead.id,
           lead_key: leadKey,
@@ -523,34 +526,10 @@ export const LeadPlanDialog = ({
           has_gtm: lead.sinais.has_gtm,
           instagram_url: lead.instagram_url,
           instagram_context: lead.instagram_context,
-        },
-        headers: { Authorization: `Bearer ${token}` },
-      };
+        };
 
-      let invokeResult = await supabase.functions.invoke('analisar-lead-ia', invokeOptions);
-
-      if (invokeResult.error) {
-        console.warn("⚠️ 1ª tentativa de IA sofreu oscilação. Retentando automaticamente...");
-        await new Promise((r) => setTimeout(r, 1000));
-        invokeResult = await supabase.functions.invoke('analisar-lead-ia', invokeOptions);
-      }
-
-      const functionError = invokeResult.error;
-
-      if (functionError) {
-        let message = functionError.message;
-        const contextResponse = (functionError as any)?.context;
-        if (contextResponse instanceof Response) {
-          try {
-            const text = await contextResponse.clone().text();
-            const payload = text ? JSON.parse(text) : null;
-            message = payload?.error || payload?.details || message;
-          } catch {
-            // keep original message
-          }
-        }
-        throw new Error(message);
-      }
+      await refineWithAI<unknown>(invokeBody, token, requestId);
+      setRefineError(null);
 
       // Buscar lead atualizado do banco
       const { data: updatedLead, error: fetchError } = await supabase
@@ -597,22 +576,13 @@ export const LeadPlanDialog = ({
         title: "Análise concluída",
         description: "O lead foi reanalisado com sucesso pela IA",
       });
-    } catch (error: any) {
-      console.error('Erro ao reanalisar lead:', error);
-      
-      let errorMsg = error?.message || "ai_analysis_error";
-      let errorPayload: any = null;
-      
-      const contextResponse = error?.context;
-      if (contextResponse instanceof Response) {
-        try {
-          const text = await contextResponse.clone().text();
-          errorPayload = text ? JSON.parse(text) : null;
-          errorMsg = errorPayload?.error_message || errorPayload?.details || errorPayload?.error || errorMsg;
-        } catch (e) {
-          console.error("Erro ao parsear resposta de erro da Edge Function:", e);
-        }
-      }
+    } catch (error: unknown) {
+      const normalizedError = error instanceof RefineClientError
+        ? error
+        : await normalizeRefineError(error, requestId);
+      const errorPayload = normalizedError.payload;
+      const errorMsg = errorPayload.safe_message;
+      setRefineError(errorPayload);
 
       const isBalanceError = (errorPayload?.error_code === "AI_CREDITS_EXHAUSTED") ||
                              (errorPayload?.error_code === "AI_LIMIT_REACHED") ||
@@ -680,6 +650,10 @@ export const LeadPlanDialog = ({
             {displayLead.nicho} • {displayLead.cidade} • Foco: {displayLead.foco}
           </DialogDescription>
         </DialogHeader>
+
+        {refineError && (
+          <RefineErrorPanel error={refineError} retrying={isReanalyzing} onRetry={handleReanalyze} />
+        )}
 
         {/* Contatos com opção de copiar */}
         <div className="flex flex-wrap gap-3 text-sm py-2 px-3 bg-muted/20 rounded-lg border border-border/30">

@@ -29,6 +29,9 @@ import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import type { UpgradeSource } from "@/lib/funnelContext";
 import { normalizeLeadForAI } from "@/utils/normalizeLead";
 import { generateSmartProspectingCopy } from "@/utils/smartProspectingCopy";
+import { refineWithAI } from "@/services/refineWithAI";
+import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
+import { RefineErrorPanel } from "./RefineErrorPanel";
 
 const normalizeLeadsResponse = (response: any): any[] => {
   if (!response) return [];
@@ -124,6 +127,7 @@ export const LeadsList = () => {
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgradeSource, setUpgradeSource] = useState<UpgradeSource>("unknown");
   const [reanalyzingLeads, setReanalyzingLeads] = useState<Set<string>>(new Set());
+  const [lastRefineError, setLastRefineError] = useState<{ lead: LeadProspeccao; error: RefineErrorPayload } | null>(null);
   const activeRequestsRef = useRef<Set<string>>(new Set());
   const recentlyTrackedLimitBlockRef = useRef<Record<string, number>>({});
   const [currentSearchRunId, setCurrentSearchRunId] = useState<string | null>(null);
@@ -896,20 +900,6 @@ export const LeadsList = () => {
     }
   };
 
-  const getFunctionErrorMessage = async (error: any) => {
-    const contextResponse = error?.context;
-    if (contextResponse instanceof Response) {
-      try {
-        const text = await contextResponse.clone().text();
-        const payload = text ? JSON.parse(text) : null;
-        return payload?.error || payload?.details || error.message;
-      } catch {
-        return error.message;
-      }
-    }
-    return error?.message || "Não foi possível analisar o lead";
-  };
-
   // Analisar ou reanalisar lead manualmente
   const reanalyzeLead = async (lead: LeadProspeccao, source = "leads_list") => {
     if (!canUsePaidFeatures(null, subscription)) {
@@ -942,6 +932,7 @@ export const LeadsList = () => {
     }
 
     const startTime = Date.now();
+    const requestId = createRefineRequestId();
     const pLimit = usage.leads_limit || 20;
     const pUsed = usage.leads_used || 0;
     const aiUsedBefore = usage.ai_used || 0;
@@ -1031,8 +1022,6 @@ export const LeadsList = () => {
     } catch (e) {
       console.error("Erro ao ler search_context do localStorage:", e);
     }
-
-    console.log("[AI Lead Payload]", lead);
     const normalizedLead = normalizeLeadForAI(lead, searchContext);
     const previousCadenceMessages = leads
       .filter((item) => getLeadKey(item) !== leadKey)
@@ -1063,8 +1052,7 @@ export const LeadsList = () => {
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Sessão expirada. Faça login novamente.");
 
-      const invokeOptions = {
-        body: {
+      const invokeBody = {
           leadId: lead.id,
           lead_id: leadKey,
           user_id: user.id,
@@ -1079,20 +1067,10 @@ export const LeadsList = () => {
             previous_day2_messages: previousCadenceMessages.day_2 || [],
           },
           canaisProspeccao: ["email", "whatsapp", "instagram"],
-        },
-        headers: { Authorization: `Bearer ${token}` },
-      };
+        };
 
-      let invokeResult = await supabase.functions.invoke("analisar-lead-ia", invokeOptions);
-
-      // Auto-retry transparente 1x em caso de oscilação ou cold start do container Supabase
-      if (invokeResult.error) {
-        console.warn("⚠️ 1ª tentativa de IA sofreu oscilação. Retentando automaticamente...");
-        await new Promise((r) => setTimeout(r, 1000));
-        invokeResult = await supabase.functions.invoke("analisar-lead-ia", invokeOptions);
-      }
-
-      if (invokeResult.error) throw new Error(await getFunctionErrorMessage(invokeResult.error));
+      await refineWithAI<unknown>(invokeBody, token, requestId);
+      setLastRefineError(null);
 
       toast({
         title: "Análise concluída",
@@ -1142,23 +1120,13 @@ export const LeadsList = () => {
       
       trackEvent("ai_analysis_completed", { lead_id: leadKey, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source });
       await refreshSingleLead(lead.id);
-    } catch (error: any) {
-      console.error("Erro ao reanalisar:", error);
-      
-      let errorPayload: any = null;
-      let errorMsg = error?.message || "ai_analysis_error";
-      
-      const contextResponse = error?.context;
-      if (contextResponse instanceof Response) {
-        try {
-          const text = await contextResponse.clone().text();
-          errorPayload = text ? JSON.parse(text) : null;
-          errorMsg = errorPayload?.error_message || errorPayload?.details || errorPayload?.error || errorMsg;
-        } catch (e) {
-          console.error("Erro ao parsear resposta de erro da Edge Function:", e);
-        }
-      }
-
+    } catch (error: unknown) {
+      const normalizedError = error instanceof RefineClientError
+        ? error
+        : await normalizeRefineError(error, requestId);
+      const errorPayload = normalizedError.payload;
+      const errorMsg = errorPayload.safe_message;
+      setLastRefineError({ lead, error: errorPayload });
       const durationMs = Date.now() - startTime;
       
       const isBalanceError = (errorPayload?.error_code === "AI_CREDITS_EXHAUSTED") ||
@@ -1204,7 +1172,6 @@ export const LeadsList = () => {
           path: window.location.pathname,
           error_message: errorMsg,
           error_code: errorPayload?.error_code || error?.code || null,
-          debug_message: errorPayload?.debug_message || null,
           error_type: errorPayload?.error_type || error?.name || "UnknownError",
           deducted_credit: errorPayload?.deducted_credit ?? false,
           request_id: errorPayload?.request_id || null,
@@ -1300,6 +1267,13 @@ export const LeadsList = () => {
 
   return (
     <>
+      {lastRefineError && (
+        <RefineErrorPanel
+          error={lastRefineError.error}
+          retrying={reanalyzingLeads.has(getLeadKey(lastRefineError.lead))}
+          onRetry={() => reanalyzeLead(lastRefineError.lead, "error_retry")}
+        />
+      )}
       <Card id="leads-table-container" className="w-full overflow-hidden shadow-lg">
         <CardHeader className="border-b bg-muted/20">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

@@ -41,6 +41,9 @@ import { isAdminUser } from "@/config/admin";
 import { useSubscription } from "@/hooks/useSubscription";
 import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { trackEvent } from "@/lib/analytics";
+import { refineWithAI } from "@/services/refineWithAI";
+import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
+import { RefineErrorPanel } from "@/components/prospeccao/RefineErrorPanel";
 
 const LeadsSalvos = () => {
   const navigate = useNavigate();
@@ -86,6 +89,7 @@ const LeadsSalvos = () => {
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [reanalyzingLeadId, setReanalyzingLeadId] = useState<string | null>(null);
+  const [refineError, setRefineError] = useState<{ leadId: string; error: RefineErrorPayload } | null>(null);
   const [verifyingNumbers, setVerifyingNumbers] = useState<Set<string>>(new Set());
   const [numberStatus, setNumberStatus] = useState<Record<string, 'valid' | 'invalid' | 'checking'>>({});
   const [isAdmin, setIsAdmin] = useState(false);
@@ -317,6 +321,7 @@ const LeadsSalvos = () => {
   };
 
   const handleReanalyze = async (leadId: string) => {
+    const requestId = createRefineRequestId();
     if (!canUsePaidFeatures(null, subscription)) {
       toast({
         variant: "destructive",
@@ -345,9 +350,6 @@ const LeadsSalvos = () => {
     }
 
     const lead = leads.find(l => l.id === leadId);
-    if (lead) {
-      console.log("[AI Lead Payload]", lead);
-    }
     const normalizedLead = lead ? normalizeLeadForAI(lead, searchContext) : null;
 
     try {
@@ -362,28 +364,14 @@ const LeadsSalvos = () => {
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Sessão expirada. Faça login novamente.");
 
-      const invokeOptions = {
-        body: { 
+      const invokeBody = {
           leadId,
           lead: normalizedLead,
           search_context: searchContext
-        },
-        headers: { Authorization: `Bearer ${token}` },
-      };
+        };
 
-      let invokeResult = await supabase.functions.invoke("analisar-lead-ia", invokeOptions);
-
-      if (invokeResult.error) {
-        console.warn("⚠️ 1ª tentativa de IA sofreu oscilação. Retentando automaticamente...");
-        await new Promise((r) => setTimeout(r, 1000));
-        invokeResult = await supabase.functions.invoke("analisar-lead-ia", invokeOptions);
-      }
-
-      const error = invokeResult.error;
-      if (error) {
-        console.error("Erro analisar-lead-ia:", error);
-        throw error;
-      }
+      await refineWithAI<unknown>(invokeBody, token, requestId);
+      setRefineError(null);
 
       // Recarrega os leads para obter a análise atualizada
       if (user) {
@@ -394,22 +382,13 @@ const LeadsSalvos = () => {
         title: "Reanálise concluída",
         description: "O lead foi reanalisado com sucesso",
       });
-    } catch (error: any) {
-      console.error("Erro ao reanalisar lead:", error);
-      
-      let errorMsg = error?.message || "Não foi possível reanalisar o lead";
-      let errorPayload: any = null;
-      
-      const contextResponse = error?.context;
-      if (contextResponse instanceof Response) {
-        try {
-          const text = await contextResponse.clone().text();
-          errorPayload = text ? JSON.parse(text) : null;
-          errorMsg = errorPayload?.error_message || errorPayload?.details || errorPayload?.error || errorMsg;
-        } catch (e) {
-          console.error("Erro ao parsear resposta de erro da Edge Function:", e);
-        }
-      }
+    } catch (error: unknown) {
+      const normalizedError = error instanceof RefineClientError
+        ? error
+        : await normalizeRefineError(error, requestId);
+      const errorPayload = normalizedError.payload;
+      const errorMsg = errorPayload.safe_message;
+      setRefineError({ leadId, error: errorPayload });
 
       const isBalanceError = (errorPayload?.error_code === "AI_CREDITS_EXHAUSTED") ||
                              (errorPayload?.error_code === "AI_LIMIT_REACHED") ||
@@ -483,6 +462,14 @@ const LeadsSalvos = () => {
             {filteredLeads.length} lead{filteredLeads.length !== 1 ? "s" : ""} salvo{filteredLeads.length !== 1 ? "s" : ""}
           </p>
         </div>
+
+        {refineError && (
+          <RefineErrorPanel
+            error={refineError.error}
+            retrying={reanalyzingLeadId === refineError.leadId}
+            onRetry={() => handleReanalyze(refineError.leadId)}
+          />
+        )}
 
         {/* Lista de leads */}
         {loading ? (

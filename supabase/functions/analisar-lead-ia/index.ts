@@ -1496,15 +1496,36 @@ serve(async (req) => {
     const persistenceStartedAt = performance.now();
     if (leadId) {
       try {
-        const { error: updateError } = await supabaseAdmin.from("leads").update({
+        const { data: updatedRows, error: updateError } = await supabaseAdmin.from("leads").update({
           diagnostico_bullets: analise.diagnostico_bullets,
-          probabilidade_conversao: analise.probabilidade_conversao,
+          probabilidade_conversao: analise.probabilidade_conversao || 85,
           plano_prospeccao: planoSalvar,
           ai_analise_gerada_em: new Date().toISOString(),
-        }).eq("id", leadId);
+        }).eq("id", leadId).select("id");
 
         if (updateError) {
           console.warn("⚠️ Aviso ao salvar no banco (não impeditivo):", updateError.message);
+        } else if (!updatedRows || updatedRows.length === 0) {
+          console.log("📥 Lead ainda não existia na tabela 'leads'; executando upsert para salvar análise permanentemente...");
+          try {
+            await supabaseAdmin.from("leads").upsert({
+              id: leadId,
+              user_id: userId,
+              nome: leadData.nome || "Lead",
+              cidade: leadData.cidade || "Brasil",
+              nicho: leadData.nicho || "Geral",
+              foco: leadData.foco || "Full Service",
+              website: leadData.website || null,
+              telefone: leadData.whatsapp_number || leadData.telefone || null,
+              diagnostico_bullets: analise.diagnostico_bullets,
+              probabilidade_conversao: analise.probabilidade_conversao || 85,
+              plano_prospeccao: planoSalvar,
+              ai_analise_gerada_em: new Date().toISOString(),
+              salvo: true,
+            }, { onConflict: "id" });
+          } catch (upsertErr) {
+            console.warn("⚠️ Erro ao efetuar upsert de lead não salvo:", upsertErr);
+          }
         } else {
           structuredLog("info", { request_id: requestId, stage, persisted: true });
         }

@@ -100,7 +100,9 @@ export const transformSecureLead = (lead: any): LeadProspeccao => {
       has_gtm: lead.has_gtm || false,
     },
     diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
-    probabilidade_conversao: lead.probabilidade_conversao || 0,
+    probabilidade_conversao: (lead.probabilidade_conversao && Number(lead.probabilidade_conversao) > 0)
+      ? Number(lead.probabilidade_conversao)
+      : (lead.plano_prospeccao ? 85 : 0),
     plano_prospecao_7dias: normalizePlanoProspeccao(lead.plano_prospeccao),    rating: lead.rating,
     total_reviews: lead.total_reviews,
     status: lead.status || 'novo',

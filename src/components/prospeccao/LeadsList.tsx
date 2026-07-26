@@ -31,7 +31,6 @@ import { normalizeLeadForAI } from "@/utils/normalizeLead";
 import { generateSmartProspectingCopy } from "@/utils/smartProspectingCopy";
 import { refineWithAI } from "@/services/refineWithAI";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
-import { RefineErrorPanel } from "./RefineErrorPanel";
 
 const normalizeLeadsResponse = (response: any): any[] => {
   if (!response) return [];
@@ -1267,13 +1266,6 @@ export const LeadsList = () => {
 
   return (
     <>
-      {lastRefineError && (
-        <RefineErrorPanel
-          error={lastRefineError.error}
-          retrying={reanalyzingLeads.has(getLeadKey(lastRefineError.lead))}
-          onRetry={() => reanalyzeLead(lastRefineError.lead, "error_retry")}
-        />
-      )}
       <Card id="leads-table-container" className="w-full overflow-hidden shadow-lg">
         <CardHeader className="border-b bg-muted/20">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

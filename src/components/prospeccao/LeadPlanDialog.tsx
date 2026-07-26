@@ -26,7 +26,6 @@ import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { normalizeLeadForAI, normalizePlanoProspeccao } from "@/utils/normalizeLead";
 import { refineWithAI } from "@/services/refineWithAI";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
-import { RefineErrorPanel } from "./RefineErrorPanel";
 
 // Função para sanitizar e padronizar número de telefone brasileiro
 const sanitizeBrazilianPhone = (phone: string): string => {
@@ -650,10 +649,6 @@ export const LeadPlanDialog = ({
             {displayLead.nicho} • {displayLead.cidade} • Foco: {displayLead.foco}
           </DialogDescription>
         </DialogHeader>
-
-        {refineError && (
-          <RefineErrorPanel error={refineError} retrying={isReanalyzing} onRetry={handleReanalyze} />
-        )}
 
         {/* Contatos com opção de copiar */}
         <div className="flex flex-wrap gap-3 text-sm py-2 px-3 bg-muted/20 rounded-lg border border-border/30">

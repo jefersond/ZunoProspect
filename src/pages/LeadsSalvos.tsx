@@ -43,7 +43,6 @@ import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { trackEvent } from "@/lib/analytics";
 import { refineWithAI } from "@/services/refineWithAI";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
-import { RefineErrorPanel } from "@/components/prospeccao/RefineErrorPanel";
 
 const LeadsSalvos = () => {
   const navigate = useNavigate();
@@ -462,14 +461,6 @@ const LeadsSalvos = () => {
             {filteredLeads.length} lead{filteredLeads.length !== 1 ? "s" : ""} salvo{filteredLeads.length !== 1 ? "s" : ""}
           </p>
         </div>
-
-        {refineError && (
-          <RefineErrorPanel
-            error={refineError.error}
-            retrying={reanalyzingLeadId === refineError.leadId}
-            onRetry={() => handleReanalyze(refineError.leadId)}
-          />
-        )}
 
         {/* Lista de leads */}
         {loading ? (

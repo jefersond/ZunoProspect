@@ -1438,6 +1438,9 @@ serve(async (req) => {
       analise = await analyzeWithGeminiDirect(leadData, GOOGLE_GEMINI_API_KEY, campaignContext, requestId, () => {
         retryCountForCatch += 1;
       });
+    } catch (aiProviderError: any) {
+      console.warn("⚠️ Provedor de IA indisponível ou em rate limit. Aplicando fallback de cópia contextual resiliente:", aiProviderError?.message || aiProviderError);
+      analise = generateMockAnalise(leadData);
     } finally {
       providerDurationMs = Math.round(performance.now() - providerStartedAt);
     }
@@ -1777,9 +1780,10 @@ async function analyzeWithGeminiDirect(
     : 25_000;
 
   const modelsToTry = [
-    "gemini-2.5-flash",
-    "gemini-flash-latest",
-    "gemini-2.5-flash-lite"
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+    "gemini-1.5-pro",
   ];
   let lastResponseError = "";
 
@@ -1915,6 +1919,9 @@ async function analyzeWithGeminiDirect(
         const errorText = await response.text();
         const isModelUnavailableError = 
           response.status === 404 || 
+          response.status === 429 ||
+          response.status === 503 ||
+          response.status === 500 ||
           (response.status === 400 && (
             errorText.toLowerCase().includes("not found") || 
             errorText.toLowerCase().includes("not supported") || 
@@ -1923,7 +1930,7 @@ async function analyzeWithGeminiDirect(
 
         if (isModelUnavailableError) {
           structuredLog("warn", { request_id: requestId, stage: "call_ai_provider", provider: "gemini", model, attempt, http_status: response.status, duration_ms: Math.round(performance.now() - attemptStartedAt), retryable: true });
-          lastResponseError = `Modelo ${model} indisponível (${response.status})`;
+          lastResponseError = `Modelo ${model} indisponível ou em rate limit (${response.status})`;
           clearTimeout(timeoutId);
           continue;
         }

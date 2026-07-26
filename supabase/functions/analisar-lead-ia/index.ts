@@ -1521,10 +1521,6 @@ serve(async (req) => {
         probabilidade_conversao: analise.probabilidade_conversao,
         plano_prospeccao: planoSalvar, // Salva o objeto JSON estruturado completo de metadados
         ai_analise_gerada_em: new Date().toISOString(),
-        ai_used_fallback: qualityResult.fallbackUsed,
-        ai_fallback_reason: qualityResult.fallbackUsed
-          ? (qualityResult.missingFields.join(", ") || null)
-          : null,
       }).eq("id", leadId);
 
       if (updateError) {

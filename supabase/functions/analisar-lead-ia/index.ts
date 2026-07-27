@@ -204,7 +204,12 @@ function normalizeLeadForAI(lead: any, searchContext: any = {}): LeadData {
     nicho: nicho ? String(nicho).trim() : "Não informado",
     cidade: city ? String(city).trim() : "Não informada",
     website: website ? String(website).trim() : null,
-    foco: getSafeFocusLabel(lead.foco || lead.focus || searchContext.focus || "Full Service"),
+    // Mantido bruto de propósito (sem getSafeFocusLabel aqui): isZunoInternalProspectingFocus,
+    // getFocusBehavior e a seleção de prompt do Gemini precisam do valor real de zuno_internal_prospecting
+    // para acionar o conteúdo/checagens específicas desse foco. A versão segura para exibição
+    // (getSafeFocusLabel) já é aplicada no ponto de uso, ao inserir o foco em textos finais
+    // (replaceLeadPlaceholders/replacePlaceholders e nos bullets de diagnóstico).
+    foco: lead.foco || lead.focus || searchContext.focus || "Full Service",
     whatsapp_on_site: !!has_whatsapp_on_site,
     whatsapp_number: phone ? String(phone).trim() : null,
     email: lead.email || null,

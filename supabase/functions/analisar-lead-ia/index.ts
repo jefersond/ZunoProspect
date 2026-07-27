@@ -4098,10 +4098,14 @@ function generateZunoInternalMockAnalise(lead: LeadData): AnaliseResult {
 }
 
 function generateMockAnalise(lead: LeadData): AnaliseResult {
-  if (isZunoInternalProspectingFocus(lead.foco)) {
-    return generateZunoInternalMockAnalise(lead);
-  }
-
+  // Antes, foco zuno_internal_prospecting usava generateZunoInternalMockAnalise: um gerador
+  // separado com texto 100% fixo por dia (só o nome da empresa varia), sem nenhuma leitura dos
+  // sinais reais do lead. buildStrategicDiagnosisBullets/buildFallbackProspectingPlan (usados
+  // por todos os outros focos) já têm um branch próprio para esse foco em ambas as funções,
+  // e variam pelo menos com base em site/Instagram/contato/rastreamento presentes ou não —
+  // por isso agora seguem o mesmo caminho unificado, entregando um fallback mais variado e
+  // consistente com os demais focos. generateZunoInternalMockAnalise continua existindo como
+  // rede de segurança para quando a resposta real do Gemini contém disclosure proibido.
   const temMarketing = lead.has_meta_pixel || lead.has_gtag || lead.has_gtm;
   const temContato = !!(lead.whatsapp_number || lead.whatsapp_on_site || lead.telefone || lead.email || lead.instagram_url);
 

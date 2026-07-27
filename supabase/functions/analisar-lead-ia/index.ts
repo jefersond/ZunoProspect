@@ -1710,6 +1710,15 @@ serve(async (req) => {
             retryable: appError.retryable,
             retry_count: retryCountForCatch,
             deducted_credit: false,
+            // Diagnostico interno temporario: mensagem/stack brutos do erro, nunca expostos
+            // ao usuario (fora de toSafeErrorResponse), apenas para localizar a causa raiz
+            // de falhas ainda nao mapeadas em normalizeAppError.
+            debug_raw_message: (error instanceof Error ? error.message : String(error))
+              .replace(/AIzaSy[A-Za-z0-9_-]{35}/g, "AIzaSy[SECRET_REDACTED]")
+              .slice(0, 1000),
+            debug_raw_stack: error instanceof Error && error.stack
+              ? error.stack.replace(/AIzaSy[A-Za-z0-9_-]{35}/g, "AIzaSy[SECRET_REDACTED]").slice(0, 1500)
+              : null,
           },
           ipAddress: req.headers.get("x-forwarded-for"),
           userAgent: req.headers.get("user-agent"),

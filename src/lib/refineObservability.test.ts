@@ -6,6 +6,7 @@ import {
   classifyRefineError,
   createPublicErrorCode,
   createRefineRequestId,
+  formatRefineConsoleMessage,
   getRefineDisplayMessage,
   maskEmail,
   normalizeRefineError,
@@ -136,6 +137,17 @@ describe("refine observability", () => {
       app_version: "6fa7943",
     });
     expect(sanitizeText("x".repeat(1000), 20)).toContain("truncated");
+  });
+
+  it("does not print the technical event object in the production console", () => {
+    const message = formatRefineConsoleMessage("error", {
+      request_id: "private-request",
+      internal_code: "REFINE_PROVIDER_RATE_LIMITED",
+      raw_event: { provider: "gemini" },
+    }, true);
+    expect(message).toBe("Refinamento indisponível temporariamente.");
+    expect(message).not.toContain("private-request");
+    expect(message).not.toContain("gemini");
   });
 
   it("removes the correlation id from the public message", () => {

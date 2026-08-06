@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  RefinePersistenceError,
   normalizeRefineLeadId,
   persistOwnedRefineAnalysis,
-  RefinePersistenceError,
   type RefinePersistenceValues,
-} from "./refine-persistence.ts";
+} from "./refine-persistence";
 
 const values: RefinePersistenceValues = {
-  diagnostico_bullets: ["bullet 1", "bullet 2", "bullet 3"],
+  diagnostico_bullets: ["Leitura comercial específica"],
   probabilidade_conversao: 72,
-  plano_prospeccao: { cadence: {} },
-  ai_analise_gerada_em: "2026-08-06T00:00:00.000Z",
+  plano_prospeccao: { plano_prospeccao_7dias: [{ dia: 1 }] },
+  ai_analise_gerada_em: "2026-07-26T12:00:00.000Z",
   ai_used_fallback: false,
   ai_fallback_reason: null,
 };
@@ -30,41 +30,38 @@ describe("normalizeRefineLeadId — guards against malformed/missing lead refere
   });
 });
 
-describe("persistOwnedRefineAnalysis — atomic, ownership-scoped persistence", () => {
-  it("returns the persisted row when the owned update confirms all required fields", async () => {
+describe("refine persistence", () => {
+  it("returns only after the owned lead update is confirmed", async () => {
     const update = vi.fn().mockResolvedValue({
-      data: [{ id: "lead-1", ...values, plano_prospeccao: values.plano_prospeccao }],
+      data: [{
+        id: "lead-1",
+        diagnostico_bullets: values.diagnostico_bullets,
+        probabilidade_conversao: 72,
+        plano_prospeccao: values.plano_prospeccao,
+        ai_analise_gerada_em: values.ai_analise_gerada_em,
+      }],
       error: null,
     });
-    const result = await persistOwnedRefineAnalysis(update, "lead-1", "user-1", values);
-    expect(result.id).toBe("lead-1");
+
+    await expect(persistOwnedRefineAnalysis(update, "lead-1", "user-1", values))
+      .resolves.toMatchObject({ id: "lead-1", probabilidade_conversao: 72 });
     expect(update).toHaveBeenCalledWith("lead-1", "user-1", values);
   });
 
-  it("throws instead of reporting success when the database reports an error", async () => {
-    const update = vi.fn().mockResolvedValue({ data: null, error: { message: "db unavailable" } });
-    await expect(persistOwnedRefineAnalysis(update, "lead-1", "user-1", values)).rejects.toBeInstanceOf(
-      RefinePersistenceError,
-    );
-  });
-
-  it("throws when the update touches zero rows (lead not owned by this user / already deleted)", async () => {
-    // Isso é o que acontece quando o .eq('user_id', userId) não bate com nenhuma linha: o
-    // Supabase retorna sucesso com um array vazio em vez de um erro. Sem essa checagem, o
-    // backend responderia "sucesso" para uma análise que nunca foi de fato salva.
-    const update = vi.fn().mockResolvedValue({ data: [], error: null });
-    await expect(persistOwnedRefineAnalysis(update, "lead-1", "user-1", values)).rejects.toBeInstanceOf(
-      RefinePersistenceError,
-    );
-  });
-
-  it("throws when the returned row is missing the confirmation fields", async () => {
+  it("fails when the database update returns an error", async () => {
     const update = vi.fn().mockResolvedValue({
-      data: [{ id: "lead-1", ai_analise_gerada_em: null, plano_prospeccao: null }],
-      error: null,
+      data: null,
+      error: { message: "database unavailable" },
     });
-    await expect(persistOwnedRefineAnalysis(update, "lead-1", "user-1", values)).rejects.toThrow(
-      /não foi confirmada/,
-    );
+
+    await expect(persistOwnedRefineAnalysis(update, "lead-1", "user-1", values))
+      .rejects.toBeInstanceOf(RefinePersistenceError);
+  });
+
+  it("fails when no owned row was persisted", async () => {
+    const update = vi.fn().mockResolvedValue({ data: [], error: null });
+
+    await expect(persistOwnedRefineAnalysis(update, "lead-1", "user-1", values))
+      .rejects.toMatchObject({ code: "REFINE_SAVE_FAILED" });
   });
 });

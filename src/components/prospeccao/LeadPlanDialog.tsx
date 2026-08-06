@@ -9,6 +9,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { LeadAnalysis } from "./LeadAnalysis";
+import { RefineErrorPanel } from "./RefineErrorPanel";
 import { CopyableField } from "./CopyableField";
 import { TemplateSelector } from "@/components/templates/TemplateSelector";
 import { StatusSelector, PIPELINE_STATUSES } from "@/components/pipeline/StatusSelector";
@@ -656,6 +657,8 @@ export const LeadPlanDialog = ({
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
           ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
+          : errorPayload.category === "rate_limit_error"
+          ? errorMsg
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
         variant: "destructive",
       });
@@ -788,6 +791,13 @@ export const LeadPlanDialog = ({
           </TabsList>
 
           <TabsContent value="analise">
+            {refineError && (
+              <RefineErrorPanel
+                error={refineError}
+                onRetry={handleReanalyze}
+                retrying={isReanalyzing}
+              />
+            )}
             {isLoadingAnalysis ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                 <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
@@ -851,7 +861,7 @@ export const LeadPlanDialog = ({
                 probabilidade={displayLead.probabilidade_conversao || 85}
                 plano={normalizePlanoProspeccao(displayLead.plano_prospecao_7dias && displayLead.plano_prospecao_7dias.length > 0 ? displayLead.plano_prospecao_7dias : (displayLead as any).plano_prospeccao)}
                 geradoEm={displayLead.ai_analise_gerada_em}
-                onReanalyze={handleReanalyze}
+                onReanalyze={refineError ? undefined : handleReanalyze}
                 isReanalyzing={isReanalyzing}
                 canAnalyzeAI={canAnalyzeLead}
               />

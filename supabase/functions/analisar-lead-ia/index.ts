@@ -205,7 +205,12 @@ function normalizeLeadForAI(lead: any, searchContext: any = {}): LeadData {
     nicho: nicho ? String(nicho).trim() : "Não informado",
     cidade: city ? String(city).trim() : "Não informada",
     website: website ? String(website).trim() : null,
-    foco: getSafeFocusLabel(lead.foco || lead.focus || searchContext.focus || "Full Service"),
+    // Mantido bruto de propósito (sem getSafeFocusLabel aqui): isZunoInternalProspectingFocus,
+    // getFocusBehavior e a seleção de prompt do Gemini precisam do valor real de zuno_internal_prospecting
+    // para acionar o conteúdo/checagens específicas desse foco. A versão segura para exibição
+    // (getSafeFocusLabel) já é aplicada no ponto de uso, ao inserir o foco em textos finais
+    // (replaceLeadPlaceholders/replacePlaceholders e nos bullets de diagnóstico).
+    foco: lead.foco || lead.focus || searchContext.focus || "Full Service",
     whatsapp_on_site: !!has_whatsapp_on_site,
     whatsapp_number: phone ? String(phone).trim() : null,
     email: lead.email || null,
@@ -1317,7 +1322,7 @@ serve(async (req) => {
           httpStatus: 409,
         });
       }
-
+      
       const lead = decryptedLeads?.[0] || payloadLead;
       
       const rawLead = {
@@ -1786,12 +1791,12 @@ async function analyzeWithGeminiDirect(
 ): Promise<AnaliseResult> {
   const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp", "instagram"] as const;
   let canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
-
+  
   if (canaisDisponiveis.length === 0) {
     console.log("⚠️ Nenhum canal de contato encontrado. Usando canais selecionados como fallback consultivo:", canaisSelecionados);
     canaisDisponiveis = [...canaisSelecionados];
   }
-
+  
   const isUS = isUSLead(lead);
   const isZunoInternal = isZunoInternalProspectingFocus(lead.foco);
   const systemPrompt = isZunoInternal
@@ -1804,11 +1809,6 @@ async function analyzeWithGeminiDirect(
     ? `${systemPrompt}\n\n${userPrompt}`
     : `${systemPrompt}\n\n${userPrompt}\n\n${buildProspectingQualityContract()}`;
 
-  // Cada tentativa tem seu próprio timeout, mas todas compartilham um orçamento total
-  // (REFINE_PROVIDER_TOTAL_BUDGET_MS) para que o pior caso da cascata nunca ultrapasse o
-  // timeout do cliente. Falhas transitórias (429/5xx/408) respeitam o header Retry-After
-  // do provedor com backoff exponencial + jitter (computeProviderRetryDelay) e só esperam
-  // se ainda sobrar orçamento suficiente para uma tentativa completa (hasProviderRetryBudget).
   const configuredTimeout = Number(Deno.env.get("REFINE_AI_PROVIDER_TIMEOUT_MS") || "20000");
   const PER_ATTEMPT_TIMEOUT_MS = Number.isFinite(configuredTimeout)
     ? Math.min(25_000, Math.max(5_000, configuredTimeout))
@@ -2015,7 +2015,7 @@ async function analyzeWithGeminiDirect(
       }
 
       const data = await response.json();
-
+      
       const candidate = data.candidates?.[0];
       if (!candidate?.content?.parts) {
         console.warn(`⚠️ Resposta do modelo ${model} não continha partes. Tentando próximo modelo...`);
@@ -4063,10 +4063,14 @@ function generateZunoInternalMockAnalise(lead: LeadData): AnaliseResult {
 }
 
 function generateMockAnalise(lead: LeadData): AnaliseResult {
-  if (isZunoInternalProspectingFocus(lead.foco)) {
-    return generateZunoInternalMockAnalise(lead);
-  }
-
+  // Antes, foco zuno_internal_prospecting usava generateZunoInternalMockAnalise: um gerador
+  // separado com texto 100% fixo por dia (só o nome da empresa varia), sem nenhuma leitura dos
+  // sinais reais do lead. buildStrategicDiagnosisBullets/buildFallbackProspectingPlan (usados
+  // por todos os outros focos) já têm um branch próprio para esse foco em ambas as funções,
+  // e variam pelo menos com base em site/Instagram/contato/rastreamento presentes ou não —
+  // por isso agora seguem o mesmo caminho unificado, entregando um fallback mais variado e
+  // consistente com os demais focos. generateZunoInternalMockAnalise continua existindo como
+  // rede de segurança para quando a resposta real do Gemini contém disclosure proibido.
   const temMarketing = lead.has_meta_pixel || lead.has_gtag || lead.has_gtm;
   const temContato = !!(lead.whatsapp_number || lead.whatsapp_on_site || lead.telefone || lead.email || lead.instagram_url);
 

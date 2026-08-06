@@ -49,6 +49,8 @@ export interface RefineErrorPayload {
   retryable: boolean;
   error_code?: RefineInternalCode | string;
   error_message?: string;
+  retry_after_seconds?: number;
+  credit_consumed?: boolean;
 }
 
 export interface RefineProblemReport {
@@ -260,22 +262,38 @@ export async function normalizeRefineError(error: unknown, fallbackRequestId: st
     retryable: typeof parsed.retryable === "boolean" ? parsed.retryable : classified.retryable,
     error_code: rawCode || classified.internalCode,
     error_message: safeMessage,
+    retry_after_seconds: typeof parsed.retry_after_seconds === "number"
+      ? Math.max(1, Math.min(60, Math.ceil(parsed.retry_after_seconds)))
+      : undefined,
+    credit_consumed: parsed.credit_consumed === true,
   }, status, retryConfirmedByBackend);
+}
+
+export function formatRefineConsoleMessage(
+  level: "debug" | "info" | "warn" | "error",
+  event: Record<string, unknown>,
+  production = import.meta.env.PROD,
+): string {
+  if (production) {
+    return level === "warn" || level === "error"
+      ? "Refinamento indisponível temporariamente."
+      : "Refinamento processado.";
+  }
+  return JSON.stringify(sanitizeForTelemetry({
+    timestamp: new Date().toISOString(),
+    level,
+    module: "refineWithAI",
+    feature: REFINE_FEATURE,
+    ...event,
+  }));
 }
 
 export function logRefineEvent(
   level: "debug" | "info" | "warn" | "error",
   event: Record<string, unknown>,
 ): void {
-  const payload = sanitizeForTelemetry({
-    timestamp: new Date().toISOString(),
-    level,
-    module: "refineWithAI",
-    feature: REFINE_FEATURE,
-    ...event,
-  });
   const method = level === "debug" ? "debug" : level;
-  console[method](JSON.stringify(payload));
+  console[method](formatRefineConsoleMessage(level, event));
 }
 
 export function buildSafeProblemReport(

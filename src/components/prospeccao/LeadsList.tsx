@@ -16,6 +16,7 @@ import { Loader2, ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare,
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
+import { RefineErrorPanel } from "./RefineErrorPanel";
 import { LeadEditDialog } from "./LeadEditDialog";
 import { Progress } from "@/components/ui/progress";
 import { exportLeadsToExcel } from "@/utils/exportToExcel";
@@ -1266,6 +1267,8 @@ export const LeadsList = () => {
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
           ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
+          : errorPayload.category === "rate_limit_error"
+          ? errorMsg
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
       });
     } finally {
@@ -1328,6 +1331,13 @@ export const LeadsList = () => {
 
   return (
     <>
+      {lastRefineError && (
+        <RefineErrorPanel
+          error={lastRefineError.error}
+          onRetry={() => reanalyzeLead(lastRefineError.lead, "error_panel_retry")}
+          retrying={reanalyzingLeads.has(getLeadKey(lastRefineError.lead))}
+        />
+      )}
       <Card id="leads-table-container" className="w-full overflow-hidden shadow-lg">
         <CardHeader className="border-b bg-muted/20">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

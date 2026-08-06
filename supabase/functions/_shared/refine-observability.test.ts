@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeAppError, toSafeErrorResponse } from "./refine-observability.ts";
+import { AppError, normalizeAppError, toSafeErrorResponse } from "./refine-observability.ts";
 
 const requestId = "8fd50939-bbef-4dc6-a337-aa8168cc25d1";
 
@@ -23,5 +23,23 @@ describe("refine provider error mapping", () => {
     const error = normalizeAppError(new Error("token=private unexpected"), requestId, "call_ai_provider");
     expect(error).toMatchObject({ internalCode: "REFINE_UNKNOWN_ERROR", retryable: false });
     expect(JSON.stringify(toSafeErrorResponse(error))).not.toContain("private");
+  });
+  it("exposes only safe cooldown and credit fields for rate limits", () => {
+    const response = toSafeErrorResponse(new AppError({
+      internalCode: "REFINE_PROVIDER_RATE_LIMITED",
+      category: "rate_limit_error",
+      stage: "call_ai_provider",
+      safeMessage: "O serviço de IA está temporariamente ocupado.",
+      requestId,
+      retryable: true,
+      httpStatus: 429,
+      metadata: { retry_after_seconds: 30, raw_provider_response: "secret" },
+    }));
+    expect(response).toMatchObject({
+      retry_after_seconds: 30,
+      credit_consumed: false,
+    });
+    expect(JSON.stringify(response)).not.toContain("raw_provider_response");
+    expect(JSON.stringify(response)).not.toContain("secret");
   });
 });

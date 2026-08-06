@@ -597,6 +597,12 @@ export const FOCUS_BEHAVIOR_MAP: Record<string, FocusBehavior> = {
   }
 };
 
+// Este m\u00f3dulo \u00e9 importado por index.ts, mas \u00e9 um arquivo TypeScript separado
+// (escopo pr\u00f3prio) \u2014 n\u00e3o tem acesso \u00e0s constantes de mesmo nome declaradas em
+// index.ts. Precisa da sua pr\u00f3pria c\u00f3pia local para getSafeFocusLabel funcionar.
+const ZUNO_INTERNAL_PROSPECTING_FOCUS = "zuno_internal_prospecting";
+const ZUNO_COMMERCIAL_FOCUS_LABEL = "Oportunidade comercial";
+
 export function normalizeDisclosureText(text: string): string {
   return text
     .toLowerCase()

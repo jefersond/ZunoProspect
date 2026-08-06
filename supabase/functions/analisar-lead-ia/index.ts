@@ -3,6 +3,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getFocusBehavior, replacePlaceholders } from "./focusBehavior.ts";
 import { AppError, createRequestId, normalizeAppError, structuredLog, toSafeErrorResponse } from "../_shared/refine-observability.ts";
 import { createCreditConsumer } from "../_shared/credit-policy.ts";
+import { normalizeRefineLeadId, persistOwnedRefineAnalysis } from "../_shared/refine-persistence.ts";
+import { buildProspectingQualityContract, preserveDiagnosisOrFallback, validateProspectingAnalysis } from "../_shared/refine-quality.ts";
+import { computeProviderRetryDelay, hasProviderRetryBudget, REFINE_PROVIDER_TOTAL_BUDGET_MS } from "../_shared/refine-retry-policy.ts";
+import { buildRefinePlanResponse } from "../_shared/refine-response-shape.ts";
 
 const globalCorsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -600,7 +604,10 @@ function buildStrategicDiagnosisBullets(lead?: LeadData): string[] {
 
 function normalizeCommercialDiagnosisForStorage(analise: AnaliseResult, lead?: LeadData): AnaliseResult {
   analise.data_signals = analise.data_signals?.length ? analise.data_signals : buildLeadDataSignals(lead);
-  analise.diagnostico_bullets = buildStrategicDiagnosisBullets(lead);
+  analise.diagnostico_bullets = preserveDiagnosisOrFallback(
+    analise,
+    buildStrategicDiagnosisBullets(lead),
+  );
   return analise;
 }
 
@@ -1182,7 +1189,19 @@ serve(async (req) => {
     const context = requestData.context && typeof requestData.context === "object"
       ? requestData.context
       : {};
-    const leadId = requestData.leadId || requestData.lead_id || payloadLead.id;
+    const rawLeadId = requestData.leadId || requestData.lead_id || payloadLead.id;
+    const leadId = normalizeRefineLeadId(rawLeadId);
+    if (!leadId) {
+      throw new AppError({
+        internalCode: "REFINE_LEAD_REFERENCE_INVALID",
+        category: "validation_error",
+        stage,
+        safeMessage: "O lead ainda não está pronto para refinamento. Atualize a lista e tente novamente.",
+        requestId,
+        retryable: true,
+        httpStatus: 409,
+      });
+    }
     // Use authenticated user ID, ignore any user_id from request body for security
     const userId = authenticatedUserId;
 
@@ -1276,13 +1295,29 @@ serve(async (req) => {
 
       if (!decryptedLeads?.length) {
         try {
-          const { data: directLead } = await supabaseAdmin.from("leads").select("*").eq("id", leadId).maybeSingle();
+          const { data: directLead } = await supabaseAdmin
+            .from("leads")
+            .select("*")
+            .eq("id", leadId)
+            .eq("user_id", userId)
+            .maybeSingle();
           if (directLead) decryptedLeads = [directLead];
         } catch (dErr) {
           console.warn("⚠️ Erro na busca direta de lead por ID:", dErr);
         }
       }
-      
+      if (!decryptedLeads?.length) {
+        throw new AppError({
+          internalCode: "REFINE_LEAD_NOT_FOUND",
+          category: "validation_error",
+          stage: "load_owned_lead",
+          safeMessage: "O lead não foi encontrado na sua conta. Atualize a lista e tente novamente.",
+          requestId,
+          retryable: true,
+          httpStatus: 409,
+        });
+      }
+
       const lead = decryptedLeads?.[0] || payloadLead;
       
       const rawLead = {
@@ -1416,18 +1451,37 @@ serve(async (req) => {
           retryCountForCatch += 1;
         });
       } else {
-        console.warn("⚠️ API Key do Gemini ausente; utilizando gerador de cópia contextual resiliente.");
-        analise = generateMockAnalise(leadData);
+        throw new AppError({
+          internalCode: "REFINE_PROVIDER_NOT_CONFIGURED",
+          category: "configuration_error",
+          stage,
+          safeMessage: "O serviço de IA está temporariamente indisponível.",
+          requestId,
+          retryable: false,
+          httpStatus: 503,
+          provider: "gemini",
+        });
       }
-    } catch (aiProviderError: any) {
-      console.warn("⚠️ Ocorreu uma oscilação no provedor de IA. Aplicando fallback de cópia contextual resiliente:", aiProviderError?.message || aiProviderError);
-      analise = generateMockAnalise(leadData);
     } finally {
       providerDurationMs = Math.round(performance.now() - providerStartedAt);
     }
 
     stage = "validate_ai_response";
-    analise = sanitizeProspectingPlan(normalizePremiumCopyForStorage(analise), leadData);
+    analise = sanitizeProspectingPlan(analise, leadData);
+    const finalQualityIssues = validateProspectingAnalysis(analise);
+    if (finalQualityIssues.length > 0) {
+      throw new AppError({
+        internalCode: "REFINE_PROVIDER_INVALID_RESPONSE",
+        category: "unexpected_response",
+        stage,
+        safeMessage: "O serviço de IA não conseguiu concluir uma análise de qualidade agora.",
+        requestId,
+        retryable: true,
+        httpStatus: 502,
+        provider: "gemini",
+        metadata: { quality_issues: finalQualityIssues },
+      });
+    }
 
     const qualityResult = applyQualityFallbackIfNeeded(analise, leadData);
     analise = normalizeCommercialDiagnosisForStorage(qualityResult.analise, leadData);
@@ -1443,12 +1497,11 @@ serve(async (req) => {
       qualityResult.missingFields.push("zuno_disclosure_proibido");
     }
 
-    const planoSalvar = {
-      lead_id: leadId || null,
-      generated_at: new Date().toISOString(),
-      prompt_version: "v2_contextual",
-      model: "gemini-direct",
-      input_context: {
+    const planoSalvar = buildRefinePlanResponse({
+      leadId,
+      requestId,
+      analise,
+      inputContext: {
         empresa: leadData.nome,
         nicho: leadData.nicho,
         cidade: leadData.cidade,
@@ -1459,79 +1512,63 @@ serve(async (req) => {
         dor_principal: campaignContext.dor_principal,
         objetivo: campaignContext.objetivo,
         canal: campaignContext.canal || null,
-        etapa: campaignContext.etapa || null
+        etapa: campaignContext.etapa || null,
       },
-      diagnostico: {
-        fit: analise.fit_level || "medio",
-        dor_provavel: analise.probable_pain || analise.pain_point || "Não identificada",
-        urgencia: analise.fit_level === "alto" ? "alta" : "media",
-        oportunidade: analise.commercial_opportunity || "Não detalhada",
-        justificativa: analise.why_good_lead || (analise.diagnostico_bullets || []).join(" ")
-      },
-      copies: {
-        dia_1: analise.plano_prospeccao_7dias[0]?.mensagem || "",
-        dia_2: analise.plano_prospeccao_7dias[1]?.mensagem || "",
-        dia_3: analise.plano_prospeccao_7dias[2]?.mensagem || "",
-        dia_4: analise.plano_prospeccao_7dias[3]?.mensagem || "",
-        dia_5: analise.plano_prospeccao_7dias[4]?.mensagem || "",
-        dia_6: analise.plano_prospeccao_7dias[5]?.mensagem || "",
-        dia_7: analise.plano_prospeccao_7dias[6]?.mensagem || ""
-      },
-      abordagens_por_canal: {
-        whatsapp: analise.messages?.whatsapp_primary || analise.whatsapp_message || "",
-        instagram: analise.messages?.instagram || analise.instagram_message || "",
-        email: analise.messages?.email_body || analise.email_body || ""
-      },
-      plano_prospeccao_7dias: analise.plano_prospeccao_7dias,
-      debug: {
-        response_size_bytes: JSON.stringify(analise).length,
-        request_id: requestId,
-        fallback_used: qualityResult.fallbackUsed,
-        cache_used: false,
-        missing_fields: qualityResult.missingFields
-      }
-    };
+      fallbackUsed: qualityResult.fallbackUsed,
+      missingFields: qualityResult.missingFields,
+    });
 
     stage = "persist_result";
     const persistenceStartedAt = performance.now();
-    if (leadId) {
-      try {
-        const { data: updatedRows, error: updateError } = await supabaseAdmin.from("leads").update({
+    if (!leadId) {
+      throw new AppError({
+        internalCode: "REFINE_INPUT_INVALID",
+        category: "validation_error",
+        stage,
+        safeMessage: "Não foi possível identificar o lead para salvar a análise.",
+        requestId,
+        retryable: false,
+        httpStatus: 400,
+      });
+    }
+    const persistedAt = new Date().toISOString();
+    try {
+      await persistOwnedRefineAnalysis(
+        async (ownedLeadId, ownedUserId, values) => {
+          const { data, error } = await supabaseAdmin
+            .from("leads")
+            .update(values)
+            .eq("id", ownedLeadId)
+            .eq("user_id", ownedUserId)
+            .select("id, diagnostico_bullets, probabilidade_conversao, plano_prospeccao, ai_analise_gerada_em");
+          return {
+            data: data as unknown as import("../_shared/refine-persistence.ts").PersistedRefineRow[] | null,
+            error: error ? { message: error.message } : null,
+          };
+        },
+        String(leadId),
+        userId,
+        {
           diagnostico_bullets: analise.diagnostico_bullets,
           probabilidade_conversao: analise.probabilidade_conversao || 85,
-          plano_prospeccao: planoSalvar,
-          ai_analise_gerada_em: new Date().toISOString(),
-        }).eq("id", leadId).select("id");
-
-        if (updateError) {
-          console.warn("⚠️ Aviso ao salvar no banco (não impeditivo):", updateError.message);
-        } else if (!updatedRows || updatedRows.length === 0) {
-          console.log("📥 Lead ainda não existia na tabela 'leads'; executando upsert para salvar análise permanentemente...");
-          try {
-            await supabaseAdmin.from("leads").upsert({
-              id: leadId,
-              user_id: userId,
-              nome: leadData.nome || "Lead",
-              cidade: leadData.cidade || "Brasil",
-              nicho: leadData.nicho || "Geral",
-              foco: leadData.foco || "Full Service",
-              website: leadData.website || null,
-              telefone: leadData.whatsapp_number || leadData.telefone || null,
-              diagnostico_bullets: analise.diagnostico_bullets,
-              probabilidade_conversao: analise.probabilidade_conversao || 85,
-              plano_prospeccao: planoSalvar,
-              ai_analise_gerada_em: new Date().toISOString(),
-              salvo: Boolean(leadData.salvo),
-            }, { onConflict: "id" });
-          } catch (upsertErr) {
-            console.warn("⚠️ Erro ao efetuar upsert de lead não salvo:", upsertErr);
-          }
-        } else {
-          structuredLog("info", { request_id: requestId, stage, persisted: true });
-        }
-      } catch (saveErr) {
-        console.warn("⚠️ Exceção ao salvar no banco (não impeditiva):", saveErr);
-      }
+          plano_prospeccao: planoSalvar as unknown as Record<string, unknown>,
+          ai_analise_gerada_em: persistedAt,
+          ai_used_fallback: qualityResult.fallbackUsed,
+          ai_fallback_reason: qualityResult.fallbackUsed ? (qualityResult.missingFields.join(", ") || null) : null,
+        },
+      );
+      structuredLog("info", { request_id: requestId, stage, persisted: true });
+    } catch (saveError) {
+      throw new AppError({
+        internalCode: "REFINE_SAVE_FAILED",
+        category: "database_error",
+        stage,
+        safeMessage: "A análise foi gerada, mas não pôde ser salva. Seu crédito não foi consumido.",
+        requestId,
+        retryable: true,
+        httpStatus: 503,
+        cause: saveError,
+      });
     }
     persistenceDurationMs = Math.round(performance.now() - persistenceStartedAt);
 
@@ -1652,68 +1689,7 @@ serve(async (req) => {
       }
     }
 
-    // RETORNO DE SEGURANÇA RESILIENTE: NUNCA DEVOLVER HTTP 500 PARA O FRONTEND
-    console.warn("⚠️ Aplicando salvaguarda global de sucesso HTTP 200 com plano resiliente.");
-    try {
-      const fallbackAnalise = sanitizeProspectingPlan(
-        normalizePremiumCopyForStorage(generateMockAnalise(leadData || payloadLead || {})),
-        leadData || payloadLead || {}
-      );
-      
-      const qualityResult = applyQualityFallbackIfNeeded(fallbackAnalise, leadData || payloadLead || {});
-      const finalAnalise = normalizeCommercialDiagnosisForStorage(qualityResult.analise, leadData || payloadLead || {});
-
-      const planoSalvarFallback = {
-        lead_id: leadId || null,
-        generated_at: new Date().toISOString(),
-        prompt_version: "v2_contextual_fallback",
-        model: "resilient-fallback",
-        input_context: {
-          empresa: (leadData || payloadLead)?.nome || "Empresa",
-          nicho: (leadData || payloadLead)?.nicho || "Geral",
-          cidade: (leadData || payloadLead)?.cidade || "Brasil",
-        },
-        diagnostico: {
-          fit: finalAnalise.fit_level || "medio",
-          dor_provavel: finalAnalise.probable_pain || finalAnalise.pain_point || "Não identificada",
-          urgencia: "media",
-          oportunidade: finalAnalise.commercial_opportunity || "Não detalhada",
-          justificativa: (finalAnalise.diagnostico_bullets || []).join(" ")
-        },
-        copies: {
-          dia_1: finalAnalise.plano_prospeccao_7dias[0]?.mensagem || "",
-          dia_2: finalAnalise.plano_prospeccao_7dias[1]?.mensagem || "",
-          dia_3: finalAnalise.plano_prospeccao_7dias[2]?.mensagem || "",
-          dia_4: finalAnalise.plano_prospeccao_7dias[3]?.mensagem || "",
-          dia_5: finalAnalise.plano_prospeccao_7dias[4]?.mensagem || "",
-          dia_6: finalAnalise.plano_prospeccao_7dias[5]?.mensagem || "",
-          dia_7: finalAnalise.plano_prospeccao_7dias[6]?.mensagem || ""
-        },
-        abordagens_por_canal: {
-          whatsapp: finalAnalise.messages?.whatsapp_primary || finalAnalise.whatsapp_message || "",
-          instagram: finalAnalise.messages?.instagram || finalAnalise.instagram_message || "",
-          email: finalAnalise.messages?.email_body || finalAnalise.email_body || ""
-        },
-        plano_prospeccao_7dias: finalAnalise.plano_prospeccao_7dias,
-        debug: {
-          request_id: requestId,
-          fallback_used: true,
-          error_handled: appError.internalCode,
-        }
-      };
-
-      return jsonResponse({
-        ...planoSalvarFallback,
-        success: true,
-        request_id: requestId,
-        timing: { total_ms: durationMs, provider_ms: 0, persistence_ms: 0 },
-        used_fallback: true,
-        fallback_reason: "Salvaguarda de estabilidade ativada",
-      }, 200);
-    } catch (criticalErr) {
-      console.error("💥 Erro crítico no fallback final:", criticalErr);
-      return jsonResponse(toSafeErrorResponse(appError), 200);
-    }
+    return jsonResponse(toSafeErrorResponse(appError), appError.httpStatus);
   }
 });
 
@@ -1790,6 +1766,10 @@ function getInferredContext(foco: string, nicho: string, cidade: string) {
 // =============================================================================
 // GOOGLE GEMINI DIRETO (API KEY DO USUÁRIO) - MODELO PRINCIPAL
 // =============================================================================
+async function waitForProviderRetry(milliseconds: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 async function analyzeWithGeminiDirect(
   lead: LeadData,
   apiKey: string,
@@ -1806,12 +1786,12 @@ async function analyzeWithGeminiDirect(
 ): Promise<AnaliseResult> {
   const canaisSelecionados = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["email", "whatsapp", "instagram"] as const;
   let canaisDisponiveis = getAvailableChannels(lead, [...canaisSelecionados]);
-  
+
   if (canaisDisponiveis.length === 0) {
     console.log("⚠️ Nenhum canal de contato encontrado. Usando canais selecionados como fallback consultivo:", canaisSelecionados);
     canaisDisponiveis = [...canaisSelecionados];
   }
-  
+
   const isUS = isUSLead(lead);
   const isZunoInternal = isZunoInternalProspectingFocus(lead.foco);
   const systemPrompt = isZunoInternal
@@ -1820,36 +1800,37 @@ async function analyzeWithGeminiDirect(
   const userPrompt = isZunoInternal
     ? buildZunoInternalProspectingUserPrompt(lead, canaisDisponiveis)
     : buildEliteUserPrompt(lead, canaisDisponiveis, injectedCampaign, isUS);
+  const finalPrompt = isUS
+    ? `${systemPrompt}\n\n${userPrompt}`
+    : `${systemPrompt}\n\n${userPrompt}\n\n${buildProspectingQualityContract()}`;
 
-  // Cada modelo recebe seu próprio orçamento de tempo (timeout independente).
-  // Antes, um único AbortController de 90s era compartilhado entre os 3 modelos e suas
-  // retentativas (até 5 por modelo, com backoff de 3/6/12/24/48s). Isso fazia com que um
-  // rate limit (429) sustentado no primeiro modelo consumisse sozinho todo o orçamento de
-  // 90s, e a cascata de fallback para os próximos modelos nunca chegava a ser tentada de
-  // fato (o abort já havia disparado). Agora cada modelo tem seu próprio relógio, então um
-  // modelo com problema não impede que os próximos sejam tentados.
-  // Cada modelo recebe 25s para gerar o plano completo de 7 dias com Function Calling
+  // Cada tentativa tem seu próprio timeout, mas todas compartilham um orçamento total
+  // (REFINE_PROVIDER_TOTAL_BUDGET_MS) para que o pior caso da cascata nunca ultrapasse o
+  // timeout do cliente. Falhas transitórias (429/5xx/408) respeitam o header Retry-After
+  // do provedor com backoff exponencial + jitter (computeProviderRetryDelay) e só esperam
+  // se ainda sobrar orçamento suficiente para uma tentativa completa (hasProviderRetryBudget).
   const configuredTimeout = Number(Deno.env.get("REFINE_AI_PROVIDER_TIMEOUT_MS") || "20000");
-  const PER_MODEL_TIMEOUT_MS = Number.isFinite(configuredTimeout)
-    ? Math.min(45_000, Math.max(5_000, configuredTimeout))
+  const PER_ATTEMPT_TIMEOUT_MS = Number.isFinite(configuredTimeout)
+    ? Math.min(25_000, Math.max(5_000, configuredTimeout))
     : 20_000;
-
-  const modelsToTry = [
-    "gemini-2.5-pro",
-    "gemini-2.0-pro-exp-02-05",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-pro",
-    "gemini-1.5-flash",
-    "gemini-pro",
-  ];
+  const providerBudgetStartedAt = performance.now();
+  // gemini-2.5-flash-lite e gemini-flash-latest entram como tentativas adicionais dentro do
+  // MESMO orçamento total: dados de produção mostraram 429 sustentado em gemini-2.5-pro e
+  // gemini-2.5-flash sozinhos (100% das falhas recentes), então mais diversidade de modelo
+  // aumenta a chance de sucesso sem tornar o pior caso mais longo.
+  const attemptPlan = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
   let lastResponseError = "";
+  let lastStatus = 0;
+  let retryAfterSeconds = 30;
 
-  for (const [modelIndex, model] of modelsToTry.entries()) {
-    const attempt = modelIndex + 1;
+  for (const [attemptIndex, model] of attemptPlan.entries()) {
+    const attempt = attemptIndex + 1;
+    const remainingBudgetMs = REFINE_PROVIDER_TOTAL_BUDGET_MS - (performance.now() - providerBudgetStartedAt);
+    if (remainingBudgetMs < 5_000) break;
     if (attempt > 1) onRetry?.();
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), PER_MODEL_TIMEOUT_MS);
+    const attemptTimeoutMs = Math.min(PER_ATTEMPT_TIMEOUT_MS, remainingBudgetMs);
+    const timeoutId = setTimeout(() => controller.abort(), attemptTimeoutMs);
     const attemptStartedAt = performance.now();
     try {
       console.log(`🤖 Tentando analisar com o modelo Gemini recente: ${model}`);
@@ -1867,7 +1848,7 @@ async function analyzeWithGeminiDirect(
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [
-              { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }
+              { role: "user", parts: [{ text: finalPrompt }] }
             ],
             generationConfig: {
               temperature: 0.7,
@@ -1883,7 +1864,7 @@ async function analyzeWithGeminiDirect(
                     diagnostico_bullets: {
                       type: "array",
                       items: { type: "string" },
-                      description: "6-8 bullets de diagnóstico consultivo profundo"
+                      description: "Exatamente 3 ou 4 conclusoes comerciais sustentadas pelos dados"
                     },
                     probabilidade_conversao: {
                       type: "number",
@@ -1974,15 +1955,67 @@ async function analyzeWithGeminiDirect(
       );
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.warn(`⚠️ Modelo Gemini ${model} retornou HTTP ${response.status}: ${errorText.slice(0, 150)}. Avancando para o próximo modelo...`);
-        lastResponseError = `Modelo ${model} retornou ${response.status}`;
+        await response.text();
         clearTimeout(timeoutId);
+        lastStatus = response.status;
+        lastResponseError = `Modelo ${model} retornou ${response.status}`;
+        structuredLog("warn", {
+          request_id: requestId,
+          stage: "call_ai_provider",
+          provider: "gemini",
+          model,
+          attempt,
+          http_status: response.status,
+          duration_ms: Math.round(performance.now() - attemptStartedAt),
+        });
+
+        if (response.status === 401 || response.status === 403) {
+          throw new AppError({
+            internalCode: "REFINE_PROVIDER_AUTH_FAILED",
+            category: "configuration_error",
+            stage: "call_ai_provider",
+            safeMessage: "O serviço de IA está temporariamente indisponível.",
+            requestId,
+            retryable: false,
+            httpStatus: 503,
+            provider: "gemini",
+          });
+        }
+
+        const isRateLimit = response.status === 429;
+        const isTransient = isRateLimit || response.status === 408 || response.status >= 500;
+        if (!isTransient && response.status !== 404) {
+          throw new AppError({
+            internalCode: "REFINE_PROVIDER_REJECTED",
+            category: "provider_error",
+            stage: "call_ai_provider",
+            safeMessage: "O serviço de IA não conseguiu concluir esta análise.",
+            requestId,
+            retryable: false,
+            httpStatus: 502,
+            provider: "gemini",
+          });
+        }
+
+        if (isTransient) {
+          const retryDelay = computeProviderRetryDelay(
+            response.status,
+            attempt,
+            response.headers.get("retry-after"),
+          );
+          retryAfterSeconds = retryDelay.retryAfterSeconds;
+          const remainingAfterAttempt = REFINE_PROVIDER_TOTAL_BUDGET_MS - (performance.now() - providerBudgetStartedAt);
+          if (attempt < attemptPlan.length && hasProviderRetryBudget(remainingAfterAttempt, retryDelay.delayMs)) {
+            await waitForProviderRetry(retryDelay.delayMs);
+            continue;
+          }
+          break;
+        }
         continue;
       }
 
       const data = await response.json();
-      
+
       const candidate = data.candidates?.[0];
       if (!candidate?.content?.parts) {
         console.warn(`⚠️ Resposta do modelo ${model} não continha partes. Tentando próximo modelo...`);
@@ -1998,42 +2031,81 @@ async function analyzeWithGeminiDirect(
       }
 
       const analise: AnaliseResult = functionCallPart.functionCall.args;
-      
-      if (!analise.plano_prospeccao_7dias || analise.plano_prospeccao_7dias.length < 5) {
-        console.warn(`⚠️ Plano do modelo ${model} veio incompleto. Tentando próximo modelo...`);
+      const qualityIssues = validateProspectingAnalysis(analise);
+      if (qualityIssues.length > 0) {
+        lastResponseError = `Resposta sem o contrato de qualidade: ${qualityIssues.join(",")}`;
+        structuredLog("warn", {
+          request_id: requestId,
+          stage: "validate_ai_response",
+          provider: "gemini",
+          model,
+          attempt,
+          quality_issues: qualityIssues,
+        });
         clearTimeout(timeoutId);
         continue;
-      }
-      
-      while (analise.plano_prospeccao_7dias.length < 7) {
-        const lastDay = analise.plano_prospeccao_7dias[analise.plano_prospeccao_7dias.length - 1];
-        analise.plano_prospeccao_7dias.push({
-          dia: analise.plano_prospeccao_7dias.length + 1,
-          canal: lastDay.canal,
-          acao_sugerida: "Follow-up final",
-          mensagem: `Continuando nosso último contato, gostaria de entender melhor sua situação atual com ${lead.foco || "marketing digital"}.`,
-          objecao_provavel: "Não tenho interesse",
-          resposta_sugerida: "Sem problemas! Fico à disposição quando precisar.",
-          cta: "Posso ajudar de alguma forma?",
-        });
       }
 
       console.log(`✅ Análise gerada com sucesso via modelo recente: ${model}`);
       structuredLog("info", { request_id: requestId, stage: "call_ai_provider", provider: "gemini", model, attempt, http_status: response.status, duration_ms: Math.round(performance.now() - attemptStartedAt), succeeded: true });
       clearTimeout(timeoutId);
       return analise;
-    } catch (err: any) {
+    } catch (err: unknown) {
       clearTimeout(timeoutId);
-      console.warn(`⚠️ Exceção ao chamar modelo Gemini ${model}:`, err?.message || err);
-      lastResponseError = err?.name === 'AbortError'
-        ? `Modelo ${model} excedeu ${PER_MODEL_TIMEOUT_MS / 1000}s`
-        : (err?.message || String(err));
+      if (err instanceof AppError) throw err;
+      const isTimeout = err instanceof Error && err.name === "AbortError";
+      lastStatus = isTimeout ? 504 : lastStatus;
+      lastResponseError = isTimeout
+        ? `Modelo ${model} excedeu ${Math.round(attemptTimeoutMs / 1000)}s`
+        : (err instanceof Error ? err.message : String(err));
+      structuredLog("warn", {
+        request_id: requestId,
+        stage: "call_ai_provider",
+        provider: "gemini",
+        model,
+        attempt,
+        timed_out: isTimeout,
+        duration_ms: Math.round(performance.now() - attemptStartedAt),
+      });
       continue;
     }
   }
 
-  console.warn(`⚠️ Todos os modelos do Gemini falharam ou expiraram (${lastResponseError}). Retornando plano de prospecção resiliente de qualidade.`);
-  return generateMockAnalise(lead);
+  if (lastStatus === 429) {
+    throw new AppError({
+      internalCode: "REFINE_PROVIDER_RATE_LIMITED",
+      category: "rate_limit_error",
+      stage: "call_ai_provider",
+      safeMessage: "O serviço de IA está temporariamente ocupado. Aguarde alguns instantes e tente novamente.",
+      requestId,
+      retryable: true,
+      httpStatus: 429,
+      provider: "gemini",
+      metadata: { retry_after_seconds: retryAfterSeconds },
+    });
+  }
+  if (lastStatus === 504) {
+    throw new AppError({
+      internalCode: "REFINE_PROVIDER_TIMEOUT",
+      category: "timeout_error",
+      stage: "call_ai_provider",
+      safeMessage: "O serviço de IA demorou para responder. Tente novamente em instantes.",
+      requestId,
+      retryable: true,
+      httpStatus: 504,
+      provider: "gemini",
+    });
+  }
+  throw new AppError({
+    internalCode: "REFINE_PROVIDER_UNAVAILABLE",
+    category: lastResponseError.includes("contrato de qualidade") ? "unexpected_response" : "provider_error",
+    stage: lastResponseError.includes("contrato de qualidade") ? "validate_ai_response" : "call_ai_provider",
+    safeMessage: "O serviço de IA não conseguiu concluir uma análise de qualidade agora.",
+    requestId,
+    retryable: true,
+    httpStatus: 503,
+    provider: "gemini",
+  });
 }
 
 // =============================================================================

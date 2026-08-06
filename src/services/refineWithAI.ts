@@ -8,7 +8,10 @@ import {
   normalizeRefineError,
 } from "@/lib/refineObservability";
 
-const CLIENT_TIMEOUT_MS = 110_000;
+// O backend orça no máximo ~45s para o provedor de IA (REFINE_PROVIDER_TOTAL_BUDGET_MS) mais
+// alguns segundos de scraping/persistência. 70s dá margem confortável sem deixar o usuário
+// esperando o dobro do pior caso real do servidor.
+const CLIENT_TIMEOUT_MS = 70_000;
 
 const wait = (milliseconds: number) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -19,23 +22,30 @@ async function invokeOnce<T>(
   accessToken: string,
   requestId: string,
 ): Promise<T> {
-  const invokePromise = supabase.functions.invoke("analisar-lead-ia", {
-    body: buildRefineRequestBody(body, requestId),
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "x-request-id": requestId,
-    },
-  });
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<never>((_resolve, reject) => {
-    timeoutId = setTimeout(() => reject(new Error("REFINE_CLIENT_TIMEOUT")), CLIENT_TIMEOUT_MS);
-  });
+  // Um AbortController real (em vez de Promise.race) garante que, ao estourar o timeout do
+  // cliente, a requisição HTTP em andamento é efetivamente cancelada — evitando que uma
+  // segunda tentativa (retry) rode em paralelo com uma primeira chamada ainda ativa no
+  // servidor, o que duplicaria a chamada de IA e o consumo de crédito para o mesmo clique.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
   try {
-    const result = await Promise.race([invokePromise, timeoutPromise]);
+    const result = await supabase.functions.invoke("analisar-lead-ia", {
+      body: buildRefineRequestBody(body, requestId),
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "x-request-id": requestId,
+      },
+      signal: controller.signal,
+    });
     if (result.error) throw result.error;
     return result.data as T;
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("REFINE_CLIENT_TIMEOUT");
+    }
+    throw error;
   } finally {
-    if (timeoutId) clearTimeout(timeoutId);
+    clearTimeout(timeoutId);
   }
 }
 

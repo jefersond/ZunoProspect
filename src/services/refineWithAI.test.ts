@@ -69,4 +69,35 @@ describe("refineWithAI retry policy", () => {
     });
     expect(invokeMock).toHaveBeenCalledTimes(1);
   });
+
+  it("aborts a stalled request on client timeout and never fires a duplicate AI call for it", async () => {
+    vi.useFakeTimers();
+    try {
+      invokeMock.mockImplementation(
+        (_name: string, options: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            options.signal?.addEventListener("abort", () => {
+              const abortError = new Error("The operation was aborted.");
+              abortError.name = "AbortError";
+              reject(abortError);
+            });
+          }),
+      );
+      const resultPromise = refineWithAI({ leadId: "lead-1" }, "test-token", requestId);
+      const assertion = expect(resultPromise).rejects.toMatchObject({
+        // Um timeout de cliente nunca é confirmado pelo backend, então não pode ser retentado
+        // automaticamente: isso evitaria uma segunda chamada de IA rodando em paralelo com a
+        // primeira, que pode ainda estar ativa no servidor.
+        retryConfirmedByBackend: false,
+        payload: { category: "timeout_error" },
+      });
+      await vi.advanceTimersByTimeAsync(70_000);
+      await assertion;
+      expect(invokeMock).toHaveBeenCalledTimes(1);
+      const [, options] = invokeMock.mock.calls[0] as [string, { signal?: AbortSignal }];
+      expect(options.signal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

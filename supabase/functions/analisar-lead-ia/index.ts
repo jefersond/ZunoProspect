@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getFocusBehavior, replacePlaceholders } from "./focusBehavior.ts";
-import { AppError, createRequestId, normalizeAppError, structuredLog, toSafeErrorResponse } from "../_shared/refine-observability.ts";
+import { AppError, createRequestId, normalizeAppError, sanitizeText, structuredLog, toSafeErrorResponse } from "../_shared/refine-observability.ts";
 import { createCreditConsumer } from "../_shared/credit-policy.ts";
 import { normalizeRefineLeadId, persistOwnedRefineAnalysis } from "../_shared/refine-persistence.ts";
 import { buildProspectingQualityContract, preserveDiagnosisOrFallback, validateProspectingAnalysis } from "../_shared/refine-quality.ts";
@@ -1685,6 +1685,7 @@ serve(async (req) => {
             retryable: appError.retryable,
             retry_count: retryCountForCatch,
             deducted_credit: false,
+            debug_metadata: appError.metadata,
           },
           ipAddress: req.headers.get("x-forwarded-for"),
           userAgent: req.headers.get("user-agent"),
@@ -1809,23 +1810,37 @@ async function analyzeWithGeminiDirect(
     ? `${systemPrompt}\n\n${userPrompt}`
     : `${systemPrompt}\n\n${userPrompt}\n\n${buildProspectingQualityContract()}`;
 
+  // DIAGNÓSTICO TEMPORÁRIO (remover após identificar a causa dos REFINE_PROVIDER_TIMEOUT em
+  // produção): todo attempt recente abortou por AbortController sem NENHUMA resposta do Gemini
+  // dentro de 20s, mesmo com curl direto (fora do Supabase) respondendo em <1.1s para o mesmo
+  // projeto/chave. Isso isola se é "lento" (responde se esperarmos mais) ou "nunca responde"
+  // (trava de verdade) especificamente no caminho Supabase Edge Runtime -> Gemini.
+  const DIAGNOSTIC_LONG_TIMEOUT = Deno.env.get("REFINE_DIAGNOSTIC_LONG_TIMEOUT") !== "0";
   const configuredTimeout = Number(Deno.env.get("REFINE_AI_PROVIDER_TIMEOUT_MS") || "20000");
-  const PER_ATTEMPT_TIMEOUT_MS = Number.isFinite(configuredTimeout)
-    ? Math.min(25_000, Math.max(5_000, configuredTimeout))
-    : 20_000;
+  const PER_ATTEMPT_TIMEOUT_MS = DIAGNOSTIC_LONG_TIMEOUT
+    ? 90_000
+    : (Number.isFinite(configuredTimeout) ? Math.min(25_000, Math.max(5_000, configuredTimeout)) : 20_000);
   const providerBudgetStartedAt = performance.now();
   // gemini-2.5-flash-lite e gemini-flash-latest entram como tentativas adicionais dentro do
   // MESMO orçamento total: dados de produção mostraram 429 sustentado em gemini-2.5-pro e
   // gemini-2.5-flash sozinhos (100% das falhas recentes), então mais diversidade de modelo
   // aumenta a chance de sucesso sem tornar o pior caso mais longo.
-  const attemptPlan = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
+  const attemptPlan = DIAGNOSTIC_LONG_TIMEOUT
+    ? ["gemini-2.5-pro"]
+    : ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
+  const effectiveTotalBudgetMs = DIAGNOSTIC_LONG_TIMEOUT
+    ? 95_000
+    : REFINE_PROVIDER_TOTAL_BUDGET_MS;
   let lastResponseError = "";
   let lastStatus = 0;
   let retryAfterSeconds = 30;
+  let lastAttemptDurationMs = 0;
+  let lastRawErrorName: string | undefined;
+  let lastRawErrorCause: string | undefined;
 
   for (const [attemptIndex, model] of attemptPlan.entries()) {
     const attempt = attemptIndex + 1;
-    const remainingBudgetMs = REFINE_PROVIDER_TOTAL_BUDGET_MS - (performance.now() - providerBudgetStartedAt);
+    const remainingBudgetMs = effectiveTotalBudgetMs - (performance.now() - providerBudgetStartedAt);
     if (remainingBudgetMs < 5_000) break;
     if (attempt > 1) onRetry?.();
     const controller = new AbortController();
@@ -2004,7 +2019,7 @@ async function analyzeWithGeminiDirect(
             response.headers.get("retry-after"),
           );
           retryAfterSeconds = retryDelay.retryAfterSeconds;
-          const remainingAfterAttempt = REFINE_PROVIDER_TOTAL_BUDGET_MS - (performance.now() - providerBudgetStartedAt);
+          const remainingAfterAttempt = effectiveTotalBudgetMs - (performance.now() - providerBudgetStartedAt);
           if (attempt < attemptPlan.length && hasProviderRetryBudget(remainingAfterAttempt, retryDelay.delayMs)) {
             await waitForProviderRetry(retryDelay.delayMs);
             continue;
@@ -2058,6 +2073,9 @@ async function analyzeWithGeminiDirect(
       lastResponseError = isTimeout
         ? `Modelo ${model} excedeu ${Math.round(attemptTimeoutMs / 1000)}s`
         : (err instanceof Error ? err.message : String(err));
+      lastAttemptDurationMs = Math.round(performance.now() - attemptStartedAt);
+      lastRawErrorName = err instanceof Error ? err.name : typeof err;
+      lastRawErrorCause = err instanceof Error && err.cause ? sanitizeText(String(err.cause), 200) : undefined;
       structuredLog("warn", {
         request_id: requestId,
         stage: "call_ai_provider",
@@ -2065,7 +2083,9 @@ async function analyzeWithGeminiDirect(
         model,
         attempt,
         timed_out: isTimeout,
-        duration_ms: Math.round(performance.now() - attemptStartedAt),
+        duration_ms: lastAttemptDurationMs,
+        raw_error_name: lastRawErrorName,
+        raw_error_cause: lastRawErrorCause,
       });
       continue;
     }
@@ -2094,6 +2114,12 @@ async function analyzeWithGeminiDirect(
       retryable: true,
       httpStatus: 504,
       provider: "gemini",
+      metadata: {
+        debug_last_attempt_duration_ms: lastAttemptDurationMs,
+        debug_raw_error_name: lastRawErrorName,
+        debug_raw_error_cause: lastRawErrorCause,
+        debug_diagnostic_mode: DIAGNOSTIC_LONG_TIMEOUT,
+      },
     });
   }
   throw new AppError({
@@ -2105,6 +2131,11 @@ async function analyzeWithGeminiDirect(
     retryable: true,
     httpStatus: 503,
     provider: "gemini",
+    metadata: {
+      debug_raw_message: sanitizeText(lastResponseError, 200),
+      debug_last_attempt_duration_ms: lastAttemptDurationMs,
+      debug_diagnostic_mode: DIAGNOSTIC_LONG_TIMEOUT,
+    },
   });
 }
 

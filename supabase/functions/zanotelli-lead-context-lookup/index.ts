@@ -1,10 +1,20 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const MAX_BODY_BYTES = 2048;
+const MAX_BODY_BYTES = 4096;
 const MAX_CLOCK_SKEW_SECONDS = 300;
 const HASH_RE = /^[0-9a-f]{64}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const REQUEST_ID_RE = /^[a-zA-Z0-9:_-]{8,180}$/;
+const ALLOWED_KEYS = new Set([
+  "request_id",
+  "lead_reference",
+  "phone_hash",
+  "email_hash",
+  "domain_hash",
+  "company_hash",
+  "responsible_hash",
+]);
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -33,6 +43,13 @@ async function verifyHmac(secret: string, message: string, signature: string) {
     ["verify"],
   );
   return crypto.subtle.verify("HMAC", key, signatureBytes, new TextEncoder().encode(message));
+}
+
+function optionalHash(value: unknown) {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string") return undefined;
+  const normalized = value.toLowerCase().trim();
+  return HASH_RE.test(normalized) ? normalized : undefined;
 }
 
 serve(async (req) => {
@@ -68,10 +85,32 @@ serve(async (req) => {
   } catch {
     return json({ status: "invalid_request" }, 400);
   }
+  if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some((key) => !ALLOWED_KEYS.has(key))) {
+    return json({ status: "invalid_request" }, 400);
+  }
 
-  const phoneHash = typeof body.phone_hash === "string" ? body.phone_hash.toLowerCase().trim() : "";
   const requestId = typeof body.request_id === "string" ? body.request_id.trim() : "";
-  if (!HASH_RE.test(phoneHash) || !REQUEST_ID_RE.test(requestId)) {
+  const leadReference = body.lead_reference == null || body.lead_reference === ""
+    ? null
+    : typeof body.lead_reference === "string" && UUID_RE.test(body.lead_reference.trim())
+      ? body.lead_reference.trim().toLowerCase()
+      : undefined;
+  const phoneHash = optionalHash(body.phone_hash);
+  const emailHash = optionalHash(body.email_hash);
+  const domainHash = optionalHash(body.domain_hash);
+  const companyHash = optionalHash(body.company_hash);
+  const responsibleHash = optionalHash(body.responsible_hash);
+
+  if (
+    !REQUEST_ID_RE.test(requestId)
+    || leadReference === undefined
+    || phoneHash === undefined
+    || emailHash === undefined
+    || domainHash === undefined
+    || companyHash === undefined
+    || responsibleHash === undefined
+    || ![leadReference, phoneHash, emailHash, domainHash, companyHash].some(Boolean)
+  ) {
     return json({ status: "invalid_request" }, 400);
   }
 
@@ -92,23 +131,30 @@ serve(async (req) => {
   const verified = await verifyHmac(secret, `${timestampHeader}.${rawBody}`, signature);
   if (!verified) return json({ status: "unauthorized", request_id: requestId }, 401);
 
-  const { data, error } = await admin.rpc("internal_lookup_zanotelli_lead_context", {
+  const { data, error } = await admin.rpc("internal_lookup_zanotelli_lead_context_v2", {
+    p_lead_reference: leadReference,
     p_phone_hash: phoneHash,
+    p_email_hash: emailHash,
+    p_domain_hash: domainHash,
+    p_company_hash: companyHash,
+    p_responsible_hash: responsibleHash,
   });
 
   if (error) {
-    console.error(JSON.stringify({ request_id: requestId, operation: "lookup_lead_context", status: "error" }));
+    console.error(JSON.stringify({ request_id: requestId, operation: "lookup_lead_context_v2", status: "error" }));
     return json({ status: "temporarily_unavailable", request_id: requestId }, 503);
   }
 
   const result = data && typeof data === "object" ? data as Record<string, unknown> : { status: "unresolved" };
   const status = typeof result.status === "string" ? result.status : "unresolved";
+  const matchedBy = typeof result.matched_by === "string" ? result.matched_by : null;
 
   console.log(JSON.stringify({
     request_id: requestId,
-    operation: "zanotelli_lead_context_lookup",
+    operation: "zanotelli_lead_context_lookup_v2",
     status,
     matched: status === "matched",
+    matched_by: matchedBy,
   }));
 
   return json({ ...result, request_id: requestId });

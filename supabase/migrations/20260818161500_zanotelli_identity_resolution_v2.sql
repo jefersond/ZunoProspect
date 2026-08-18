@@ -150,7 +150,7 @@ declare
   responsible_hash text := lower(trim(coalesce(p_responsible_hash, '')));
 begin
   if p_lead_reference is not null then
-    select count(*), min(lead.id)
+    select count(*), min(lead.id::text)::uuid
       into candidate_count, selected_lead_id
     from public.leads lead
     join public.zanotelli_context_scope_users scope
@@ -164,7 +164,7 @@ begin
   end if;
 
   if matched_by is null and phone_hash ~ '^[0-9a-f]{64}$' then
-    select count(distinct lead.id), min(lead.id)
+    select count(distinct lead.id), min(lead.id::text)::uuid
       into candidate_count, selected_lead_id
     from public.leads lead
     join public.zanotelli_context_scope_users scope
@@ -183,7 +183,7 @@ begin
   end if;
 
   if matched_by is null and email_hash ~ '^[0-9a-f]{64}$' then
-    select count(distinct lead.id), min(lead.id)
+    select count(distinct lead.id), min(lead.id::text)::uuid
       into candidate_count, selected_lead_id
     from public.leads lead
     join public.zanotelli_context_scope_users scope
@@ -200,7 +200,7 @@ begin
   end if;
 
   if matched_by is null and domain_hash ~ '^[0-9a-f]{64}$' then
-    select count(distinct lead.id), min(lead.id)
+    select count(distinct lead.id), min(lead.id::text)::uuid
       into candidate_count, selected_lead_id
     from public.leads lead
     join public.zanotelli_context_scope_users scope
@@ -217,7 +217,7 @@ begin
 
   if matched_by is null and company_hash ~ '^[0-9a-f]{64}$' then
     if responsible_hash ~ '^[0-9a-f]{64}$' then
-      select count(distinct lead.id), min(lead.id)
+      select count(distinct lead.id), min(lead.id::text)::uuid
         into candidate_count, selected_lead_id
       from public.leads lead
       join public.zanotelli_context_scope_users scope
@@ -237,7 +237,7 @@ begin
     end if;
 
     if matched_by is null then
-      select count(distinct lead.id), min(lead.id)
+      select count(distinct lead.id), min(lead.id::text)::uuid
         into candidate_count, selected_lead_id
       from public.leads lead
       join public.zanotelli_context_scope_users scope

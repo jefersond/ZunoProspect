@@ -18,11 +18,11 @@ verify_jwt = true
 [functions.create-stripe-checkout]
 verify_jwt = true
 
-[functions.create-stripe-addon-checkout]
-verify_jwt = true
-
 [functions.stripe-webhook]
 verify_jwt = false
+
+[functions.create-stripe-addon-checkout]
+verify_jwt = true
 
 [functions.api-keys-manage]
 verify_jwt = true
@@ -77,3 +77,6 @@ verify_jwt = true
 
 [functions.marketing-orchestrator]
 verify_jwt = true
+
+[functions.zanotelli-lead-context-lookup]
+verify_jwt = false

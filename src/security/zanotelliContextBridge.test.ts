@@ -7,7 +7,7 @@ const migration = readFileSync(
   'utf8',
 );
 const identityMigration = readFileSync(
-  resolve(process.cwd(), 'supabase/migrations/20260818161500_zanotelli_identity_resolution_v2.sql'),
+  resolve(process.cwd(), 'supabase/migrations/20260818162220_zanotelli_identity_resolution_v2.sql'),
   'utf8',
 );
 const endpoint = readFileSync(
@@ -49,7 +49,7 @@ describe('Zanotelli lead context bridge', () => {
     expect(identityMigration).toContain("matched_by := 'domain'");
     expect(identityMigration).toContain("matched_by := 'company_responsible'");
     expect(identityMigration).toContain("matched_by := 'company'");
-    expect(identityMigration).toContain("'status', 'ambiguous'");
+    expect(identityMigration).toContain("'status','ambiguous'");
     expect(identityMigration).not.toContain('similarity(');
     expect(identityMigration).not.toContain('levenshtein');
   });

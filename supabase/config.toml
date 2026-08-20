@@ -81,8 +81,11 @@ verify_jwt = true
 [functions.zanotelli-lead-context-lookup]
 verify_jwt = false
 
-# This endpoint accepts either a normal Supabase user JWT or a scoped Zuno
-# machine API key. Gateway verification must be disabled so x-api-key reaches
-# the handler; both authentication modes are verified inside the function.
+# Legacy/internal admin wrapper: dual auth is still validated inside handler.
 [functions.zanotelli-internal-prospecting]
+verify_jwt = false
+
+# Dedicated Zanotelli OS machine boundary. No browser/JWT user path; requires
+# x-api-key with the single prospecting:execute scope and idempotency key.
+[functions.zanotelli-machine-prospecting]
 verify_jwt = false

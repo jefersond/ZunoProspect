@@ -35,11 +35,31 @@ describe('Zanotelli internal prospecting bridge', () => {
     expect(endpoint).toContain("canaisProspeccao: ['email']")
   })
 
-  it('reuses the existing secure search and owned decrypted-lead RPC', () => {
+  it('reuses the existing secure search, analysis and owned decrypted-lead RPC', () => {
     expect(endpoint).toContain('/functions/v1/buscar-leads')
+    expect(endpoint).toContain('/functions/v1/analisar-lead-ia')
+    expect(endpoint).toContain('const MAX_OPPORTUNITY_ANALYSES = 5')
     expect(endpoint).toContain("set_encryption_key_and_get_leads_filtered")
     expect(endpoint).toContain('p_user_id: user.id')
     expect(endpoint).toContain('p_search_run_id: searchRunId')
+  })
+
+  it('exports bounded opportunity intelligence as prioritization metadata', () => {
+    expect(endpoint).toContain('opportunityScore: opportunityScore(row.probabilidade_conversao)')
+    expect(endpoint).toContain('diagnostics: row.diagnostico_bullets')
+    expect(endpoint).toContain('digitalSignals: row.sinais_digitais')
+    expect(helper).toContain('opportunity_score: opportunityScore')
+    expect(helper).toContain('analysis_available: hasAnalysis')
+    expect(helper).toContain('focus: INTERNAL_FOCUS')
+    expect(helper).toContain('MAX_DIAGNOSTICS = 4')
+    expect(helper).toContain('MAX_DIGITAL_SIGNALS = 16')
+  })
+
+  it('does not turn opportunity analysis into contact authorization', () => {
+    expect(helper).not.toContain('contact_allowed')
+    expect(helper).not.toContain('email_contact_allowed')
+    expect(endpoint).not.toContain('contact_allowed')
+    expect(endpoint).not.toContain('email_contact_allowed')
   })
 
   it('does not arm outbound or send email/WhatsApp', () => {

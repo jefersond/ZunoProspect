@@ -35,6 +35,28 @@ describe('Zanotelli internal prospecting bridge', () => {
     expect(endpoint).toContain("canaisProspeccao: ['email']")
   })
 
+  it('supports a signed non-browser machine path without storing a password or long-lived user JWT', () => {
+    expect(endpoint).toContain("ZANOTELLI_MACHINE_PROSPECTING_SECRET")
+    expect(endpoint).toContain("ZANOTELLI_MACHINE_ADMIN_EMAIL")
+    expect(endpoint).toContain("x-zanotelli-timestamp")
+    expect(endpoint).toContain("x-zanotelli-signature")
+    expect(endpoint).toContain('MACHINE_REPLAY_WINDOW_SECONDS = 300')
+    expect(endpoint).toContain('MAX_MACHINE_QUANTITY = 5')
+    expect(endpoint).toContain("admin.auth.admin.generateLink")
+    expect(endpoint).toContain("type: 'magiclink'")
+    expect(endpoint).toContain('sessionClient.auth.verifyOtp')
+    expect(endpoint).toContain('request.headers.has(\'origin\')')
+    expect(endpoint).not.toMatch(/password\s*:/i)
+    expect(endpoint).not.toContain('MACHINE_USER_JWT')
+  })
+
+  it('never returns or persists the generated machine user session', () => {
+    expect(endpoint).toContain('authorization = `Bearer ${accessToken}`')
+    expect(endpoint).toContain('authMode,')
+    expect(endpoint).not.toMatch(/accessToken\s*[,}]/)
+    expect(endpoint).not.toMatch(/refresh_token/i)
+  })
+
   it('reuses the existing secure search, analysis and owned decrypted-lead RPC', () => {
     expect(endpoint).toContain('/functions/v1/buscar-leads')
     expect(endpoint).toContain('/functions/v1/analisar-lead-ia')

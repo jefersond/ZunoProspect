@@ -42,6 +42,11 @@ function clean(value: unknown, max: number) {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
 }
 
+function opportunityScore(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? Math.max(0, Math.min(100, Math.round(parsed))) : null
+}
+
 async function sha256(value: string) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
@@ -300,15 +305,53 @@ serve(async (request) => {
 
   const searchRunId = clean(searchResult.searchRunId, 180)
   if (!searchRunId) return json({ error: 'search_run_missing' }, 503)
-  const { data: leads, error: leadsError } = await admin.rpc('set_encryption_key_and_get_leads_filtered', {
+
+  const readSearchLeads = async () => admin.rpc('set_encryption_key_and_get_leads_filtered', {
     p_encryption_key: encryptionKey,
     p_salvo: null,
     p_user_id: auth.userId,
     p_search_run_id: searchRunId,
   })
-  if (leadsError) return json({ error: 'lead_export_failed' }, 503)
 
-  const rows = Array.isArray(leads) ? leads.slice(0, quantidade) : []
+  const { data: initialLeads, error: leadsError } = await readSearchLeads()
+  if (leadsError) return json({ error: 'lead_export_failed' }, 503)
+  const initialRows = Array.isArray(initialLeads) ? initialLeads.slice(0, quantidade) : []
+
+  let analysisCompleted = 0
+  let analysisFailures = 0
+  await Promise.all(initialRows.map(async (lead) => {
+    if (!lead || typeof lead !== 'object') return
+    const row = lead as Record<string, unknown>
+    const leadId = clean(row.id, 180)
+    if (!leadId) return
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/analisar-lead-ia`, {
+        method: 'POST',
+        headers: {
+          authorization: auth.authorization,
+          apikey: anonKey,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          lead_id: leadId,
+          objetivo: 'prospeccao_interna_zuno',
+          canal: 'email',
+          foco: INTERNAL_FOCUS,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      })
+      await response.body?.cancel().catch(() => undefined)
+      if (response.ok) analysisCompleted += 1
+      else analysisFailures += 1
+    } catch {
+      analysisFailures += 1
+    }
+  }))
+
+  const { data: refreshedLeads, error: refreshedError } = await readSearchLeads()
+  if (refreshedError) return json({ error: 'lead_refresh_failed' }, 503)
+  const rows = Array.isArray(refreshedLeads) ? refreshedLeads.slice(0, quantidade) : initialRows
+
   const signingSecret = await sha256(`zanotelli-inbound-hmac:v1:${auth.token}`)
   let accepted = 0
   let duplicates = 0
@@ -333,6 +376,9 @@ serve(async (request) => {
       externalStatus: clean(row.status, 80) || 'prospected',
       searchRunId,
       googlePlaceId: clean(row.google_place_id, 180),
+      opportunityScore: opportunityScore(row.probabilidade_conversao),
+      diagnostics: row.diagnostico_bullets,
+      digitalSignals: row.sinais_digitais,
     }, {
       enabled: true,
       url: RECEIVER_URL,
@@ -349,6 +395,11 @@ serve(async (request) => {
     success: complete,
     searchRunId,
     leadsFound: rows.length,
+    opportunityAnalysis: {
+      requested: initialRows.length,
+      completed: analysisCompleted,
+      failures: analysisFailures,
+    },
     bridge: { accepted, duplicates, failures },
     outboundArmed: false,
     emailSent: 0,

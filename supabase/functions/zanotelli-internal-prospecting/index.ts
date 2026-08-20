@@ -4,7 +4,9 @@ import { emitZanotelliLeadSnapshot } from '../_shared/zanotelli-inbound-bridge.t
 
 const INTERNAL_FOCUS = 'zuno_internal_prospecting'
 const MAX_QUANTITY = 25
+const MAX_MACHINE_QUANTITY = 5
 const MAX_OPPORTUNITY_ANALYSES = 5
+const MACHINE_REPLAY_WINDOW_SECONDS = 300
 const ADMIN_EMAILS = new Set([
   'jeferson.zanotell@gmail.com',
   'jefeson.zanotell@gmail.com',
@@ -30,27 +32,120 @@ function opportunityScore(value: unknown) {
   return Number.isFinite(parsed) ? Math.max(0, Math.min(100, Math.round(parsed))) : null
 }
 
+function hex(bytes: ArrayBuffer) {
+  return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+async function hmacSha256(message: string, secret: string) {
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  return hex(await crypto.subtle.sign('HMAC', key, encoder.encode(message)))
+}
+
+function constantTimeEqual(left: string, right: string) {
+  if (left.length !== right.length) return false
+  let mismatch = 0
+  for (let index = 0; index < left.length; index += 1) {
+    mismatch |= left.charCodeAt(index) ^ right.charCodeAt(index)
+  }
+  return mismatch === 0
+}
+
+async function verifyMachineRequest(request: Request, rawBody: string, secret: string) {
+  if (request.headers.has('origin')) return false
+  if (secret.length < 32) return false
+
+  const timestamp = clean(request.headers.get('x-zanotelli-timestamp'), 20)
+  const supplied = clean(request.headers.get('x-zanotelli-signature'), 80).toLowerCase()
+  if (!/^\d{10,13}$/.test(timestamp) || !/^sha256=[0-9a-f]{64}$/.test(supplied)) return false
+
+  const numericTimestamp = Number(timestamp)
+  const timestampSeconds = timestamp.length === 13 ? Math.floor(numericTimestamp / 1000) : numericTimestamp
+  if (!Number.isFinite(timestampSeconds)) return false
+  if (Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds) > MACHINE_REPLAY_WINDOW_SECONDS) return false
+
+  const expected = `sha256=${await hmacSha256(`${timestamp}.${rawBody}`, secret)}`
+  return constantTimeEqual(expected, supplied)
+}
+
 serve(async (request) => {
   if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
   if (!(request.headers.get('content-type') ?? '').includes('application/json')) {
     return json({ error: 'json_required' }, 415)
   }
 
+  const rawBody = await request.text()
+  if (new TextEncoder().encode(rawBody).byteLength > 16 * 1024) return json({ error: 'payload_too_large' }, 413)
+
+  let input: Record<string, unknown>
+  try {
+    const parsed = JSON.parse(rawBody || '{}') as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return json({ error: 'invalid_payload' }, 400)
+    input = parsed as Record<string, unknown>
+  } catch {
+    return json({ error: 'invalid_json' }, 400)
+  }
+
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   const encryptionKey = Deno.env.get('LEADS_ENCRYPTION_KEY') ?? ''
-  const authorization = request.headers.get('authorization') ?? ''
-  if (!supabaseUrl || !anonKey || !serviceRole || !encryptionKey || !authorization) {
+  const machineSecret = Deno.env.get('ZANOTELLI_MACHINE_PROSPECTING_SECRET') ?? ''
+  const machineAdminEmail = clean(Deno.env.get('ZANOTELLI_MACHINE_ADMIN_EMAIL'), 254).toLowerCase()
+  const callerAuthorization = request.headers.get('authorization') ?? ''
+  if (!supabaseUrl || !anonKey || !serviceRole || !encryptionKey) {
     return json({ error: 'server_misconfigured' }, 503)
+  }
+
+  const admin = createClient(supabaseUrl, serviceRole, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  })
+
+  let authorization = callerAuthorization
+  let authMode: 'user' | 'machine' = 'user'
+
+  if (!authorization) {
+    authMode = 'machine'
+    if (!machineAdminEmail || !ADMIN_EMAILS.has(machineAdminEmail)) return json({ error: 'machine_identity_misconfigured' }, 503)
+    if (!(await verifyMachineRequest(request, rawBody, machineSecret))) return json({ error: 'machine_unauthorized' }, 401)
+
+    // Generate a one-time server-side auth link without sending email, then exchange
+    // its token hash for a short-lived user session. The resulting JWT is used only
+    // inside this request and is never returned or persisted.
+    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+      type: 'magiclink',
+      email: machineAdminEmail,
+    })
+    const tokenHash = linkData?.properties?.hashed_token ?? ''
+    const generatedEmail = clean(linkData?.user?.email, 254).toLowerCase()
+    if (linkError || !tokenHash || generatedEmail !== machineAdminEmail) {
+      return json({ error: 'machine_session_generation_failed' }, 503)
+    }
+
+    const sessionClient = createClient(supabaseUrl, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    })
+    const { data: sessionData, error: sessionError } = await sessionClient.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: 'magiclink',
+    })
+    const accessToken = sessionData?.session?.access_token ?? ''
+    const sessionEmail = clean(sessionData?.user?.email, 254).toLowerCase()
+    if (sessionError || !accessToken || sessionEmail !== machineAdminEmail) {
+      return json({ error: 'machine_session_exchange_failed' }, 503)
+    }
+    authorization = `Bearer ${accessToken}`
   }
 
   const userClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authorization } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-  const admin = createClient(supabaseUrl, serviceRole, {
-    auth: { persistSession: false, autoRefreshToken: false },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   })
 
   const { data: { user }, error: authError } = await userClient.auth.getUser()
@@ -62,17 +157,12 @@ serve(async (request) => {
   if (!ADMIN_EMAILS.has(normalizedEmail) && adminCheck !== true) {
     return json({ error: 'admin_only' }, 403)
   }
-
-  let input: Record<string, unknown>
-  try {
-    const parsed = await request.json() as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return json({ error: 'invalid_payload' }, 400)
-    input = parsed as Record<string, unknown>
-  } catch {
-    return json({ error: 'invalid_json' }, 400)
+  if (authMode === 'machine' && normalizedEmail !== machineAdminEmail) {
+    return json({ error: 'machine_identity_mismatch' }, 403)
   }
 
-  const quantity = Math.max(1, Math.min(MAX_QUANTITY, Number(input.quantidade) || 5))
+  const quantityLimit = authMode === 'machine' ? MAX_MACHINE_QUANTITY : MAX_QUANTITY
+  const quantity = Math.max(1, Math.min(quantityLimit, Number(input.quantidade) || 5))
   const searchPayload = {
     ...input,
     quantidade: quantity,
@@ -210,6 +300,7 @@ serve(async (request) => {
 
   return json({
     success: true,
+    authMode,
     searchRunId,
     leadsFound: rows.length,
     opportunityAnalysis: {

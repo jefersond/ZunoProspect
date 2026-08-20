@@ -80,3 +80,12 @@ verify_jwt = true
 
 [functions.zanotelli-lead-context-lookup]
 verify_jwt = false
+
+# Legacy/internal admin wrapper remains a normal authenticated admin route.
+[functions.zanotelli-internal-prospecting]
+verify_jwt = true
+
+# Dedicated Zanotelli OS machine boundary. No browser/JWT user path; requires
+# x-api-key with the single prospecting:execute scope and idempotency key.
+[functions.zanotelli-machine-prospecting]
+verify_jwt = false

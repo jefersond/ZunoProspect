@@ -2,36 +2,64 @@
 
 ## Purpose
 
-This bridge exists only for Grupo Zanotelli's own prospecting workflow. It must never export ordinary SaaS customers' lead searches to Zanotelli OS.
+This integration exists only for Grupo Zanotelli's own prospecting workflow. It must never export ordinary SaaS customers' searches to Zanotelli OS.
 
-## Entry point
+The architecture deliberately separates the human admin path from the machine path.
+
+## Human admin path
 
 `supabase/functions/zanotelli-internal-prospecting/index.ts`
 
-The endpoint:
+- normal Supabase JWT verification;
+- admin-only;
+- forces `foco = zuno_internal_prospecting`;
+- forces the search stage to email;
+- reuses the mature `buscar-leads` function;
+- exports only the exact search run owned by the authenticated admin;
+- never arms outbound or sends email/WhatsApp.
 
-1. requires an authenticated user;
-2. requires that user to be an administrator;
-3. forces `foco = zuno_internal_prospecting` regardless of caller input;
-4. forces prospecting channel selection to `email` for the search stage;
-5. delegates discovery/enrichment/deduplication to the existing `buscar-leads` function;
-6. reads only leads owned by the same admin and the exact returned `search_run_id` through the existing encrypted-lead RPC;
-7. emits bounded `lead_snapshot` events to Zanotelli OS with an HMAC signature;
-8. never arms outbound and never sends email or WhatsApp.
+The shared bridge helper used by this legacy/admin wrapper remains opt-in through server-side environment configuration.
 
-## Required backend secrets
+## Zanotelli OS machine path
 
-All variables are server-side Supabase Edge Function secrets. Never expose them through `VITE_*` variables or frontend code.
+`supabase/functions/zanotelli-machine-prospecting/index.ts`
 
-- `ZANOTELLI_INBOUND_BRIDGE_ENABLED`
-- `ZANOTELLI_INBOUND_BRIDGE_URL`
-- `ZANOTELLI_INBOUND_WEBHOOK_SECRET`
+This is the only endpoint intended for automatic sourcing from Zanotelli OS.
 
-The receiver URL must use HTTPS and the shared secret must contain at least 32 characters.
+It:
+
+1. rejects browser requests carrying `Origin`;
+2. requires a `zuno_...` API key whose SHA-256 hash exists in `api_keys`;
+3. binds the key to the exact internal ADM user and email;
+4. requires the key to contain **only** `prospecting:execute`;
+5. enforces a maximum of 2 requests/minute;
+6. requires `Idempotency-Key` before any paid search;
+7. caps each request at 5 leads;
+8. forces `foco = zuno_internal_prospecting` and `canaisProspeccao = ['email']`;
+9. creates a one-request delegated JWT so the mature JWT-only `buscar-leads` path is reused without storing an admin password or long-lived refresh token;
+10. reads only the exact search run owned by the internal ADM;
+11. derives the inbound signing secret in request memory from the machine key using the domain-separated input `zanotelli-inbound-hmac:v1:<machine-key>`;
+12. emits signed lead snapshots only to the pinned Zanotelli OS receiver;
+13. never calls Instantly, Meta/WhatsApp or any outbound provider.
+
+The machine key plaintext is stored only in the Zanotelli OS backend Vault. Zuno Prospect stores only its SHA-256 hash in the existing `api_keys` registry.
+
+## Machine request
+
+The machine endpoint accepts only bounded search criteria already understood by `buscar-leads`:
+
+- `cidade`;
+- `estado`;
+- `pais` (`BR` or `US`);
+- `nicho`;
+- `quantidade` (1–5);
+- optional proximity fields already supported by the mature search.
+
+The caller cannot override the internal focus or enable WhatsApp/Instagram prospecting channels.
 
 ## Signature contract
 
-Headers:
+Headers sent to Zanotelli OS:
 
 - `x-zuno-timestamp`
 - `x-zuno-signature`
@@ -45,7 +73,7 @@ Algorithm: HMAC SHA-256.
 
 ## Privacy boundary
 
-A lead snapshot can include only the public/prospecting fields already available to the internal admin search:
+A lead snapshot can contain only public/prospecting fields already available to the internal admin search:
 
 - external lead ID;
 - company name;
@@ -58,23 +86,25 @@ A lead snapshot can include only the public/prospecting fields already available
 - external status;
 - search run ID and Google Place ID as metadata.
 
-No user token, authorization header, encryption key, Supabase service role, bridge secret or customer account metadata is sent.
+No user JWT, authorization header, encryption key, Supabase service role, machine API key or customer account metadata is sent to Zanotelli OS.
 
-## Failure behavior
+## Idempotency and failure behavior
 
-The bridge is fail-safe for outbound: receiving a lead does not arm any campaign. A snapshot accepted by Zanotelli enters the inbound/review path. Duplicate snapshots are treated idempotently.
+Machine retries with the same `Idempotency-Key` and the same payload replay the prior response instead of buying another Google Places search. Reusing the key with a different payload is rejected.
 
-A disabled or misconfigured bridge is reported as a sanitized count in the wrapper response; no fallback send path exists.
+A successful search or accepted snapshot does not arm outbound. Contact eligibility remains a separate Zanotelli OS decision.
 
 ## Production activation gates
 
-Do not deploy/enable this bridge until all of the following are intentionally approved:
+Deploying the machine bridge and enabling automatic sourcing are separate decisions. Before real automated sourcing, intentionally verify:
 
-1. Zanotelli inbound bridge is deployed and enabled on the target environment.
-2. `integration_sources.slug = zuno-prospect` is in the intended mode.
-3. Sender readiness for email is independently verified.
-4. Outbound approval review is recorded in Zanotelli OS.
-5. Runtime kill switch remains available.
-6. Initial daily limits remain conservative.
+1. Zanotelli inbound HMAC bridge is deployed and enabled.
+2. `integration_sources.slug = zuno-prospect` is intentionally switched from `sandbox` to `active`.
+3. The dedicated machine key belongs to the internal ADM and has only `prospecting:execute`.
+4. The Zanotelli sourcing target (state, city and niche) is explicitly configured by the owner.
+5. The sourcing kill switch is enabled only after those checks.
+6. Email sender readiness is independently verified before outbound is armed.
+7. Email contact eligibility is approved separately for each real lead.
+8. WhatsApp authorization remains separate from email eligibility.
 
-Activation of this bridge and activation of outbound are separate decisions.
+A successful Zuno search or accepted lead snapshot never grants email or WhatsApp contact permission by itself.

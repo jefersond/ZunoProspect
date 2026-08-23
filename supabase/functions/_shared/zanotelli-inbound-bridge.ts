@@ -1,5 +1,8 @@
 const BRIDGE_SOURCE = 'zuno-prospect-internal'
+const INTERNAL_FOCUS = 'zuno_internal_prospecting'
 const MAX_RESPONSE_BYTES = 8 * 1024
+const MAX_DIAGNOSTICS = 4
+const MAX_DIGITAL_SIGNALS = 16
 
 export interface ZanotelliLeadSnapshotInput {
   externalLeadId: string
@@ -13,6 +16,9 @@ export interface ZanotelliLeadSnapshotInput {
   externalStatus?: string | null
   searchRunId?: string | null
   googlePlaceId?: string | null
+  opportunityScore?: number | null
+  diagnostics?: unknown
+  digitalSignals?: unknown
 }
 
 export interface ZanotelliBridgeConfig {
@@ -32,6 +38,33 @@ function clean(value: string | null | undefined, max: number) {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
 }
 
+function boundedOpportunityScore(value: number | null | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+function boundedDiagnostics(value: unknown) {
+  if (!Array.isArray(value)) return [] as string[]
+  return value
+    .map((item) => clean(typeof item === 'string' ? item : '', 240))
+    .filter(Boolean)
+    .slice(0, MAX_DIAGNOSTICS)
+}
+
+function boundedDigitalSignals(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {} as Record<string, boolean | number | string | null>
+
+  const output: Record<string, boolean | number | string | null> = {}
+  for (const [rawKey, rawValue] of Object.entries(value as Record<string, unknown>).slice(0, MAX_DIGITAL_SIGNALS)) {
+    const key = clean(rawKey, 80)
+    if (!key) continue
+    if (typeof rawValue === 'boolean' || rawValue === null) output[key] = rawValue
+    else if (typeof rawValue === 'number' && Number.isFinite(rawValue)) output[key] = rawValue
+    else if (typeof rawValue === 'string') output[key] = clean(rawValue, 180)
+  }
+  return output
+}
+
 export function readZanotelliBridgeConfig(): ZanotelliBridgeConfig {
   return {
     enabled: Deno.env.get('ZANOTELLI_INBOUND_BRIDGE_ENABLED') === 'true',
@@ -44,6 +77,11 @@ export function buildZanotelliLeadSnapshot(input: ZanotelliLeadSnapshotInput, ca
   const externalLeadId = clean(input.externalLeadId, 180)
   const companyName = clean(input.companyName, 180)
   if (!externalLeadId || !companyName) throw new Error('ZANOTELLI_BRIDGE_INVALID_LEAD')
+
+  const opportunityScore = boundedOpportunityScore(input.opportunityScore)
+  const diagnostics = boundedDiagnostics(input.diagnostics)
+  const digitalSignals = boundedDigitalSignals(input.digitalSignals)
+  const hasAnalysis = opportunityScore !== null || diagnostics.length > 0 || Object.keys(digitalSignals).length > 0
 
   return {
     event_type: 'lead_snapshot' as const,
@@ -60,6 +98,11 @@ export function buildZanotelliLeadSnapshot(input: ZanotelliLeadSnapshotInput, ca
     ...(clean(input.externalStatus, 80) ? { external_status: clean(input.externalStatus, 80) } : {}),
     metadata: {
       internal_prospecting: true,
+      focus: INTERNAL_FOCUS,
+      analysis_available: hasAnalysis,
+      ...(opportunityScore !== null ? { opportunity_score: opportunityScore } : {}),
+      ...(diagnostics.length > 0 ? { diagnostics } : {}),
+      ...(Object.keys(digitalSignals).length > 0 ? { digital_signals: digitalSignals } : {}),
       ...(clean(input.searchRunId, 180) ? { search_run_id: clean(input.searchRunId, 180) } : {}),
       ...(clean(input.googlePlaceId, 180) ? { google_place_id: clean(input.googlePlaceId, 180) } : {}),
     },
@@ -119,8 +162,6 @@ export async function emitZanotelliLeadSnapshot(
       signal: AbortSignal.timeout(5000),
     })
 
-    // Never echo arbitrary receiver text into logs. Read only a tiny bounded body
-    // so the connection can be released while keeping the result sanitized.
     const responseText = (await response.text()).slice(0, MAX_RESPONSE_BYTES)
     let receiverStatus = ''
     try {

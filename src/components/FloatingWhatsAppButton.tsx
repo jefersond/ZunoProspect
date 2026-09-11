@@ -8,7 +8,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-const WHATSAPP_NUMBER = "553298511685";
+const WHATSAPP_NUMBER = "5527999697246";
 const DEFAULT_MESSAGE = "Olá! Preciso de suporte com o Zuno Prospect.";
 
 // Horário de atendimento: 8h às 18h (horário de Brasília)

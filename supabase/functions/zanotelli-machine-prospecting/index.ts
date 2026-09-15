@@ -92,7 +92,7 @@ function safeWebsite(value: unknown) {
     if (/^(?:127\.|0\.|10\.|192\.168\.|169\.254\.)/.test(host)) return null
     const private172 = host.match(/^172\.(\d{1,3})\./)
     if (private172 && Number(private172[1]) >= 16 && Number(private172[1]) <= 31) return null
-    if (host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80:')) return null
+    if (host.includes(':') && (host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80:'))) return null
     parsed.hash = ''
     return parsed
   } catch {
@@ -107,10 +107,7 @@ function extractEmail(html: string) {
     if (candidate) return candidate
   }
 
-  const deobfuscated = html
-    .replace(/\s*(?:\[|\()?\s*(?:at|arroba)\s*(?:\]|\))?\s*/gi, '@')
-    .replace(/\s*(?:\[|\()?\s*(?:dot|ponto)\s*(?:\]|\))?\s*/gi, '.')
-  const candidates = deobfuscated.match(EMAIL_PATTERN) ?? []
+  const candidates = html.match(EMAIL_PATTERN) ?? []
   for (const candidate of candidates) {
     const email = normalizeEmail(candidate)
     if (email) return email

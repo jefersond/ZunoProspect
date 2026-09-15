@@ -131,7 +131,7 @@ serve(async (req) => {
   const verified = await verifyHmac(secret, `${timestampHeader}.${rawBody}`, signature);
   if (!verified) return json({ status: "unauthorized", request_id: requestId }, 401);
 
-  const { data, error } = await admin.rpc("internal_lookup_zanotelli_lead_context_v2", {
+  const { data, error } = await admin.rpc("internal_lookup_zanotelli_lead_context_v3", {
     p_lead_reference: leadReference,
     p_phone_hash: phoneHash,
     p_email_hash: emailHash,
@@ -141,7 +141,7 @@ serve(async (req) => {
   });
 
   if (error) {
-    console.error(JSON.stringify({ request_id: requestId, operation: "lookup_lead_context_v2", status: "error" }));
+    console.error(JSON.stringify({ request_id: requestId, operation: "lookup_lead_context_v3", status: "error" }));
     return json({ status: "temporarily_unavailable", request_id: requestId }, 503);
   }
 
@@ -151,10 +151,11 @@ serve(async (req) => {
 
   console.log(JSON.stringify({
     request_id: requestId,
-    operation: "zanotelli_lead_context_lookup_v2",
+    operation: "zanotelli_lead_context_lookup_v3",
     status,
     matched: status === "matched",
     matched_by: matchedBy,
+    website_context: result.website_context != null,
   }));
 
   return json({ ...result, request_id: requestId });

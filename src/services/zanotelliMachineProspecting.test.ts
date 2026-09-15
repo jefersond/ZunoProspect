@@ -14,11 +14,18 @@ describe('Zanotelli machine prospecting supplier', () => {
     expect(source).toContain('quantidade * 5')
   })
 
-  it('bridges only leads that already have a valid public email', () => {
+  it('bridges only leads with a valid public email found by Zuno or the bounded site crawler', () => {
     expect(source).toContain('function validPublicEmail')
-    expect(source).toContain('candidateRows.filter((row) => Boolean(validPublicEmail(row))).slice(0, quantidade)')
+    expect(source).toContain('discoverPublicEmail(row)')
+    expect(source).toContain('rows.push({ ...row, email: discovery.email })')
     expect(source).toContain("safeCode: 'invalid_email_lead'")
     expect(source).toContain('nativeEmailOnly: true')
+  })
+
+  it('re-reads the authoritative encrypted run instead of trusting the reduced public response', () => {
+    expect(source).toContain("set_encryption_key_and_get_leads_filtered")
+    expect(source).toContain('p_search_run_id: searchRunId')
+    expect(source).not.toContain('const responseRows =')
   })
 
   it('does not use Hunter or arm/send outbound', () => {

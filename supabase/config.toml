@@ -80,3 +80,6 @@ verify_jwt = true
 
 [functions.zanotelli-lead-context-lookup]
 verify_jwt = false
+
+[functions.zanotelli-lead-personalization]
+verify_jwt = false

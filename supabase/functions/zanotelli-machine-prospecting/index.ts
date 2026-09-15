@@ -8,6 +8,9 @@ const MAX_QUANTITY = 5
 const MAX_SEARCH_QUANTITY = 25
 const MAX_BODY_BYTES = 8 * 1024
 const MAX_MACHINE_RPM = 2
+const MAX_CRAWL_PAGES_PER_SITE = 3
+const MAX_HTML_BYTES = 512 * 1024
+const PAGE_FETCH_TIMEOUT_MS = 3500
 const IDEMPOTENCY_PREFIX = 'zanotelli-machine:'
 const RECEIVER_URL = 'https://fxoovelvhzzqasekmlvr.supabase.co/functions/v1/zuno-inbound-bridge'
 const ADMIN_USER_ID = '293cbcc2-1262-4e22-845c-8178ca1dddff'
@@ -15,6 +18,9 @@ const ADMIN_EMAIL = 'jeferson.zanotell@gmail.com'
 const API_KEY_PATTERN = /^zuno_[A-Za-z0-9_-]{43,200}$/
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9._:-]{8,160}$/
 const ALLOWED_KEYS = new Set(['cidade', 'estado', 'pais', 'nicho', 'quantidade', 'proximidadeAtiva', 'raioKm'])
+const EMAIL_PATTERN = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
+const BLOCKED_EMAIL_PATTERN = /(?:noreply|no-reply|donotreply|do-not-reply|example|test|wix|sentry|cloudflare|wordpress|facebook|instagram|google)/i
+const CONTACT_HINT_PATTERN = /(?:contato|contact|fale\s*conosco|fale-conosco|atendimento|sobre|about|quem\s*somos|quem-somos|empresa)/i
 
 type AdminClient = ReturnType<typeof createClient>
 type AuthContext = {
@@ -24,6 +30,11 @@ type AuthContext = {
   authorization: string
   idempotencyKey: string
   payloadHash: string
+}
+type EmailDiscovery = {
+  email: string
+  source: 'existing' | 'homepage' | 'contact_page'
+  pagesChecked: number
 }
 
 function json(body: unknown, status = 200, headers: Record<string, string> = {}) {
@@ -58,11 +69,153 @@ function nicheProfile(value: unknown) {
   return { label: raw.replace(/[_-]+/g, ' ').trim(), search: raw.replace(/[_-]+/g, ' ').trim() }
 }
 
-function validPublicEmail(row: Record<string, unknown>) {
-  const email = clean(row.email, 254).toLowerCase()
+function normalizeEmail(value: unknown) {
+  const email = clean(value, 254).toLowerCase().replace(/^mailto:/, '').split('?')[0]
   if (!email || email.length > 254 || /\s/.test(email)) return ''
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return ''
+  if (BLOCKED_EMAIL_PATTERN.test(email)) return ''
   return email
+}
+
+function validPublicEmail(row: Record<string, unknown>) {
+  return normalizeEmail(row.email) || normalizeEmail(row.cnpj_email)
+}
+
+function safeWebsite(value: unknown) {
+  const raw = clean(value, 500)
+  if (!raw) return null
+  try {
+    const parsed = new URL(raw)
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) return null
+    const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '')
+    if (!host || host === 'localhost' || host.endsWith('.local')) return null
+    if (/^(?:127\.|0\.|10\.|192\.168\.|169\.254\.)/.test(host)) return null
+    const private172 = host.match(/^172\.(\d{1,3})\./)
+    if (private172 && Number(private172[1]) >= 16 && Number(private172[1]) <= 31) return null
+    if (host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80:')) return null
+    parsed.hash = ''
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function extractEmail(html: string) {
+  const mailtoMatches = [...html.matchAll(/mailto:([^"'?#\s>]+)/gi)]
+  for (const match of mailtoMatches) {
+    const candidate = normalizeEmail(match[1])
+    if (candidate) return candidate
+  }
+
+  const deobfuscated = html
+    .replace(/\s*(?:\[|\()?\s*(?:at|arroba)\s*(?:\]|\))?\s*/gi, '@')
+    .replace(/\s*(?:\[|\()?\s*(?:dot|ponto)\s*(?:\]|\))?\s*/gi, '.')
+  const candidates = deobfuscated.match(EMAIL_PATTERN) ?? []
+  for (const candidate of candidates) {
+    const email = normalizeEmail(candidate)
+    if (email) return email
+  }
+  return ''
+}
+
+function stripTags(value: string) {
+  return value.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function contactPageCandidates(baseUrl: URL, html: string) {
+  const scored = new Map<string, number>()
+  const anchorPattern = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]{0,240}?)<\/a>/gi
+  for (const match of html.matchAll(anchorPattern)) {
+    const href = match[1]
+    const label = stripTags(match[2])
+    if (!CONTACT_HINT_PATTERN.test(`${href} ${label}`)) continue
+    try {
+      const candidate = new URL(href, baseUrl)
+      if (!['http:', 'https:'].includes(candidate.protocol)) continue
+      if (candidate.origin !== baseUrl.origin) continue
+      candidate.hash = ''
+      const key = candidate.toString()
+      const normalizedHint = normalized(`${candidate.pathname} ${label}`)
+      const score = /contato|contact|fale/.test(normalizedHint) ? 3 : /atendimento/.test(normalizedHint) ? 2 : 1
+      scored.set(key, Math.max(score, scored.get(key) ?? 0))
+    } catch {
+      // Ignore malformed site links.
+    }
+  }
+
+  const commonPaths = ['/contato', '/contact', '/fale-conosco', '/sobre', '/about']
+  for (const path of commonPaths) {
+    const candidate = new URL(path, baseUrl)
+    const score = /contato|contact|fale/.test(path) ? 2 : 1
+    scored.set(candidate.toString(), Math.max(score, scored.get(candidate.toString()) ?? 0))
+  }
+
+  return [...scored.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([url]) => url)
+    .filter((url) => url !== baseUrl.toString())
+    .slice(0, MAX_CRAWL_PAGES_PER_SITE)
+}
+
+async function fetchHtml(url: URL) {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1',
+        'user-agent': 'ZunoProspect/1.0 public-contact-discovery',
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(PAGE_FETCH_TIMEOUT_MS),
+    })
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined)
+      return ''
+    }
+    const finalUrl = safeWebsite(response.url)
+    if (!finalUrl || finalUrl.origin !== url.origin) {
+      await response.body?.cancel().catch(() => undefined)
+      return ''
+    }
+    const contentType = response.headers.get('content-type')?.toLowerCase() ?? ''
+    if (contentType && !contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
+      await response.body?.cancel().catch(() => undefined)
+      return ''
+    }
+    const declared = Number(response.headers.get('content-length') ?? 0)
+    if (Number.isFinite(declared) && declared > MAX_HTML_BYTES * 2) {
+      await response.body?.cancel().catch(() => undefined)
+      return ''
+    }
+    return (await response.text()).slice(0, MAX_HTML_BYTES)
+  } catch {
+    return ''
+  }
+}
+
+async function discoverPublicEmail(row: Record<string, unknown>): Promise<EmailDiscovery | null> {
+  const existing = validPublicEmail(row)
+  if (existing) return { email: existing, source: 'existing', pagesChecked: 0 }
+
+  const website = safeWebsite(row.website)
+  if (!website) return null
+  const homepage = await fetchHtml(website)
+  if (!homepage) return null
+
+  const homepageEmail = extractEmail(homepage)
+  if (homepageEmail) return { email: homepageEmail, source: 'homepage', pagesChecked: 1 }
+
+  const candidates = contactPageCandidates(website, homepage)
+  if (candidates.length === 0) return null
+  const pages = await Promise.all(candidates.map(async (value) => {
+    const parsed = safeWebsite(value)
+    if (!parsed || parsed.origin !== website.origin) return ''
+    return fetchHtml(parsed)
+  }))
+  for (const page of pages) {
+    const email = extractEmail(page)
+    if (email) return { email, source: 'contact_page', pagesChecked: 1 + pages.length }
+  }
+  return null
 }
 
 async function sha256(value: string) {
@@ -261,9 +414,8 @@ serve(async (request) => {
   const auth = authResult.auth
   if (!auth) return json({ error: 'unauthorized' }, 401)
 
-  // Zanotelli asks for at most five final leads, but Zuno may need to inspect more
-  // companies to find those that already expose a public e-mail. This spends no
-  // Hunter lookup credit and never arms outbound.
+  // Search a wider provider batch, then keep only public-email leads for Zanotelli.
+  // Hunter is not called here and outbound remains fail-closed.
   const searchQuantity = Math.min(MAX_SEARCH_QUANTITY, Math.max(quantidade, quantidade * 5))
   const searchPayload = {
     ...input,
@@ -291,34 +443,65 @@ serve(async (request) => {
     // Sanitized error below.
   }
   if (!searchResponse.ok || searchResult.success !== true) {
-    await logRequest(admin, { apiKeyId: auth.apiKeyId, userId: auth.userId, requestId, request, status: searchResponse.ok ? 422 : searchResponse.status, startedAt, errorCode: 'internal_search_failed' })
+    await logRequest(admin, {
+      apiKeyId: auth.apiKeyId,
+      userId: auth.userId,
+      requestId,
+      request,
+      status: searchResponse.ok ? 422 : searchResponse.status,
+      startedAt,
+      errorCode: 'internal_search_failed',
+    })
     return json({ error: 'internal_search_failed' }, searchResponse.ok ? 422 : searchResponse.status)
   }
 
   const searchRunId = clean(searchResult.searchRunId, 180)
   if (!searchRunId) return json({ error: 'search_run_missing' }, 503)
 
-  const responseRows = Array.isArray(searchResult.leads)
-    ? searchResult.leads.filter((item) => item && typeof item === 'object') as Record<string, unknown>[]
+  // Always re-read the search run from Zuno's encrypted store. The public response
+  // intentionally contains a reduced lead shape and is not authoritative for e-mail.
+  const { data, error } = await admin.rpc('set_encryption_key_and_get_leads_filtered', {
+    p_encryption_key: encryptionKey,
+    p_salvo: null,
+    p_user_id: auth.userId,
+    p_search_run_id: searchRunId,
+  })
+  if (error) return json({ error: 'lead_export_failed' }, 503)
+  const candidateRows = Array.isArray(data)
+    ? data.filter((item) => item && typeof item === 'object') as Record<string, unknown>[]
     : []
-  let candidateRows = responseRows
-  if (candidateRows.length === 0) {
-    const { data, error } = await admin.rpc('set_encryption_key_and_get_leads_filtered', {
-      p_encryption_key: encryptionKey,
-      p_salvo: null,
-      p_user_id: auth.userId,
-      p_search_run_id: searchRunId,
-    })
-    if (error) return json({ error: 'lead_export_failed' }, 503)
-    candidateRows = Array.isArray(data)
-      ? data.filter((item) => item && typeof item === 'object') as Record<string, unknown>[]
-      : []
+
+  const rows: Record<string, unknown>[] = []
+  let candidatesInspected = 0
+  let discardedWithoutEmail = 0
+  let existingEmailCount = 0
+  let homepageEmailCount = 0
+  let contactPageEmailCount = 0
+  let crawlPagesChecked = 0
+  const batchSize = 5
+
+  for (let offset = 0; offset < candidateRows.length && rows.length < quantidade; offset += batchSize) {
+    const batch = candidateRows.slice(offset, offset + batchSize)
+    const discoveries = await Promise.all(batch.map(async (row) => {
+      const discovery = await discoverPublicEmail(row)
+      return { row, discovery }
+    }))
+
+    for (const { row, discovery } of discoveries) {
+      candidatesInspected += 1
+      if (!discovery) {
+        discardedWithoutEmail += 1
+        continue
+      }
+      crawlPagesChecked += discovery.pagesChecked
+      if (discovery.source === 'existing') existingEmailCount += 1
+      else if (discovery.source === 'homepage') homepageEmailCount += 1
+      else contactPageEmailCount += 1
+      if (rows.length < quantidade) rows.push({ ...row, email: discovery.email })
+    }
   }
 
-  const rows = candidateRows.filter((row) => Boolean(validPublicEmail(row))).slice(0, quantidade)
-  const discardedWithoutEmail = Math.max(0, candidateRows.length - candidateRows.filter((row) => Boolean(validPublicEmail(row))).length)
   const signingSecret = await sha256(`zanotelli-inbound-hmac:v1:${auth.token}`)
-
   const bridgeResults = await Promise.all(rows.map(async (row) => {
     const snapshot = snapshotFromRow(row, searchRunId, profile.label)
     if (!snapshot.externalLeadId || !snapshot.companyName || !snapshot.publicEmail) return { accepted: false, safeCode: 'invalid_email_lead' }
@@ -340,8 +523,15 @@ serve(async (request) => {
     searchRunId,
     leadsFound: rows.length,
     nativeEmailOnly: true,
-    candidatesInspected: candidateRows.length,
+    candidatesAvailable: candidateRows.length,
+    candidatesInspected,
     discardedWithoutEmail,
+    emailDiscovery: {
+      existing: existingEmailCount,
+      homepage: homepageEmailCount,
+      contactPage: contactPageEmailCount,
+      pagesChecked: crawlPagesChecked,
+    },
     requestedFinalLeads: quantidade,
     providerSearchQuantity: searchQuantity,
     bridge: { accepted, duplicates, failures },

@@ -347,25 +347,34 @@ function openingFor(company: string, facts: string[]) {
 
 function fallbackDraft(company: string, facts: string[]) {
   const city = factValue(facts, 'Localização/atuação observada: ')
+  const description = factValue(facts, 'Descrição pública do site: ')
+  const services = descriptionServices(description)
+  const scale = scaleSignal(facts)
   const opening = openingFor(company, facts)
-  const exampleTarget = city ? ` para a própria ${company} em ${city}` : ` para a própria ${company}`
+  const market = city ? ` em ${city}` : ''
+
+  const interpretation = services && scale
+    ? `Pelo mix de serviços e pela base que vocês já construíram, a conexão com a Zuno está principalmente na aquisição de novas oportunidades. Ela encontra empresas por cidade e nicho, prioriza as melhores oportunidades e prepara a primeira abordagem com contexto do negócio — sem cair em lista fria e mensagem padrão.`
+    : services
+      ? `Esse perfil de operação combina com uma aplicação bem direta da Zuno na frente de aquisição: encontrar empresas por cidade e nicho, priorizar as melhores oportunidades e chegar à primeira abordagem com contexto do negócio, em vez de usar uma lista fria e uma mensagem igual para todo mundo.`
+      : `A conexão com a Zuno está na frente de aquisição: encontrar empresas por cidade e nicho, priorizar as melhores oportunidades e preparar uma primeira abordagem com contexto do negócio, em vez de começar com uma lista fria e uma mensagem genérica.`
 
   const body = [
     'Olá, tudo bem?',
     '',
     opening,
     '',
-    'Foi justamente por esse perfil que pensei na Zuno Prospect. A proposta é ajudar agências e profissionais B2B a encontrar novas empresas por cidade e nicho, priorizar oportunidades e chegar na primeira conversa já entendendo um pouco do negócio do potencial cliente, em vez de começar com uma lista fria e uma mensagem genérica.',
+    interpretation,
     '',
-    `Se quiser, posso te mostrar um exemplo prático de como a Zuno montaria uma prospecção${exampleTarget}.`,
+    `Em vez de te explicar a ferramenta de forma genérica, preparei um exemplo aplicado à própria ${company}${market}. Dá para avaliar em poucos minutos e ver se faria sentido para a operação de vocês.`,
     '',
-    'Se não fizer sentido receber esse tipo de contato, é só responder que removemos o endereço.',
+    'Se não quiser receber mais contatos, é só responder que removemos o endereço.',
     '',
     'Equipe Zuno Prospect',
   ].join('\n')
 
   return {
-    subject: `Uma ideia de prospecção para a ${company}`.slice(0, 70),
+    subject: `${company}: uma ideia para prospectar${market}`.slice(0, 70),
     body: body.slice(0, 10_500),
   }
 }
@@ -374,7 +383,7 @@ async function callGemini(apiKey: string, company: string, facts: string[], inte
   const fallback = fallbackDraft(company, facts)
   const factBlock = facts.map((fact, index) => `${index + 1}. ${fact}`).join('\n')
   const signalBlock = internalSignals.length ? internalSignals.map((item) => `- ${item}`).join('\n') : 'Nenhum sinal técnico relevante.'
-  const prompt = `Você escreve primeiro contato comercial B2B em português do Brasil para o produto Zuno Prospect.\n\nEMPRESA: ${company}\n\nFATOS CONFIÁVEIS SOBRE A EMPRESA:\n${factBlock || 'Nenhum fato adicional confiável.'}\n\nSINAIS INTERNOS PARA RACIOCÍNIO, NÃO PARA SEREM CITADOS NO E-MAIL:\n${signalBlock}\n\nPRODUTO: Zuno Prospect ajuda profissionais e agências B2B a encontrar empresas por cidade e nicho, priorizar oportunidades e preparar abordagens contextualizadas.\n\nPADRÃO DE QUALIDADE:\nO leitor deve sentir que um profissional realmente pesquisou a empresa antes de escrever. A mensagem não pode parecer template, automação ou texto montado por robô. Personalizar não é copiar frases do site: é escolher um ou dois fatos relevantes, interpretá-los e explicar naturalmente por que eles tornam a Zuno pertinente para aquela operação.\n\nREGRAS OBRIGATÓRIAS:\n- Gere um e-mail curto, natural, profissional e específico para esta empresa.\n- Use no máximo 2 evidências concretas, priorizando serviços, atuação, escala, clientes, projetos, localização ou posicionamento.\n- Interprete os fatos em linguagem humana. Não cole títulos, slogans, perguntas de banner ou trechos desconexos do site.\n- Não use frases genéricas como \"vi o trabalho de vocês\", \"dois pontos me chamaram atenção\", \"também vi que\" ou elogios vazios.\n- Conecte a evidência ao motivo do contato: explique por que o perfil da empresa faz a Zuno ser relevante.\n- O CTA deve oferecer um exemplo concreto aplicado à própria empresa, de preferência ligado à cidade/mercado quando houver essa informação.\n- Não crie urgência artificial, escassez, promessa de resultado, case ou número não presente nos fatos.\n- Não diga que rastreou, inspecionou pixel, coletou dados ou usou tecnologia de rastreamento.\n- Não cite Meta Pixel, Google Tag, GTM ou outros sinais técnicos.\n- Não use nome pessoal de remetente. A assinatura deve ser exatamente \"Equipe Zuno Prospect\".\n- Inclua opt-out claro e curto.\n- Não inclua link; o backend adicionará o link rastreável de WhatsApp depois.\n- Assunto com no máximo 70 caracteres, específico e sem clickbait.\n- Corpo com no máximo 1200 caracteres.\n- Preserve parágrafos e leitura natural.\n\nResponda SOMENTE JSON válido no formato {\"subject\":\"...\",\"body\":\"...\"}.`
+  const prompt = `Você escreve primeiro contato comercial B2B em português do Brasil para o produto Zuno Prospect.\n\nEMPRESA: ${company}\n\nFATOS CONFIÁVEIS SOBRE A EMPRESA:\n${factBlock || 'Nenhum fato adicional confiável.'}\n\nSINAIS INTERNOS PARA RACIOCÍNIO, NÃO PARA SEREM CITADOS NO E-MAIL:\n${signalBlock}\n\nPRODUTO: Zuno Prospect ajuda profissionais e agências B2B a encontrar empresas por cidade e nicho, priorizar oportunidades e preparar abordagens contextualizadas.\n\nPADRÃO DE QUALIDADE:\nO leitor deve sentir que um profissional comercial experiente realmente pesquisou a empresa antes de escrever. A mensagem não pode parecer template, automação, texto institucional ou copy montada por robô. Personalizar não é copiar frases do site: é escolher um ou dois fatos relevantes, interpretá-los e explicar naturalmente por que eles criam uma oportunidade concreta para aquela operação.\n\nESTRUTURA ESPERADA:\n1. Abra com 1 ou 2 fatos específicos da empresa em linguagem natural.\n2. Faça uma interpretação comercial curta do que esses fatos significam para a operação.\n3. Conecte essa interpretação à frente de aquisição que a Zuno resolve.\n4. Termine com um exemplo concreto aplicado à própria empresa, sem pedir reunião de cara.\n\nREGRAS OBRIGATÓRIAS:\n- Gere um e-mail curto, natural, profissional, confiante e específico para esta empresa.\n- Use no máximo 2 evidências concretas, priorizando serviços, atuação, escala, clientes, projetos, localização ou posicionamento.\n- Interprete os fatos em linguagem humana. Não cole títulos, slogans, perguntas de banner ou trechos desconexos do site.\n- Não use frases genéricas como \"vi o trabalho de vocês\", \"dois pontos me chamaram atenção\", \"também vi que\", \"foi justamente por esse perfil\", \"a proposta é ajudar\", \"se fizer sentido\" ou \"posso te mostrar como funciona\".\n- Não faça um parágrafo genérico apresentando o produto. Cada parágrafo deve nascer do contexto deste lead.\n- Conecte a evidência ao motivo do contato: explique por que o perfil da empresa torna a Zuno relevante para a operação.\n- Prefira uma linguagem de consultor/comercial experiente, sem bajulação e sem pressão.\n- O CTA deve oferecer um exemplo concreto aplicado à própria empresa, de preferência ligado à cidade/mercado quando houver essa informação.\n- Não crie urgência artificial, escassez, promessa de resultado, case ou número não presente nos fatos.\n- Não diga que rastreou, inspecionou pixel, coletou dados ou usou tecnologia de rastreamento.\n- Não cite Meta Pixel, Google Tag, GTM ou outros sinais técnicos.\n- Não use nome pessoal de remetente. A assinatura deve ser exatamente \"Equipe Zuno Prospect\".\n- Inclua opt-out claro e curto.\n- Não inclua link; o backend adicionará o link rastreável de WhatsApp depois.\n- Assunto com no máximo 70 caracteres, específico e sem clickbait.\n- Corpo com no máximo 1200 caracteres.\n- Preserve parágrafos e leitura natural.\n\nResponda SOMENTE JSON válido no formato {\"subject\":\"...\",\"body\":\"...\"}.`
 
   const deadline = Date.now() + AI_TOTAL_BUDGET_MS
   for (const model of MODELS) {

@@ -59,6 +59,10 @@ function htmlText(value: string) {
     .replace(/&amp;/gi, '&')
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
+    .replace(/&#(\d+);/g, (_, code) => {
+      const numeric = Number(code)
+      return Number.isFinite(numeric) ? String.fromCodePoint(numeric) : ' '
+    })
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -227,13 +231,28 @@ function normalizeCompanyName(value: unknown) {
     .trim() || clean(value, 180)
 }
 
+function meaningfulHeading(value: string) {
+  const text = clean(value, 260)
+  if (!text || text.endsWith('?')) return false
+  if (/^(quem somos|sobre|servi[cç]os|solu[cç][oõ]es|contato|fale conosco)$/i.test(text)) return false
+  if (/^(procurando|quer|precisa|conhe[cç]a|saiba mais)\b/i.test(text)) return false
+  return text.length >= 8
+}
+
+function usefulSiteSnippet(value: string) {
+  const text = clean(value, 420)
+  if (!text) return false
+  return /\b(?:clientes?|projetos?|anos?|resultados?|estrat[eé]gias?|sistemas?|redes sociais|an[uú]ncios?|assessoria|comunica[cç][aã]o|tecnologia)\b/i.test(text)
+}
+
 function usefulFacts(lead: Record<string, unknown>, site: SiteContext) {
   const facts: string[] = []
   const internalSignals: string[] = []
   const company = normalizeCompanyName(lead.nome || lead.company_name)
 
   if (site.description) facts.push(`Descrição pública do site: ${site.description}`)
-  for (const heading of site.headings.slice(0, 6)) facts.push(`Destaque público do site: ${heading}`)
+  for (const snippet of site.snippets.filter(usefulSiteSnippet).slice(0, 4)) facts.push(`Trecho público do site: ${snippet}`)
+  for (const heading of site.headings.filter(meaningfulHeading).slice(0, 4)) facts.push(`Destaque público do site: ${heading}`)
 
   const rating = Number(lead.rating)
   const reviews = Number(lead.total_reviews)
@@ -258,50 +277,95 @@ function usefulFacts(lead: Record<string, unknown>, site: SiteContext) {
   if (lead.has_gtag === true) internalSignals.push('Google tag detectada')
   if (lead.has_gtm === true) internalSignals.push('Google Tag Manager detectado')
 
-  return { company, facts: facts.slice(0, 14), internalSignals: internalSignals.slice(0, 4) }
+  return { company, facts: facts.slice(0, 16), internalSignals: internalSignals.slice(0, 4) }
 }
 
-function humanFact(value: string) {
-  return value
-    .replace(/^Descrição pública do site:\s*/i, '')
-    .replace(/^Destaque público do site:\s*/i, '')
-    .replace(/^Reputação pública no Google:\s*/i, '')
-    .replace(/^Localização\/atuação observada:\s*/i, '')
-    .trim()
+function factValue(facts: string[], prefix: string) {
+  const fact = facts.find((item) => item.startsWith(prefix))
+  return fact ? clean(fact.slice(prefix.length), 900).replace(/\s*\.\s*$/, '') : ''
+}
+
+function descriptionServices(description: string) {
+  if (!description) return ''
+  const sentences = description.split(/(?<=[.!?])\s+/).map((item) => item.replace(/[.!?]+$/, '').trim()).filter(Boolean)
+  const candidate = sentences.find((item, index) => index > 0 && item.includes(','))
+    || sentences.find((item) => item.includes(','))
+    || ''
+  if (!candidate) return ''
+
+  const items = candidate.split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => item
+      .replace(/emails? marketing(?: na internet)?/i, 'e-mail marketing')
+      .replace(/an[uú]ncios? na internet/i, 'anúncios')
+      .replace(/\s+na internet$/i, '')
+      .toLowerCase())
+    .filter((item, index, array) => item.length > 2 && array.indexOf(item) === index)
+    .slice(0, 4)
+
+  if (items.length < 2) return ''
+  if (items.length === 2) return `${items[0]} e ${items[1]}`
+  return `${items.slice(0, -1).join(', ')} e ${items[items.length - 1]}`
+}
+
+function scaleSignal(facts: string[]) {
+  for (const fact of facts.filter((item) => item.startsWith('Trecho público do site:'))) {
+    const text = factValue([fact], 'Trecho público do site: ')
+    const match = text.match(/(?:mais de|cerca de|aproximadamente)?\s*\d+[\d.,]*\s+(?:clientes?(?:\s+recorrentes?)?|projetos?(?:\s+entregues?)?|anos?(?:\s+de mercado)?|empresas?(?:\s+atendidas?){0,1})/i)
+    if (match?.[0]) return clean(match[0], 120).replace(/^\s+/, '')
+  }
+  return ''
+}
+
+function openingFor(company: string, facts: string[]) {
+  const description = factValue(facts, 'Descrição pública do site: ')
+  const city = factValue(facts, 'Localização/atuação observada: ')
+  const services = descriptionServices(description)
+  const scale = scaleSignal(facts)
+  const rating = factValue(facts, 'Reputação pública no Google: ')
+
+  if (services && scale) {
+    return `Vi no site de vocês que a ${company} reúne ${services}, além de mencionar uma base de ${scale}.`
+  }
+  if (services && city) {
+    return `Vi que a ${company} atua em ${city} com uma operação que reúne ${services}.`
+  }
+  if (scale && city) {
+    return `Vi no site da ${company} a atuação em ${city} e a menção a ${scale}.`
+  }
+  if (description) {
+    const short = description.length > 190 ? `${description.slice(0, 187).replace(/\s+\S*$/, '')}...` : description
+    return `Estive olhando a presença da ${company} e vi esta descrição da operação de vocês: ${short}`
+  }
+  if (rating && city) {
+    return `Vi a atuação da ${company} em ${city} e a reputação pública de ${rating}.`
+  }
+  if (city) return `Estive olhando a operação da ${company} em ${city} e pensei em uma aplicação bem direta da Zuno para vocês.`
+  return `Estive olhando a operação da ${company} e pensei em uma aplicação bem direta da Zuno para o perfil de vocês.`
 }
 
 function fallbackDraft(company: string, facts: string[]) {
-  const primary = facts.find((fact) => fact.startsWith('Descrição pública do site:'))
-    || facts.find((fact) => fact.startsWith('Destaque público do site:'))
-    || facts.find((fact) => fact.startsWith('Reputação pública no Google:'))
-    || facts.find((fact) => fact.startsWith('Localização/atuação observada:'))
-    || ''
-  const secondary = facts.find((fact) => fact !== primary && (
-    fact.startsWith('Destaque público do site:')
-    || fact.startsWith('Reputação pública no Google:')
-    || fact.startsWith('Segmento observado:')
-  )) || ''
-  const observations = [primary, secondary].filter(Boolean).map(humanFact)
-  const concrete = observations.length
-    ? `Estava olhando a presença digital da ${company} e dois pontos me chamaram atenção: ${observations.join(' Também vi que ')}.`
-    : `Estava olhando a presença digital da ${company} e quis te mostrar uma forma de transformar informações públicas da empresa em uma prospecção mais contextualizada.`
+  const city = factValue(facts, 'Localização/atuação observada: ')
+  const opening = openingFor(company, facts)
+  const exampleTarget = city ? ` para a própria ${company} em ${city}` : ` para a própria ${company}`
 
   const body = [
     'Olá, tudo bem?',
     '',
-    concrete,
+    opening,
     '',
-    'A Zuno Prospect foi criada para agências e profissionais B2B encontrarem empresas por cidade e nicho, priorizarem oportunidades e chegarem na primeira abordagem já com contexto do negócio.',
+    'Foi justamente por esse perfil que pensei na Zuno Prospect. A proposta é ajudar agências e profissionais B2B a encontrar novas empresas por cidade e nicho, priorizar oportunidades e chegar na primeira conversa já entendendo um pouco do negócio do potencial cliente, em vez de começar com uma lista fria e uma mensagem genérica.',
     '',
-    `Se fizer sentido, posso te mostrar um exemplo usando a própria ${company} para você avaliar em poucos minutos.`,
+    `Se quiser, posso te mostrar um exemplo prático de como a Zuno montaria uma prospecção${exampleTarget}.`,
     '',
-    'Se preferir não receber esse tipo de contato, é só responder pedindo a remoção.',
+    'Se não fizer sentido receber esse tipo de contato, é só responder que removemos o endereço.',
     '',
     'Equipe Zuno Prospect',
   ].join('\n')
 
   return {
-    subject: `Uma observação sobre a ${company}`.slice(0, 70),
+    subject: `Uma ideia de prospecção para a ${company}`.slice(0, 70),
     body: body.slice(0, 10_500),
   }
 }
@@ -310,7 +374,7 @@ async function callGemini(apiKey: string, company: string, facts: string[], inte
   const fallback = fallbackDraft(company, facts)
   const factBlock = facts.map((fact, index) => `${index + 1}. ${fact}`).join('\n')
   const signalBlock = internalSignals.length ? internalSignals.map((item) => `- ${item}`).join('\n') : 'Nenhum sinal técnico relevante.'
-  const prompt = `Você escreve primeiro contato comercial B2B em português do Brasil para o produto Zuno Prospect.\n\nEMPRESA: ${company}\n\nFATOS CONFIÁVEIS SOBRE A EMPRESA:\n${factBlock || 'Nenhum fato adicional confiável.'}\n\nSINAIS INTERNOS PARA RACIOCÍNIO, NÃO PARA SEREM CITADOS NO E-MAIL:\n${signalBlock}\n\nPRODUTO: Zuno Prospect ajuda profissionais e agências B2B a encontrar empresas por cidade e nicho, priorizar oportunidades e preparar abordagens contextualizadas.\n\nREGRAS OBRIGATÓRIAS:\n- Gere um e-mail curto, natural e específico para esta empresa.\n- A primeira parte precisa provar contexto real: use 1 ou 2 fatos concretos acima, sem exagerar e sem inventar.\n- Não use elogio vazio como \"vi o trabalho de vocês\".\n- Não diga que rastreou, inspecionou pixel, coletou dados ou usou tecnologia de rastreamento.\n- Não cite Meta Pixel, Google Tag, GTM ou outros sinais técnicos.\n- Não use nome pessoal de remetente. A assinatura deve ser exatamente \"Equipe Zuno Prospect\".\n- O CTA deve oferecer um exemplo aplicado à própria empresa.\n- Inclua opt-out claro e curto.\n- Não inclua link; o backend adicionará o link rastreável de WhatsApp depois.\n- Assunto com no máximo 70 caracteres.\n- Corpo com no máximo 1200 caracteres.\n- Preserve parágrafos e leitura natural.\n\nResponda SOMENTE JSON válido no formato {\"subject\":\"...\",\"body\":\"...\"}.`
+  const prompt = `Você escreve primeiro contato comercial B2B em português do Brasil para o produto Zuno Prospect.\n\nEMPRESA: ${company}\n\nFATOS CONFIÁVEIS SOBRE A EMPRESA:\n${factBlock || 'Nenhum fato adicional confiável.'}\n\nSINAIS INTERNOS PARA RACIOCÍNIO, NÃO PARA SEREM CITADOS NO E-MAIL:\n${signalBlock}\n\nPRODUTO: Zuno Prospect ajuda profissionais e agências B2B a encontrar empresas por cidade e nicho, priorizar oportunidades e preparar abordagens contextualizadas.\n\nPADRÃO DE QUALIDADE:\nO leitor deve sentir que um profissional realmente pesquisou a empresa antes de escrever. A mensagem não pode parecer template, automação ou texto montado por robô. Personalizar não é copiar frases do site: é escolher um ou dois fatos relevantes, interpretá-los e explicar naturalmente por que eles tornam a Zuno pertinente para aquela operação.\n\nREGRAS OBRIGATÓRIAS:\n- Gere um e-mail curto, natural, profissional e específico para esta empresa.\n- Use no máximo 2 evidências concretas, priorizando serviços, atuação, escala, clientes, projetos, localização ou posicionamento.\n- Interprete os fatos em linguagem humana. Não cole títulos, slogans, perguntas de banner ou trechos desconexos do site.\n- Não use frases genéricas como \"vi o trabalho de vocês\", \"dois pontos me chamaram atenção\", \"também vi que\" ou elogios vazios.\n- Conecte a evidência ao motivo do contato: explique por que o perfil da empresa faz a Zuno ser relevante.\n- O CTA deve oferecer um exemplo concreto aplicado à própria empresa, de preferência ligado à cidade/mercado quando houver essa informação.\n- Não crie urgência artificial, escassez, promessa de resultado, case ou número não presente nos fatos.\n- Não diga que rastreou, inspecionou pixel, coletou dados ou usou tecnologia de rastreamento.\n- Não cite Meta Pixel, Google Tag, GTM ou outros sinais técnicos.\n- Não use nome pessoal de remetente. A assinatura deve ser exatamente \"Equipe Zuno Prospect\".\n- Inclua opt-out claro e curto.\n- Não inclua link; o backend adicionará o link rastreável de WhatsApp depois.\n- Assunto com no máximo 70 caracteres, específico e sem clickbait.\n- Corpo com no máximo 1200 caracteres.\n- Preserve parágrafos e leitura natural.\n\nResponda SOMENTE JSON válido no formato {\"subject\":\"...\",\"body\":\"...\"}.`
 
   const deadline = Date.now() + AI_TOTAL_BUDGET_MS
   for (const model of MODELS) {
@@ -444,19 +508,19 @@ serve(async (request) => {
     )
     const draft = geminiKey
       ? await callGemini(geminiKey, company, facts, internalSignals)
-      : { ...fallbackDraft(company, facts), model: 'deterministic-fallback', usedFallback: true }
+      : { ...fallbackDraft(company, facts), model: 'deterministic-human-fallback', usedFallback: true }
     const aiMs = Date.now() - aiStarted
 
     const context = {
-      version: 2,
+      version: 3,
       generated_at: new Date().toISOString(),
       pages_checked: site.pagesChecked,
       page_urls: site.pageUrls.slice(0, MAX_SITE_PAGES),
       title: site.title,
       description: site.description,
       headings: site.headings.slice(0, 12),
-      snippets: site.snippets.slice(0, 6),
-      facts: facts.slice(0, 14),
+      snippets: site.snippets.slice(0, 8),
+      facts: facts.slice(0, 16),
       internal_signals: internalSignals.slice(0, 4),
       model: draft.model,
       used_fallback: draft.usedFallback,
@@ -506,7 +570,7 @@ serve(async (request) => {
       subject: draft.subject,
       body: draft.body,
       personalization: {
-        facts_used: facts.slice(0, 14),
+        facts_used: facts.slice(0, 16),
         site_context: context,
         sender_signature: 'Equipe Zuno Prospect',
         personal_sender_name_used: false,

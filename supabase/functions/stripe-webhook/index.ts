@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Stripe from "npm:stripe@^14.20.0";
+import { emitZanotelliRevenueEvent } from "../_shared/zanotelli-inbound-bridge.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2023-10-16",
@@ -45,6 +46,37 @@ function stripeId(value: unknown): string | null {
 
 function isAddonMetadata(metadata?: Stripe.Metadata | null) {
   return metadata?.type === "addon" && metadata?.addon_id === "us_prospecting" && Boolean(metadata?.user_id);
+}
+
+async function relayPaidRevenueToZanotelli(params: {
+  stripeEventId: string;
+  email: string | null | undefined;
+  planId: string;
+  amountPaidCents: number | null | undefined;
+  currency: string | null | undefined;
+}) {
+  const email = String(params.email || "").trim().toLowerCase();
+  const amountPaidCents = Number(params.amountPaidCents || 0);
+  if (!email || !email.includes("@") || amountPaidCents <= 0) return;
+
+  try {
+    const result = await emitZanotelliRevenueEvent({
+      eventId: params.stripeEventId,
+      email,
+      planId: params.planId,
+      amount: amountPaidCents / 100,
+      currency: String(params.currency || "BRL").toUpperCase(),
+    });
+    console.log("[stripe-webhook] Zanotelli revenue relay", {
+      attempted: result.attempted,
+      accepted: result.accepted,
+      status: result.status,
+      safeCode: result.safeCode,
+    });
+  } catch {
+    // Revenue analytics/attribution can never block Stripe billing processing.
+    console.warn("[stripe-webhook] Zanotelli revenue relay unavailable");
+  }
 }
 
 // Resolvedor de plano inteligente baseado em Price ID / Valor (ETAPA EXTRA - 3 e 8)
@@ -1497,6 +1529,14 @@ serve(async (req) => {
                 email,
                 stripe_customer_id: stripeCustomerId,
                 stripe_subscription_id: stripeSubscriptionId,
+              });
+
+              await relayPaidRevenueToZanotelli({
+                stripeEventId: event.id,
+                email: email || invoice.customer_email,
+                planId: finalPlanId,
+                amountPaidCents: invoice.amount_paid || amount || 0,
+                currency: currency || invoice.currency || "brl",
               });
 
               // REGISTRAR COMPRA SE NÃO TIVER SIDO REGISTRADA ANTES (GARANTE IDEMPOTÊNCIA)

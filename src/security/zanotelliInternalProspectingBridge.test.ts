@@ -10,6 +10,10 @@ const endpoint = readFileSync(
   resolve(process.cwd(), 'supabase/functions/zanotelli-internal-prospecting/index.ts'),
   'utf8',
 )
+const stripeWebhook = readFileSync(
+  resolve(process.cwd(), 'supabase/functions/stripe-webhook/index.ts'),
+  'utf8',
+)
 
 describe('Zanotelli internal prospecting bridge', () => {
   it('is opt-in through backend-only environment gates', () => {
@@ -49,6 +53,16 @@ describe('Zanotelli internal prospecting bridge', () => {
     expect(endpoint).not.toContain('api.instantly.ai')
     expect(endpoint).not.toContain('graph.facebook.com')
     expect(endpoint).not.toContain('wa.me')
+  })
+
+  it('relays real paid invoices without exposing the raw billing email to Zanotelli', () => {
+    expect(helper).toContain('emitZanotelliRevenueEvent')
+    expect(helper).toContain("event_type: 'revenue_event'")
+    expect(helper).toContain('email_hash: emailHash')
+    expect(helper).not.toContain('email: normalizedEmail')
+    expect(stripeWebhook).toContain('relayPaidRevenueToZanotelli')
+    expect(stripeWebhook).toContain('amountPaidCents: invoice.amount_paid || amount || 0')
+    expect(stripeWebhook).toContain('Revenue analytics/attribution can never block Stripe billing processing')
   })
 
   it('uses stable per-lead idempotency and bounded public fields', () => {

@@ -15,6 +15,15 @@ export interface ZanotelliLeadSnapshotInput {
   googlePlaceId?: string | null
 }
 
+export interface ZanotelliRevenueEventInput {
+  eventId: string
+  email: string
+  planId?: string | null
+  amount?: number | null
+  currency?: string | null
+  occurredAt?: string | null
+}
+
 export interface ZanotelliBridgeConfig {
   enabled: boolean
   url: string
@@ -30,6 +39,11 @@ export interface ZanotelliBridgeResult {
 
 function clean(value: string | null | undefined, max: number) {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
+}
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
 export function readZanotelliBridgeConfig(): ZanotelliBridgeConfig {
@@ -141,3 +155,87 @@ export async function emitZanotelliLeadSnapshot(
     return { attempted: true, accepted: false, status: null, safeCode: 'network_error' }
   }
 }
+
+export async function emitZanotelliRevenueEvent(
+  input: ZanotelliRevenueEventInput,
+  config = readZanotelliBridgeConfig(),
+  fetcher: typeof fetch = fetch,
+): Promise<ZanotelliBridgeResult> {
+  if (!config.enabled) {
+    return { attempted: false, accepted: false, status: null, safeCode: 'disabled' }
+  }
+  if (!validBridgeUrl(config.url) || config.secret.length < 32) {
+    return { attempted: false, accepted: false, status: null, safeCode: 'misconfigured' }
+  }
+
+  const eventId = clean(input.eventId, 120)
+  const normalizedEmail = clean(input.email, 254).toLowerCase()
+  const planId = clean(input.planId, 20).toLowerCase()
+  const currency = (clean(input.currency, 3) || 'BRL').toUpperCase()
+  const occurredAt = clean(input.occurredAt, 40) || new Date().toISOString()
+  const amount = typeof input.amount === 'number' && Number.isFinite(input.amount) && input.amount >= 0
+    ? Math.min(input.amount, 10_000_000)
+    : undefined
+
+  if (!eventId || !normalizedEmail || !normalizedEmail.includes('@')) {
+    return { attempted: false, accepted: false, status: null, safeCode: 'invalid_revenue_event' }
+  }
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    return { attempted: false, accepted: false, status: null, safeCode: 'invalid_currency' }
+  }
+  if (planId && !['starter','pro','agency','agencia'].includes(planId)) {
+    return { attempted: false, accepted: false, status: null, safeCode: 'invalid_plan' }
+  }
+
+  const emailHash = await sha256Hex(normalizedEmail)
+  const payload = {
+    event_type: 'revenue_event' as const,
+    event_id: eventId,
+    occurred_at: occurredAt,
+    source: 'zuno-stripe',
+    email_hash: emailHash,
+    ...(planId ? { plan_id: planId } : {}),
+    ...(amount !== undefined ? { amount } : {}),
+    currency,
+    status: 'paid' as const,
+    idempotency_key: `revenue:${eventId}`,
+  }
+
+  const raw = JSON.stringify(payload)
+  const timestamp = Math.floor(Date.now() / 1000).toString()
+  const signature = await sign(`${timestamp}.${raw}`, config.secret)
+
+  try {
+    const response = await fetcher(config.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-zuno-timestamp': timestamp,
+        'x-zuno-signature': signature,
+        'x-zuno-event-id': eventId,
+      },
+      body: raw,
+      signal: AbortSignal.timeout(5000),
+    })
+
+    const responseText = (await response.text()).slice(0, MAX_RESPONSE_BYTES)
+    let receiverStatus = ''
+    try {
+      const parsed = JSON.parse(responseText) as { status?: unknown }
+      receiverStatus = typeof parsed.status === 'string' ? parsed.status : ''
+    } catch {
+      receiverStatus = ''
+    }
+
+    const accepted = response.status === 202 || response.status === 409
+    return {
+      attempted: true,
+      accepted,
+      status: response.status,
+      safeCode: accepted ? (receiverStatus || (response.status === 409 ? 'duplicate' : 'accepted')) : `http_${response.status}`,
+    }
+  } catch {
+    return { attempted: true, accepted: false, status: null, safeCode: 'network_error' }
+  }
+}
+

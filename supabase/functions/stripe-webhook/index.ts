@@ -56,7 +56,8 @@ function trialPolicyEvidence(
 
   return {
     trial_duration_days: Number.isFinite(configuredDays) && configuredDays > 0 ? configuredDays : actualDays,
-    trial_policy_version: metadata?.trial_policy_version || null,
+    trial_policy_version: metadata?.trial_policy_version
+      || (configuredDays === 4 ? TRIAL_POLICY_VERSION : null),
     trial_duration_days_actual: actualDays,
   };
 }

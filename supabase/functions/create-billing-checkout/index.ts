@@ -125,7 +125,6 @@ Deno.serve(async (req) => {
       admin,
       accessToken,
       user.id,
-      user.email,
       typedConfig.mercado_pago_trial_duration_days,
       typedConfig.mercado_pago_trial_policy_version,
       `${appUrl}/prospeccao?subscription=success&provider=mercado_pago`,

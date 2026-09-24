@@ -1483,6 +1483,23 @@ serve(async (req) => {
             stripe_subscription_id: stripeSubscriptionId,
           });
 
+          const cancelledPlanId = metadata?.plan_id || metadata?.plan_key || "free";
+
+          await recordCanonicalBillingMilestone(supabaseAdmin, {
+            userId: eventUserId,
+            eventName: "subscription_cancelled",
+            referenceId: stripeSubscriptionId || event.id,
+            email,
+            planId: cancelledPlanId,
+            trialEnd,
+            eventData: {
+              stripe_event_id: event.id,
+              stripe_subscription_id: stripeSubscriptionId,
+              plan_id: cancelledPlanId,
+              reason: "subscription_deleted",
+            },
+          });
+
           // Se estava em trial no momento do cancelamento
           const isTrial = subscription.trial_end && new Date(subscription.trial_end * 1000) > new Date();
           if (isTrial) {
@@ -1490,8 +1507,22 @@ serve(async (req) => {
               stripe_event_id: event.id,
               stripe_customer_id: stripeCustomerId,
               stripe_subscription_id: stripeSubscriptionId,
-              plan_id: metadata?.plan_id || "free",
+              plan_id: cancelledPlanId,
               reason: "subscription_deleted_during_trial",
+            });
+            await recordCanonicalBillingMilestone(supabaseAdmin, {
+              userId: eventUserId,
+              eventName: "trial_cancelled",
+              referenceId: stripeSubscriptionId || event.id,
+              email,
+              planId: cancelledPlanId,
+              trialEnd,
+              eventData: {
+                stripe_event_id: event.id,
+                stripe_subscription_id: stripeSubscriptionId,
+                plan_id: cancelledPlanId,
+                reason: "subscription_deleted_during_trial",
+              },
             });
           }
         }

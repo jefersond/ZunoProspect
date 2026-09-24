@@ -29,6 +29,9 @@ export interface SubscriptionInfo {
   canceled_at?: string | null;
   trial_days_remaining?: number | null;
   billing_cycle?: string | null;
+  billing_provider?: "stripe" | "mercado_pago" | null;
+  trial_duration_days?: number | null;
+  trial_policy_version?: string | null;
 }
 
 export interface UseSubscriptionReturn {
@@ -116,6 +119,9 @@ const starterFallback = (isAdmin: boolean): SubscriptionInfo => {
     cancel_at_period_end: false,
     canceled_at: null,
     trial_days_remaining: null,
+    billing_provider: null,
+    trial_duration_days: null,
+    trial_policy_version: null,
   };
 };
 
@@ -156,6 +162,9 @@ export const useSubscription = (): UseSubscriptionReturn => {
         canceled_at: null,
         trial_days_remaining: null,
         billing_cycle: null,
+        billing_provider: null,
+        trial_duration_days: null,
+        trial_policy_version: null,
       });
       setIsAdmin(true);
       setLoading(false);
@@ -243,7 +252,9 @@ export const useSubscription = (): UseSubscriptionReturn => {
         aiUsed = directSub.ai_used_this_month ?? 0;
 
         // Auto-healing: se a assinatura local está trialing e o trial_end expirou, disparamos a verificação em segundo plano
-        if (subStatusNormalized === "trialing" && directSub.trial_end && !hasTriggeredSyncRef.current) {
+        const resolvedBillingProvider = directSub.billing_provider
+          || (directSub.stripe_customer_id || directSub.stripe_subscription_id ? "stripe" : null);
+        if (resolvedBillingProvider === "stripe" && subStatusNormalized === "trialing" && directSub.trial_end && !hasTriggeredSyncRef.current) {
           const trialEndDate = new Date(directSub.trial_end);
           if (trialEndDate < new Date()) {
             console.log("[useSubscription] Trial expirado localmente detectado. Disparando check-subscription no Stripe...");
@@ -312,6 +323,9 @@ export const useSubscription = (): UseSubscriptionReturn => {
           canceled_at: null,
           trial_days_remaining: null,
         billing_cycle: null,
+        billing_provider: null,
+        trial_duration_days: null,
+        trial_policy_version: null,
         });
         return;
       }
@@ -353,6 +367,10 @@ export const useSubscription = (): UseSubscriptionReturn => {
         canceled_at: directSub?.canceled_at ?? null,
         trial_days_remaining: trialDaysRemaining,
         billing_cycle: directSub?.billing_cycle ?? null,
+        billing_provider: directSub?.billing_provider
+          ?? (directSub?.stripe_customer_id || directSub?.stripe_subscription_id ? "stripe" : null),
+        trial_duration_days: directSub?.trial_duration_days ?? null,
+        trial_policy_version: directSub?.trial_policy_version ?? null,
       });
     } catch (err: any) {
       console.error("Erro ao buscar assinatura:", err);

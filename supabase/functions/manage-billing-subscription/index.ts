@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
   if (error || !subscription) return json({ error: "subscription_not_found" }, 404);
 
   if (subscription.billing_provider === "stripe" || subscription.stripe_customer_id || subscription.stripe_subscription_id) {
-    const response = await fetch(`${supabaseUrl}/functions/v1/create-customer-portal-session`, {
+    const response = await fetch(`${supabaseUrl}/functions/v1/customer-portal`, {
       method: "POST",
       headers: { authorization: authHeader, "content-type": "application/json" },
       body: JSON.stringify({ action }),

@@ -54,10 +54,7 @@ create table if not exists public.billing_provider_config (
   mercado_pago_trial_duration_days integer not null default 4 check (mercado_pago_trial_duration_days > 0),
   mercado_pago_trial_policy_version text not null default '4d_2026_09',
   mercado_pago_cutover_ready boolean not null default false,
-  updated_at timestamptz not null default now(),
-  constraint billing_provider_cutover_guard check (
-    default_new_billing_provider = 'stripe' or mercado_pago_cutover_ready = true
-  )
+  updated_at timestamptz not null default now()
 );
 
 insert into public.billing_provider_config(singleton)
@@ -68,7 +65,31 @@ alter table public.billing_provider_config enable row level security;
 revoke all on table public.billing_provider_config from anon, authenticated;
 grant select, update on table public.billing_provider_config to service_role;
 
-create table if not exists public.mercado_pago_checkout_plans (
+create table if not exists public.mercado_pago_billing_plans (
+  id uuid primary key default gen_random_uuid(),
+  plan_id text not null check (plan_id in ('starter','pro','agency')),
+  billing_cycle text not null check (billing_cycle in ('monthly','annual')),
+  trial_duration_days integer not null check (trial_duration_days > 0),
+  trial_policy_version text not null,
+  transaction_amount numeric(12,2) not null check (transaction_amount > 0),
+  currency_id text not null default 'BRL',
+  provider_plan_id text,
+  status text not null default 'creating' check (status in ('creating','ready','failed','cancelled')),
+  last_error_code text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(plan_id,billing_cycle,trial_policy_version,transaction_amount,currency_id)
+);
+
+create unique index if not exists mercado_pago_billing_plans_provider_unique
+  on public.mercado_pago_billing_plans(provider_plan_id)
+  where provider_plan_id is not null;
+
+alter table public.mercado_pago_billing_plans enable row level security;
+revoke all on table public.mercado_pago_billing_plans from anon, authenticated;
+grant select, insert, update on table public.mercado_pago_billing_plans to service_role;
+
+create table if not exists public.mercado_pago_checkout_sessions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   plan_id text not null check (plan_id in ('starter','pro','agency')),
@@ -78,21 +99,22 @@ create table if not exists public.mercado_pago_checkout_plans (
   transaction_amount numeric(12,2) not null check (transaction_amount > 0),
   currency_id text not null default 'BRL',
   provider_plan_id text,
+  provider_subscription_id text,
   checkout_url text,
-  status text not null default 'creating' check (status in ('creating','ready','failed','cancelled')),
+  status text not null default 'creating' check (status in ('creating','ready','authorized','failed','cancelled')),
   last_error_code text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique(user_id, plan_id, billing_cycle, trial_policy_version, transaction_amount, currency_id)
+  unique(user_id,plan_id,billing_cycle,trial_policy_version,transaction_amount,currency_id)
 );
 
-create unique index if not exists mercado_pago_checkout_provider_plan_unique
-  on public.mercado_pago_checkout_plans(provider_plan_id)
-  where provider_plan_id is not null;
+create unique index if not exists mercado_pago_checkout_sessions_provider_unique
+  on public.mercado_pago_checkout_sessions(provider_subscription_id)
+  where provider_subscription_id is not null;
 
-alter table public.mercado_pago_checkout_plans enable row level security;
-revoke all on table public.mercado_pago_checkout_plans from anon, authenticated;
-grant select, insert, update on table public.mercado_pago_checkout_plans to service_role;
+alter table public.mercado_pago_checkout_sessions enable row level security;
+revoke all on table public.mercado_pago_checkout_sessions from anon, authenticated;
+grant select, insert, update on table public.mercado_pago_checkout_sessions to service_role;
 
 create or replace function public.claim_billing_provider(
   p_user_id uuid,

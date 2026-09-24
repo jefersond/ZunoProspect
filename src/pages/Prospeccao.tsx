@@ -8,7 +8,7 @@ import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { createStripeCheckout } from "@/services/stripeCheckout";
+import { createBillingCheckout, billingRedirectAdapter } from "@/services/billingCheckout";
 import { trackEvent } from "@/lib/analytics";
 import { trackInitiateCheckout, trackMetaCustomEvent } from "@/lib/metaPixel";
 import { PLANS, normalizePlanId } from "@/config/plans";
@@ -16,7 +16,6 @@ import { getFunnelContext } from "@/lib/funnelContext";
 import { AppHeader } from "@/components/AppHeader";
 import { PaymentRecoveryBanner } from "@/components/subscription/PaymentRecoveryBanner";
 import { TrialActivationPanel } from "@/components/subscription/TrialActivationPanel";
-import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
 
 const Prospeccao = () => {
   const navigate = useNavigate();
@@ -37,7 +36,7 @@ const Prospeccao = () => {
         sessionStorage.removeItem("checkout_in_progress");
         sessionStorage.removeItem("checkout_plano");
         sessionStorage.removeItem("checkout_isAnual");
-        toast.success(`Teste grátis iniciado. Seu cartão foi cadastrado e a cobrança só ocorrerá ao fim dos ${TRIAL_DURATION_DAYS} dias, se você não cancelar antes.`);
+        toast.success("Teste grátis iniciado. Consulte no Perfil a data exata da primeira cobrança e o provider da sua assinatura.");
         setSearchParams({});
       } else if (checkoutStatus === "canceled" || checkoutStatus === "cancelled") {
         sessionStorage.removeItem("checkout_in_progress");
@@ -70,7 +69,7 @@ const Prospeccao = () => {
           
           try {
             const normalizedPlan = normalizePlanId(plano);
-            const data = await createStripeCheckout({
+            const data = await createBillingCheckout({
               selectedPlan: { planKey: plano.toLowerCase() },
               billingCycle: "monthly",
             });
@@ -86,7 +85,11 @@ const Prospeccao = () => {
                 billing_cycle: "monthly",
                 location: "google_success_return",
                 source: "navbar",
-                stripe_session_id: data.sessionId || null,
+                stripe_session_id: data.provider === "stripe" ? data.checkoutId || null : null,
+                provider_checkout_id: data.checkoutId || null,
+                billing_provider: data.provider,
+                trial_duration_days: data.trialDurationDays,
+                trial_policy_version: data.trialPolicyVersion,
                 content_name: `Zuno Propect ${plan.name}`,
               });
               trackInitiateCheckout({
@@ -98,7 +101,7 @@ const Prospeccao = () => {
                 currency: "BRL",
               });
             }
-            window.location.href = data.url;
+            billingRedirectAdapter(data.provider).redirect(data);
           } catch (error) {
             trackMetaCustomEvent("Checkout_Failed", {
               plan_id: plano.toLowerCase(),

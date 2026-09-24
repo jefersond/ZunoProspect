@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AppHeader } from "@/components/AppHeader";
+import { formatTrialDate, trialPriceSummary } from "@/lib/trialActivation";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -40,6 +41,12 @@ const Profile = () => {
   const [cancelingSub, setCancelingSub] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [managingSubLoading, setManagingSubLoading] = useState(false);
+  const trialPrice = trialPriceSummary(subscription?.plan_name, subscription?.billing_cycle);
+  const trialChargeDate = subscription?.trial_end
+    ? formatTrialDate(subscription.trial_end)
+    : subscription?.billing_period_end
+      ? formatTrialDate(subscription.billing_period_end)
+      : "—";
 
   // Handle checkout result from URL params
   useEffect(() => {
@@ -400,10 +407,16 @@ const Profile = () => {
                   </p>
                 )}
                 <p className="text-muted-foreground text-xs leading-5">
-                  Hoje você não foi cobrado. Ao fim do teste, sua assinatura será renovada automaticamente por{" "}
-                  <span className="font-semibold text-foreground">
-                    R$ {subscription.plan_name === "pro" ? "97" : subscription.plan_name === "agency" ? "247" : "47"}/mês
-                  </span>. Você pode cancelar antes do fim do teste para não ser cobrado.
+                  Hoje você não foi cobrado. Ao fim do teste, sua assinatura será renovada automaticamente
+                  {trialPrice ? (
+                    <>
+                      {" "}por <span className="font-semibold text-foreground">
+                        R$ {trialPrice.price}{trialPrice.periodLabel}
+                      </span>
+                    </>
+                  ) : null}. A primeira cobrança está prevista para{" "}
+                  <span className="font-semibold text-foreground">{trialChargeDate}</span>.
+                  Você pode cancelar antes do fim do teste para não ser cobrado.
                 </p>
               </div>
             )}
@@ -419,7 +432,7 @@ const Profile = () => {
                 <Calendar className="h-4 w-4" />
                 <span>
                   {subscription.subscription_status === "trialing" ? (
-                    <>Cobrança em: {new Date(subscription.billing_period_end).toLocaleDateString('pt-BR')}</>
+                    <>Cobrança em: {trialChargeDate}</>
                   ) : (
                     <>Próxima cobrança: {new Date(subscription.billing_period_end).toLocaleDateString('pt-BR')}</>
                   )}

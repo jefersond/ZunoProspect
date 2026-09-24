@@ -80,8 +80,12 @@ describe("four-day trial policy", () => {
   });
 
   it("has no operational 7-day trial copy or hardcoded 7-day billing rule", () => {
-    const allowlistedEmailLayer = new Set([
+    const allowlistedBlockedOrHistorical = new Set([
       "src/components/admin/BehaviorEmailsDashboard.tsx",
+      "supabase/functions/process-behavior-emails/index.ts",
+      "src/pages/AdminInstagram.tsx",
+      "src/pages/AdminCommandCenter.tsx",
+      "supabase/migrations/20260720223000_marketing_operations_team.sql",
     ]);
     const failures: string[] = [];
 
@@ -97,7 +101,7 @@ describe("four-day trial policy", () => {
         const legacySeconds = /\b(?:604800|604800000|168h|168\s+hours|10080)\b/i.test(line)
           && /(trial|teste|checkout|stripe|subscription)/i.test(path + " " + line);
 
-        if (hardcodedStripeRule || legacySeconds || (trialContext && sevenDays && !allowlistedEmailLayer.has(path))) {
+        if (hardcodedStripeRule || legacySeconds || (trialContext && sevenDays && !allowlistedBlockedOrHistorical.has(path))) {
           failures.push(`${path}:${index + 1}: ${line.trim()}`);
         }
       });

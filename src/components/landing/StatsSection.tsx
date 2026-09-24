@@ -1,5 +1,6 @@
+import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
 const STATS = [
-  { numero: "7 dias", label: "de teste no plano escolhido" },
+  { numero: `${TRIAL_DURATION_DAYS} dias`, label: "de teste no plano escolhido" },
   { numero: "R$ 0", label: "cobrado hoje" },
   { numero: "300 leads", label: "por mês no plano Starter" },
   { numero: "3 canais", label: "WhatsApp, Instagram e e-mail" },

@@ -16,6 +16,7 @@ import { getFunnelContext } from "@/lib/funnelContext";
 import { AppHeader } from "@/components/AppHeader";
 import { PaymentRecoveryBanner } from "@/components/subscription/PaymentRecoveryBanner";
 import { TrialActivationPanel } from "@/components/subscription/TrialActivationPanel";
+import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
 
 const Prospeccao = () => {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ const Prospeccao = () => {
         sessionStorage.removeItem("checkout_in_progress");
         sessionStorage.removeItem("checkout_plano");
         sessionStorage.removeItem("checkout_isAnual");
-        toast.success("Teste grátis iniciado. Seu cartão foi cadastrado e a cobrança só ocorrerá ao fim dos 7 dias, se você não cancelar antes.");
+        toast.success(`Teste grátis iniciado. Seu cartão foi cadastrado e a cobrança só ocorrerá ao fim dos ${TRIAL_DURATION_DAYS} dias, se você não cancelar antes.`);
         setSearchParams({});
       } else if (checkoutStatus === "canceled" || checkoutStatus === "cancelled") {
         sessionStorage.removeItem("checkout_in_progress");

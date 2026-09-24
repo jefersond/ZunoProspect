@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { SubscriptionInfo } from "@/hooks/useSubscription";
 import { trackEvent } from "@/lib/analytics";
-import { formatTrialDate, trialDaysRemaining, trialPriceSummary } from "@/lib/trialActivation";
+import { formatTrialDate, trialDaysRemaining, trialDurationDays, trialPriceSummary } from "@/lib/trialActivation";
 
 type TrialProgress = {
   completedSearches: number;
@@ -33,6 +33,7 @@ export function TrialActivationPanel({ subscription }: { subscription: Subscript
     [subscription?.plan_name, subscription?.billing_cycle],
   );
   const daysRemaining = trialDaysRemaining(subscription?.trial_end);
+  const actualTrialDuration = trialDurationDays(subscription?.trial_start, subscription?.trial_end);
   const chargeDate = subscription?.trial_end ? formatTrialDate(subscription.trial_end) : "—";
 
   useEffect(() => {
@@ -115,7 +116,7 @@ export function TrialActivationPanel({ subscription }: { subscription: Subscript
 
         <div className="rounded-lg border border-border/60 bg-background/70 p-3 text-sm leading-6 text-muted-foreground">
           <strong className="text-foreground">Transparência do trial:</strong>{" "}
-          são 7 dias com cartão cadastrado. A primeira cobrança está prevista para{" "}
+          seu trial atual tem <strong className="text-foreground">{actualTrialDuration ?? "—"} dias</strong> com cartão cadastrado. A primeira cobrança está prevista para{" "}
           <strong className="text-foreground">{chargeDate}</strong>
           {price ? (
             <>

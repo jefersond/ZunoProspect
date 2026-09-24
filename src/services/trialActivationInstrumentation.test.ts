@@ -92,7 +92,7 @@ describe("canonical trial activation instrumentation", () => {
   });
 
   it("shows transparent trial terms and only real accumulated metrics", () => {
-    expect(onboarding).toContain("são 7 dias com cartão cadastrado");
+    expect(onboarding).toContain("seu trial atual tem");
     expect(onboarding).toContain("trial_end");
     expect(onboarding).toContain('from("search_logs")');
     expect(onboarding).toContain('from("leads")');

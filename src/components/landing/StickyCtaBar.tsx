@@ -1,3 +1,4 @@
+import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,7 @@ export function StickyCtaBar({ heroRef }: StickyCtaBarProps) {
         <div className="hidden items-center gap-2 sm:flex">
           <ShieldCheck className="h-4 w-4 text-[#10d98a]" />
           <p className="text-sm text-[#9ca3af]">
-            <span className="font-semibold text-[#f4f4f5]">Zuno Propect</span> · teste grátis de 7 dias · hoje R$0
+            <span className="font-semibold text-[#f4f4f5]">Zuno Propect</span> · teste grátis de {TRIAL_DURATION_DAYS} dias · hoje R$0
           </p>
         </div>
         <Button

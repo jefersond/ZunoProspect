@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, type BillingCycle, type PlanConfig } from "@/config/plans";
 import { cn } from "@/lib/utils";
+import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
 import { appendReferralToPath } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
 import { getFunnelContext } from "@/lib/funnelContext";
@@ -167,10 +168,10 @@ export function PrecosSection() {
             Teste disponível agora — comece hoje e tenha leads em minutos
           </div>
           <h2 className="mb-4 text-3xl font-extrabold tracking-tight text-[#f4f4f5] md:text-5xl">
-            7 dias para encontrar seus próximos clientes
+            {TRIAL_DURATION_DAYS} dias para encontrar seus próximos clientes
           </h2>
           <p className="text-base text-[#9ca3af] md:text-lg leading-relaxed max-w-2xl mx-auto font-medium mb-8">
-            <span className="text-[#10d98a] font-bold">Hoje você paga R$0.</span> Escolha um plano, ative o teste com cartão e use o Zuno por 7 dias completos. Depois do teste, a assinatura começa automaticamente. <span className="text-[#f4f4f5] font-bold">Cancele antes do fim do teste e não será cobrado.</span>
+            <span className="text-[#10d98a] font-bold">Hoje você paga R$0.</span> Escolha um plano, ative o teste com cartão e use o Zuno por {TRIAL_DURATION_DAYS} dias completos. Depois do teste, a assinatura começa automaticamente. <span className="text-[#f4f4f5] font-bold">Cancele antes do fim do teste e não será cobrado.</span>
           </p>
 
           <div className="flex flex-col items-center gap-2">
@@ -234,7 +235,7 @@ export function PrecosSection() {
 
                 <div className="mt-6 text-center border-t border-[#1f2d29]/40 pt-5 pb-3">
                   <p className="text-[#10d98a] text-sm font-extrabold uppercase tracking-wider font-mono">
-                    Hoje R$0 por 7 dias
+                    Hoje R$0 por {TRIAL_DURATION_DAYS} dias
                   </p>
                   <p className="text-3xl font-black text-[#f4f4f5] mt-2">
                     Depois R$ {price.toLocaleString("pt-BR")}{getPlanPeriodLabel(billingCycle)}
@@ -269,7 +270,7 @@ export function PrecosSection() {
                     {isCurrentProcessing ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
-                      "Ativar teste de 7 dias"
+                      `Ativar teste de ${TRIAL_DURATION_DAYS} dias`
                     )}
                   </Button>
                   <p className="text-center text-xs font-semibold text-[#9ca3af] tracking-wide mt-1">
@@ -302,7 +303,7 @@ export function PrecosSection() {
             </div>
           </div>
           <p className="text-xs text-[#9ca3af] leading-relaxed">
-            * <strong>Segurança e Transparência</strong>: O cadastro do cartão é obrigatório para validação de identidade e prevenção contra abusos. Você pode cancelar sua assinatura síncronamente na área de perfil antes do encerramento dos 7 dias para evitar qualquer cobrança. A Zuno localiza oportunidades regionais de marketing e gera copies, mas a conversão e fechamento do cliente final são de sua responsabilidade comercial.
+            * <strong>Segurança e Transparência</strong>: O cadastro do cartão é obrigatório para validação de identidade e prevenção contra abusos. Você pode cancelar sua assinatura síncronamente na área de perfil antes do encerramento dos {TRIAL_DURATION_DAYS} dias para evitar qualquer cobrança. A Zuno localiza oportunidades regionais de marketing e gera copies, mas a conversão e fechamento do cliente final são de sua responsabilidade comercial.
           </p>
         </div>
 

@@ -496,7 +496,7 @@ export default function Checkout() {
               <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-lg space-y-3">
                 <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
                   <span className="font-semibold text-foreground">Plano {plano.nome}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">7 dias grátis</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">{TRIAL_DURATION_DAYS} dias grátis</span>
                 </div>
                 
                 <div className="space-y-1.5 text-sm text-muted-foreground">
@@ -509,18 +509,14 @@ export default function Checkout() {
                     <span className="font-semibold text-foreground">R$ {preco}{periodo}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span>Próxima cobrança:</span>
-                    <span className="text-foreground">{(() => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + 7);
-                      return d.toLocaleDateString("pt-BR");
-                    })()}</span>
+                    <span>Primeira cobrança:</span>
+                    <span className="text-foreground">após {TRIAL_DURATION_DAYS} dias do início do trial</span>
                   </div>
                 </div>
 
                 <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
                   <p>✓ Você não será cobrado hoje.</p>
-                  <p>✓ Seu teste grátis dura 7 dias.</p>
+                  <p>✓ Seu teste grátis dura {TRIAL_DURATION_DAYS} dias.</p>
                   <p>✓ Após o teste, sua assinatura será renovada automaticamente.</p>
                   <p>✓ Você pode cancelar antes do fim do teste para não ser cobrado.</p>
                 </div>

@@ -8,6 +8,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { PLAN_LIST, PLANS } from "@/config/plans";
+import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
 
 export const METRICAS = [
   { numero: "Cidade + nicho", label: "Busca direcionada", descricao: "para sair da pesquisa manual genérica" },
@@ -130,19 +131,19 @@ export const FAQ_ITEMS = [
   },
   {
     pergunta: "Vou ser cobrado hoje?",
-    resposta: "Não. Ao ativar o teste de 7 dias, você paga R$0 hoje. A cobrança do plano escolhido só acontece depois do período de teste, se você não cancelar antes.",
+    resposta: `Não. Ao ativar o teste de ${TRIAL_DURATION_DAYS} dias, você paga R$0 hoje. A cobrança do plano escolhido só acontece depois do período de teste, se você não cancelar antes.`,
   },
   {
     pergunta: "Por que preciso colocar cartão?",
-    resposta: "O cartão é usado para ativar o teste do plano escolhido e qualificar o cadastro. A cobrança só acontece depois dos 7 dias, se você não cancelar antes.",
+    resposta: `O cartão é usado para ativar o teste do plano escolhido e qualificar o cadastro. A cobrança só acontece depois dos ${TRIAL_DURATION_DAYS} dias, se você não cancelar antes.`,
   },
   {
     pergunta: "Posso cancelar antes da cobrança?",
     resposta: "Sim. Você pode cancelar antes do fim do teste para não ser cobrado.",
   },
   {
-    pergunta: "O que acontece depois dos 7 dias?",
-    resposta: "Após os 7 dias, sua assinatura começa automaticamente no plano escolhido e a cobrança mensal é realizada.",
+    pergunta: `O que acontece depois dos ${TRIAL_DURATION_DAYS} dias?`,
+    resposta: `Após os ${TRIAL_DURATION_DAYS} dias, sua assinatura começa automaticamente no plano escolhido e a cobrança é realizada conforme a periodicidade escolhida.`,
   },
   {
     pergunta: "Qual a diferença da Zuno para o Google Maps?",
@@ -162,6 +163,6 @@ export const FAQ_ITEMS = [
   },
   {
     pergunta: "Preciso de cartão para começar?",
-    resposta: "Sim. A oferta pública atual é o teste de 7 dias no plano escolhido, com cartão obrigatório. Você paga R$0 hoje e pode cancelar antes do fim do teste para não ser cobrado.",
+    resposta: `Sim. A oferta pública atual é o teste de ${TRIAL_DURATION_DAYS} dias no plano escolhido, com cartão obrigatório. Você paga R$0 hoje e pode cancelar antes do fim do teste para não ser cobrado.`,
   },
 ];

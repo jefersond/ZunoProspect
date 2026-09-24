@@ -31,6 +31,17 @@ export function formatTrialDate(value: string | Date, timeZone = TRIAL_TIME_ZONE
   return `${day}/${month}/${year}`;
 }
 
+export function trialDurationDays(
+  trialStart: string | null | undefined,
+  trialEnd: string | null | undefined,
+) {
+  if (!trialStart || !trialEnd) return null;
+  const start = new Date(trialStart);
+  const end = new Date(trialEnd);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return null;
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000);
+}
+
 export function trialDaysRemaining(trialEnd: string | null | undefined, now = new Date()) {
   if (!trialEnd) return null;
   const endKey = dateKeyInTimeZone(trialEnd);

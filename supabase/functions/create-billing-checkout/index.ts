@@ -35,6 +35,8 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const mercadoPagoAccessToken = Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN") || "";
+  const mercadoPagoWebhookSecret = Deno.env.get("MERCADO_PAGO_WEBHOOK_SECRET") || "";
   const authHeader = req.headers.get("authorization") || "";
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey || !authHeader) {
@@ -88,6 +90,9 @@ Deno.serve(async (req) => {
   if (requestedProvider === "mercado_pago" && !typedConfig.mercado_pago_cutover_ready) {
     return json({ error: "mercado_pago_cutover_not_ready" }, 503);
   }
+  if (requestedProvider === "mercado_pago" && (!mercadoPagoAccessToken || !mercadoPagoWebhookSecret)) {
+    return json({ error: "mercado_pago_credentials_missing" }, 503);
+  }
 
   const { data: claimedProvider, error: claimError } = await admin.rpc("claim_billing_provider", {
     p_user_id: user.id,
@@ -103,6 +108,7 @@ Deno.serve(async (req) => {
     if (provider === "stripe") {
       const adapter = new StripeAdapter(
         supabaseUrl,
+        anonKey,
         authHeader,
         typedConfig.stripe_trial_duration_days,
         typedConfig.stripe_trial_policy_version,

@@ -14,6 +14,7 @@ import { createStripeCheckout } from "@/services/stripeCheckout";
 import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
 import { trackEvent, trackCheckoutStarted, trackCheckoutFailed } from "@/lib/analytics";
 import { getFunnelContext } from "@/lib/funnelContext";
+import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -418,7 +419,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
                   <span className="font-semibold text-foreground">Plano {plano.nome}</span>
                   <p className="text-xs text-muted-foreground">{selectedLeads.toLocaleString('pt-BR')} leads/mês</p>
                 </div>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">7 dias grátis</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">{TRIAL_DURATION_DAYS} dias grátis</span>
               </div>
               
               <div className="space-y-1.5 text-sm text-muted-foreground">
@@ -442,7 +443,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
 
               <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
                 <p>✓ Você não será cobrado hoje.</p>
-                <p>✓ Seu teste grátis dura 7 dias.</p>
+                <p>✓ Seu teste grátis dura {TRIAL_DURATION_DAYS} dias.</p>
                 <p>✓ Após o teste, sua assinatura será renovada automaticamente.</p>
                 <p>✓ Você pode cancelar antes do fim do teste para não ser cobrado.</p>
               </div>

@@ -80,7 +80,7 @@ create table if not exists public.mercado_pago_checkout_plans (
   last_error_code text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique(user_id, plan_id, billing_cycle, trial_policy_version)
+  unique(user_id, plan_id, billing_cycle, trial_policy_version, transaction_amount, currency_id)
 );
 
 create unique index if not exists mercado_pago_checkout_provider_plan_unique

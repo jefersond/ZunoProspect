@@ -62,6 +62,13 @@ describe("canonical trial activation instrumentation", () => {
     expect(tracking).toContain('reason: "same_trial_day"');
   });
 
+  it("seeds pre-existing active trials into the owner funnel idempotently on first return", () => {
+    expect(tracking).toContain('eventName: "trial_started"');
+    expect(tracking).toContain('eventId: `trial_started:${subscriptionRef}`');
+    expect(tracking).toContain('eventName: "card_added"');
+    expect(tracking).toContain('eventId: `card_added:${subscriptionRef}`');
+  });
+
   it("registers trial conversion only from a successful paid Stripe invoice after trial end", () => {
     expect(stripe).toContain("paidAfterTrial");
     expect(stripe).toContain('subscription.status === "active"');

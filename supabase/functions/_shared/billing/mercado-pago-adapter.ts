@@ -54,6 +54,7 @@ export class MercadoPagoAdapter implements BillingProviderAdapter {
   async createCheckout(input: BillingCheckoutInput): Promise<BillingCheckoutResult> {
     const amount = billingAmount(input.planId, input.billingCycle);
 
+    let createdPlanNow = false;
     let { data: billingPlan, error: billingPlanError } = await this.supabaseAdmin
       .from("mercado_pago_billing_plans")
       .select("*")
@@ -93,15 +94,19 @@ export class MercadoPagoAdapter implements BillingProviderAdapter {
           .maybeSingle();
 
         billingPlan = raced.data;
+        if (billingPlan && !billingPlan.provider_plan_id) {
+          throw new Error("mercado_pago_plan_in_progress");
+        }
       } else {
         billingPlan = inserted;
+        createdPlanNow = true;
       }
     }
 
     if (!billingPlan) throw new Error("mercado_pago_plan_lock_failed");
 
     if (!billingPlan.provider_plan_id) {
-      if (billingPlan.status !== "creating") {
+      if (!createdPlanNow || billingPlan.status !== "creating") {
         throw new Error("mercado_pago_plan_recovery_required");
       }
 

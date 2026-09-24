@@ -195,21 +195,15 @@ Deno.serve(async (req) => {
     const providerPlanId = safeString(subscription.preapproval_plan_id, 160);
     if (!subscriptionId || !providerPlanId) return null;
 
-    const [{ data: sessionRow }, { data: planRow }] = await Promise.all([
-      admin.from("mercado_pago_checkout_sessions")
-        .select("user_id,plan_id,billing_cycle,trial_duration_days,trial_policy_version,transaction_amount,currency_id,provider_plan_id,provider_subscription_id")
-        .eq("provider_subscription_id", subscriptionId)
-        .maybeSingle(),
-      admin.from("mercado_pago_billing_plans")
-        .select("plan_id,billing_cycle,trial_duration_days,trial_policy_version,transaction_amount,currency_id,provider_plan_id")
-        .eq("provider_plan_id", providerPlanId)
-        .maybeSingle(),
-    ]);
+    const { data: sessionRow } = await admin.from("mercado_pago_checkout_sessions")
+      .select("id,user_id,plan_id,billing_cycle,trial_duration_days,trial_policy_version,transaction_amount,currency_id,provider_plan_id,provider_subscription_id,status")
+      .eq("provider_plan_id", providerPlanId)
+      .maybeSingle();
 
-    if (!sessionRow?.user_id || !validPlan(sessionRow.plan_id) || !planRow?.provider_plan_id) return null;
-    if (sessionRow.provider_plan_id !== planRow.provider_plan_id) return null;
-    if (sessionRow.plan_id !== planRow.plan_id || sessionRow.billing_cycle !== planRow.billing_cycle) return null;
-    if (sessionRow.trial_policy_version !== planRow.trial_policy_version) return null;
+    if (!sessionRow?.user_id || !validPlan(sessionRow.plan_id)) return null;
+    if (sessionRow.provider_subscription_id && sessionRow.provider_subscription_id !== subscriptionId) {
+      return null;
+    }
     return { subscription, planRow: sessionRow };
   };
 
@@ -249,7 +243,15 @@ Deno.serve(async (req) => {
 
       const { planRow } = context;
       const userId = planRow.user_id as string;
-      await enforceMpProvider(userId, safeString(subscription.id, 160));
+      const incomingSubscriptionId = safeString(subscription.id, 160);
+      await enforceMpProvider(userId, incomingSubscriptionId);
+
+      const { error: checkoutBindError } = await admin.from("mercado_pago_checkout_sessions").update({
+        provider_subscription_id: incomingSubscriptionId,
+        status: "authorized",
+        updated_at: new Date().toISOString(),
+      }).eq("id", planRow.id);
+      if (checkoutBindError) throw checkoutBindError;
 
       const providerPlan = await mpGet(accessToken, `/preapproval_plan/${encodeURIComponent(planRow.provider_plan_id)}`);
       const providerTrial = providerPlan?.auto_recurring?.free_trial;

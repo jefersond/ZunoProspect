@@ -342,7 +342,7 @@ Deno.serve(async (req) => {
       authorizedPayment = await mpGet(accessToken, `/authorized_payments/${encodeURIComponent(dataId)}`);
     } else {
       const payment = await mpGet(accessToken, `/v1/payments/${encodeURIComponent(dataId)}`);
-      const preapprovalId = safeString(payment?.metadata?.preapproval_id || payment?.external_reference, 160);
+      const preapprovalId = safeString(payment?.metadata?.preapproval_id, 160);
       if (!preapprovalId) {
         await persistPaymentEvent({ status: "unmapped", event_data: { action, data_id: dataId, raw_status: payment?.status ?? null } });
         return json({ ok: true, mapped: false }, 200);

@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
+import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
 
 const stages = [
   {
@@ -66,7 +67,7 @@ const stages = [
     objective: "Apresentar a Zuno como próximo passo natural, sem reunião obrigatória.",
     channels: "WhatsApp para objeções; site para oferta, planos e checkout.",
     content: "Demonstração assíncrona, benefícios, comparação do processo e FAQ.",
-    conversion: "Escolha do plano e início do teste de 7 dias com cartão.",
+    conversion: `Escolha do plano e início do teste de ${TRIAL_DURATION_DAYS} dias com cartão.`,
     metric: "Visitas à página de preços, início e conclusão do checkout.",
   },
   {
@@ -119,8 +120,8 @@ const postSale = [
   { day: "Dia 0", title: "Boas-vindas", action: "Confirmar acesso e orientar a primeira busca." },
   { day: "Dia 1", title: "Primeiro valor", action: "Ajudar a salvar leads e gerar a primeira abordagem." },
   { day: "Dia 3", title: "Remover bloqueio", action: "Identificar onde o usuário travou e dar uma ação simples." },
-  { day: "Dia 5", title: "Resumo do teste", action: "Mostrar o que já foi feito sem inventar resultado." },
-  { day: "Dia 7", title: "Continuidade", action: "Explicar cobrança, plano e próximos passos com transparência." },
+  { day: "Dia 3", title: "Resumo do teste", action: "Mostrar o que já foi feito sem inventar resultado." },
+  { day: "Dia 4", title: "Continuidade", action: "Explicar cobrança, plano e próximos passos com transparência." },
   { day: "Dia 14", title: "Adoção", action: "Ensinar uma rotina semanal curta de prospecção." },
   { day: "Dia 30", title: "Retenção", action: "Revisar valor percebido, suporte e oportunidade de indicação." },
 ];

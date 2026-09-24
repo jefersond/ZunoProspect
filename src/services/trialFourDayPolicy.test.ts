@@ -112,9 +112,24 @@ describe("hybrid Stripe + Mercado Pago billing policy", () => {
     expect(source("src/components/landing/CheckoutDialog.tsx")).toContain("trialDurationDays");
   });
 
+  it("keeps rollback scoped to future unclaimed customers", () => {
+    expect(migration).toContain("default_new_billing_provider text not null default 'stripe'");
+    expect(migration).toContain("coalesce(v_row.billing_provider, p_requested_provider)");
+    expect(migration).toContain("billing_provider_locked_at");
+    expect(billingRouter).toContain("subscription?.billing_provider === \"stripe\"");
+    expect(billingRouter).toContain("subscription?.billing_provider === \"mercado_pago\"");
+  });
+
+  it("prevents duplicate checkout/subscription creation on retry", () => {
+    expect(migration).toContain("unique(user_id,plan_id,billing_cycle,trial_policy_version,transaction_amount,currency_id)");
+    expect(migration).toContain("mercado_pago_checkout_sessions_provider_unique");
+    expect(mpAdapter).toContain("mercado_pago_checkout_recovery_required");
+    expect(mpAdapter).toContain("provider_subscription_id");
+  });
+
   it("routes subscription management by the locked provider", () => {
     const manager = source("supabase/functions/manage-billing-subscription/index.ts");
-    expect(manager).toContain("create-customer-portal-session");
+    expect(manager).toContain("functions/v1/customer-portal");
     expect(manager).toContain('subscription.billing_provider !== "mercado_pago"');
     expect(manager).toContain('{ status: "canceled" }');
   });

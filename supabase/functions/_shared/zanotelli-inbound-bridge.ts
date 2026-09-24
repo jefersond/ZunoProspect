@@ -239,3 +239,118 @@ export async function emitZanotelliRevenueEvent(
   }
 }
 
+
+
+export type ZanotelliProductEventName =
+  | 'card_added'
+  | 'trial_started'
+  | 'onboarding_started'
+  | 'first_search'
+  | 'first_results'
+  | 'first_lead_opened'
+  | 'first_value_reached'
+  | 'returned_during_trial'
+  | 'trial_converted_to_paid'
+  | 'trial_cancelled'
+  | 'subscription_cancelled'
+  | 'payment_failed'
+
+export interface ZanotelliProductEventInput {
+  eventName: ZanotelliProductEventName
+  eventId: string
+  userId: string
+  occurredAt?: string | null
+  planId?: string | null
+  trialEnd?: string | null
+  searchRunId?: string | null
+  returnedQuantity?: number | null
+}
+
+export async function emitZanotelliProductEvent(
+  input: ZanotelliProductEventInput,
+  config = readZanotelliBridgeConfig(),
+  fetcher: typeof fetch = fetch,
+): Promise<ZanotelliBridgeResult> {
+  if (!config.enabled) {
+    return { attempted: false, accepted: false, status: null, safeCode: 'disabled' }
+  }
+  if (!validBridgeUrl(config.url) || config.secret.length < 32) {
+    return { attempted: false, accepted: false, status: null, safeCode: 'misconfigured' }
+  }
+
+  const rawUserId = clean(input.userId, 120)
+  const rawEventId = clean(input.eventId, 180)
+  if (!rawUserId || !rawEventId) {
+    return { attempted: false, accepted: false, status: null, safeCode: 'invalid_product_event' }
+  }
+
+  const [userHash, eventHash] = await Promise.all([
+    sha256Hex(rawUserId),
+    sha256Hex(rawEventId),
+  ])
+  const occurredAt = clean(input.occurredAt, 40) || new Date().toISOString()
+  const planId = clean(input.planId, 20).toLowerCase()
+  const trialEnd = clean(input.trialEnd, 40)
+  const searchRunId = clean(input.searchRunId, 180)
+  const returnedQuantity = typeof input.returnedQuantity === 'number' && Number.isFinite(input.returnedQuantity)
+    ? Math.max(0, Math.floor(input.returnedQuantity))
+    : undefined
+
+  const eventReference = `zuno-${input.eventName}-${eventHash.slice(0, 24)}`
+  const payload = {
+    event_type: 'technical_event' as const,
+    event_id: eventReference,
+    occurred_at: occurredAt,
+    source: 'zuno-product',
+    environment: 'production',
+    feature: 'trial_activation',
+    severity: 'info',
+    safe_message: input.eventName,
+    anonymous_user_reference: userHash.slice(0, 32),
+    metadata: {
+      product_event_name: input.eventName,
+      ...(planId ? { plan_id: planId } : {}),
+      ...(trialEnd ? { trial_end: trialEnd } : {}),
+      ...(searchRunId ? { search_run_id: searchRunId } : {}),
+      ...(returnedQuantity !== undefined ? { returned_quantity: returnedQuantity } : {}),
+    },
+    idempotency_key: `product:${eventHash}`,
+  }
+
+  const raw = JSON.stringify(payload)
+  const timestamp = Math.floor(Date.now() / 1000).toString()
+  const signature = await sign(`${timestamp}.${raw}`, config.secret)
+
+  try {
+    const response = await fetcher(config.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-zuno-timestamp': timestamp,
+        'x-zuno-signature': signature,
+        'x-zuno-event-id': payload.event_id,
+      },
+      body: raw,
+      signal: AbortSignal.timeout(5000),
+    })
+
+    const responseText = (await response.text()).slice(0, MAX_RESPONSE_BYTES)
+    let receiverStatus = ''
+    try {
+      const parsed = JSON.parse(responseText) as { status?: unknown }
+      receiverStatus = typeof parsed.status === 'string' ? parsed.status : ''
+    } catch {
+      receiverStatus = ''
+    }
+
+    const accepted = response.status === 202 || response.status === 409
+    return {
+      attempted: true,
+      accepted,
+      status: response.status,
+      safeCode: accepted ? (receiverStatus || (response.status === 409 ? 'duplicate' : 'accepted')) : `http_${response.status}`,
+    }
+  } catch {
+    return { attempted: true, accepted: false, status: null, safeCode: 'network_error' }
+  }
+}

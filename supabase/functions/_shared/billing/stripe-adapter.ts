@@ -5,6 +5,7 @@ export class StripeAdapter implements BillingProviderAdapter {
 
   constructor(
     private readonly supabaseUrl: string,
+    private readonly anonKey: string,
     private readonly authHeader: string,
     private readonly trialDurationDays: number,
     private readonly trialPolicyVersion: string,
@@ -16,6 +17,7 @@ export class StripeAdapter implements BillingProviderAdapter {
       headers: {
         "content-type": "application/json",
         authorization: this.authHeader,
+        apikey: this.anonKey,
       },
       body: JSON.stringify({
         planId: input.planId,

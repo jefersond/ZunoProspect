@@ -14,7 +14,7 @@ import {
 import { toast } from "sonner";
 import { Loader2, CheckCircle2, Crown, ExternalLink, Sparkles } from "lucide-react";
 import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, normalizePlanId, type BillingCycle, type PlanConfig } from "@/config/plans";
-import { createStripeCheckout } from "@/services/stripeCheckout";
+import { createBillingCheckout, billingRedirectAdapter } from "@/services/billingCheckout";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { trackEvent, trackUpgradeClick, trackCheckoutStarted, trackCheckoutFailed } from "@/lib/analytics";
@@ -109,10 +109,9 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName, source 
     try {
       toast.loading("Gerando link de pagamento seguro...");
 
-      const data = await createStripeCheckout({
+      const data = await createBillingCheckout({
         selectedPlan: { planKey: plan.id },
         billingCycle,
-        authUserFromHook: user,
         source,
         offerId: null,
       });
@@ -124,7 +123,11 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName, source 
         value: trackingPrice,
         currency: "BRL",
         source,
-        stripeSessionId: data.sessionId || null,
+        stripeSessionId: data.provider === "stripe" ? data.checkoutId || null : null,
+        providerCheckoutId: data.checkoutId || null,
+        billingProvider: data.provider,
+        trialDurationDays: data.trialDurationDays,
+        trialPolicyVersion: data.trialPolicyVersion,
         usage: {
           plan_name: usage.plan_name,
           leads_used: usage.leads_used,
@@ -149,7 +152,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName, source 
 
       toast.dismiss();
       toast.success("Redirecionando para o pagamento...");
-      window.location.href = data.url;
+      billingRedirectAdapter(data.provider).redirect(data);
       onOpenChange(false);
     } catch (error: any) {
       toast.dismiss();

@@ -384,10 +384,11 @@ serve(async (req) => {
       data: Record<string, unknown>,
       metadata: Record<string, unknown>,
       key: string | null,
+      type = name,
     ) => {
       const { error } = await supabaseAdmin.from("app_events").insert({
         ...baseEventRow,
-        event_type: name,
+        event_type: type,
         event_name: name,
         metadata,
         event_data: data,
@@ -403,6 +404,7 @@ serve(async (req) => {
       inputEventData,
       inputMetadata,
       dedupeKey,
+      eventType || eventName,
     );
 
     if (!inserted.ok) {

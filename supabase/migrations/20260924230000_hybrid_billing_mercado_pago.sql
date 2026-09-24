@@ -54,7 +54,10 @@ create table if not exists public.billing_provider_config (
   mercado_pago_trial_duration_days integer not null default 4 check (mercado_pago_trial_duration_days > 0),
   mercado_pago_trial_policy_version text not null default '4d_2026_09',
   mercado_pago_cutover_ready boolean not null default false,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint billing_provider_cutover_guard check (
+    default_new_billing_provider = 'stripe' or mercado_pago_cutover_ready = true
+  )
 );
 
 insert into public.billing_provider_config(singleton)

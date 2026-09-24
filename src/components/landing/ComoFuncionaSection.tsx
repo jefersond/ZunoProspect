@@ -1,3 +1,4 @@
+import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -325,7 +326,7 @@ export function ComoFuncionaSection() {
               scrollToSection("precos");
             }}
           >
-            Começar teste grátis de 7 dias
+            Começar teste grátis de {TRIAL_DURATION_DAYS} dias
             <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
           <p className="text-xs font-semibold text-[#9ca3af] mt-3 tracking-wide">

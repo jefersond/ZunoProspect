@@ -73,6 +73,8 @@ describe("four-day trial policy", () => {
     expect(webhook).toContain("last_payment_error");
     expect(webhook).toContain("failure_code: providerFailureCode");
     expect(webhook).toContain("decline_code: providerDeclineCode");
+    expect(webhook).toContain('"first_charge_attempt"');
+    expect(webhook).toContain('outcome: isFailed ? "failed" : "succeeded"');
     expect(webhook).not.toContain('failure_code: "insufficient_funds"');
     expect(webhook).not.toContain('decline_code: "card_declined"');
   });

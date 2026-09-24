@@ -61,6 +61,12 @@ insert into public.billing_provider_config(singleton)
 values (true)
 on conflict (singleton) do nothing;
 
+alter table public.billing_provider_config
+  drop constraint if exists billing_provider_cutover_guard;
+alter table public.billing_provider_config
+  add constraint billing_provider_cutover_guard
+  check (default_new_billing_provider = 'stripe' or mercado_pago_cutover_ready = true);
+
 alter table public.billing_provider_config enable row level security;
 revoke all on table public.billing_provider_config from anon, authenticated;
 grant select, update on table public.billing_provider_config to service_role;

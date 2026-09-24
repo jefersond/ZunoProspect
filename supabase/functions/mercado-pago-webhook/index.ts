@@ -263,7 +263,7 @@ Deno.serve(async (req) => {
         throw new Error("mercado_pago_trial_policy_mismatch");
       }
 
-      const trialStart = safeString(subscription.date_created, 60) || null;
+      const trialStart = safeString(subscription.last_modified || subscription.date_created, 60) || null;
       const trialEnd = safeString(subscription.next_payment_date, 60) || null;
       const trialStartMs = trialStart ? Date.parse(trialStart) : NaN;
       const trialEndMs = trialEnd ? Date.parse(trialEnd) : NaN;
@@ -350,20 +350,24 @@ Deno.serve(async (req) => {
       authorizedPayment = await mpGet(accessToken, `/authorized_payments/${encodeURIComponent(dataId)}`);
     } else {
       const payment = await mpGet(accessToken, `/v1/payments/${encodeURIComponent(dataId)}`);
-      const preapprovalId = safeString(payment?.metadata?.preapproval_id, 160);
-      if (!preapprovalId) {
+      const invoices = await mpGet(
+        accessToken,
+        `/authorized_payments/search?payment_id=${encodeURIComponent(String(payment.id))}`,
+      );
+      const invoice = Array.isArray(invoices?.results) ? invoices.results[0] : null;
+      if (!invoice?.preapproval_id) {
         await persistPaymentEvent({ status: "unmapped", event_data: { action, data_id: dataId, raw_status: payment?.status ?? null } });
         return json({ ok: true, mapped: false }, 200);
       }
       authorizedPayment = {
-        id: payment.id,
-        preapproval_id: preapprovalId,
-        date_created: payment.date_created,
-        debit_date: payment.date_approved || payment.date_created,
-        retry_attempt: 0,
-        transaction_amount: payment.transaction_amount,
-        currency_id: payment.currency_id,
-        payment: { id: payment.id, status: payment.status, status_detail: payment.status_detail },
+        ...invoice,
+        payment: {
+          ...(invoice.payment || {}),
+          id: payment.id,
+          status: payment.status,
+          status_detail: payment.status_detail,
+        },
+        debit_date: payment.date_approved || invoice.debit_date || payment.date_created,
       };
     }
 
@@ -411,8 +415,7 @@ Deno.serve(async (req) => {
     if (approved) {
       const trialEndMs = local?.trial_end ? Date.parse(local.trial_end) : NaN;
       const paidAtMs = Date.parse(safeString(authorizedPayment.debit_date || authorizedPayment.date_created, 60));
-      const conversion = String(local?.subscription_status || local?.status) === "trialing"
-        && Number.isFinite(trialEndMs)
+      const conversion = Number.isFinite(trialEndMs)
         && Number.isFinite(paidAtMs)
         && paidAtMs >= trialEndMs - 15 * 60_000;
 

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from "react";
+import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
 import {
   BarChart3,
   Bot,
@@ -85,7 +86,7 @@ const defaultSettings: MarketingSettings = {
   singleton: true,
   company_name: "Zuno Propect",
   product_context: "Plataforma de prospecção B2B que encontra empresas por cidade e nicho, organiza leads e gera diagnósticos e abordagens contextualizadas com IA.",
-  primary_offer: "Teste grátis de 7 dias da Zuno Propect no plano escolhido, com cartão obrigatório e R$0 cobrados hoje.",
+  primary_offer: `Teste grátis de ${TRIAL_DURATION_DAYS} dias da Zuno Propect no plano escolhido, com cartão obrigatório e R$0 cobrados hoje.`,
   default_audience: "Prestadores de serviços B2B, agências e profissionais comerciais que precisam prospectar com mais consistência.",
   brand_voice: "Direta, humana, prática, confiável e sem promessas de resultado garantido.",
   approval_mode: "approval",

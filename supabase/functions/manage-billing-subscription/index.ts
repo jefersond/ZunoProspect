@@ -30,6 +30,9 @@ Deno.serve(async (req) => {
   if (!authData.user?.id) return json({ error: "authentication_required" }, 401);
 
   const admin = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } });
+  const requestBody = await req.json().catch(() => ({}));
+  const action = requestBody?.action === "cancel_subscription" ? "cancel_subscription" : "portal";
+
   const { data: subscription, error } = await admin.from("user_subscriptions")
     .select("billing_provider,stripe_customer_id,stripe_subscription_id,mercado_pago_subscription_id")
     .eq("user_id", authData.user.id)
@@ -40,7 +43,7 @@ Deno.serve(async (req) => {
     const response = await fetch(`${supabaseUrl}/functions/v1/create-customer-portal-session`, {
       method: "POST",
       headers: { authorization: authHeader, "content-type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ action }),
     });
     const payload = await response.json().catch(() => ({}));
     return json(payload, response.status);
@@ -48,6 +51,10 @@ Deno.serve(async (req) => {
 
   if (subscription.billing_provider !== "mercado_pago" || !subscription.mercado_pago_subscription_id) {
     return json({ error: "billing_provider_not_manageable" }, 409);
+  }
+
+  if (action === "portal") {
+    return json({ ok: true, provider: "mercado_pago", manageInApp: true }, 200);
   }
 
   const token = Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN") || "";

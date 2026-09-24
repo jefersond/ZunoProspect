@@ -96,7 +96,7 @@ describe("canonical trial activation instrumentation", () => {
     expect(onboarding).toContain("trial_end");
     expect(onboarding).toContain('from("search_logs")');
     expect(onboarding).toContain('from("leads")');
-    expect(onboarding).toContain("resultados reais retornados");
+    expect(onboarding).toContain("resultados reais no trial");
     expect(onboarding).not.toContain("demo");
   });
 });

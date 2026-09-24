@@ -36,6 +36,10 @@ describe("hybrid Stripe + Mercado Pago billing policy", () => {
     expect(migration).toContain("default_new_billing_provider = 'stripe' or mercado_pago_cutover_ready = true");
     expect(billingRouter).toContain('requestedProvider === "mercado_pago" && !typedConfig.mercado_pago_cutover_ready');
     expect(billingRouter).toContain('"mercado_pago_cutover_not_ready"');
+    expect(billingRouter).toContain('"mercado_pago_credentials_missing"');
+    expect(billingRouter.indexOf('"mercado_pago_credentials_missing"')).toBeLessThan(
+      billingRouter.indexOf('admin.rpc("claim_billing_provider"')
+    );
   });
 
   it("locks one provider per user and protects existing Stripe relationships", () => {
@@ -80,12 +84,14 @@ describe("hybrid Stripe + Mercado Pago billing policy", () => {
     expect(mpWebhook).toContain("mercado_pago_trial_policy_mismatch");
     expect(mpWebhook).toContain("mercado_pago_trial_end_mismatch");
     expect(mpWebhook).toContain("subscription.next_payment_date");
+    expect(mpWebhook).toContain("subscription.last_modified || subscription.date_created");
     expect(mpWebhook).toContain("providerTrial.frequency_type === \"days\"");
   });
 
   it("preserves raw Mercado Pago payment failure detail and only maps known reasons", () => {
     expect(mpWebhook).toContain("provider_status_detail");
     expect(mpWebhook).toContain("provider_failure_code");
+    expect(mpWebhook).toContain("/authorized_payments/search?payment_id=");
     expect(mpWebhook).toContain('"cc_rejected_insufficient_amount"');
     expect(mpWebhook).toContain('"insufficient_funds"');
     expect(mpWebhook).toContain('"rejected_by_bank"');

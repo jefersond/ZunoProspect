@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { emitZanotelliProductEvent, type ZanotelliProductEventInput } from "../_shared/zanotelli-inbound-bridge.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +29,42 @@ function cleanString(value: unknown, maxLength = 1000) {
   const trimmed = value.trim();
   if (!trimmed) return null;
   return trimmed.slice(0, maxLength);
+}
+
+const SERVER_ONLY_PRODUCT_EVENTS = new Set([
+  "card_added",
+  "trial_started",
+  "first_search",
+  "first_results",
+  "first_value_reached",
+  "trial_converted_to_paid",
+  "trial_cancelled",
+  "subscription_cancelled",
+  "payment_failed",
+]);
+
+function localDateKey(value: string | Date, timeZone = "America/Sao_Paulo") {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  return year && month && day ? `${year}-${month}-${day}` : null;
+}
+
+function scheduleProductBridge(input: ZanotelliProductEventInput) {
+  const promise = emitZanotelliProductEvent(input).catch(() => undefined);
+  const runtime = (globalThis as unknown as {
+    EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void };
+  }).EdgeRuntime;
+  if (runtime?.waitUntil) runtime.waitUntil(promise);
+  else void promise;
 }
 
 function detectDevice(userAgent: string | null) {
@@ -118,6 +155,113 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    if (SERVER_ONLY_PRODUCT_EVENTS.has(eventName)) {
+      return jsonResponse({ ok: false, error: "server_only_event" }, 403);
+    }
+
+    const inputEventData = typeof body.event_data === "object" && body.event_data !== null
+      ? { ...body.event_data }
+      : (typeof body.metadata === "object" && body.metadata !== null ? { ...body.metadata } : {});
+    const inputMetadata = typeof body.metadata === "object" && body.metadata !== null
+      ? { ...body.metadata }
+      : { ...inputEventData };
+
+    let dedupeKey: string | null = null;
+    let productBridgeInput: ZanotelliProductEventInput | null = null;
+    let firstValueEvidence: Record<string, unknown> | null = null;
+
+    if (eventName === "onboarding_started" || eventName === "returned_during_trial") {
+      if (!userId) return jsonResponse({ ok: false, error: "authentication_required" }, 401);
+
+      const { data: subscription } = await supabaseAdmin
+        .from("user_subscriptions")
+        .select("stripe_subscription_id,plan_name,subscription_status,status,trial_start,trial_end")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      const subscriptionStatus = String(subscription?.subscription_status || subscription?.status || "").toLowerCase();
+      const now = new Date();
+      const trialStart = subscription?.trial_start ? new Date(subscription.trial_start) : null;
+      const trialEnd = subscription?.trial_end ? new Date(subscription.trial_end) : null;
+      const inTrial = subscriptionStatus === "trialing"
+        && trialStart && trialEnd
+        && trialStart.getTime() <= now.getTime()
+        && trialEnd.getTime() > now.getTime();
+
+      if (!inTrial) {
+        return jsonResponse({ ok: true, skipped: true, reason: "not_in_active_trial" }, 200);
+      }
+
+      if (eventName === "returned_during_trial") {
+        const startDay = localDateKey(trialStart);
+        const currentDay = localDateKey(now);
+        if (!startDay || !currentDay || currentDay <= startDay) {
+          return jsonResponse({ ok: true, skipped: true, reason: "same_trial_day" }, 200);
+        }
+      }
+
+      const subscriptionRef = subscription?.stripe_subscription_id || subscription?.trial_start || userId;
+      dedupeKey = `${eventName}:${userId}:${subscriptionRef}`;
+      Object.assign(inputEventData, {
+        trial_start: subscription?.trial_start ?? null,
+        trial_end: subscription?.trial_end ?? null,
+        plan_id: subscription?.plan_name ?? null,
+      });
+      Object.assign(inputMetadata, inputEventData);
+      productBridgeInput = {
+        eventName,
+        eventId: dedupeKey,
+        userId,
+        planId: subscription?.plan_name ?? null,
+        trialEnd: subscription?.trial_end ?? null,
+      };
+    }
+
+    if (eventName === "first_lead_opened") {
+      if (!userId) return jsonResponse({ ok: false, error: "authentication_required" }, 401);
+      const leadId = cleanString(inputEventData.lead_id, 80);
+      if (!leadId) return jsonResponse({ ok: false, error: "lead_id_required" }, 400);
+
+      const { data: lead } = await supabaseAdmin
+        .from("leads")
+        .select("id,search_run_id")
+        .eq("id", leadId)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (!lead?.search_run_id) {
+        return jsonResponse({ ok: true, skipped: true, reason: "lead_without_real_search" }, 200);
+      }
+
+      const { data: search } = await supabaseAdmin
+        .from("search_logs")
+        .select("search_run_id,status,returned_quantity")
+        .eq("search_run_id", lead.search_run_id)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (!search || search.status !== "success" || Number(search.returned_quantity || 0) <= 0) {
+        return jsonResponse({ ok: true, skipped: true, reason: "real_results_required" }, 200);
+      }
+
+      dedupeKey = `first_lead_opened:${userId}`;
+      Object.assign(inputEventData, {
+        lead_id: lead.id,
+        search_run_id: search.search_run_id,
+        returned_quantity: Number(search.returned_quantity || 0),
+        activation_evidence: "real_search_real_results_lead_opened",
+      });
+      Object.assign(inputMetadata, inputEventData);
+      firstValueEvidence = { ...inputEventData };
+      productBridgeInput = {
+        eventName: "first_lead_opened",
+        eventId: dedupeKey,
+        userId,
+        searchRunId: String(search.search_run_id),
+        returnedQuantity: Number(search.returned_quantity || 0),
+      };
+    }
+
     // Helper de normalização local de criativos
     function normalizeCreativeName(utmContent: string | null): string {
       if (!utmContent || utmContent.trim() === "") {
@@ -206,7 +350,7 @@ serve(async (req) => {
       }
     }
 
-    const { error } = await supabaseAdmin.from("app_events").insert({
+    const baseEventRow = {
       user_id: userId,
       email,
       user_email: email,
@@ -214,8 +358,6 @@ serve(async (req) => {
       event_source_type: eventSource,
       anonymous_id: cleanString(body.anonymous_id, 200),
       session_id: cleanString(body.session_id, 200),
-      event_type: eventType || eventName,
-      event_name: eventName,
       page_url: cleanString(body.page_url, 2000),
       path: cleanString(body.path, 500),
       pathname: cleanString(body.pathname, 500),
@@ -230,23 +372,77 @@ serve(async (req) => {
       offer: cleanString(body.offer, 200),
       first_touch: typeof body.first_touch === "object" && body.first_touch !== null ? body.first_touch : null,
       last_touch: typeof body.last_touch === "object" && body.last_touch !== null ? body.last_touch : null,
-      metadata: typeof body.metadata === "object" && body.metadata !== null ? body.metadata : {},
       device_type: cleanString(body.device_type, 80) || detected.device_type,
       browser: cleanString(body.browser, 80) || detected.browser,
       os: cleanString(body.os, 80) || detected.os,
       ip_address: firstIp(req),
       user_agent: userAgent,
-      event_data: typeof body.event_data === "object" && body.event_data !== null
-        ? body.event_data
-        : (typeof body.metadata === "object" && body.metadata !== null ? body.metadata : {}),
-    });
+    };
 
-    if (error) {
-      console.warn("[track-event] insert failed", error.message);
-      return jsonResponse({ ok: false, error: "insert_failed", details: error.message }, 500);
+    const insertCanonical = async (
+      name: string,
+      data: Record<string, unknown>,
+      metadata: Record<string, unknown>,
+      key: string | null,
+    ) => {
+      const { error } = await supabaseAdmin.from("app_events").insert({
+        ...baseEventRow,
+        event_type: name,
+        event_name: name,
+        metadata,
+        event_data: data,
+        dedupe_key: key,
+      });
+      if (error?.code === "23505") return { ok: true, duplicate: true };
+      if (error) return { ok: false, error };
+      return { ok: true, duplicate: false };
+    };
+
+    const inserted = await insertCanonical(
+      eventName,
+      inputEventData,
+      inputMetadata,
+      dedupeKey,
+    );
+
+    if (!inserted.ok) {
+      console.warn("[track-event] insert failed", inserted.error?.message);
+      return jsonResponse({ ok: false, error: "insert_failed", details: inserted.error?.message }, 500);
     }
 
-    return jsonResponse({ ok: true, event_name: eventName }, 200);
+    if (productBridgeInput) {
+      scheduleProductBridge(productBridgeInput);
+    }
+
+    let firstValueDuplicate: boolean | null = null;
+    if (eventName === "first_lead_opened" && userId && firstValueEvidence) {
+      const firstValueKey = `first_value_reached:${userId}`;
+      const firstValue = await insertCanonical(
+        "first_value_reached",
+        firstValueEvidence,
+        firstValueEvidence,
+        firstValueKey,
+      );
+      if (!firstValue.ok) {
+        console.warn("[track-event] first_value_reached insert failed", firstValue.error?.message);
+      } else {
+        firstValueDuplicate = firstValue.duplicate;
+        scheduleProductBridge({
+          eventName: "first_value_reached",
+          eventId: firstValueKey,
+          userId,
+          searchRunId: cleanString(firstValueEvidence.search_run_id, 180),
+          returnedQuantity: Number(firstValueEvidence.returned_quantity || 0),
+        });
+      }
+    }
+
+    return jsonResponse({
+      ok: true,
+      event_name: eventName,
+      duplicate: inserted.duplicate,
+      first_value_duplicate: firstValueDuplicate,
+    }, 200);
   } catch (error) {
     console.warn("[track-event] unexpected failure", error);
     return jsonResponse({ ok: false, error: "unexpected_failure", details: error instanceof Error ? error.message : String(error) }, 500);

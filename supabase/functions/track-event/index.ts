@@ -58,18 +58,6 @@ function localDateKey(value: string | Date, timeZone = "America/Sao_Paulo") {
   return year && month && day ? `${year}-${month}-${day}` : null;
 }
 
-function trialDayIndex(trialStart: string | Date, at: string | Date = new Date()) {
-  const startKey = localDateKey(trialStart);
-  const atKey = localDateKey(at);
-  if (!startKey || !atKey) return null;
-  const toDay = (key: string) => {
-    const [year, month, day] = key.split("-").map(Number);
-    return Date.UTC(year, month - 1, day);
-  };
-  const diff = Math.floor((toDay(atKey) - toDay(startKey)) / 86_400_000);
-  return diff >= 0 ? diff : null;
-}
-
 function scheduleProductBridge(input: ZanotelliProductEventInput) {
   const promise = emitZanotelliProductEvent(input).catch(() => undefined);
   const runtime = (globalThis as unknown as {
@@ -274,59 +262,12 @@ serve(async (req) => {
         return jsonResponse({ ok: true, skipped: true, reason: "real_results_required" }, 200);
       }
 
-      const [{ data: activationSubscription }, { data: trialStartedEvent }] = await Promise.all([
-        supabaseAdmin
-          .from("user_subscriptions")
-          .select("subscription_status,status,trial_start,trial_end,stripe_subscription_id")
-          .eq("user_id", userId)
-          .maybeSingle(),
-        supabaseAdmin
-          .from("app_events")
-          .select("event_data,metadata,created_at")
-          .eq("user_id", userId)
-          .eq("event_name", "trial_started")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ]);
-
-      const now = new Date();
-      const trialStart = activationSubscription?.trial_start ? new Date(activationSubscription.trial_start) : null;
-      const trialEnd = activationSubscription?.trial_end ? new Date(activationSubscription.trial_end) : null;
-      const trialStatus = String(activationSubscription?.subscription_status || activationSubscription?.status || "").toLowerCase();
-      const firstValueDuringTrial = trialStatus === "trialing"
-        && trialStart && trialEnd
-        && trialStart.getTime() <= now.getTime()
-        && trialEnd.getTime() > now.getTime();
-      const policyData = (
-        trialStartedEvent?.event_data && typeof trialStartedEvent.event_data === "object"
-          ? trialStartedEvent.event_data
-          : trialStartedEvent?.metadata && typeof trialStartedEvent.metadata === "object"
-            ? trialStartedEvent.metadata
-            : {}
-      ) as Record<string, unknown>;
-      const actualDurationDays = trialStart && trialEnd
-        ? Math.round((trialEnd.getTime() - trialStart.getTime()) / 86_400_000)
-        : null;
-      const firstValueTrialDay = firstValueDuringTrial && trialStart
-        ? trialDayIndex(trialStart, now)
-        : null;
-
       dedupeKey = `first_lead_opened:${userId}`;
       Object.assign(inputEventData, {
         lead_id: lead.id,
         search_run_id: search.search_run_id,
         returned_quantity: Number(search.returned_quantity || 0),
         activation_evidence: "real_search_real_results_lead_opened",
-        ...(firstValueDuringTrial ? {
-          trial_start: activationSubscription?.trial_start ?? null,
-          trial_end: activationSubscription?.trial_end ?? null,
-          trial_day: firstValueTrialDay !== null ? `day_${firstValueTrialDay}` : null,
-          trial_duration_days: Number(policyData.trial_duration_days || actualDurationDays || 0) || null,
-          trial_policy_version: typeof policyData.trial_policy_version === "string"
-            ? policyData.trial_policy_version
-            : null,
-        } : {}),
       });
       Object.assign(inputMetadata, inputEventData);
       firstValueEvidence = { ...inputEventData };

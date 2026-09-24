@@ -44,17 +44,20 @@ export function TrialActivationPanel({ subscription }: { subscription: Subscript
     let cancelled = false;
 
     const loadProgress = async () => {
+      const trialStart = subscription.trial_start || new Date(0).toISOString();
       const [searchesResponse, savedResponse] = await Promise.all([
         supabase
           .from("search_logs")
           .select("returned_quantity,niche")
           .eq("user_id", user.id)
-          .eq("status", "success"),
+          .eq("status", "success")
+          .gte("created_at", trialStart),
         supabase
           .from("leads")
           .select("*", { count: "exact", head: true })
           .eq("user_id", user.id)
-          .eq("salvo", true),
+          .eq("salvo", true)
+          .gte("created_at", trialStart),
       ]);
 
       if (cancelled) return;
@@ -84,7 +87,7 @@ export function TrialActivationPanel({ subscription }: { subscription: Subscript
       window.removeEventListener("searchFinished", refresh);
       window.removeEventListener("zuno:first-value-reached", refresh);
     };
-  }, [isTrialing, user?.id]);
+  }, [isTrialing, subscription.trial_start, user?.id]);
 
   if (!isTrialing || !subscription) return null;
 
@@ -152,7 +155,7 @@ export function TrialActivationPanel({ subscription }: { subscription: Subscript
           <div className="rounded-lg border border-border/60 p-3">
             <Building2 className="h-4 w-4 text-emerald-500" />
             <p className="mt-2 text-xl font-semibold">{progress.returnedResults}</p>
-            <p className="text-xs text-muted-foreground">resultados reais retornados</p>
+            <p className="text-xs text-muted-foreground">resultados reais no trial</p>
           </div>
           <div className="rounded-lg border border-border/60 p-3">
             <BookmarkCheck className="h-4 w-4 text-emerald-500" />
@@ -170,7 +173,7 @@ export function TrialActivationPanel({ subscription }: { subscription: Subscript
           <div className="flex items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
             <p className="text-sm leading-6 text-muted-foreground">
-              Esses números vêm das suas buscas reais. Abra <strong className="text-foreground">Ver Plano</strong> em uma empresa para avaliar a oportunidade com seus próprios olhos — esse é o marco de primeiro valor do Zuno.
+              Esses números vêm das suas buscas reais desde o início do trial. Abra <strong className="text-foreground">Ver Plano</strong> em uma empresa para avaliar a oportunidade com seus próprios olhos — esse é o marco de primeiro valor do Zuno.
             </p>
           </div>
         ) : (

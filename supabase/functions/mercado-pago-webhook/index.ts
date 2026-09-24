@@ -190,19 +190,27 @@ Deno.serve(async (req) => {
     }
   };
 
-  const lookupByPlan = async (providerPlanId: string) => {
-    const { data } = await admin.from("mercado_pago_checkout_plans")
-      .select("user_id,plan_id,billing_cycle,trial_duration_days,trial_policy_version,transaction_amount,currency_id,provider_plan_id")
-      .eq("provider_plan_id", providerPlanId)
-      .maybeSingle();
-    return data;
-  };
-
   const resolveSubscriptionContext = async (subscription: Record<string, any>) => {
+    const subscriptionId = safeString(subscription.id, 160);
     const providerPlanId = safeString(subscription.preapproval_plan_id, 160);
-    const planRow = providerPlanId ? await lookupByPlan(providerPlanId) : null;
-    if (!planRow?.user_id || !validPlan(planRow.plan_id)) return null;
-    return { subscription, planRow };
+    if (!subscriptionId || !providerPlanId) return null;
+
+    const [{ data: sessionRow }, { data: planRow }] = await Promise.all([
+      admin.from("mercado_pago_checkout_sessions")
+        .select("user_id,plan_id,billing_cycle,trial_duration_days,trial_policy_version,transaction_amount,currency_id,provider_plan_id,provider_subscription_id")
+        .eq("provider_subscription_id", subscriptionId)
+        .maybeSingle(),
+      admin.from("mercado_pago_billing_plans")
+        .select("plan_id,billing_cycle,trial_duration_days,trial_policy_version,transaction_amount,currency_id,provider_plan_id")
+        .eq("provider_plan_id", providerPlanId)
+        .maybeSingle(),
+    ]);
+
+    if (!sessionRow?.user_id || !validPlan(sessionRow.plan_id) || !planRow?.provider_plan_id) return null;
+    if (sessionRow.provider_plan_id !== planRow.provider_plan_id) return null;
+    if (sessionRow.plan_id !== planRow.plan_id || sessionRow.billing_cycle !== planRow.billing_cycle) return null;
+    if (sessionRow.trial_policy_version !== planRow.trial_policy_version) return null;
+    return { subscription, planRow: sessionRow };
   };
 
   const enforceMpProvider = async (userId: string, incomingSubscriptionId: string) => {

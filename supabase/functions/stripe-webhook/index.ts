@@ -1639,6 +1639,27 @@ serve(async (req) => {
               invoiceAttemptCount: invoice.attempt_count,
             });
 
+            if (subscription.trial_end && event.created >= subscription.trial_end) {
+              await logAppEvent(
+                supabaseAdmin,
+                eventUserId,
+                "first_charge_attempt",
+                {
+                  stripe_event_id: event.id,
+                  stripe_subscription_id: stripeSubscriptionId,
+                  invoice_id: invoice.id,
+                  plan_id: finalPlanId,
+                  outcome: isFailed ? "failed" : "succeeded",
+                  amount_due: invoice.amount_due,
+                  currency: currency?.toUpperCase() || "BRL",
+                  trial_end: trialEnd,
+                  ...trialPolicyEvidence(metadata, trialStart, trialEnd),
+                },
+                email,
+                `first_charge_attempt:${stripeSubscriptionId || invoice.id}`,
+              );
+            }
+
             if (isFailed) {
               let providerFailureCode: string | null = null;
               let providerDeclineCode: string | null = null;

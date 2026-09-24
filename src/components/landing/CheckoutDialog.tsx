@@ -10,11 +10,11 @@ import { Plano } from "./data";
 import { trackCompleteRegistration, trackInitiateCheckout, trackAddPaymentInfo, trackMetaCustomEvent } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { useLeadPricing } from "@/hooks/useLeadPricing";
-import { createStripeCheckout } from "@/services/stripeCheckout";
+import { createBillingCheckout, billingRedirectAdapter } from "@/services/billingCheckout";
 import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
 import { trackEvent, trackCheckoutStarted, trackCheckoutFailed } from "@/lib/analytics";
 import { getFunnelContext } from "@/lib/funnelContext";
-import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -54,6 +54,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGoogleProcessing, setIsGoogleProcessing] = useState(false);
   const { calculatePrice, getDisplayPrice } = useLeadPricing();
+  const { trialDurationDays, defaultNewBillingProvider } = useBillingOfferConfig();
   const referralCode = getCurrentReferralCode(window.location.search);
 
   if (!plano) return null;
@@ -192,7 +193,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
         currency: "BRL",
       });
       trackAddPaymentInfo({
-        content_category: 'Stripe',
+        content_category: defaultNewBillingProvider === "mercado_pago" ? "Mercado Pago" : "Stripe",
         currency: 'BRL',
         value: preco
       });
@@ -200,7 +201,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
       toast.loading("Conta criada! Gerando link de pagamento...");
 
       // Gerar URL do checkout via Stripe Edge Function
-      const data = await createStripeCheckout({
+      const data = await createBillingCheckout({
         selectedPlan: plano,
         billingCycle: "monthly",
       });
@@ -212,7 +213,11 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
         value: preco,
         currency: "BRL",
         source: "checkout_dialog",
-        stripeSessionId: data.sessionId || null,
+        stripeSessionId: data.provider === "stripe" ? data.checkoutId || null : null,
+        providerCheckoutId: data.checkoutId || null,
+        billingProvider: data.provider,
+        trialDurationDays: data.trialDurationDays,
+        trialPolicyVersion: data.trialPolicyVersion,
         usage: {
           plan_name: "free",
           leads_used: 0,
@@ -240,7 +245,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
       toast.success("Redirecionando para o pagamento seguro...");
       
       // Redirecionar para Checkout Stripe
-      window.location.href = data.url;
+      billingRedirectAdapter(data.provider).redirect(data);
       
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
@@ -419,7 +424,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
                   <span className="font-semibold text-foreground">Plano {plano.nome}</span>
                   <p className="text-xs text-muted-foreground">{selectedLeads.toLocaleString('pt-BR')} leads/mês</p>
                 </div>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">{TRIAL_DURATION_DAYS} dias grátis</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">{trialDurationDays} dias grátis</span>
               </div>
               
               <div className="space-y-1.5 text-sm text-muted-foreground">
@@ -443,7 +448,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
 
               <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
                 <p>✓ Você não será cobrado hoje.</p>
-                <p>✓ Seu teste grátis dura {TRIAL_DURATION_DAYS} dias.</p>
+                <p>✓ Seu teste grátis dura {trialDurationDays} dias.</p>
                 <p>✓ Após o teste, sua assinatura será renovada automaticamente.</p>
                 <p>✓ Você pode cancelar antes do fim do teste para não ser cobrado.</p>
               </div>

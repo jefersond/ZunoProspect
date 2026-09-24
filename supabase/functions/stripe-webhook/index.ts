@@ -1,7 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Stripe from "npm:stripe@^14.20.0";
-import { emitZanotelliRevenueEvent } from "../_shared/zanotelli-inbound-bridge.ts";
+import {
+  emitZanotelliProductEvent,
+  emitZanotelliRevenueEvent,
+  type ZanotelliProductEventName,
+} from "../_shared/zanotelli-inbound-bridge.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2023-10-16",
@@ -707,6 +711,7 @@ async function logAppEvent(
   eventType: string,
   eventData: Record<string, unknown>,
   emailFallback?: string | null,
+  dedupeKey?: string | null,
 ) {
   try {
     let sourceEvent: any = null;
@@ -790,15 +795,57 @@ async function logAppEvent(
       offer: sourceEvent?.offer || null,
       first_touch: firstTouchObj,
       last_touch: lastTouchObj,
+      dedupe_key: dedupeKey || null,
       created_at: now,
     });
     
+    if (error?.code === "23505" && dedupeKey) return;
     if (error) {
       console.error("[stripe-webhook] Erro ao inserir na tabela app_events:", error);
     }
   } catch (eventError) {
     console.warn("[stripe-webhook] Falha ao registrar app_event", eventError);
   }
+}
+
+function scheduleProductBridge(input: Parameters<typeof emitZanotelliProductEvent>[0]) {
+  const promise = emitZanotelliProductEvent(input).catch(() => undefined);
+  const runtime = (globalThis as unknown as {
+    EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void };
+  }).EdgeRuntime;
+  if (runtime?.waitUntil) runtime.waitUntil(promise);
+  else void promise;
+}
+
+async function recordCanonicalBillingMilestone(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  params: {
+    userId: string;
+    eventName: Extract<ZanotelliProductEventName,
+      "card_added" | "trial_started" | "trial_converted_to_paid" | "trial_cancelled" | "subscription_cancelled" | "payment_failed">;
+    referenceId: string;
+    eventData: Record<string, unknown>;
+    email?: string | null;
+    planId?: string | null;
+    trialEnd?: string | null;
+  },
+) {
+  const dedupeKey = `${params.eventName}:${params.referenceId}`;
+  await logAppEvent(
+    supabaseAdmin,
+    params.userId,
+    params.eventName,
+    params.eventData,
+    params.email,
+    dedupeKey,
+  );
+  scheduleProductBridge({
+    eventName: params.eventName,
+    eventId: dedupeKey,
+    userId: params.userId,
+    planId: params.planId,
+    trialEnd: params.trialEnd,
+  });
 }
 
 async function checkDuplicatePurchaseEvent(
@@ -1113,6 +1160,24 @@ serve(async (req) => {
             stripe_checkout_session_id: stripeCheckoutSessionId,
           });
 
+          if (subStatus === "trialing" && stripeSubscriptionId) {
+            await recordCanonicalBillingMilestone(supabaseAdmin, {
+              userId: eventUserId,
+              eventName: "card_added",
+              referenceId: stripeSubscriptionId,
+              email,
+              planId: finalPlanId,
+              trialEnd,
+              eventData: {
+                stripe_event_id: event.id,
+                stripe_checkout_session_id: stripeCheckoutSessionId,
+                stripe_subscription_id: stripeSubscriptionId,
+                plan_id: finalPlanId,
+                source: "stripe_checkout_completed",
+              },
+            });
+          }
+
           // REGISTRAR TRIAL INICIADO SE A ASSINATURA ESTIVER EM STATUS TRIALING
           if (subStatus === "trialing") {
             const hasTrialDuplicate = await checkDuplicateTrialStartedEvent(
@@ -1122,7 +1187,14 @@ serve(async (req) => {
             );
 
             if (!hasTrialDuplicate) {
-              await logAppEvent(supabaseAdmin, eventUserId, "trial_started", {
+              await recordCanonicalBillingMilestone(supabaseAdmin, {
+                userId: eventUserId,
+                eventName: "trial_started",
+                referenceId: stripeSubscriptionId || event.id,
+                email,
+                planId: finalPlanId,
+                trialEnd,
+                eventData: {
                 stripe_event_id: event.id,
                 stripe_checkout_session_id: stripeCheckoutSessionId,
                 stripe_customer_id: stripeCustomerId,
@@ -1134,6 +1206,7 @@ serve(async (req) => {
                 currency: currency?.toUpperCase() || "BRL",
                 billing_cycle: billingCycle === "yearly" || billingCycle === "annual" || billingCycle === "year" ? "yearly" : "monthly",
                 source: "stripe_webhook",
+                },
               });
               console.log(`[stripe-webhook] Evento trial_started registrado via checkout.session.completed para ${eventUserId}`);
             }
@@ -1251,6 +1324,35 @@ serve(async (req) => {
                 reason: "trial_immediate_cancel",
               });
 
+              await recordCanonicalBillingMilestone(supabaseAdmin, {
+                userId: eventUserId,
+                eventName: "trial_cancelled",
+                referenceId: stripeSubscriptionId || event.id,
+                email,
+                planId: finalPlanId,
+                trialEnd,
+                eventData: {
+                  stripe_event_id: event.id,
+                  stripe_subscription_id: stripeSubscriptionId,
+                  plan_id: finalPlanId,
+                  reason: "trial_immediate_cancel",
+                },
+              });
+              await recordCanonicalBillingMilestone(supabaseAdmin, {
+                userId: eventUserId,
+                eventName: "subscription_cancelled",
+                referenceId: stripeSubscriptionId || event.id,
+                email,
+                planId: finalPlanId,
+                trialEnd,
+                eventData: {
+                  stripe_event_id: event.id,
+                  stripe_subscription_id: stripeSubscriptionId,
+                  plan_id: finalPlanId,
+                  reason: "trial_immediate_cancel",
+                },
+              });
+
               // Retornar da execução pois já processamos o cancelamento
               return new Response(JSON.stringify({ received: true, forced_trial_cancel: true }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -1304,7 +1406,14 @@ serve(async (req) => {
             );
 
             if (!hasTrialDuplicate) {
-              await logAppEvent(supabaseAdmin, eventUserId, "trial_started", {
+              await recordCanonicalBillingMilestone(supabaseAdmin, {
+                userId: eventUserId,
+                eventName: "trial_started",
+                referenceId: stripeSubscriptionId || event.id,
+                email,
+                planId: finalPlanId,
+                trialEnd,
+                eventData: {
                 stripe_event_id: event.id,
                 stripe_customer_id: stripeCustomerId,
                 stripe_subscription_id: stripeSubscriptionId,
@@ -1315,6 +1424,7 @@ serve(async (req) => {
                 currency: currency?.toUpperCase() || "BRL",
                 billing_cycle: billingCycle === "yearly" || billingCycle === "annual" || billingCycle === "year" ? "yearly" : "monthly",
                 source: "stripe_webhook",
+                },
               });
               console.log(`[stripe-webhook] Evento trial_started registrado via customer.subscription.created/updated para ${eventUserId}`);
             }
@@ -1489,6 +1599,23 @@ serve(async (req) => {
                 attempt_count: invoice.attempt_count,
               });
 
+              await recordCanonicalBillingMilestone(supabaseAdmin, {
+                userId: eventUserId,
+                eventName: "payment_failed",
+                referenceId: invoice.id,
+                email,
+                planId: finalPlanId,
+                trialEnd,
+                eventData: {
+                  stripe_event_id: event.id,
+                  stripe_subscription_id: stripeSubscriptionId,
+                  invoice_id: invoice.id,
+                  plan_id: finalPlanId,
+                  amount_due: invoice.amount_due,
+                  attempt_count: invoice.attempt_count,
+                },
+              });
+
               // Obter o nome do usuário a partir dos profiles se possível para o e-mail
               let userName = "";
               if (eventUserId) {
@@ -1530,6 +1657,31 @@ serve(async (req) => {
                 stripe_customer_id: stripeCustomerId,
                 stripe_subscription_id: stripeSubscriptionId,
               });
+
+              const paidAfterTrial = Boolean(
+                subscription.trial_end
+                && subscription.status === "active"
+                && Number(invoice.amount_paid || amount || 0) > 0
+                && event.created >= subscription.trial_end
+              );
+              if (paidAfterTrial) {
+                await recordCanonicalBillingMilestone(supabaseAdmin, {
+                  userId: eventUserId,
+                  eventName: "trial_converted_to_paid",
+                  referenceId: stripeSubscriptionId || invoice.id,
+                  email,
+                  planId: finalPlanId,
+                  trialEnd,
+                  eventData: {
+                    stripe_event_id: event.id,
+                    stripe_subscription_id: stripeSubscriptionId,
+                    invoice_id: invoice.id,
+                    plan_id: finalPlanId,
+                    amount_paid: invoice.amount_paid || amount || 0,
+                    currency: currency?.toUpperCase() || "BRL",
+                  },
+                });
+              }
 
               await relayPaidRevenueToZanotelli({
                 stripeEventId: event.id,

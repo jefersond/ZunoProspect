@@ -215,6 +215,24 @@ serve(async (req) => {
         planId: subscription?.plan_name ?? null,
         trialEnd: subscription?.trial_end ?? null,
       };
+
+      // Seed the Owner funnel for trials that started before this canonical
+      // instrumentation was deployed. The bridge itself is idempotent, so
+      // refreshes/retries cannot create duplicate trial/card milestones.
+      scheduleProductBridge({
+        eventName: "trial_started",
+        eventId: `trial_started:${subscriptionRef}`,
+        userId,
+        planId: subscription?.plan_name ?? null,
+        trialEnd: subscription?.trial_end ?? null,
+      });
+      scheduleProductBridge({
+        eventName: "card_added",
+        eventId: `card_added:${subscriptionRef}`,
+        userId,
+        planId: subscription?.plan_name ?? null,
+        trialEnd: subscription?.trial_end ?? null,
+      });
     }
 
     if (eventName === "first_lead_opened") {

@@ -1,4 +1,3 @@
-import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
 export type BillingCycle = "monthly" | "annual";
 export type PlanId = "starter" | "pro" | "agency";
 
@@ -26,7 +25,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     legacyPlanKey: "starter",
     name: "Starter",
     displayName: "Starter",
-    subtitle: `Teste grátis por ${TRIAL_DURATION_DAYS} dias. Ideal para começar a prospectar com consistência.`,
+    subtitle: "Teste grátis com cartão cadastrado. Ideal para começar a prospectar com consistência.",
     monthlyPrice: 47,
     annualPrice: 470,
     leadsLimit: 300,
@@ -36,7 +35,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     features: [
       "300 leads por mês",
       "30 análises com IA por mês",
-      `${TRIAL_DURATION_DAYS} dias de teste grátis`,
+      "Teste grátis no plano escolhido",
       "Análise de leads com diagnóstico",
       "Plano de prospecção de 7 dias",
       "CRM para salvar status e anotações",
@@ -49,7 +48,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     legacyPlanKey: "pro",
     name: "Pro",
     displayName: "Pro",
-    subtitle: `Teste grátis por ${TRIAL_DURATION_DAYS} dias. Mais escolhido para quem prospecta toda semana.`,
+    subtitle: "Teste grátis com cartão cadastrado. Mais escolhido para quem prospecta toda semana.",
     monthlyPrice: 97,
     annualPrice: 970,
     leadsLimit: 800,
@@ -60,7 +59,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     features: [
       "800 leads por mês",
       "100 análises com IA por mês",
-      `${TRIAL_DURATION_DAYS} dias de teste grátis`,
+      "Teste grátis no plano escolhido",
       "Tudo do Starter",
       "Análise completa e score de oportunidade",
       "Abordagens para WhatsApp, Instagram e e-mail",
@@ -74,7 +73,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     legacyPlanKey: "agencia",
     name: "Agency",
     displayName: "Agency",
-    subtitle: `Teste grátis por ${TRIAL_DURATION_DAYS} dias. Para times e agências que prospectam em volume.`,
+    subtitle: "Teste grátis com cartão cadastrado. Para times e agências que prospectam em volume.",
     monthlyPrice: 247,
     annualPrice: 2470,
     leadsLimit: 2000,
@@ -84,7 +83,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     features: [
       "2.000 leads por mês",
       "300 análises com IA por mês",
-      `${TRIAL_DURATION_DAYS} dias de teste grátis`,
+      "Teste grátis no plano escolhido",
       "Tudo do plano Pro",
       "Pipeline Kanban visual",
       "Relatórios e dashboards completos",

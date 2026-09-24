@@ -788,6 +788,12 @@ export const LeadsList = () => {
   };
 
   const openPlanDialog = (lead: LeadProspeccao) => {
+    void trackEvent("first_lead_opened", {
+      lead_id: lead.id,
+      source: "results_ver_plano",
+    }).finally(() => {
+      window.dispatchEvent(new CustomEvent("zuno:first-value-reached"));
+    });
     setSelectedLead(lead);
     setDialogOpen(true);
   };

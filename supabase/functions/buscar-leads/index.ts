@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { emitZanotelliProductEvent, type ZanotelliProductEventName } from "../_shared/zanotelli-inbound-bridge.ts";
 
 // ============= CORS HELPER =============
 // Configure a env var ALLOWED_ORIGINS com os domínios permitidos separados por vírgula
@@ -249,6 +250,56 @@ async function logAppEvent(
   }
 }
 
+function scheduleProductBridge(input: Parameters<typeof emitZanotelliProductEvent>[0]) {
+  const promise = emitZanotelliProductEvent(input).catch(() => undefined);
+  const runtime = (globalThis as unknown as {
+    EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void };
+  }).EdgeRuntime;
+  if (runtime?.waitUntil) runtime.waitUntil(promise);
+  else void promise;
+}
+
+async function recordCanonicalProductEvent(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  input: {
+    eventName: Extract<ZanotelliProductEventName, "first_search" | "first_results">;
+    userId: string;
+    searchRunId: string;
+    returnedQuantity?: number;
+  },
+) {
+  const dedupeKey = `${input.eventName}:${input.userId}`;
+  const eventData = {
+    search_run_id: input.searchRunId,
+    ...(input.returnedQuantity !== undefined ? { returned_quantity: input.returnedQuantity } : {}),
+    source: "buscar-leads",
+  };
+
+  const { error } = await supabaseAdmin.from("app_events").insert({
+    user_id: input.userId,
+    event_type: input.eventName,
+    event_name: input.eventName,
+    event_data: eventData,
+    metadata: eventData,
+    event_source_type: "product",
+    is_internal_event: false,
+    dedupe_key: dedupeKey,
+  });
+
+  if (error && error.code !== "23505") {
+    console.warn(`[buscar-leads] Falha ao registrar ${input.eventName}`, error.message);
+    return;
+  }
+
+  scheduleProductBridge({
+    eventName: input.eventName,
+    eventId: dedupeKey,
+    userId: input.userId,
+    searchRunId: input.searchRunId,
+    returnedQuantity: input.returnedQuantity,
+  });
+}
+
 async function upsertSearchLog(
   supabaseAdmin: ReturnType<typeof createClient>,
   values: Record<string, unknown>,
@@ -464,6 +515,14 @@ serve(async (req) => {
       ipAddress: req.headers.get("x-forwarded-for"),
       userAgent: req.headers.get("user-agent"),
     });
+
+    if (!isAdminUser) {
+      await recordCanonicalProductEvent(supabaseAdmin, {
+        eventName: "first_search",
+        userId: user.id,
+        searchRunId,
+      });
+    }
 
     if (normalizedPais === "US" && !isAdminUser) {
       const { data: addonData, error: addonError } = await supabaseAdmin
@@ -1541,6 +1600,15 @@ serve(async (req) => {
       ipAddress: req.headers.get("x-forwarded-for"),
       userAgent: req.headers.get("user-agent"),
     });
+
+    if (!isAdminUser && leadsDetails.length > 0) {
+      await recordCanonicalProductEvent(supabaseAdmin, {
+        eventName: "first_results",
+        userId: user.id,
+        searchRunId,
+        returnedQuantity: leadsDetails.length,
+      });
+    }
 
     const lockedLeadsData = lockedLeadsPreview.map((place: any) => ({
       id: `locked_${place.place_id}`,

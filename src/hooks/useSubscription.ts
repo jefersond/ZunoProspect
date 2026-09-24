@@ -28,6 +28,7 @@ export interface SubscriptionInfo {
   cancel_at_period_end?: boolean;
   canceled_at?: string | null;
   trial_days_remaining?: number | null;
+  billing_cycle?: string | null;
 }
 
 export interface UseSubscriptionReturn {
@@ -154,6 +155,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
         cancel_at_period_end: false,
         canceled_at: null,
         trial_days_remaining: null,
+        billing_cycle: null,
       });
       setIsAdmin(true);
       setLoading(false);
@@ -309,6 +311,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
           cancel_at_period_end: false,
           canceled_at: null,
           trial_days_remaining: null,
+        billing_cycle: null,
         });
         return;
       }
@@ -349,6 +352,7 @@ export const useSubscription = (): UseSubscriptionReturn => {
         cancel_at_period_end: directSub?.cancel_at_period_end ?? false,
         canceled_at: directSub?.canceled_at ?? null,
         trial_days_remaining: trialDaysRemaining,
+        billing_cycle: directSub?.billing_cycle ?? null,
       });
     } catch (err: any) {
       console.error("Erro ao buscar assinatura:", err);

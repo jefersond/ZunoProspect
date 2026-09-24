@@ -15,6 +15,7 @@ import { PLANS, normalizePlanId } from "@/config/plans";
 import { getFunnelContext } from "@/lib/funnelContext";
 import { AppHeader } from "@/components/AppHeader";
 import { PaymentRecoveryBanner } from "@/components/subscription/PaymentRecoveryBanner";
+import { TrialActivationPanel } from "@/components/subscription/TrialActivationPanel";
 
 const Prospeccao = () => {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ const Prospeccao = () => {
         sessionStorage.removeItem("checkout_in_progress");
         sessionStorage.removeItem("checkout_plano");
         sessionStorage.removeItem("checkout_isAnual");
-        toast.success("Pagamento realizado com sucesso! Seu plano foi ativado.");
+        toast.success("Teste grátis iniciado. Seu cartão foi cadastrado e a cobrança só ocorrerá ao fim dos 7 dias, se você não cancelar antes.");
         setSearchParams({});
       } else if (checkoutStatus === "canceled" || checkoutStatus === "cancelled") {
         sessionStorage.removeItem("checkout_in_progress");
@@ -136,7 +137,10 @@ const Prospeccao = () => {
 
       <main className="container mx-auto px-4 py-8 space-y-8">
         <PaymentRecoveryBanner />
-        <ProspeccaoForm />
+        <TrialActivationPanel subscription={subscription} />
+        <div id="primeira-busca">
+          <ProspeccaoForm />
+        </div>
         <LeadsList />
       </main>
       <FloatingWhatsAppButton />

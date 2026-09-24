@@ -71,30 +71,6 @@ alter table public.billing_provider_config enable row level security;
 revoke all on table public.billing_provider_config from anon, authenticated;
 grant select, update on table public.billing_provider_config to service_role;
 
-create table if not exists public.mercado_pago_billing_plans (
-  id uuid primary key default gen_random_uuid(),
-  plan_id text not null check (plan_id in ('starter','pro','agency')),
-  billing_cycle text not null check (billing_cycle in ('monthly','annual')),
-  trial_duration_days integer not null check (trial_duration_days > 0),
-  trial_policy_version text not null,
-  transaction_amount numeric(12,2) not null check (transaction_amount > 0),
-  currency_id text not null default 'BRL',
-  provider_plan_id text,
-  status text not null default 'creating' check (status in ('creating','ready','failed','cancelled')),
-  last_error_code text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique(plan_id,billing_cycle,trial_policy_version,transaction_amount,currency_id)
-);
-
-create unique index if not exists mercado_pago_billing_plans_provider_unique
-  on public.mercado_pago_billing_plans(provider_plan_id)
-  where provider_plan_id is not null;
-
-alter table public.mercado_pago_billing_plans enable row level security;
-revoke all on table public.mercado_pago_billing_plans from anon, authenticated;
-grant select, insert, update on table public.mercado_pago_billing_plans to service_role;
-
 create table if not exists public.mercado_pago_checkout_sessions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -113,6 +89,10 @@ create table if not exists public.mercado_pago_checkout_sessions (
   updated_at timestamptz not null default now(),
   unique(user_id,plan_id,billing_cycle,trial_policy_version,transaction_amount,currency_id)
 );
+
+create unique index if not exists mercado_pago_checkout_sessions_plan_unique
+  on public.mercado_pago_checkout_sessions(provider_plan_id)
+  where provider_plan_id is not null;
 
 create unique index if not exists mercado_pago_checkout_sessions_provider_unique
   on public.mercado_pago_checkout_sessions(provider_subscription_id)

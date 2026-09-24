@@ -163,24 +163,24 @@ const Profile = () => {
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/customer-portal`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ action: "portal" }),
+      const { data, error } = await supabase.functions.invoke("manage-billing-subscription", {
+        body: { action: "portal" },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Erro ao conectar ao Stripe.");
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message || "Erro ao abrir gerenciador de faturamento.");
       }
 
-      if (data.url) {
+      if (data?.url) {
         window.open(data.url, "_blank");
+      } else if (data?.provider === "mercado_pago" && data?.manageInApp) {
+        toast({
+          title: "Assinatura Mercado Pago",
+          description: "Seu faturamento é gerenciado no Zuno. Para cancelar o trial ou a assinatura, use a opção de cancelamento nesta tela.",
+        });
       } else {
-        throw new Error("URL do portal não retornada.");
+        throw new Error("Gerenciador de faturamento indisponível.");
       }
     } catch (err: any) {
       toast({
@@ -206,18 +206,13 @@ const Profile = () => {
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/customer-portal`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ action: "cancel_subscription" }),
+      const { data, error } = await supabase.functions.invoke("manage-billing-subscription", {
+        body: { action: "cancel_subscription" },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Erro ao cancelar assinatura.");
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message || "Erro ao cancelar assinatura.");
       }
 
       toast({
@@ -352,6 +347,11 @@ const Profile = () => {
                   </p>
                   {isAdmin && (
                     <Badge className="bg-amber-500 hover:bg-amber-600">Admin</Badge>
+                  )}
+                  {subscription?.billing_provider && (
+                    <Badge variant="outline" className="uppercase">
+                      {subscription.billing_provider === "mercado_pago" ? "Mercado Pago" : "Stripe"}
+                    </Badge>
                   )}
                   {subscription && subscription.subscription_status === "trialing" && (
                     <Badge className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold border-none">

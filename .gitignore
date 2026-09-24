@@ -31,3 +31,6 @@ dist-ssr
 
 # Claude Code local tooling state (subagent worktrees, etc.) — never part of the repo
 .claude/
+
+# Never commit local audit/debug artifacts or credentials
+.tmp/

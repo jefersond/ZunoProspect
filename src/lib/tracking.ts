@@ -623,6 +623,10 @@ export interface CheckoutStartedParams {
   currency: string;
   source: string;
   stripeSessionId?: string | null;
+  providerCheckoutId?: string | null;
+  billingProvider?: "stripe" | "mercado_pago" | null;
+  trialDurationDays?: number | null;
+  trialPolicyVersion?: string | null;
   usage?: {
     plan_name?: string;
     leads_used?: number;
@@ -686,6 +690,10 @@ export async function trackCheckoutStarted(params: CheckoutStartedParams) {
     currency: params.currency,
     source: params.source,
     stripe_session_id: params.stripeSessionId || null,
+    provider_checkout_id: params.providerCheckoutId || null,
+    billing_provider: params.billingProvider || null,
+    trial_duration_days: params.trialDurationDays ?? null,
+    trial_policy_version: params.trialPolicyVersion || null,
     user_plan_before_checkout: params.usage?.plan_name || null,
     leads_used: params.usage?.leads_used || 0,
     leads_limit: params.usage?.leads_limit || 0,

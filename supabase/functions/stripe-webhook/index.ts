@@ -6,6 +6,7 @@ import {
   emitZanotelliRevenueEvent,
   type ZanotelliProductEventName,
 } from "../_shared/zanotelli-inbound-bridge.ts";
+import { TRIAL_POLICY_VERSION } from "../_shared/trial-policy.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2023-10-16",
@@ -39,6 +40,25 @@ function normalizePlanDbName(planId: string): string {
   if (norm === "starter" || norm === "iniciante") return "starter";
   if (norm === "pro") return "pro";
   return "free";
+}
+
+function trialPolicyEvidence(
+  metadata: Stripe.Metadata | null | undefined,
+  trialStart: string | null,
+  trialEnd: string | null,
+) {
+  const configuredDays = Number(metadata?.trial_duration_days || metadata?.trial_days || 0);
+  const start = trialStart ? new Date(trialStart) : null;
+  const end = trialEnd ? new Date(trialEnd) : null;
+  const actualDays = start && end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())
+    ? Math.round((end.getTime() - start.getTime()) / 86_400_000)
+    : null;
+
+  return {
+    trial_duration_days: Number.isFinite(configuredDays) && configuredDays > 0 ? configuredDays : actualDays,
+    trial_policy_version: metadata?.trial_policy_version || null,
+    trial_duration_days_actual: actualDays,
+  };
 }
 
 function stripeId(value: unknown): string | null {
@@ -1174,6 +1194,7 @@ serve(async (req) => {
                 stripe_subscription_id: stripeSubscriptionId,
                 plan_id: finalPlanId,
                 source: "stripe_checkout_completed",
+                ...trialPolicyEvidence(metadata, trialStart, trialEnd),
               },
             });
           }
@@ -1206,6 +1227,7 @@ serve(async (req) => {
                 currency: currency?.toUpperCase() || "BRL",
                 billing_cycle: billingCycle === "yearly" || billingCycle === "annual" || billingCycle === "year" ? "yearly" : "monthly",
                 source: "stripe_webhook",
+                ...trialPolicyEvidence(metadata, trialStart, trialEnd),
                 },
               });
               console.log(`[stripe-webhook] Evento trial_started registrado via checkout.session.completed para ${eventUserId}`);
@@ -1424,6 +1446,7 @@ serve(async (req) => {
                 currency: currency?.toUpperCase() || "BRL",
                 billing_cycle: billingCycle === "yearly" || billingCycle === "annual" || billingCycle === "year" ? "yearly" : "monthly",
                 source: "stripe_webhook",
+                ...trialPolicyEvidence(metadata, trialStart, trialEnd),
                 },
               });
               console.log(`[stripe-webhook] Evento trial_started registrado via customer.subscription.created/updated para ${eventUserId}`);
@@ -1616,6 +1639,22 @@ serve(async (req) => {
             });
 
             if (isFailed) {
+              let providerFailureCode: string | null = null;
+              let providerDeclineCode: string | null = null;
+              let providerPaymentMethodType: string | null = null;
+              const paymentIntentId = stripeId(invoice.payment_intent);
+              if (paymentIntentId) {
+                try {
+                  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+                  const lastPaymentError = paymentIntent.last_payment_error;
+                  providerFailureCode = lastPaymentError?.code || null;
+                  providerDeclineCode = lastPaymentError?.decline_code || null;
+                  providerPaymentMethodType = lastPaymentError?.payment_method?.type || null;
+                } catch (failureLookupError) {
+                  console.warn("[stripe-webhook] Não foi possível consultar last_payment_error do PaymentIntent", failureLookupError);
+                }
+              }
+
               await logAppEvent(supabaseAdmin, eventUserId, "Payment_Failed", {
                 stripe_event_id: event.id,
                 event_type: event.type,
@@ -1628,6 +1667,9 @@ serve(async (req) => {
                 amount_remaining: invoice.amount_remaining,
                 hosted_invoice_url: invoice.hosted_invoice_url,
                 attempt_count: invoice.attempt_count,
+                failure_code: providerFailureCode,
+                decline_code: providerDeclineCode,
+                payment_method_type: providerPaymentMethodType,
               });
 
               await recordCanonicalBillingMilestone(supabaseAdmin, {
@@ -1644,6 +1686,9 @@ serve(async (req) => {
                   plan_id: finalPlanId,
                   amount_due: invoice.amount_due,
                   attempt_count: invoice.attempt_count,
+                  failure_code: providerFailureCode,
+                  decline_code: providerDeclineCode,
+                  payment_method_type: providerPaymentMethodType,
                 },
               });
 

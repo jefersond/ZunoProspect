@@ -30,9 +30,32 @@ Deno.serve(async (req) => {
     });
   }
 
-  const provider = config.default_new_billing_provider === "mercado_pago" && config.mercado_pago_cutover_ready
+  let effectiveProvider: "stripe" | "mercado_pago" | null = null;
+  const authHeader = req.headers.get("authorization") || "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+
+  if (token) {
+    const { data: userData } = await admin.auth.getUser(token);
+    const userId = userData?.user?.id;
+    if (userId) {
+      const { data: relation } = await admin
+        .from("user_subscriptions")
+        .select("billing_provider,stripe_customer_id,stripe_subscription_id,mercado_pago_subscription_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (relation?.stripe_customer_id || relation?.stripe_subscription_id || relation?.billing_provider === "stripe") {
+        effectiveProvider = "stripe";
+      } else if (relation?.mercado_pago_subscription_id || relation?.billing_provider === "mercado_pago") {
+        effectiveProvider = "mercado_pago";
+      }
+    }
+  }
+
+  const defaultProvider = config.default_new_billing_provider === "mercado_pago" && config.mercado_pago_cutover_ready
     ? "mercado_pago"
     : "stripe";
+  const provider = effectiveProvider || defaultProvider;
   const trialDurationDays = provider === "mercado_pago"
     ? config.mercado_pago_trial_duration_days
     : config.stripe_trial_duration_days;
@@ -41,7 +64,8 @@ Deno.serve(async (req) => {
     : config.stripe_trial_policy_version;
 
   return new Response(JSON.stringify({
-    defaultNewBillingProvider: provider,
+    defaultNewBillingProvider: defaultProvider,
+    effectiveBillingProvider: provider,
     trialDurationDays,
     trialPolicyVersion,
     requiresCard: true,

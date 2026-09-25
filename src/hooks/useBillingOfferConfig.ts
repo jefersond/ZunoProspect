@@ -4,6 +4,7 @@ import type { BillingProvider } from "@/services/billingCheckout";
 
 export type BillingOfferConfig = {
   defaultNewBillingProvider: BillingProvider;
+  effectiveBillingProvider: BillingProvider;
   trialDurationDays: number;
   trialPolicyVersion: string;
   requiresCard: boolean;
@@ -11,43 +12,41 @@ export type BillingOfferConfig = {
 
 const FALLBACK: BillingOfferConfig = {
   defaultNewBillingProvider: "stripe",
+  effectiveBillingProvider: "stripe",
   trialDurationDays: 7,
   trialPolicyVersion: "stripe_legacy_7d",
   requiresCard: true,
 };
 
-let cached: BillingOfferConfig | null = null;
-let pending: Promise<BillingOfferConfig> | null = null;
-
 async function loadBillingOfferConfig() {
-  if (cached) return cached;
-  if (pending) return pending;
+  try {
+    const { data, error } = await supabase.functions.invoke("billing-offer-config", { body: {} });
+    if (error || !data) return FALLBACK;
 
-  pending = supabase.functions.invoke("billing-offer-config", { body: {} })
-    .then(({ data, error }) => {
-      if (error || !data) return FALLBACK;
-      const provider: BillingProvider = data.defaultNewBillingProvider === "mercado_pago"
-        ? "mercado_pago"
-        : "stripe";
-      const days = Number(data.trialDurationDays);
-      cached = {
-        defaultNewBillingProvider: provider,
-        trialDurationDays: Number.isFinite(days) && days > 0 ? days : FALLBACK.trialDurationDays,
-        trialPolicyVersion: String(data.trialPolicyVersion || FALLBACK.trialPolicyVersion),
-        requiresCard: data.requiresCard !== false,
-      };
-      return cached;
-    })
-    .catch(() => FALLBACK)
-    .finally(() => {
-      pending = null;
-    });
+    const defaultProvider: BillingProvider = data.defaultNewBillingProvider === "mercado_pago"
+      ? "mercado_pago"
+      : "stripe";
+    const effectiveProvider: BillingProvider = data.effectiveBillingProvider === "mercado_pago"
+      ? "mercado_pago"
+      : data.effectiveBillingProvider === "stripe"
+        ? "stripe"
+        : defaultProvider;
+    const days = Number(data.trialDurationDays);
 
-  return pending;
+    return {
+      defaultNewBillingProvider: defaultProvider,
+      effectiveBillingProvider: effectiveProvider,
+      trialDurationDays: Number.isFinite(days) && days > 0 ? days : FALLBACK.trialDurationDays,
+      trialPolicyVersion: String(data.trialPolicyVersion || FALLBACK.trialPolicyVersion),
+      requiresCard: data.requiresCard !== false,
+    };
+  } catch {
+    return FALLBACK;
+  }
 }
 
 export function useBillingOfferConfig() {
-  const [config, setConfig] = useState<BillingOfferConfig>(cached || FALLBACK);
+  const [config, setConfig] = useState<BillingOfferConfig>(FALLBACK);
 
   useEffect(() => {
     let active = true;

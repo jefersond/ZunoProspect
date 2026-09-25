@@ -87,7 +87,15 @@ Deno.serve(async (req) => {
     requestedProvider = typedConfig.default_new_billing_provider;
   }
 
-  if (requestedProvider === "mercado_pago" && !typedConfig.mercado_pago_cutover_ready) {
+  const existingMercadoPagoRelation = Boolean(
+    subscription?.mercado_pago_subscription_id || subscription?.billing_provider === "mercado_pago",
+  );
+
+  if (
+    requestedProvider === "mercado_pago"
+    && !typedConfig.mercado_pago_cutover_ready
+    && !existingMercadoPagoRelation
+  ) {
     return json({ error: "mercado_pago_cutover_not_ready" }, 503);
   }
   if (requestedProvider === "mercado_pago" && (!mercadoPagoAccessToken || !mercadoPagoWebhookSecret)) {

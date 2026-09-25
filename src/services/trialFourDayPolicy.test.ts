@@ -34,12 +34,21 @@ describe("hybrid Stripe + Mercado Pago billing policy", () => {
   it("cannot cut over to Mercado Pago while readiness is false", () => {
     expect(migration).toContain("billing_provider_cutover_guard");
     expect(migration).toContain("default_new_billing_provider = 'stripe' or mercado_pago_cutover_ready = true");
-    expect(billingRouter).toContain('requestedProvider === "mercado_pago" && !typedConfig.mercado_pago_cutover_ready');
+    expect(billingRouter).toContain('requestedProvider === "mercado_pago"');
+    expect(billingRouter).toContain("!typedConfig.mercado_pago_cutover_ready");
+    expect(billingRouter).toContain("!existingMercadoPagoRelation");
     expect(billingRouter).toContain('"mercado_pago_cutover_not_ready"');
     expect(billingRouter).toContain('"mercado_pago_credentials_missing"');
     expect(billingRouter.indexOf('"mercado_pago_credentials_missing"')).toBeLessThan(
       billingRouter.indexOf('admin.rpc("claim_billing_provider"')
     );
+  });
+
+  it("allows an already-locked Mercado Pago sandbox relation before cutover without changing the default", () => {
+    expect(billingRouter).toContain("existingMercadoPagoRelation");
+    expect(billingRouter).toContain('subscription?.billing_provider === "mercado_pago"');
+    expect(billingRouter).toContain("!existingMercadoPagoRelation");
+    expect(migration).toContain("default_new_billing_provider text not null default 'stripe'");
   });
 
   it("locks one provider per user and protects existing Stripe relationships", () => {

@@ -130,7 +130,7 @@ describe("hybrid Stripe + Mercado Pago billing policy", () => {
     expect(migration).toContain("unique(user_id,plan_id,billing_cycle,trial_policy_version,transaction_amount,currency_id)");
     expect(migration).toContain("mercado_pago_checkout_sessions_provider_unique");
     expect(mpAdapter).toContain("mercado_pago_checkout_recovery_required");
-    expect(mpAdapter).toContain("provider_subscription_id");
+    expect(mpAdapter).toContain("provider_plan_id");
   });
 
   it("routes subscription management by the locked provider", () => {

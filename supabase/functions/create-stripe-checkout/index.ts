@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.25.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
-import { TRIAL_DURATION_DAYS, TRIAL_POLICY_VERSION, TRIAL_REQUIRES_CARD, trialTypeTag } from "../_shared/trial-policy.ts";
 
 const PLANS = {
   starter: {
@@ -295,10 +294,8 @@ serve(async (req) => {
       leads_limit: String(plan.leadsLimit),
       ai_limit: String(plan.aiLimit),
       is_annual: String(billingCycle === "annual"),
-      trial_days: String(TRIAL_DURATION_DAYS),
-      trial_duration_days: String(TRIAL_DURATION_DAYS),
-      trial_policy_version: TRIAL_POLICY_VERSION,
-      trial_requires_card: String(TRIAL_REQUIRES_CARD),
+      trial_days: "7",
+      trial_requires_card: "true",
     };
 
     const sessionArgs: any = {
@@ -325,10 +322,10 @@ serve(async (req) => {
       cancel_url: `${publicSiteUrl}/precos?checkout=cancelled`,
       metadata: checkoutMetadata,
       subscription_data: {
-        trial_period_days: TRIAL_DURATION_DAYS,
+        trial_period_days: 7,
         metadata: {
           ...checkoutMetadata,
-          trial_type: trialTypeTag(),
+          trial_type: "7_day_card_required",
         },
       },
       client_reference_id: user.id,
@@ -369,7 +366,7 @@ serve(async (req) => {
       },
     });
 
-    return jsonResponse({ url: session.url, sessionId: session.id, trialDurationDays: TRIAL_DURATION_DAYS, trialPolicyVersion: TRIAL_POLICY_VERSION }, 200);
+    return jsonResponse({ url: session.url, sessionId: session.id }, 200);
   } catch (error: any) {
     console.error("Checkout error", {
       functionName,

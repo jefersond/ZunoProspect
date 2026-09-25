@@ -10,13 +10,14 @@ import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
 import { getAttributionParams, trackCompleteRegistration, trackInitiateCheckout, trackAddPaymentInfo, trackMetaCustomEvent } from "@/lib/metaPixel";
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
-import { createStripeCheckout } from "@/services/stripeCheckout";
+import { createBillingCheckout, billingRedirectAdapter } from "@/services/billingCheckout";
 import { getFunnelContext } from "@/lib/funnelContext";
 import { PLANS, normalizePlanId } from "@/config/plans";
 import { useAuth } from "@/hooks/useAuth";
 import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
 import { useUsage } from "@/hooks/useUsage";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -101,6 +102,7 @@ export default function Checkout() {
   const [searchParams] = useSearchParams();
   const { user, signOut } = useAuth();
   const { usage } = useUsage();
+  const { trialDurationDays, defaultNewBillingProvider } = useBillingOfferConfig();
   
   // Get params from URL
   const normalizedPlanParam = normalizePlanId(searchParams.get("plano"));
@@ -295,7 +297,7 @@ export default function Checkout() {
         currency: "BRL",
       });
       trackAddPaymentInfo({
-        content_category: 'Stripe',
+        content_category: defaultNewBillingProvider === "mercado_pago" ? "Mercado Pago" : "Stripe",
         currency: 'BRL',
         value: preco
       });
@@ -303,10 +305,9 @@ export default function Checkout() {
       toast.loading(hasSession ? "Gerando link de pagamento seguro..." : "Conta criada! Gerando link de pagamento seguro...");
 
       // Chamar Edge Function do Stripe
-      const data = await createStripeCheckout({
+      const data = await createBillingCheckout({
         selectedPlan: { nome: plano.nome, planKey: selectedPlano },
         billingCycle: isAnual ? "annual" : "monthly",
-        authUserFromHook: user,
       });
 
       const funnelContext = await getFunnelContext(null, "checkout_page");
@@ -318,7 +319,11 @@ export default function Checkout() {
         currency: "BRL",
         source: "checkout_page",
         checkout_source: "checkout_page",
-        stripe_session_id: data.sessionId || null,
+        stripe_session_id: data.provider === "stripe" ? data.checkoutId || null : null,
+        provider_checkout_id: data.checkoutId || null,
+        billing_provider: data.provider,
+        trial_duration_days: data.trialDurationDays,
+        trial_policy_version: data.trialPolicyVersion,
         user_plan_before_checkout: usage?.plan_name || "free",
         current_leads_available: usage?.leads_available_total ?? 0,
         current_ai_available: usage?.ai_remaining ?? 0,
@@ -365,7 +370,7 @@ export default function Checkout() {
       toast.dismiss();
       
       toast.success("Redirecionando para o pagamento seguro...");
-      window.location.href = data.url;
+      billingRedirectAdapter(data.provider).redirect(data);
       
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
@@ -496,7 +501,7 @@ export default function Checkout() {
               <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-lg space-y-3">
                 <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
                   <span className="font-semibold text-foreground">Plano {plano.nome}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">{TRIAL_DURATION_DAYS} dias grátis</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">{trialDurationDays} dias grátis</span>
                 </div>
                 
                 <div className="space-y-1.5 text-sm text-muted-foreground">
@@ -510,13 +515,13 @@ export default function Checkout() {
                   </div>
                   <div className="flex justify-between text-xs">
                     <span>Primeira cobrança:</span>
-                    <span className="text-foreground">após {TRIAL_DURATION_DAYS} dias do início do trial</span>
+                    <span className="text-foreground">após {trialDurationDays} dias do início do trial</span>
                   </div>
                 </div>
 
                 <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
                   <p>✓ Você não será cobrado hoje.</p>
-                  <p>✓ Seu teste grátis dura {TRIAL_DURATION_DAYS} dias.</p>
+                  <p>✓ Seu teste grátis dura {trialDurationDays} dias.</p>
                   <p>✓ Após o teste, sua assinatura será renovada automaticamente.</p>
                   <p>✓ Você pode cancelar antes do fim do teste para não ser cobrado.</p>
                 </div>

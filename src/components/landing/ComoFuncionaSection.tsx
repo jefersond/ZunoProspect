@@ -1,4 +1,4 @@
-import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,8 @@ import {
 import { trackEvent } from "@/lib/analytics";
 
 export function ComoFuncionaSection() {
+  const { trialDurationDays } = useBillingOfferConfig();
+
   const [passoAtivo, setPassoAtivo] = useState(0);
 
   const passos = [
@@ -326,7 +328,7 @@ export function ComoFuncionaSection() {
               scrollToSection("precos");
             }}
           >
-            Começar teste grátis de {TRIAL_DURATION_DAYS} dias
+            Começar teste grátis de {trialDurationDays} dias
             <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
           <p className="text-xs font-semibold text-[#9ca3af] mt-3 tracking-wide">

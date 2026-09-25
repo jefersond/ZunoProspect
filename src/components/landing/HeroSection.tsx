@@ -3,9 +3,11 @@ import { ArrowRight, CheckCircle2, Play, ShieldCheck, Sparkles } from "lucide-re
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
-import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 
 export function HeroSection() {
+  const { trialDurationDays } = useBillingOfferConfig();
+
   const headline = "Encontre negócios locais que precisam do seu serviço — e saiba como abordar cada um.";
 
   const scrollToSection = (id: string) => {
@@ -74,11 +76,11 @@ export function HeroSection() {
                     className="h-14 rounded-lg bg-[#10d98a] px-8 text-base font-bold text-[#0b0f0e] shadow-[0_0_32px_rgba(16,217,138,0.3)] transition-all hover:scale-[1.02] hover:bg-[#10d98a]/90 sm:text-lg"
                     onClick={() => {
                       trackCta("comecar_gratis", "hero");
-                      trackHeroCta("CTA_Hero_Click", `Começar teste grátis de ${TRIAL_DURATION_DAYS} dias`);
+                      trackHeroCta("CTA_Hero_Click", `Começar teste grátis de ${trialDurationDays} dias`);
                       scrollToSection("precos");
                     }}
                   >
-                    Começar teste grátis de {TRIAL_DURATION_DAYS} dias
+                    Começar teste grátis de {trialDurationDays} dias
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                   <Button
@@ -100,7 +102,7 @@ export function HeroSection() {
                 <div className="flex items-start gap-2 sm:items-center">
                   <ShieldCheck className="h-4 w-4 shrink-0 text-[#10d98a] mt-0.5 sm:mt-0" />
                   <p className="text-xs text-[#9ca3af] font-medium leading-snug">
-                    Hoje R$0 · Cartão necessário · Cancele antes dos {TRIAL_DURATION_DAYS} dias sem cobrança
+                    Hoje R$0 · Cartão necessário · Cancele antes dos {trialDurationDays} dias sem cobrança
                   </p>
                 </div>
               </div>

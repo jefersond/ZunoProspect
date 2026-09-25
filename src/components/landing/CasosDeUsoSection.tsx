@@ -1,4 +1,4 @@
-import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,8 @@ import { TrendingUp, Megaphone, Palette, Building2, BriefcaseBusiness, Search, A
 import { trackEvent } from "@/lib/analytics";
 
 export function CasosDeUsoSection() {
+  const { trialDurationDays } = useBillingOfferConfig();
+
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
@@ -116,7 +118,7 @@ export function CasosDeUsoSection() {
               scrollToSection("precos");
             }}
           >
-            Começar teste grátis de {TRIAL_DURATION_DAYS} dias
+            Começar teste grátis de {trialDurationDays} dias
             <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
           <p className="text-xs font-semibold text-[#9ca3af] mt-3 tracking-wide">

@@ -1,4 +1,4 @@
-import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,8 @@ interface StickyCtaBarProps {
 }
 
 export function StickyCtaBar({ heroRef }: StickyCtaBarProps) {
+  const { trialDurationDays } = useBillingOfferConfig();
+
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -40,7 +42,7 @@ export function StickyCtaBar({ heroRef }: StickyCtaBarProps) {
         <div className="hidden items-center gap-2 sm:flex">
           <ShieldCheck className="h-4 w-4 text-[#10d98a]" />
           <p className="text-sm text-[#9ca3af]">
-            <span className="font-semibold text-[#f4f4f5]">Zuno Propect</span> · teste grátis de {TRIAL_DURATION_DAYS} dias · hoje R$0
+            <span className="font-semibold text-[#f4f4f5]">Zuno Propect</span> · teste grátis de {trialDurationDays} dias · hoje R$0
           </p>
         </div>
         <Button

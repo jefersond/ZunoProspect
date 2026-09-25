@@ -23,7 +23,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
-import { TRIAL_DURATION_DAYS } from "@/config/trialPolicy";
 
 const stages = [
   {
@@ -67,7 +66,7 @@ const stages = [
     objective: "Apresentar a Zuno como próximo passo natural, sem reunião obrigatória.",
     channels: "WhatsApp para objeções; site para oferta, planos e checkout.",
     content: "Demonstração assíncrona, benefícios, comparação do processo e FAQ.",
-    conversion: `Escolha do plano e início do teste de ${TRIAL_DURATION_DAYS} dias com cartão.`,
+    conversion: "Escolha do plano e início do teste grátis vigente com cartão.",
     metric: "Visitas à página de preços, início e conclusão do checkout.",
   },
   {

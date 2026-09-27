@@ -15,10 +15,20 @@ describe("hybrid Stripe + Mercado Pago billing policy", () => {
   const migration = source("supabase/migrations/20260924230000_hybrid_billing_mercado_pago.sql");
   const offerHook = source("src/hooks/useBillingOfferConfig.ts");
 
-  it("preserves the Stripe baseline trial at seven days", () => {
-    expect(stripeCheckout).toContain("trial_period_days: 7");
+  it("sources the Stripe trial from canonical billing config without hardcoding provider days", () => {
+    expect(stripeCheckout).toContain('.from("billing_provider_config")');
+    expect(stripeCheckout).toContain("stripe_trial_duration_days");
+    expect(stripeCheckout).toContain("trial_period_days: stripeTrialDurationDays");
+    expect(stripeCheckout).not.toContain("trial_period_days: 7");
     expect(trialDurationDays("2026-09-01T12:00:00Z", "2026-09-08T12:00:00Z")).toBe(7);
     expect(stripeWebhook).toContain("trialEnd = subscription.trial_end");
+  });
+
+  it("fails closed if the Stripe checkout and hybrid router disagree on trial policy", () => {
+    const stripeAdapter = source("supabase/functions/_shared/billing/stripe-adapter.ts");
+    expect(stripeAdapter).toContain("stripe_trial_config_mismatch");
+    expect(stripeAdapter).toContain("providerTrialDurationDays !== this.trialDurationDays");
+    expect(stripeCheckout).toContain("trialPolicyVersion: stripeTrialPolicyVersion");
   });
 
   it("keeps Mercado Pago four-day policy separate and central in persisted config", () => {
@@ -119,12 +129,14 @@ describe("hybrid Stripe + Mercado Pago billing policy", () => {
     expect(trackEvent).toContain('"first_value_reached"');
   });
 
-  it("uses runtime offer policy for new-user UI and defaults safely to Stripe seven days", () => {
-    expect(offerHook).toContain('defaultNewBillingProvider: "stripe"');
-    expect(offerHook).toContain("trialDurationDays: 7");
-    expect(source("src/components/landing/HeroSection.tsx")).toContain("useBillingOfferConfig");
-    expect(source("src/pages/Checkout.tsx")).toContain("trialDurationDays");
-    expect(source("src/components/landing/CheckoutDialog.tsx")).toContain("trialDurationDays");
+  it("uses one runtime offer policy for public trial copy without fabricating a duration", () => {
+    expect(offerHook).toContain("BillingOfferProvider");
+    expect(offerHook).toContain("trialDays: null");
+    expect(offerHook).toContain("trialDays: days");
+    expect(offerHook).not.toContain("trialDurationDays: 7");
+    expect(source("src/components/landing/HeroSection.tsx")).toContain("trialDays");
+    expect(source("src/pages/Checkout.tsx")).toContain("trialDays");
+    expect(source("src/components/landing/CheckoutDialog.tsx")).toContain("trialDays");
   });
 
   it("keeps rollback scoped to future unclaimed customers", () => {

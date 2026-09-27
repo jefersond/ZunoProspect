@@ -18,7 +18,7 @@ import {
 import { trackEvent } from "@/lib/analytics";
 
 export function ComoFuncionaSection() {
-  const { trialDurationDays } = useBillingOfferConfig();
+  const { trialDays } = useBillingOfferConfig();
 
   const [passoAtivo, setPassoAtivo] = useState(0);
 
@@ -195,7 +195,7 @@ export function ComoFuncionaSection() {
                     </label>
                     <div className="flex items-center gap-2 rounded-lg border border-[#1f2d29] bg-[#0b0f0e] p-3 text-sm text-[#f4f4f5]">
                       <MapPin className="h-4 w-4 text-[#10d98a]" />
-                      <span>Ribeirão Preto - SP</span>
+                      <span>Ribeirão Preto, SP</span>
                     </div>
                   </div>
 
@@ -328,7 +328,7 @@ export function ComoFuncionaSection() {
               scrollToSection("precos");
             }}
           >
-            Começar teste grátis de {trialDurationDays} dias
+            {trialDays ? `Começar teste grátis de ${trialDays} dias` : "Começar teste grátis"}
             <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
           <p className="text-xs font-semibold text-[#9ca3af] mt-3 tracking-wide">

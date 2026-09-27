@@ -115,6 +115,9 @@ export function getPlanPeriodLabel(billingCycle: BillingCycle) {
 }
 
 
-export function resolveTrialDaysCopy(value: string, trialDays: number) {
-  return value.replaceAll("{trialDays}", String(trialDays));
+export function resolveTrialDaysCopy(value: string, trialDays: number | null) {
+  if (trialDays) return value.replaceAll("{trialDays}", String(trialDays));
+  return value
+    .replaceAll(" de {trialDays} dias", " durante o teste")
+    .replaceAll("{trialDays} dias", "período de teste");
 }

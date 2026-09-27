@@ -71,7 +71,7 @@ const PLANOS = {
     features: [
       "800 leads/mês",
       "100 análises com IA/mês",
-      "Plano 7 dias por lead",
+      "Plano de prospecção por lead",
       "Detecção de sinais digitais",
       "Exportar para Excel",
     ],
@@ -102,7 +102,7 @@ export default function Checkout() {
   const [searchParams] = useSearchParams();
   const { user, signOut } = useAuth();
   const { usage } = useUsage();
-  const { trialDurationDays, defaultNewBillingProvider } = useBillingOfferConfig();
+  const { trialDays, defaultNewBillingProvider } = useBillingOfferConfig();
   
   // Get params from URL
   const normalizedPlanParam = normalizePlanId(searchParams.get("plano"));
@@ -118,6 +118,11 @@ export default function Checkout() {
   );
   
   const plano = PLANOS[selectedPlano];
+
+  const publicFeature = (feature: string) =>
+    feature === "Plano de prospecção por lead"
+      ? (trialDays ? `Plano de prospecção de ${trialDays} dias` : "Plano de prospecção com duração confirmada no checkout")
+      : feature;
   
   const [isAnual] = useState(anualParam === "true");
   const selectedLeadsQty = plano.leadsLimit;
@@ -442,7 +447,7 @@ export default function Checkout() {
               {plan.features.slice(0, 3).map((feature, i) => (
                 <li key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Check className={`h-3 w-3 flex-shrink-0 ${isSelected ? "text-emerald-500" : "text-muted-foreground"}`} />
-                  <span className="truncate">{feature}</span>
+                  <span className="truncate">{publicFeature(feature)}</span>
                 </li>
               ))}
             </ul>
@@ -501,7 +506,7 @@ export default function Checkout() {
               <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-lg space-y-3">
                 <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
                   <span className="font-semibold text-foreground">Plano {plano.nome}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">{trialDurationDays} dias grátis</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">{trialDays ? `${trialDays} dias grátis` : "Duração confirmada no checkout"}</span>
                 </div>
                 
                 <div className="space-y-1.5 text-sm text-muted-foreground">
@@ -515,13 +520,13 @@ export default function Checkout() {
                   </div>
                   <div className="flex justify-between text-xs">
                     <span>Primeira cobrança:</span>
-                    <span className="text-foreground">após {trialDurationDays} dias do início do trial</span>
+                    <span className="text-foreground">{trialDays ? `após ${trialDays} dias do início do trial` : "confirmada no checkout"}</span>
                   </div>
                 </div>
 
                 <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
                   <p>✓ Você não será cobrado hoje.</p>
-                  <p>✓ Seu teste grátis dura {trialDurationDays} dias.</p>
+                  <p>✓ {trialDays ? `Seu teste grátis dura ${trialDays} dias.` : "A duração vigente será confirmada no checkout."}</p>
                   <p>✓ Após o teste, sua assinatura será renovada automaticamente.</p>
                   <p>✓ Você pode cancelar antes do fim do teste para não ser cobrado.</p>
                 </div>

@@ -339,6 +339,7 @@ export function PrecosSection() {
                     </p>
                   ) : (
                     <>
+                      <p className="text-center text-[10px] font-bold uppercase tracking-[0.18em] text-[#6F8179]">Testar</p>
                       <Button
                         className={cn(
                           LANDING_CTA_BASE,
@@ -366,7 +367,8 @@ export function PrecosSection() {
                         && cardIntroOffer?.introPrice
                         && cardIntroOffer?.regularPrice ? (
                         <div className="mt-3 rounded-lg border border-[#12D98B]/25 bg-[#07100D] p-3 text-center">
-                          <p className="text-[11px] font-bold uppercase tracking-wide text-[#12D98B]">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6F8179]">Assinar</p>
+                          <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[#12D98B]">
                             Economize no primeiro mês
                           </p>
                           <p className="mt-1 text-sm font-bold text-[#F3F7F5]">

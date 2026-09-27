@@ -1,8 +1,8 @@
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 export function StatsSection() {
-  const { trialDurationDays } = useBillingOfferConfig();
+  const { trialDays } = useBillingOfferConfig();
   const stats = [
-    { numero: `${trialDurationDays} dias`, label: "de teste no plano escolhido" },
+    { numero: trialDays ? `${trialDays} dias` : "Período vigente", label: "de teste no plano escolhido" },
     { numero: "R$ 0", label: "cobrado hoje" },
     { numero: "300 leads", label: "por mês no plano Starter" },
     { numero: "3 canais", label: "WhatsApp, Instagram e e-mail" },

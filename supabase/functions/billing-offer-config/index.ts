@@ -56,18 +56,29 @@ Deno.serve(async (req) => {
     ? "mercado_pago"
     : "stripe";
   const provider = effectiveProvider || defaultProvider;
-  const trialDurationDays = provider === "mercado_pago"
+  const defaultNewTrialDurationDays = defaultProvider === "mercado_pago"
     ? config.mercado_pago_trial_duration_days
     : config.stripe_trial_duration_days;
-  const trialPolicyVersion = provider === "mercado_pago"
+  const defaultNewTrialPolicyVersion = defaultProvider === "mercado_pago"
+    ? config.mercado_pago_trial_policy_version
+    : config.stripe_trial_policy_version;
+  const effectiveTrialDurationDays = provider === "mercado_pago"
+    ? config.mercado_pago_trial_duration_days
+    : config.stripe_trial_duration_days;
+  const effectiveTrialPolicyVersion = provider === "mercado_pago"
     ? config.mercado_pago_trial_policy_version
     : config.stripe_trial_policy_version;
 
   return new Response(JSON.stringify({
     defaultNewBillingProvider: defaultProvider,
     effectiveBillingProvider: provider,
-    trialDurationDays,
-    trialPolicyVersion,
+    defaultNewTrialDurationDays,
+    defaultNewTrialPolicyVersion,
+    effectiveTrialDurationDays,
+    effectiveTrialPolicyVersion,
+    // Backward compatibility for already deployed clients.
+    trialDurationDays: effectiveTrialDurationDays,
+    trialPolicyVersion: effectiveTrialPolicyVersion,
     requiresCard: true,
   }), {
     status: 200,

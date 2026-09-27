@@ -10,6 +10,8 @@ describe("canonical trial activation instrumentation", () => {
   const search = source("supabase/functions/buscar-leads/index.ts");
   const stripe = source("supabase/functions/stripe-webhook/index.ts");
   const onboarding = source("src/components/subscription/TrialActivationPanel.tsx");
+  const subscriptionHook = source("src/hooks/useSubscription.ts");
+  const prospeccao = source("src/pages/Prospeccao.tsx");
 
   it("makes durable milestones idempotent so refresh/retry cannot duplicate them", () => {
     expect(migration).toContain("app_events_dedupe_key_unique");
@@ -89,6 +91,24 @@ describe("canonical trial activation instrumentation", () => {
     expect(stripe).toContain('eventName: "payment_failed"');
     expect(stripe).toContain('paymentStatus: isFailed ? "failed" : "paid"');
     expect(stripe).toContain("if (paidAfterTrial)");
+  });
+
+  it("keeps the trial panel null-safe during loading, missing subscription and query errors", () => {
+    expect(onboarding).toContain("resolveTrialUiState");
+    expect(onboarding).toContain("subscription?.trial_start ?? null");
+    expect(onboarding).not.toContain("subscription.trial_start || new Date(0)");
+    expect(onboarding).not.toContain("[isTrialing, subscription.trial_start");
+    expect(prospeccao).toContain("loading: subscriptionLoading");
+    expect(prospeccao).toContain("error: subscriptionError");
+    expect(prospeccao).toContain("loading={subscriptionLoading}");
+    expect(prospeccao).toContain("error={subscriptionError}");
+  });
+
+  it("does not turn a subscription query failure into a fake free billing state", () => {
+    expect(subscriptionHook).toContain("const { data: directSub, error: subscriptionError } = subResponse");
+    expect(subscriptionHook).toContain("if (subscriptionError)");
+    expect(subscriptionHook).toContain("setSubscription(isUserAdmin ? starterFallback(true) : null)");
+    expect(subscriptionHook).toContain('setError("subscription_loading_timeout")');
   });
 
   it("shows transparent trial terms and only real accumulated metrics", () => {

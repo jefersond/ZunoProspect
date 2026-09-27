@@ -69,20 +69,21 @@ export function PrecosSection() {
   const handleSelectPlano = async (plan: PlanConfig, conversionPath: BillingConversionPath = "trial") => {
     const price = getPlanPrice(plan.id, billingCycle);
     const trackingPrice = plan.monthlyPrice;
+    const planIntroOffer = introOffer.plans[plan.id];
     const introOfferSelected = Boolean(
       conversionPath === "direct_purchase"
-        && plan.id === "starter"
         && billingCycle === "monthly"
         && introOffer.enabled
         && introOffer.eligible
-        && introOffer.introPrice
-        && introOffer.regularPrice,
+        && planIntroOffer?.introPrice
+        && planIntroOffer?.regularPrice,
     );
-    const commercialValue = introOfferSelected ? introOffer.introPrice! : price;
+    const commercialValue = introOfferSelected ? planIntroOffer.introPrice! : price;
     const introAnalytics = introOfferSelected ? {
       intro_offer: introOffer.key,
-      intro_price: introOffer.introPrice,
-      regular_price: introOffer.regularPrice,
+      intro_offer_price: planIntroOffer.introPrice,
+      regular_price: planIntroOffer.regularPrice,
+      plan: plan.id,
     } : {};
 
     trackEvent("cta_clicked", {
@@ -272,6 +273,7 @@ export function PrecosSection() {
           {PLAN_LIST.map((plan) => {
             const price = getPlanPrice(plan.id, billingCycle);
             const isCurrentProcessing = isProcessing === plan.id;
+            const cardIntroOffer = introOffer.plans[plan.id];
 
             return (
               <Card
@@ -337,6 +339,7 @@ export function PrecosSection() {
                     </p>
                   ) : (
                     <>
+                      <p className="text-center text-[10px] font-bold uppercase tracking-[0.18em] text-[#6F8179]">Testar</p>
                       <Button
                         className={cn(
                           LANDING_CTA_BASE,
@@ -350,31 +353,29 @@ export function PrecosSection() {
                       >
                         {isCurrentProcessing ? (
                           <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : plan.id === "starter" ? (
-                          "Começar meu teste"
                         ) : (
-                          "Ativar meu teste"
+                          "Começar meu teste"
                         )}
                       </Button>
                       <p className="text-center text-xs font-semibold leading-relaxed text-[#A9B8B1] mt-1">
                         Hoje R$0. Cartão necessário. {trialDurationDays ? `Teste grátis por ${trialDurationDays} dias. ` : ""}Depois R$ {price.toLocaleString("pt-BR")}{getPlanPeriodLabel(billingCycle)}. Cancele antes e não será cobrado.
                       </p>
 
-                      {plan.id === "starter"
-                        && billingCycle === "monthly"
+                      {billingCycle === "monthly"
                         && introOffer.enabled
                         && introOffer.eligible
-                        && introOffer.introPrice
-                        && introOffer.regularPrice ? (
+                        && cardIntroOffer?.introPrice
+                        && cardIntroOffer?.regularPrice ? (
                         <div className="mt-3 rounded-lg border border-[#12D98B]/25 bg-[#07100D] p-3 text-center">
-                          <p className="text-[11px] font-bold uppercase tracking-wide text-[#12D98B]">
-                            Assine agora e economize no primeiro mês
+                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6F8179]">Assinar</p>
+                          <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[#12D98B]">
+                            Economize no primeiro mês
                           </p>
                           <p className="mt-1 text-sm font-bold text-[#F3F7F5]">
-                            R$ {formatBRL(introOffer.introPrice)} hoje
+                            R$ {formatBRL(cardIntroOffer.introPrice)} hoje
                           </p>
                           <p className="text-xs text-[#A9B8B1]">
-                            Depois R$ {formatBRL(introOffer.regularPrice)}/mês
+                            Depois R$ {formatBRL(cardIntroOffer.regularPrice)}/mês
                           </p>
                           <Button
                             type="button"
@@ -389,7 +390,7 @@ export function PrecosSection() {
                             {isCurrentProcessing ? (
                               <Loader2 className="h-5 w-5 animate-spin" />
                             ) : (
-                              `Assinar agora por R$ ${formatBRL(introOffer.introPrice)}`
+                              "Assinar agora"
                             )}
                           </Button>
                           <p className="mt-2 text-[11px] text-[#A9B8B1]">Cancele quando quiser.</p>

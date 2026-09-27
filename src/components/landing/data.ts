@@ -9,11 +9,11 @@ import {
 } from "lucide-react";
 import { PLAN_LIST, PLANS } from "@/config/plans";
 
-export const METRICAS = [
+export const buildMetricas = (trialDurationDays: number | null) => [
   { numero: "Cidade + nicho", label: "Busca direcionada", descricao: "para sair da pesquisa manual genérica" },
   { numero: "IA sob demanda", label: "Análise do lead", descricao: "usada somente quando você pedir" },
   { numero: "3 canais", label: "Abordagens prontas", descricao: "para WhatsApp, Instagram e e-mail" },
-  { numero: "7 dias", label: "Plano de sequência", descricao: "para manter a prospecção em movimento" },
+  { numero: trialDurationDays ? `${trialDurationDays} dias` : "Teste", label: "Plano de sequência", descricao: "para manter a prospecção em movimento" },
 ];
 
 export interface PerfilAlvo {
@@ -118,7 +118,7 @@ export const LEAD_QUANTITIES = [300, 800, 2000];
 export const FAQ_ITEMS = [
   {
     pergunta: "Os dados incluem WhatsApp e Instagram reais?",
-    resposta: "Sim. A Zuno busca, quando disponível, o WhatsApp ativo, o perfil do Instagram, o site e outros canais de contato da empresa. Os dados são consultados ao vivo a cada busca — não usamos listas estáticas ou bases desatualizadas.",
+    resposta: "Sim. A Zuno busca, quando disponível, o WhatsApp ativo, o perfil do Instagram, o site e outros canais de contato da empresa. Os dados são consultados ao vivo a cada busca. Não usamos listas estáticas ou bases desatualizadas.",
   },
   {
     pergunta: "Quanto tempo leva para achar os primeiros leads?",
@@ -126,7 +126,7 @@ export const FAQ_ITEMS = [
   },
   {
     pergunta: "Como a Zuno encontra esses dados?",
-    resposta: "A Zuno combina dados públicos de presença digital (Google Maps, sites, redes sociais) com análise de IA para mapear empresas por região e nicho. Nenhuma informação privada é acessada — só o que está disponível publicamente.",
+    resposta: "A Zuno combina dados públicos de presença digital (Google Maps, sites, redes sociais) com análise de IA para mapear empresas por região e nicho. Nenhuma informação privada é acessada. Usamos apenas o que está disponível publicamente.",
   },
   {
     pergunta: "Vou ser cobrado hoje?",
@@ -146,7 +146,7 @@ export const FAQ_ITEMS = [
   },
   {
     pergunta: "Qual a diferença da Zuno para o Google Maps?",
-    resposta: "O Google Maps deixa você ver empresas uma por uma, sem dados de contato estruturados, sem análise de oportunidade e sem geração de abordagem. A Zuno entrega uma lista de empresas por cidade e nicho com WhatsApp, Instagram e site compilados, mais diagnóstico de presença digital e copy pronta para cada lead — tudo em um fluxo de prospecção, não em uma busca manual.",
+    resposta: "O Google Maps deixa você ver empresas uma por uma, sem dados de contato estruturados, sem análise de oportunidade e sem geração de abordagem. A Zuno entrega uma lista de empresas por cidade e nicho com WhatsApp, Instagram e site compilados, mais diagnóstico de presença digital e copy pronta para cada lead. Tudo em um fluxo de prospecção, não em uma busca manual.",
   },
   {
     pergunta: "Funciona para qualquer cidade do Brasil?",

@@ -5,23 +5,29 @@ import type { BillingProvider } from "@/services/billingCheckout";
 export type BillingOfferConfig = {
   defaultNewBillingProvider: BillingProvider;
   effectiveBillingProvider: BillingProvider;
-  trialDurationDays: number;
+  trialDurationDays: number | null;
+  loading: boolean;
+  error: string | null;
   trialPolicyVersion: string;
   requiresCard: boolean;
 };
 
-const FALLBACK: BillingOfferConfig = {
+const INITIAL_CONFIG: BillingOfferConfig = {
   defaultNewBillingProvider: "stripe",
   effectiveBillingProvider: "stripe",
-  trialDurationDays: 7,
-  trialPolicyVersion: "stripe_legacy_7d",
+  trialDurationDays: null,
+  trialPolicyVersion: "",
   requiresCard: true,
+  loading: true,
+  error: null,
 };
 
-async function loadBillingOfferConfig() {
+async function loadBillingOfferConfig(): Promise<BillingOfferConfig> {
   try {
     const { data, error } = await supabase.functions.invoke("billing-offer-config", { body: {} });
-    if (error || !data) return FALLBACK;
+    if (error || !data) {
+      return { ...INITIAL_CONFIG, loading: false, error: error?.message || "billing_offer_config_unavailable" };
+    }
 
     const defaultProvider: BillingProvider = data.defaultNewBillingProvider === "mercado_pago"
       ? "mercado_pago"
@@ -36,17 +42,23 @@ async function loadBillingOfferConfig() {
     return {
       defaultNewBillingProvider: defaultProvider,
       effectiveBillingProvider: effectiveProvider,
-      trialDurationDays: Number.isFinite(days) && days > 0 ? days : FALLBACK.trialDurationDays,
-      trialPolicyVersion: String(data.trialPolicyVersion || FALLBACK.trialPolicyVersion),
+      trialDurationDays: Number.isFinite(days) && days > 0 ? days : null,
+      trialPolicyVersion: String(data.trialPolicyVersion || ""),
       requiresCard: data.requiresCard !== false,
+      loading: false,
+      error: Number.isFinite(days) && days > 0 ? null : "invalid_trial_duration",
     };
-  } catch {
-    return FALLBACK;
+  } catch (error) {
+    return {
+      ...INITIAL_CONFIG,
+      loading: false,
+      error: error instanceof Error ? error.message : "billing_offer_config_failed",
+    };
   }
 }
 
 export function useBillingOfferConfig() {
-  const [config, setConfig] = useState<BillingOfferConfig>(FALLBACK);
+  const [config, setConfig] = useState<BillingOfferConfig>(INITIAL_CONFIG);
 
   useEffect(() => {
     let active = true;

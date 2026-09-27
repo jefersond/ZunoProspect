@@ -37,7 +37,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
       "30 análises com IA por mês",
       "Teste grátis no plano escolhido",
       "Análise de leads com diagnóstico",
-      "Plano de prospecção de 7 dias",
+      "Plano de prospecção de {trialDays} dias",
       "CRM para salvar status e anotações",
       "Templates de mensagem",
     ],
@@ -112,4 +112,12 @@ export function getPlanPrice(planId: PlanId, billingCycle: BillingCycle) {
 
 export function getPlanPeriodLabel(billingCycle: BillingCycle) {
   return billingCycle === "annual" ? "/ano" : "/mês";
+}
+
+
+export function resolveTrialDaysCopy(value: string, trialDays: number | null) {
+  if (trialDays) return value.replaceAll("{trialDays}", String(trialDays));
+  return value
+    .replaceAll(" de {trialDays} dias", " durante o teste")
+    .replaceAll("{trialDays} dias", "período de teste");
 }

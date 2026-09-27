@@ -1,8 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
-import { METRICAS } from "./data";
+import { buildMetricas } from "./data";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 
 export function MetricasSection() {
+  const { trialDurationDays } = useBillingOfferConfig();
+  const metricas = buildMetricas(trialDurationDays);
+
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
@@ -20,7 +24,7 @@ export function MetricasSection() {
         </div>
 
         <div className="mb-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          {METRICAS.map((metrica) => (
+          {metricas.map((metrica) => (
             <div key={metrica.label} className="rounded-lg border border-primary-foreground/20 bg-primary-foreground/10 p-5 text-center text-primary-foreground">
               <div className="mb-2 text-2xl font-bold">{metrica.numero}</div>
               <div className="mb-1 text-lg font-semibold">{metrica.label}</div>

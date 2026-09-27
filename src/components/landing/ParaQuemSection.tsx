@@ -25,7 +25,7 @@ export function ParaQuemSection() {
     {
       titulo: "Social Medias",
       icone: MessageSquare,
-      descricao: "Busque restaurantes, lojas e negócios locais com presença digital fraca. Aborde com contexto sobre o Instagram, site e canais da empresa — não com mensagem genérica.",
+      descricao: "Busque restaurantes, lojas e negócios locais com presença digital fraca. Aborde com contexto sobre o Instagram, site e canais da empresa. Não com mensagem genérica.",
     },
     {
       titulo: "Designers",

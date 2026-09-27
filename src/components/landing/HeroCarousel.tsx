@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 import Autoplay from "embla-carousel-autoplay";
 import {
   Carousel,
@@ -18,13 +19,13 @@ import screenshot08 from "@/assets/screenshots/screenshot-08.png";
 import screenshot09 from "@/assets/screenshots/screenshot-09.png";
 import screenshot10 from "@/assets/screenshots/screenshot-10.png";
 
-const screenshots = [
+const baseScreenshots = [
   { src: screenshot01, alt: "Busca de leads por nicho e cidade", caption: "Busque leads por nicho e localização" },
   { src: screenshot02, alt: "Seleção de foco de serviço", caption: "Escolha o foco do seu serviço" },
   { src: screenshot03, alt: "Configuração de canais de prospecção", caption: "Defina os canais de prospecção" },
   { src: screenshot04, alt: "Leads encontrados com análise", caption: "Leads qualificados com análise IA" },
   { src: screenshot05, alt: "Detalhes do lead com probabilidade", caption: "Probabilidade de conversão por lead" },
-  { src: screenshot06, alt: "Plano de prospecção de 7 dias", caption: "Plano de abordagem de 7 dias" },
+  { src: screenshot06, alt: "Plano de prospecção", caption: "Plano de abordagem" },
   { src: screenshot07, alt: "Leads salvos para follow-up", caption: "Organize seus leads salvos" },
   { src: screenshot08, alt: "Pipeline de vendas Kanban", caption: "Pipeline visual estilo Kanban" },
   { src: screenshot09, alt: "Relatórios e métricas avançadas", caption: "Relatórios e métricas detalhadas" },
@@ -32,6 +33,14 @@ const screenshots = [
 ];
 
 export function HeroCarousel() {
+  const { trialDurationDays } = useBillingOfferConfig();
+  const screenshots = baseScreenshots.map((item) => item.src === screenshot06
+    ? {
+        ...item,
+        alt: trialDurationDays ? `Plano de prospecção de ${trialDurationDays} dias` : "Plano de prospecção durante o teste",
+        caption: trialDurationDays ? `Plano de abordagem de ${trialDurationDays} dias` : "Plano de abordagem durante o teste",
+      }
+    : item);
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
 

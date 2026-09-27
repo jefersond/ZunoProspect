@@ -30,13 +30,44 @@ const Prospeccao = () => {
       const checkoutStatus = searchParams.get("checkout");
       
       if (checkoutStatus === "success") {
-        trackEvent("checkout_completed", { source: "checkout_return" });
-        // Nao disparamos Purchase aqui: a URL de retorno nao valida pagamento.
-        // Purchase deve ser enviado pelo webhook Stripe via Conversions API.
+        // A URL de retorno sozinha nao prova pagamento. Primeiro sincronizamos
+        // a assinatura diretamente com o Stripe e usamos o periodo real retornado.
+        const { data: synced, error: syncError } = await supabase.functions.invoke("check-subscription");
+        const realStatus = String(synced?.status || "").toLowerCase();
+        const realPeriodEnd = synced?.billing_period_end ? new Date(synced.billing_period_end) : null;
+        const realTrialEnd = synced?.trial_end ? new Date(synced.trial_end) : null;
+        const formatBillingDate = (date: Date | null) =>
+          date && !Number.isNaN(date.getTime())
+            ? new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(date)
+            : null;
+
+        trackEvent("checkout_completed", {
+          source: "checkout_return",
+          provider_verified: !syncError && Boolean(synced?.synchronized),
+          subscription_status: realStatus || null,
+        });
+        // Nunca disparamos Purchase no browser. O pagamento canonico continua no webhook Stripe.
         sessionStorage.removeItem("checkout_in_progress");
         sessionStorage.removeItem("checkout_plano");
         sessionStorage.removeItem("checkout_isAnual");
-        toast.success("Teste grátis iniciado. Consulte no Perfil a data exata da primeira cobrança e o provider da sua assinatura.");
+
+        if (!syncError && realStatus === "trialing") {
+          const chargeDate = formatBillingDate(realTrialEnd || realPeriodEnd);
+          toast.success(
+            chargeDate
+              ? `Teste grátis iniciado. Hoje R$0. Primeira cobrança na data real do Stripe: ${chargeDate}.`
+              : "Teste grátis iniciado. Hoje R$0. A data da primeira cobrança está registrada no Stripe.",
+          );
+        } else if (!syncError && realStatus === "active") {
+          const renewalDate = formatBillingDate(realPeriodEnd);
+          toast.success(
+            renewalDate
+              ? `Assinatura ativa. Próxima cobrança na data real do Stripe: ${renewalDate}.`
+              : "Assinatura ativa. A próxima cobrança está registrada no Stripe.",
+          );
+        } else {
+          toast.info("Checkout concluído. O pagamento será confirmado pelo Stripe antes de ativar o status pago.");
+        }
         setSearchParams({});
       } else if (checkoutStatus === "canceled" || checkoutStatus === "cancelled") {
         sessionStorage.removeItem("checkout_in_progress");

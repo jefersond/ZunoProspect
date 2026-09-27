@@ -1,5 +1,5 @@
 export const LANDING_CTA_BASE =
-  "h-12 min-h-12 rounded-lg px-6 font-bold inline-flex items-center justify-center gap-2";
+  "h-12 min-h-12 rounded-lg px-6 font-bold inline-flex items-center justify-center gap-2 transition-all duration-300 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50";
 
 export const LANDING_CTA_RESPONSIVE = "w-full sm:w-auto";
 

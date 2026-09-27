@@ -3,8 +3,6 @@ import Stripe from "https://esm.sh/stripe@14.25.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 import { BILLING_CATALOG, billingAmount, type BillingCycle, type BillingPlanId } from "../_shared/billing/catalog.ts";
 
-/* legacy catalog removed: billing amounts come from the shared hybrid billing catalog */
-const LEGACY_PLANS_REMOVED = {} as const;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -205,11 +203,23 @@ serve(async (req) => {
     const source = body.source || "upgrade";
     const offerId = body.offerId || null;
     const conversionPath = body.conversionPath === "direct_purchase" ? "direct_purchase" : "trial";
-    const requestedTrialDays = Number(body.trialDurationDays || 0);
-    const trialDurationDays = conversionPath === "trial" && Number.isFinite(requestedTrialDays) && requestedTrialDays > 0
-      ? Math.round(requestedTrialDays)
-      : 0;
-    const trialPolicyVersion = String(body.trialPolicyVersion || "").slice(0, 80);
+
+    const { data: billingConfig, error: billingConfigError } = await supabaseAdmin
+      .from("billing_provider_config")
+      .select("stripe_trial_duration_days,stripe_trial_policy_version")
+      .eq("singleton", true)
+      .single();
+
+    if (billingConfigError || !billingConfig) {
+      return jsonResponse({ error: "billing_provider_config_missing" }, 503);
+    }
+
+    const configuredTrialDays = Number(billingConfig.stripe_trial_duration_days || 0);
+    if (conversionPath === "trial" && (!Number.isFinite(configuredTrialDays) || configuredTrialDays <= 0)) {
+      return jsonResponse({ error: "stripe_trial_config_invalid" }, 503);
+    }
+    const trialDurationDays = conversionPath === "trial" ? Math.round(configuredTrialDays) : 0;
+    const trialPolicyVersion = String(billingConfig.stripe_trial_policy_version || "").slice(0, 80);
 
     const { data: localSubscription, error: localSubscriptionError } = await supabaseAdmin
       .from("user_subscriptions")

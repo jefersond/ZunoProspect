@@ -62,6 +62,10 @@ function trialPolicyEvidence(
   };
 }
 
+function conversionPathFromMetadata(metadata: Stripe.Metadata | null | undefined) {
+  return metadata?.conversion_path === "direct_purchase" ? "direct_purchase" : "trial";
+}
+
 function stripeId(value: unknown): string | null {
   if (!value) return null;
   if (typeof value === "string") return value;
@@ -1085,6 +1089,7 @@ serve(async (req) => {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       const metadata = session.metadata;
+      const conversionPath = conversionPathFromMetadata(metadata);
       
       const { userId, email } = await findUserByStripeData(supabaseAdmin, stripe, {
         session,
@@ -1143,6 +1148,19 @@ serve(async (req) => {
           error_message: "Usuário não encontrado para ativação automática.",
         }, email || session.customer_details?.email || session.customer_email);
       } else {
+        await logAppEvent(supabaseAdmin, eventUserId, "checkout_completed", {
+          stripe_event_id: event.id,
+          stripe_checkout_session_id: stripeCheckoutSessionId,
+          stripe_customer_id: stripeCustomerId,
+          stripe_subscription_id: stripeSubscriptionId,
+          plan_id: finalPlanId,
+          billing_cycle: metadata?.billing_cycle || "monthly",
+          conversion_path: conversionPath,
+          payment_status: session.payment_status,
+          amount_total: amount,
+          currency: currency?.toUpperCase() || "BRL",
+        }, email, `checkout_completed:${stripeCheckoutSessionId || event.id}`);
+
         if (isAddonMetadata(metadata)) {
           await upsertAddon(supabaseAdmin, {
             userId: eventUserId,
@@ -1179,6 +1197,7 @@ serve(async (req) => {
             stripe_customer_id: stripeCustomerId,
             stripe_subscription_id: stripeSubscriptionId,
             stripe_checkout_session_id: stripeCheckoutSessionId,
+            conversion_path: conversionPath,
           });
 
           if (subStatus === "trialing" && stripeSubscriptionId) {
@@ -1257,6 +1276,7 @@ serve(async (req) => {
                 currency: currency?.toUpperCase() || "BRL",
                 billing_cycle: billingCycle === "yearly" || billingCycle === "annual" || billingCycle === "year" ? "yearly" : "monthly",
                 source: "stripe_webhook",
+                conversion_path: conversionPath,
                 plan_resolution_source: planResolutionSource,
                 has_plan_conflict: hasPlanConflict,
                 conflict_details: conflictDetails,
@@ -1272,6 +1292,7 @@ serve(async (req) => {
     if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
       const subscription = event.data.object as Stripe.Subscription;
       const metadata = subscription.metadata;
+      const conversionPath = conversionPathFromMetadata(metadata);
       
       const { userId, email } = await findUserByStripeData(supabaseAdmin, stripe, {
         subscription,
@@ -1419,6 +1440,7 @@ serve(async (req) => {
             email,
             stripe_customer_id: stripeCustomerId,
             stripe_subscription_id: stripeSubscriptionId,
+            conversion_path: conversionPath,
           });
 
           if (subscription.status === "trialing") {
@@ -1568,6 +1590,7 @@ serve(async (req) => {
       if (subscriptionId) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const metadata = subscription.metadata;
+        const conversionPath = conversionPathFromMetadata(metadata);
 
         const { userId, email } = await findUserByStripeData(supabaseAdmin, stripe, {
           subscription,
@@ -1777,6 +1800,7 @@ serve(async (req) => {
                     plan_id: finalPlanId,
                     amount_paid: invoice.amount_paid || amount || 0,
                     currency: currency?.toUpperCase() || "BRL",
+                    conversion_path: conversionPath,
                   },
                 });
               }
@@ -1810,6 +1834,7 @@ serve(async (req) => {
                   currency: currency?.toUpperCase() || "BRL",
                   billing_cycle: billingCycle === "yearly" || billingCycle === "annual" || billingCycle === "year" ? "yearly" : "monthly",
                   source: "stripe_webhook",
+                  conversion_path: conversionPath,
                   plan_resolution_source: planResolutionSource,
                   has_plan_conflict: hasPlanConflict,
                   conflict_details: conflictDetails,

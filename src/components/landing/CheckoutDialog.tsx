@@ -64,6 +64,13 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
   const precoMensal = getDisplayPrice(plano.planKey, packageLeads, isAnual);
   const periodo = isAnual ? "/ano" : "/mês";
   const economia = isAnual ? 17 : 0; // Fixed 17% discount on annual
+  const expectedChargeDate = trialDurationDays
+    ? (() => {
+        const date = new Date();
+        date.setDate(date.getDate() + trialDurationDays);
+        return date.toLocaleDateString("pt-BR");
+      })()
+    : null;
 
   const passwordValidation = {
     minLength: senha.length >= 8,
@@ -294,7 +301,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto scrollbar-zuno">
         <DialogHeader>
-          <DialogTitle>Checkout - Plano {plano.nome}</DialogTitle>
+          <DialogTitle>Checkout: Plano {plano.nome}</DialogTitle>
           <DialogDescription>
             {selectedLeads.toLocaleString('pt-BR')} leads/mês • R$ {isAnual ? precoMensal : preco}{periodo}{isAnual && economia > 0 ? ` (${economia}% de desconto)` : ""}
           </DialogDescription>
@@ -424,7 +431,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
                   <span className="font-semibold text-foreground">Plano {plano.nome}</span>
                   <p className="text-xs text-muted-foreground">{selectedLeads.toLocaleString('pt-BR')} leads/mês</p>
                 </div>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">{trialDurationDays} dias grátis</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">{trialDurationDays ? `${trialDurationDays} dias grátis` : "Duração do teste em confirmação"}</span>
               </div>
               
               <div className="space-y-1.5 text-sm text-muted-foreground">
@@ -438,17 +445,13 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
                 </div>
                 <div className="flex justify-between text-xs">
                   <span>Próxima cobrança:</span>
-                  <span className="text-foreground">{(() => {
-                    const d = new Date();
-                    d.setDate(d.getDate() + 7);
-                    return d.toLocaleDateString("pt-BR");
-                  })()}</span>
+                  <span className="text-foreground">{expectedChargeDate ?? "Confirmada no checkout"}</span>
                 </div>
               </div>
 
               <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
                 <p>✓ Você não será cobrado hoje.</p>
-                <p>✓ Seu teste grátis dura {trialDurationDays} dias.</p>
+                <p>✓ {trialDurationDays ? `Seu teste grátis dura ${trialDurationDays} dias.` : "A duração vigente será confirmada antes do pagamento."}</p>
                 <p>✓ Após o teste, sua assinatura será renovada automaticamente.</p>
                 <p>✓ Você pode cancelar antes do fim do teste para não ser cobrado.</p>
               </div>

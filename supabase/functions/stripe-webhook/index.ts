@@ -73,6 +73,7 @@ function introOfferEvidence(metadata: Stripe.Metadata | null | undefined) {
   return {
     intro_offer: applied ? metadata?.intro_offer || null : null,
     intro_offer_applied: applied,
+    intro_offer_price: applied && Number.isFinite(introPriceCents) && introPriceCents > 0 ? introPriceCents / 100 : null,
     intro_price: applied && Number.isFinite(introPriceCents) && introPriceCents > 0 ? introPriceCents / 100 : null,
     regular_price: Number.isFinite(regularPriceCents) && regularPriceCents > 0 ? regularPriceCents / 100 : null,
     intro_offer_duration: applied ? metadata?.intro_offer_duration || null : null,

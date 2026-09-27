@@ -55,7 +55,7 @@ describe("Stripe optional direct purchase", () => {
     expect(stripeCheckout).toContain("stripe.subscriptions.retrieve");
     expect(stripeCheckout).toContain("stripe.subscriptions.list");
     expect(stripeCheckout).toContain("idempotencyKey");
-    expect(stripeCheckout).toContain('zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:${localSubscriptionState}');
+    expect(stripeCheckout).toContain('zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:${localSubscriptionState}:${localSubscription?.stripe_subscription_id || "none"}');
   });
 
   it("keeps webhook signature and provider-event idempotency", () => {

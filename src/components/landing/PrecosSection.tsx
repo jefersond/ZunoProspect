@@ -10,7 +10,6 @@ import { getAttributionParams, trackInitiateCheckout, trackLead, trackMetaCustom
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { createBillingCheckout, billingRedirectAdapter, type BillingConversionPath } from "@/services/billingCheckout";
-import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, resolveTrialDaysCopy, type BillingCycle, type PlanConfig } from "@/config/plans";
 import { cn } from "@/lib/utils";
@@ -23,7 +22,6 @@ import { LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, LANDING_PRICING_CTA_AREA } fr
 export function PrecosSection() {
   const navigate = useNavigate();
   const { trialDurationDays, defaultNewBillingProvider } = useBillingOfferConfig();
-  const { user } = useAuth();
   const { hasUsaAddon, isAdmin, subscription, loading: subscriptionLoading } = useSubscription();
   const subscriptionStatus = String(subscription?.subscription_status ?? subscription?.status ?? "").toLowerCase();
   const hasExistingSubscription = Boolean(
@@ -147,7 +145,6 @@ export function PrecosSection() {
       const data = await createBillingCheckout({
         selectedPlan: { planKey: plan.id },
         billingCycle,
-        authUserFromHook: user,
         conversionPath,
         source: "pricing_page",
       });

@@ -119,9 +119,12 @@ describe("hybrid Stripe + Mercado Pago billing policy", () => {
     expect(trackEvent).toContain('"first_value_reached"');
   });
 
-  it("uses runtime offer policy for new-user UI and defaults safely to Stripe seven days", () => {
+  it("uses runtime offer policy for new-user UI without hardcoding a trial duration fallback", () => {
     expect(offerHook).toContain('defaultNewBillingProvider: "stripe"');
-    expect(offerHook).toContain("trialDurationDays: 7");
+    expect(offerHook).toContain('supabase.functions.invoke("billing-offer-config"');
+    expect(offerHook).toContain("trialDurationDays: null");
+    expect(offerHook).not.toContain("trialDurationDays: 7");
+    expect(offerHook).not.toContain("trialDurationDays: 4");
     expect(source("src/components/landing/HeroSection.tsx")).toContain("useBillingOfferConfig");
     expect(source("src/pages/Checkout.tsx")).toContain("trialDurationDays");
     expect(source("src/components/landing/CheckoutDialog.tsx")).toContain("trialDurationDays");

@@ -43,16 +43,16 @@ export function ParaQuemSection() {
   };
 
   return (
-    <section id="para-quem" className="border-b border-[#1f2d29]/40 bg-[#0b0f0e] py-16 md:py-20">
+    <section id="para-quem" className="border-b border-[#20312A]/40 bg-[#07100D] py-16 md:py-20">
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-12 max-w-4xl text-center">
-          <Badge variant="outline" className="mb-4 border-[#1f2d29] bg-[#111816]/50 text-[#9ca3af]">
+          <Badge variant="outline" className="mb-4 border-[#20312A] bg-[#0D1713]/50 text-[#A9B8B1]">
             Para quem é
           </Badge>
-          <h2 className="mb-4 text-3xl font-extrabold tracking-tight text-[#f4f4f5] md:text-5xl">
+          <h2 className="mb-4 text-3xl font-extrabold tracking-tight text-[#F3F7F5] md:text-5xl">
             Para quem vende serviços para outras empresas
           </h2>
-          <p className="mx-auto max-w-3xl text-base leading-relaxed text-[#9ca3af] md:text-lg">
+          <p className="mx-auto max-w-3xl text-base leading-relaxed text-[#A9B8B1] md:text-lg">
             O Zuno ajuda profissionais e equipes B2B a encontrar empresas, organizar contexto e preparar o início da abordagem.
           </p>
         </div>
@@ -61,13 +61,13 @@ export function ParaQuemSection() {
           {categorias.map((cat) => (
             <Card
               key={cat.titulo}
-              className="group flex flex-col rounded-xl border border-[#1f2d29] bg-[#111816] p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#10d98a]/30"
+              className="group flex flex-col rounded-xl border border-[#20312A] bg-[#0D1713] p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#21E6A0]/40"
             >
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg border border-[#1f2d29] bg-[#0b0f0e] text-[#10d98a] transition-colors group-hover:bg-[#10d98a]/10">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg border border-[#20312A] bg-[#07100D] text-[#12D98B] transition-colors group-hover:bg-[#12D98B]/10">
                 <cat.icone className="h-5 w-5" />
               </div>
-              <h3 className="mb-2 text-base font-bold text-[#f4f4f5]">{cat.titulo}</h3>
-              <p className="text-xs leading-relaxed text-[#9ca3af]">{cat.descricao}</p>
+              <h3 className="mb-2 text-base font-bold text-[#F3F7F5]">{cat.titulo}</h3>
+              <p className="text-xs leading-relaxed text-[#A9B8B1]">{cat.descricao}</p>
             </Card>
           ))}
         </div>
@@ -75,7 +75,7 @@ export function ParaQuemSection() {
         <div className="mt-10 text-center">
           <Button
             size="lg"
-            className="h-14 rounded-lg bg-[#10d98a] px-8 text-base font-bold text-[#0b0f0e] shadow-[0_0_30px_rgba(16,217,138,0.2)] transition-all hover:bg-[#10d98a]/90 md:text-lg"
+            className="h-14 rounded-lg bg-[#12D98B] px-8 text-base font-bold text-[#07100D] shadow-[0_0_30px_rgba(18,217,139,0.2)] transition-all hover:bg-[#21E6A0] md:text-lg"
             onClick={goToPricing}
           >
             Encontrar empresas para prospectar

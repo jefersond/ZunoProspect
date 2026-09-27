@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
     if (!subscriptionId || !providerPlanId) return null;
 
     const { data: sessionRow } = await admin.from("mercado_pago_checkout_sessions")
-      .select("id,user_id,plan_id,billing_cycle,trial_duration_days,trial_policy_version,transaction_amount,currency_id,provider_plan_id,provider_subscription_id,status")
+      .select("id,user_id,plan_id,billing_cycle,conversion_path,trial_duration_days,trial_policy_version,transaction_amount,currency_id,provider_plan_id,provider_subscription_id,status,intro_offer_applied,intro_offer_key,intro_amount_cents,regular_amount_cents")
       .eq("provider_plan_id", providerPlanId)
       .maybeSingle();
 

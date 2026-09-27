@@ -32,12 +32,22 @@ export class StripeAdapter implements BillingProviderAdapter {
       throw new Error(payload?.details || payload?.error || "stripe_checkout_failed");
     }
 
+    const providerTrialDurationDays = Number(payload.trialDurationDays);
+    const providerTrialPolicyVersion = String(payload.trialPolicyVersion || "");
+
+    if (
+      providerTrialDurationDays !== this.trialDurationDays
+      || providerTrialPolicyVersion !== this.trialPolicyVersion
+    ) {
+      throw new Error("stripe_trial_config_mismatch");
+    }
+
     return {
       provider: this.provider,
       url: payload.url,
       checkoutId: payload.sessionId ?? null,
-      trialDurationDays: this.trialDurationDays,
-      trialPolicyVersion: this.trialPolicyVersion,
+      trialDurationDays: providerTrialDurationDays,
+      trialPolicyVersion: providerTrialPolicyVersion,
     };
   }
 }

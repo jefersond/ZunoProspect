@@ -12,6 +12,7 @@ export class StripeAdapter implements BillingProviderAdapter {
   ) {}
 
   async createCheckout(input: BillingCheckoutInput): Promise<BillingCheckoutResult> {
+    const conversionPath = input.conversionPath ?? "trial";
     const response = await fetch(`${this.supabaseUrl}/functions/v1/create-stripe-checkout`, {
       method: "POST",
       headers: {
@@ -24,20 +25,26 @@ export class StripeAdapter implements BillingProviderAdapter {
         billingCycle: input.billingCycle,
         source: input.source ?? "hybrid_billing",
         offerId: input.offerId ?? null,
+        conversionPath,
+        trialDurationDays: this.trialDurationDays,
+        trialPolicyVersion: this.trialPolicyVersion,
       }),
     });
 
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || !payload?.url) {
-      throw new Error(payload?.details || payload?.error || "stripe_checkout_failed");
+      const error = new Error(payload?.details || payload?.error || "stripe_checkout_failed");
+      (error as Error & { status?: number }).status = response.status;
+      throw error;
     }
 
     return {
       provider: this.provider,
       url: payload.url,
       checkoutId: payload.sessionId ?? null,
-      trialDurationDays: this.trialDurationDays,
+      trialDurationDays: conversionPath === "trial" ? this.trialDurationDays : 0,
       trialPolicyVersion: this.trialPolicyVersion,
+      conversionPath,
     };
   }
 }

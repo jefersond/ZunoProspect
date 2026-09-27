@@ -391,6 +391,8 @@ serve(async (req) => {
 
         if (introClaim?.status === "redeemed" || introClaim?.redeemed_at) {
           introClaim = null;
+        } else if (!introClaim?.provider_checkout_id && String(introClaim?.plan_id || "") !== planId) {
+          return jsonResponse({ error: "intro_offer_checkout_in_progress" }, 409);
         } else if (introClaim?.provider_checkout_id) {
           try {
             const previousSession = await stripe.checkout.sessions.retrieve(introClaim.provider_checkout_id);
@@ -506,7 +508,7 @@ serve(async (req) => {
 
     const sessionArgs: any = {
       mode: "subscription",
-      allow_promotion_codes: planId === "pro",
+      allow_promotion_codes: planId === "pro" && !introOfferApplied,
       line_items: [
         {
           quantity: 1,
@@ -549,7 +551,7 @@ serve(async (req) => {
       localSubscription?.subscription_status || localSubscription?.status || "none",
     ).toLowerCase();
     const idempotencyKey = introOfferApplied && introClaim?.id
-      ? `zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:intro:${introClaim.id}:${introClaim.claim_generation || 1}`
+      ? `zuno_intro_checkout:${user.id}:${introClaim.id}:${introClaim.claim_generation || 1}`
       : `zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:${localSubscriptionState}:${localSubscription?.stripe_subscription_id || "none"}`;
     const session = await stripe.checkout.sessions.create(sessionArgs, { idempotencyKey });
 

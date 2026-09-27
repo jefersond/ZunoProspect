@@ -1,6 +1,8 @@
 import { Bot, CheckCircle, Mail, MapPin, MessageCircle, Search, Send, Sparkles, Target, TrendingUp, Star } from "lucide-react";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 
 export function MockupHeroProspeccao() {
+  const { trialDurationDays } = useBillingOfferConfig();
   const leads = [
     { nome: "Clínica Bella Saúde", nicho: "Clínica Estética", score: 94, badges: ["Sem pixel", "SEO ruim"] },
     { nome: "Studio Forma Fit", nicho: "Academia", score: 87, badges: ["Instagram fraco"] },
@@ -40,7 +42,7 @@ export function MockupHeroProspeccao() {
           <div className="grid grid-cols-2 gap-2.5">
             <div className="flex items-center gap-2 rounded-lg border border-[#1f2d29] bg-[#0b0f0e] px-3 py-2">
               <MapPin className="h-3.5 w-3.5 text-[#10d98a]" />
-              <span className="text-xs font-medium text-[#f4f4f5]">São Paulo - SP</span>
+              <span className="text-xs font-medium text-[#f4f4f5]">São Paulo, SP</span>
             </div>
             <div className="flex items-center gap-2 rounded-lg border border-[#1f2d29] bg-[#0b0f0e] px-3 py-2">
               <Search className="h-3.5 w-3.5 text-[#10d98a]" />
@@ -123,7 +125,7 @@ export function MockupHeroProspeccao() {
           <div className="flex items-center justify-between rounded-lg border border-[#10d98a]/20 bg-[#10d98a]/5 px-3 py-2">
             <div className="flex items-center gap-2">
               <Sparkles className="h-3.5 w-3.5 text-[#10d98a] animate-pulse" />
-              <span className="text-[11px] font-semibold text-[#10d98a]">Sequência comercial de 7 dias disponível</span>
+              <span className="text-[11px] font-semibold text-[#10d98a]">{trialDurationDays ? `Sequência comercial de ${trialDurationDays} dias disponível` : "Sequência comercial disponível durante o teste"}</span>
             </div>
             <TrendingUp className="h-3.5 w-3.5 text-[#10d98a]" />
           </div>

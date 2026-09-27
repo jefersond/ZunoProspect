@@ -57,7 +57,7 @@ export function dateKeyInTimeZone(value: string | Date, timeZone = TRIAL_TIME_ZO
 
 export function formatTrialDate(value: string | Date, timeZone = TRIAL_TIME_ZONE) {
   const key = dateKeyInTimeZone(value, timeZone);
-  if (!key) return "—";
+  if (!key) return "Não disponível";
   const [year, month, day] = key.split("-");
   return `${day}/${month}/${year}`;
 }

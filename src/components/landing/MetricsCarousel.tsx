@@ -6,7 +6,7 @@ const metrics = [
   { icon: FileText, value: "3 canais", label: "WhatsApp, Instagram e e-mail" },
   { icon: Target, value: "Score", label: "Priorização de oportunidades" },
   { icon: Users, value: "Pipeline", label: "Acompanhamento de leads" },
-  { icon: CheckCircle, value: "7 dias", label: "Plano de sequência" },
+  { icon: CheckCircle, value: "Cadência guiada", label: "Plano de sequência" },
 ];
 
 export function MetricsCarousel() {

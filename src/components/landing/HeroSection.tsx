@@ -6,9 +6,9 @@ import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 
 export function HeroSection() {
-  const { trialDurationDays } = useBillingOfferConfig();
+  const { trialDays } = useBillingOfferConfig();
 
-  const headline = "Encontre negócios locais que precisam do seu serviço — e saiba como abordar cada um.";
+  const headline = "Encontre negócios locais que precisam do seu serviço. Saiba como abordar cada um.";
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -76,11 +76,11 @@ export function HeroSection() {
                     className="h-14 rounded-lg bg-[#10d98a] px-8 text-base font-bold text-[#0b0f0e] shadow-[0_0_32px_rgba(16,217,138,0.3)] transition-all hover:scale-[1.02] hover:bg-[#10d98a]/90 sm:text-lg"
                     onClick={() => {
                       trackCta("comecar_gratis", "hero");
-                      trackHeroCta("CTA_Hero_Click", `Começar teste grátis de ${trialDurationDays} dias`);
+                      trackHeroCta("CTA_Hero_Click", trialDays ? `Começar teste grátis de ${trialDays} dias` : "Começar teste grátis");
                       scrollToSection("precos");
                     }}
                   >
-                    Começar teste grátis de {trialDurationDays} dias
+                    {trialDays ? `Começar teste grátis de ${trialDays} dias` : "Começar teste grátis"}
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                   <Button
@@ -102,7 +102,7 @@ export function HeroSection() {
                 <div className="flex items-start gap-2 sm:items-center">
                   <ShieldCheck className="h-4 w-4 shrink-0 text-[#10d98a] mt-0.5 sm:mt-0" />
                   <p className="text-xs text-[#9ca3af] font-medium leading-snug">
-                    Hoje R$0 · Cartão necessário · Cancele antes dos {trialDurationDays} dias sem cobrança
+                    {trialDays ? `Hoje R$0. Cartão necessário. Cancele antes dos ${trialDays} dias sem cobrança.` : "Hoje R$0. Cartão necessário. A duração vigente será confirmada no checkout."}
                   </p>
                 </div>
               </div>

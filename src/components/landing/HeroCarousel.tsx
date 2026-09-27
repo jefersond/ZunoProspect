@@ -24,7 +24,7 @@ const screenshots = [
   { src: screenshot03, alt: "Configuração de canais de prospecção", caption: "Defina os canais de prospecção" },
   { src: screenshot04, alt: "Leads encontrados com análise", caption: "Leads qualificados com análise IA" },
   { src: screenshot05, alt: "Detalhes do lead com probabilidade", caption: "Probabilidade de conversão por lead" },
-  { src: screenshot06, alt: "Plano de prospecção de 7 dias", caption: "Plano de abordagem de 7 dias" },
+  { src: screenshot06, alt: "Plano guiado de prospecção", caption: "Plano guiado de abordagem" },
   { src: screenshot07, alt: "Leads salvos para follow-up", caption: "Organize seus leads salvos" },
   { src: screenshot08, alt: "Pipeline de vendas Kanban", caption: "Pipeline visual estilo Kanban" },
   { src: screenshot09, alt: "Relatórios e métricas avançadas", caption: "Relatórios e métricas detalhadas" },

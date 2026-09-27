@@ -302,7 +302,7 @@ export function buildSafeProblemReport(
   occurredAt = new Date(),
 ): string {
   return [
-    "Relato de problema — Refinar com IA",
+    "Relato de problema: Refinar com IA",
     `Código: ${error.public_error_code}`,
     `Data/hora: ${occurredAt.toISOString()}`,
     `Funcionalidade: ${REFINE_FEATURE}`,

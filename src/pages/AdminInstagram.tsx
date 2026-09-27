@@ -160,7 +160,7 @@ function buildEditorialPlan(startValue: string, postsPerWeek: number): Editorial
     "O que aprendi tentando conciliar trabalho, rotina e a construção da Zuno",
     "Como procurar o tomador de decisão sem inventar dados",
     "Você prefere buscar os leads ou escrever a abordagem?",
-    "Teste de 7 dias da Zuno: o que fazer primeiro para perceber valor",
+    "Teste grátis da Zuno: o que fazer primeiro para perceber valor",
   ];
   const details = {
     education: { funnel_stage: "descoberta", pillar: "Educação e autoridade" },

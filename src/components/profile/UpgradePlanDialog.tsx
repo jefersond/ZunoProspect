@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Loader2, CheckCircle2, Crown, ExternalLink, Sparkles } from "lucide-react";
-import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, normalizePlanId, type BillingCycle, type PlanConfig } from "@/config/plans";
+import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, getPublicPlanFeatures, normalizePlanId, type BillingCycle, type PlanConfig } from "@/config/plans";
 import { createBillingCheckout, billingRedirectAdapter } from "@/services/billingCheckout";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ import { trackEvent, trackUpgradeClick, trackCheckoutStarted, trackCheckoutFaile
 import { trackInitiateCheckout, trackMetaCustomEvent } from "@/lib/metaPixel";
 import { getFunnelContext, type UpgradeSource } from "@/lib/funnelContext";
 import { useUsage } from "@/hooks/useUsage";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 
 interface UpgradePlanDialogProps {
   open: boolean;
@@ -45,6 +46,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName, source 
   const navigate = useNavigate();
   const { user } = useAuth();
   const { usage } = useUsage();
+  const { trialDays } = useBillingOfferConfig();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
 
@@ -287,7 +289,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName, source 
                 </div>
 
                 <ul className="mt-7 flex-1 space-y-3">
-                  {plan.features.map((feature) => (
+                  {getPublicPlanFeatures(plan, trialDays).map((feature) => (
                     <li key={feature} className="flex items-start gap-3 text-sm leading-5 text-muted-foreground">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
                       <span>{feature}</span>

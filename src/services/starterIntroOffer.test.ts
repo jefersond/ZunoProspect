@@ -13,6 +13,7 @@ describe("Starter first-month intro offer", () => {
   const checkout = source("src/pages/Checkout.tsx");
   const owner = source("src/components/admin/UsersDashboard.tsx");
   const firstValueTracking = source("supabase/functions/track-event/index.ts");
+  const prospeccao = source("src/pages/Prospeccao.tsx");
 
   it("keeps one canonical commercial offer configuration", () => {
     expect(migration).toContain("starter_intro_offer_intro_amount_cents integer not null default 2990");
@@ -96,6 +97,15 @@ describe("Starter first-month intro offer", () => {
     expect(pricing).toContain("w-full");
     expect(checkout).toContain("Economize no primeiro mês");
     expect(checkout).toContain("na data confirmada pelo Stripe");
+  });
+
+  it("uses Stripe-synchronized billing dates after checkout instead of a decorative date", () => {
+    expect(prospeccao).toContain('supabase.functions.invoke("check-subscription")');
+    expect(prospeccao).toContain("billing_period_end");
+    expect(prospeccao).toContain("trial_end");
+    expect(prospeccao).toContain('timeZone: "America/Sao_Paulo"');
+    expect(prospeccao).toContain("data real do Stripe");
+    expect(prospeccao).not.toContain("Teste grátis iniciado. Consulte no Perfil");
   });
 
   it("labels paid direct intro conversions in the Owner detail", () => {

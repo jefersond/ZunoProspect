@@ -346,16 +346,13 @@ Deno.serve(async (req) => {
       const entitlements = BILLING_CATALOG[planRow.plan_id as BillingPlanId];
       const providerNextPayment = safeString(subscription.next_payment_date, 60) || null;
 
-      const { error: updateError } = await admin.from("user_subscriptions").update({
+      const preapprovalUpdate: Record<string, unknown> = {
         billing_provider: "mercado_pago",
         mercado_pago_subscription_id: safeString(subscription.id, 160),
         mercado_pago_plan_id: safeString(subscription.preapproval_plan_id, 160),
         mercado_pago_payer_id: safeString(subscription.payer_id, 160) || null,
-        plan_name: planRow.plan_id,
         billing_cycle: planRow.billing_cycle,
         is_annual: planRow.billing_cycle === "annual",
-        leads_limit: entitlements.leadsLimit,
-        ai_limit: entitlements.aiLimit,
         subscription_status: localStatus,
         status: localStatus,
         trial_start: trialStart,
@@ -368,7 +365,15 @@ Deno.serve(async (req) => {
         cancel_at_period_end: false,
         canceled_at: cancelled ? new Date().toISOString() : null,
         updated_at: new Date().toISOString(),
-      }).eq("user_id", userId).eq("billing_provider", "mercado_pago");
+      };
+      if (!directPurchase) {
+        preapprovalUpdate.plan_name = planRow.plan_id;
+        preapprovalUpdate.leads_limit = entitlements.leadsLimit;
+        preapprovalUpdate.ai_limit = entitlements.aiLimit;
+      }
+
+      const { error: updateError } = await admin.from("user_subscriptions").update(preapprovalUpdate)
+        .eq("user_id", userId).eq("billing_provider", "mercado_pago");
       if (updateError) throw updateError;
 
       const common = {
@@ -560,7 +565,11 @@ Deno.serve(async (req) => {
       const nextPaymentDate = safeString(providerAfterPayment?.next_payment_date || subscription?.next_payment_date, 60) || null;
       const activateNow = conversionPath === "direct_purchase" || trialConverted;
 
+      const paidEntitlements = BILLING_CATALOG[context.planRow.plan_id as BillingPlanId];
       await admin.from("user_subscriptions").update({
+        plan_name: context.planRow.plan_id,
+        leads_limit: paidEntitlements.leadsLimit,
+        ai_limit: paidEntitlements.aiLimit,
         payment_status: "paid",
         last_payment_succeeded_at: new Date().toISOString(),
         latest_invoice_id: safeString(authorizedPayment.id, 160),

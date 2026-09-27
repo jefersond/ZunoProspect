@@ -105,7 +105,7 @@ export default function Checkout() {
   const { user, signOut } = useAuth();
   const { usage } = useUsage();
   const { subscription, loading: subscriptionLoading } = useSubscription();
-  const { trialDurationDays, defaultNewBillingProvider } = useBillingOfferConfig();
+  const { trialDurationDays, defaultNewBillingProvider, introOffer } = useBillingOfferConfig();
   
   // Get params from URL
   const normalizedPlanParam = normalizePlanId(searchParams.get("plano"));
@@ -125,6 +125,15 @@ export default function Checkout() {
   
   const [isAnual] = useState(anualParam === "true");
   const selectedLeadsQty = plano.leadsLimit;
+  const starterIntroOfferSelected = Boolean(
+    conversionPath === "direct_purchase"
+      && selectedPlano === "starter"
+      && !isAnual
+      && introOffer.enabled
+      && introOffer.eligible
+      && introOffer.introPrice
+      && introOffer.regularPrice,
+  );
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -311,13 +320,17 @@ export default function Checkout() {
       trackMetaCustomEvent("Plan_Selected", {
         plan_id: trackingPlanId,
         plan_name: plano.nome,
-        value: plano.precoMensal,
+        value: starterIntroOfferSelected ? introOffer.introPrice : plano.precoMensal,
         currency: "BRL",
+        conversion_path: conversionPath,
+        intro_offer: starterIntroOfferSelected ? introOffer.key : null,
+        intro_price: starterIntroOfferSelected ? introOffer.introPrice : null,
+        regular_price: starterIntroOfferSelected ? introOffer.regularPrice : plano.precoMensal,
       });
       trackAddPaymentInfo({
         content_category: defaultNewBillingProvider === "mercado_pago" ? "Mercado Pago" : "Stripe",
         currency: 'BRL',
-        value: preco
+        value: starterIntroOfferSelected ? introOffer.introPrice ?? preco : preco
       });
 
       toast.loading(hasSession ? "Gerando link de pagamento seguro..." : "Conta criada! Gerando link de pagamento seguro...");
@@ -328,6 +341,7 @@ export default function Checkout() {
         billingCycle: isAnual ? "annual" : "monthly",
         conversionPath,
         source: "checkout_page",
+        offerId: starterIntroOfferSelected ? introOffer.key : null,
       });
 
       const funnelContext = await getFunnelContext(null, "checkout_page");
@@ -335,7 +349,7 @@ export default function Checkout() {
       const usageMetadata = {
         plan_id: trackingPlanId,
         plan_name: plano.nome,
-        value: preco,
+        value: data.introOfferApplied ? data.introPrice ?? preco : preco,
         currency: "BRL",
         source: "checkout_page",
         checkout_source: "checkout_page",
@@ -345,6 +359,9 @@ export default function Checkout() {
         trial_duration_days: data.trialDurationDays,
         trial_policy_version: data.trialPolicyVersion,
         conversion_path: data.conversionPath,
+        intro_offer: data.introOfferApplied ? data.introOfferKey : null,
+        intro_price: data.introOfferApplied ? data.introPrice : null,
+        regular_price: data.regularPrice ?? preco,
         user_plan_before_checkout: usage?.plan_name || "free",
         current_leads_available: usage?.leads_available_total ?? 0,
         current_ai_available: usage?.ai_remaining ?? 0,
@@ -533,23 +550,63 @@ export default function Checkout() {
                 </div>
                 
                 {conversionPath === "direct_purchase" ? (
-                  <>
-                    <div className="space-y-1.5 text-sm text-muted-foreground">
-                      <div className="flex justify-between">
-                        <span>Hoje:</span>
-                        <span className="font-bold text-emerald-400">R$ {preco}{periodo}</span>
+                  starterIntroOfferSelected ? (
+                    <>
+                      <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
+                        <p className="text-xs font-semibold text-emerald-400">Economize no primeiro mês</p>
+                        <p className="mt-1 text-lg font-bold text-foreground">
+                          R$ {introOffer.introPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} hoje
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Depois R$ {introOffer.regularPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mês
+                        </p>
                       </div>
-                      <div className="flex justify-between text-xs">
-                        <span>Cobrança:</span>
-                        <span className="text-foreground">imediata após confirmação no Stripe</span>
+                      <div className="space-y-1.5 text-sm text-muted-foreground">
+                        <div className="flex justify-between">
+                          <span>Hoje:</span>
+                          <span className="font-bold text-emerald-400">
+                            R$ {introOffer.introPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Próxima cobrança:</span>
+                          <span className="text-right font-semibold text-foreground">
+                            R$ {introOffer.regularPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} na data confirmada pelo Stripe
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Depois:</span>
+                          <span className="font-semibold text-foreground">
+                            R$ {introOffer.regularPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mês
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
-                      <p>✓ Cobrança de R$ {preco} hoje.</p>
-                      <p>✓ A assinatura começa após a confirmação do pagamento.</p>
-                      <p>✓ Não há período de teste neste caminho.</p>
-                    </div>
-                  </>
+                      <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
+                        <p>✓ Cobrança inicial com desconto somente no primeiro período.</p>
+                        <p>✓ A assinatura começa após a confirmação real do pagamento.</p>
+                        <p>✓ Não há período de teste neste caminho.</p>
+                        <p>✓ Cancele quando quiser.</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5 text-sm text-muted-foreground">
+                        <div className="flex justify-between">
+                          <span>Hoje:</span>
+                          <span className="font-bold text-emerald-400">R$ {preco}{periodo}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span>Cobrança:</span>
+                          <span className="text-foreground">imediata após confirmação no Stripe</span>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
+                        <p>✓ Cobrança de R$ {preco} hoje.</p>
+                        <p>✓ A assinatura começa após a confirmação do pagamento.</p>
+                        <p>✓ Não há período de teste neste caminho.</p>
+                      </div>
+                    </>
+                  )
                 ) : (
                   <>
                     <div className="space-y-1.5 text-sm text-muted-foreground">
@@ -720,7 +777,11 @@ export default function Checkout() {
                     ) : (
                       <>
                         <ExternalLink className="h-5 w-5 mr-2" />
-                        {hasSession ? "Ir para pagamento" : "Criar conta e pagar"}
+                        {starterIntroOfferSelected
+                          ? `Assinar agora por R$ ${introOffer.introPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : hasSession
+                            ? "Ir para pagamento"
+                            : "Criar conta e pagar"}
                       </>
                     )}
                   </Button>

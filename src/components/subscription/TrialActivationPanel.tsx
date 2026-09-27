@@ -45,7 +45,7 @@ export function TrialActivationPanel({
   );
   const daysRemaining = trialDaysRemaining(trialEnd);
   const actualTrialDuration = trialDurationDays(trialStart, trialEnd);
-  const chargeDate = trialEnd ? formatTrialDate(trialEnd) : "—";
+  const chargeDate = trialEnd ? formatTrialDate(trialEnd) : "Não disponível";
 
   useEffect(() => {
     if (!user?.id || !isTrialing) {
@@ -156,7 +156,7 @@ export function TrialActivationPanel({
           <strong className="text-foreground">Transparência do trial:</strong>{" "}
           {trialStart && trialEnd ? (
             <>
-              seu trial atual tem <strong className="text-foreground">{actualTrialDuration ?? "—"} dias</strong> com cartão cadastrado. A primeira cobrança está prevista para{" "}
+              seu trial atual tem <strong className="text-foreground">{actualTrialDuration !== null ? `${actualTrialDuration} dias` : "duração não disponível"}</strong> com cartão cadastrado. A primeira cobrança está prevista para{" "}
               <strong className="text-foreground">{chargeDate}</strong>
               {price ? (
                 <>
@@ -224,7 +224,7 @@ export function TrialActivationPanel({
           <div className="flex items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
             <p className="text-sm leading-6 text-muted-foreground">
-              Esses números vêm das suas buscas reais desde o início do trial. Abra <strong className="text-foreground">Ver Plano</strong> em uma empresa para avaliar a oportunidade com seus próprios olhos — esse é o marco de primeiro valor do Zuno.
+              Esses números vêm das suas buscas reais desde o início do trial. Abra <strong className="text-foreground">Ver Plano</strong> em uma empresa para avaliar a oportunidade com seus próprios olhos. Esse é o marco de primeiro valor do Zuno.
             </p>
           </div>
         ) : (

@@ -515,7 +515,7 @@ serve(async (req) => {
     ).toLowerCase();
     const idempotencyKey = introOfferApplied && introClaim?.id
       ? `zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:intro:${introClaim.id}:${introClaim.claim_generation || 1}`
-      : `zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:${localSubscriptionState}`;
+      : `zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:${localSubscriptionState}:${localSubscription?.stripe_subscription_id || "none"}`;
     const session = await stripe.checkout.sessions.create(sessionArgs, { idempotencyKey });
 
     if (introOfferApplied && introClaim?.id) {

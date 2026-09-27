@@ -367,7 +367,10 @@ serve(async (req) => {
       console.log(`Nenhum stripe_customer_id encontrado, usando customer_email: ${user.email}`);
     }
 
-    const idempotencyKey = `zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}`;
+    const localSubscriptionState = String(
+      localSubscription?.subscription_status || localSubscription?.status || "none",
+    ).toLowerCase();
+    const idempotencyKey = `zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:${localSubscriptionState}`;
     const session = await stripe.checkout.sessions.create(sessionArgs, { idempotencyKey });
 
     console.log("Checkout session created", {

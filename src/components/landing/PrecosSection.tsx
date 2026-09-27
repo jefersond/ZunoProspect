@@ -314,16 +314,16 @@ export function PrecosSection() {
           </p>
         </div>
 
-        <div className="mx-auto mt-14 max-w-6xl border-t border-border/60 pt-10">
-          <Card className="flex flex-col gap-5 rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm md:flex-row md:items-center md:justify-between dark:border-white/10 dark:bg-zinc-900/70">
+        <div className="mx-auto mt-14 max-w-6xl border-t border-[#20312A] pt-10">
+          <Card className="flex flex-col gap-5 rounded-lg border border-[#20312A] bg-[#0D1713] p-6 text-[#F3F7F5] shadow-sm md:flex-row md:items-center md:justify-between">
             <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-400/30 dark:bg-blue-400/10">
-                <Globe className="h-5 w-5 text-blue-600 dark:text-blue-300" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#12D98B]/25 bg-[#12D98B]/10">
+                <Globe className="h-5 w-5 text-[#12D98B]" />
               </div>
               <div>
-                <Badge variant="outline" className="mb-2 border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-400/40 dark:bg-blue-400/10 dark:text-blue-300">Complemento opcional</Badge>
+                <Badge variant="outline" className="mb-2 border-[#12D98B]/25 bg-[#12D98B]/10 text-[#12D98B]">Complemento opcional</Badge>
                 <h3 className="text-xl font-semibold">Prospecção nos Estados Unidos</h3>
-                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                <p className="mt-1 max-w-2xl text-sm text-[#A9B8B1]">
                   Adicione prospecção em todos os estados dos EUA aos planos pagos.
                 </p>
               </div>
@@ -331,11 +331,11 @@ export function PrecosSection() {
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="text-left sm:text-right">
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-300">+ R$ 57</p>
-                <p className="text-xs text-muted-foreground">por mês</p>
+                <p className="text-2xl font-bold text-[#12D98B]">+ R$ 57</p>
+                <p className="text-xs text-[#A9B8B1]">por mês</p>
               </div>
               {(hasUsaAddon || isAdmin) && (
-                <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600">
+                <Badge className="border-[#12D98B]/30 bg-[#12D98B]/10 text-[#12D98B]">
                   {isAdmin ? "Liberado para admin" : "Ativo"}
                 </Badge>
               )}

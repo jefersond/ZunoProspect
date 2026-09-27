@@ -9,7 +9,7 @@ import { UsaAddonDialog } from "./UsaAddonDialog";
 import { getAttributionParams, trackInitiateCheckout, trackLead, trackMetaCustomEvent, trackViewContent } from "@/lib/metaPixel";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { createBillingCheckout, billingRedirectAdapter } from "@/services/billingCheckout";
+import { createBillingCheckout, billingRedirectAdapter, type BillingConversionPath } from "@/services/billingCheckout";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, resolveTrialDaysCopy, type BillingCycle, type PlanConfig } from "@/config/plans";
@@ -24,7 +24,14 @@ export function PrecosSection() {
   const navigate = useNavigate();
   const { trialDurationDays, defaultNewBillingProvider } = useBillingOfferConfig();
   const { user } = useAuth();
-  const { hasUsaAddon, isAdmin } = useSubscription();
+  const { hasUsaAddon, isAdmin, subscription, loading: subscriptionLoading } = useSubscription();
+  const subscriptionStatus = String(subscription?.subscription_status ?? subscription?.status ?? "").toLowerCase();
+  const hasExistingSubscription = Boolean(
+    !isAdmin
+      && subscription
+      && subscription.plan_name !== "free"
+      && ["active", "trialing", "past_due", "unpaid", "incomplete", "paused"].includes(subscriptionStatus),
+  );
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [usaDialogOpen, setUsaDialogOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
@@ -58,13 +65,35 @@ export function PrecosSection() {
   }, []);
 
 
-  const handleSelectPlano = async (plan: PlanConfig) => {
+  const handleSelectPlano = async (plan: PlanConfig, conversionPath: BillingConversionPath = "trial") => {
     const price = getPlanPrice(plan.id, billingCycle);
     const trackingPrice = plan.monthlyPrice;
 
-    trackEvent("cta_clicked", { cta: `ativar_teste_${plan.id}`, location: "pricing", cta_location: "pricing", plan: plan.id, plan_id: plan.id });
-    trackEvent("plan_selected", { plan: plan.id, plan_id: plan.id, billing_cycle: billingCycle, cta_location: "pricing" });
-    trackEvent("trial_cta_clicked", { plan: plan.id, plan_id: plan.id, billing_cycle: billingCycle, cta_location: "pricing", trial_duration_days: trialDurationDays });
+    trackEvent("cta_clicked", {
+      cta: conversionPath === "trial" ? `ativar_teste_${plan.id}` : `assinar_agora_${plan.id}`,
+      location: "pricing",
+      cta_location: "pricing",
+      plan: plan.id,
+      plan_id: plan.id,
+      conversion_path: conversionPath,
+    });
+    trackEvent("plan_selected", {
+      plan: plan.id,
+      plan_id: plan.id,
+      billing_cycle: billingCycle,
+      cta_location: "pricing",
+      conversion_path: conversionPath,
+    });
+    if (conversionPath === "trial") {
+      trackEvent("trial_cta_clicked", {
+        plan: plan.id,
+        plan_id: plan.id,
+        billing_cycle: billingCycle,
+        cta_location: "pricing",
+        trial_duration_days: trialDurationDays,
+        conversion_path: "trial",
+      });
+    }
 
     trackMetaCustomEvent("Pricing_Click", {
       page: "landing",
@@ -72,12 +101,14 @@ export function PrecosSection() {
       plan_name: plan.displayName,
       value: trackingPrice,
       currency: "BRL",
+      conversion_path: conversionPath,
     });
     trackMetaCustomEvent("Plan_Selected", {
       plan_id: plan.id,
       plan_name: plan.displayName,
       value: trackingPrice,
       currency: "BRL",
+      conversion_path: conversionPath,
     });
 
     trackLead({
@@ -87,7 +118,15 @@ export function PrecosSection() {
       currency: "BRL",
     });
     const funnelContext = await getFunnelContext(null, "pricing_page");
-    const upgradeMetadata = { ...funnelContext, plan_id: plan.id, plan_name: plan.name, billing_cycle: billingCycle, location: "pricing", cta_text: plan.cta };
+    const upgradeMetadata = {
+      ...funnelContext,
+      plan_id: plan.id,
+      plan_name: plan.name,
+      billing_cycle: billingCycle,
+      location: "pricing",
+      cta_text: conversionPath === "trial" ? plan.cta : "Prefiro assinar agora",
+      conversion_path: conversionPath,
+    };
     trackEvent("plan_clicked", { plan_id: plan.id, location: "pricing", billing_cycle: billingCycle });
     trackEvent("upgrade_clicked", upgradeMetadata);
     trackEvent(funnelContext.has_done_first_ai_analysis ? "Upgrade_Click_After_AI" : "Upgrade_Click_Before_AI", upgradeMetadata);
@@ -97,7 +136,7 @@ export function PrecosSection() {
     } = await supabase.auth.getSession();
 
     if (!session) {
-      navigate(appendReferralToPath(`/auth?tab=signup&plan=${encodeURIComponent(plan.id)}&leadsQty=${encodeURIComponent(String(plan.leadsLimit))}&anual=${billingCycle === "annual"}`));
+      navigate(appendReferralToPath(`/auth?tab=signup&plan=${encodeURIComponent(plan.id)}&leadsQty=${encodeURIComponent(String(plan.leadsLimit))}&anual=${billingCycle === "annual"}&conversion_path=${conversionPath}`));
       return;
     }
 
@@ -109,6 +148,8 @@ export function PrecosSection() {
         selectedPlan: { planKey: plan.id },
         billingCycle,
         authUserFromHook: user,
+        conversionPath,
+        source: "pricing_page",
       });
 
       trackEvent("checkout_started", {
@@ -125,6 +166,7 @@ export function PrecosSection() {
         billing_provider: data.provider,
         trial_duration_days: data.trialDurationDays,
         trial_policy_version: data.trialPolicyVersion,
+        conversion_path: data.conversionPath,
         content_name: `Zuno Propect ${plan.name}`,
       });
       trackInitiateCheckout({
@@ -153,14 +195,14 @@ export function PrecosSection() {
         toast.error("Sessão expirada", {
           description: "Entre novamente para continuar com o pagamento.",
         });
-        navigate(appendReferralToPath(`/auth?tab=login&plan=${encodeURIComponent(plan.id)}&leadsQty=${encodeURIComponent(String(plan.leadsLimit))}&anual=${billingCycle === "annual"}`));
+        navigate(appendReferralToPath(`/auth?tab=login&plan=${encodeURIComponent(plan.id)}&leadsQty=${encodeURIComponent(String(plan.leadsLimit))}&anual=${billingCycle === "annual"}&conversion_path=${conversionPath}`));
         return;
       }
       trackMetaCustomEvent("Checkout_Failed", {
         plan_id: plan.id,
         error_message: error?.message || "checkout_error",
       });
-      trackEvent("checkout_failed", { ...funnelContext, plan_id: plan.id, billing_cycle: billingCycle, location: "pricing", source: "pricing_page", error_message_safe: error?.message || "checkout_error", error: error?.message || "checkout_error" });
+      trackEvent("checkout_failed", { ...funnelContext, plan_id: plan.id, billing_cycle: billingCycle, location: "pricing", source: "pricing_page", conversion_path: conversionPath, error_message_safe: error?.message || "checkout_error", error: error?.message || "checkout_error" });
       toast.error("Não foi possível iniciar o pagamento", { description: "Tente novamente." });
     } finally {
       setIsProcessing(null);
@@ -265,26 +307,45 @@ export function PrecosSection() {
                 </ul>
 
                 <div className={LANDING_PRICING_CTA_AREA}>
-                  <Button
-                    className={cn(
-                      LANDING_CTA_BASE,
-                      "w-full transition-all duration-300", 
-                      plan.highlighted 
-                        ? "bg-[#12D98B] text-[#07100D] hover:bg-[#21E6A0] shadow-[0_0_20px_rgba(18,217,139,0.25)]" 
-                        : "bg-transparent border border-[#20312A] text-[#F3F7F5] hover:border-[#21E6A0]/50 hover:bg-[#12D98B]/5"
-                    )}
-                    onClick={() => handleSelectPlano(plan)}
-                    disabled={Boolean(isProcessing)}
-                  >
-                    {isCurrentProcessing ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      "Ativar meu teste"
-                    )}
-                  </Button>
-                  <p className="text-center text-xs font-semibold leading-relaxed text-[#A9B8B1] mt-1">
-                    Hoje R$0. Cartão necessário. {trialDurationDays ? `Teste de ${trialDurationDays} dias. ` : ""}Primeira cobrança com data confirmada no checkout. Cancele antes e não será cobrado.
-                  </p>
+                  {hasExistingSubscription ? (
+                    <p className="text-center text-xs font-semibold leading-relaxed text-[#A9B8B1]">
+                      Seu plano atual já está ativo.
+                    </p>
+                  ) : (
+                    <>
+                      <Button
+                        className={cn(
+                          LANDING_CTA_BASE,
+                          "w-full transition-all duration-300", 
+                          plan.highlighted 
+                            ? "bg-[#12D98B] text-[#07100D] hover:bg-[#21E6A0] shadow-[0_0_20px_rgba(18,217,139,0.25)]" 
+                            : "bg-transparent border border-[#20312A] text-[#F3F7F5] hover:border-[#21E6A0]/50 hover:bg-[#12D98B]/5"
+                        )}
+                        onClick={() => handleSelectPlano(plan, "trial")}
+                        disabled={Boolean(isProcessing) || subscriptionLoading}
+                      >
+                        {isCurrentProcessing ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          "Ativar meu teste"
+                        )}
+                      </Button>
+                      <p className="text-center text-xs font-semibold leading-relaxed text-[#A9B8B1] mt-1">
+                        Hoje R$0. Cartão necessário. {trialDurationDays ? `Teste de ${trialDurationDays} dias. ` : ""}Primeira cobrança com data confirmada no checkout. Cancele antes e não será cobrado.
+                      </p>
+                      <button
+                        type="button"
+                        className="mx-auto mt-2 text-xs font-semibold text-[#A9B8B1] underline decoration-[#20312A] underline-offset-4 transition-colors hover:text-[#F3F7F5] disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => handleSelectPlano(plan, "direct_purchase")}
+                        disabled={Boolean(isProcessing) || subscriptionLoading}
+                      >
+                        Prefiro assinar agora
+                      </button>
+                      <p className="text-center text-xs leading-relaxed text-[#A9B8B1]">
+                        Cobrança de R$ {price.toLocaleString("pt-BR")} hoje.
+                      </p>
+                    </>
+                  )}
                 </div>
               </Card>
             );

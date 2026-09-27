@@ -215,8 +215,12 @@ export const useSubscription = (): UseSubscriptionReturn => {
 
       const { data: adminCheck, error: adminError } = adminResponse;
       const { data: usageData, error: fetchError } = usageResponse;
-      const { data: directSub } = subResponse;
+      const { data: directSub, error: subscriptionError } = subResponse;
       const { data: addonData, error: addonError } = addonResponse;
+
+      if (subscriptionError) {
+        throw subscriptionError;
+      }
 
       const admin = isAdminUser(user, { is_admin: adminCheck === true });
       setIsAdmin(admin);
@@ -374,9 +378,9 @@ export const useSubscription = (): UseSubscriptionReturn => {
       });
     } catch (err: any) {
       console.error("Erro ao buscar assinatura:", err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : "subscription_query_failed");
       const isUserAdmin = user ? isAdminUser(user) : false;
-      setSubscription(starterFallback(isUserAdmin));
+      setSubscription(isUserAdmin ? starterFallback(true) : null);
     } finally {
       setLoading(false);
       isFetchingRef.current = false;
@@ -402,8 +406,9 @@ export const useSubscription = (): UseSubscriptionReturn => {
     const safetyTimeout = setTimeout(() => {
       setLoading((currLoading) => {
         if (currLoading) {
-          console.warn("[useSubscription] Timeout de 8s atingido. Forçando fim do loading.");
-          setSubscription((currSub) => currSub || starterFallback(false));
+          console.warn("[useSubscription] Timeout de 8s atingido. Encerrando loading com erro explícito.");
+          setError("subscription_loading_timeout");
+          setSubscription(null);
           return false;
         }
         return currLoading;

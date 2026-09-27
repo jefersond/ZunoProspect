@@ -66,6 +66,20 @@ function conversionPathFromMetadata(metadata: Stripe.Metadata | null | undefined
   return metadata?.conversion_path === "direct_purchase" ? "direct_purchase" : "trial";
 }
 
+function introOfferEvidence(metadata: Stripe.Metadata | null | undefined) {
+  const applied = metadata?.intro_offer_applied === "true" && Boolean(metadata?.intro_offer);
+  const introPriceCents = Number(metadata?.intro_price_cents || 0);
+  const regularPriceCents = Number(metadata?.regular_price_cents || 0);
+  return {
+    intro_offer: applied ? metadata?.intro_offer || null : null,
+    intro_offer_applied: applied,
+    intro_price: applied && Number.isFinite(introPriceCents) && introPriceCents > 0 ? introPriceCents / 100 : null,
+    regular_price: Number.isFinite(regularPriceCents) && regularPriceCents > 0 ? regularPriceCents / 100 : null,
+    intro_offer_duration: applied ? metadata?.intro_offer_duration || null : null,
+    intro_offer_claim_id: applied ? metadata?.intro_offer_claim_id || null : null,
+  };
+}
+
 function stripeId(value: unknown): string | null {
   if (!value) return null;
   if (typeof value === "string") return value;
@@ -1169,27 +1183,31 @@ serve(async (req) => {
             payment_status: session.payment_status,
             amount_total: amount,
             currency: currency?.toUpperCase() || "BRL",
+            ...introOfferEvidence(metadata),
           }, email, `checkout_completed:${stripeCheckoutSessionId || event.id}`);
 
           // Ativação do plano principal
           const billingCycle = metadata?.billing_cycle || "monthly";
           
-          await activateUserPlan(supabaseAdmin, {
-            userId: eventUserId,
-            email,
-            planId: finalPlanId,
-            billingCycle,
-            stripeCustomerId,
-            stripeSubscriptionId,
-            stripePriceId: resolvedPriceId,
-            status: subStatus,
-            trialStart,
-            trialEnd,
-            cancelAtPeriodEnd,
-            canceledAt,
-          });
+          const canActivateFromCheckout = conversionPath === "trial" || session.payment_status === "paid";
+          if (canActivateFromCheckout) {
+            await activateUserPlan(supabaseAdmin, {
+              userId: eventUserId,
+              email,
+              planId: finalPlanId,
+              billingCycle,
+              stripeCustomerId,
+              stripeSubscriptionId,
+              stripePriceId: resolvedPriceId,
+              status: subStatus,
+              trialStart,
+              trialEnd,
+              cancelAtPeriodEnd,
+              canceledAt,
+            });
+          }
           
-          await logAppEvent(supabaseAdmin, eventUserId, "Payment_Plan_Activated", {
+          if (canActivateFromCheckout) await logAppEvent(supabaseAdmin, eventUserId, "Payment_Plan_Activated", {
             stripe_event_id: event.id,
             event_type: event.type,
             plan_id: finalPlanId,
@@ -1198,6 +1216,7 @@ serve(async (req) => {
             stripe_subscription_id: stripeSubscriptionId,
             stripe_checkout_session_id: stripeCheckoutSessionId,
             conversion_path: conversionPath,
+            ...introOfferEvidence(metadata),
           });
 
           if (subStatus === "trialing" && stripeSubscriptionId) {
@@ -1255,7 +1274,7 @@ serve(async (req) => {
           }
 
           // REGISTRAR COMPRA IMEDIATAMENTE NO TEMPO REAL SE O PAGAMENTO ESTIVER CONFIRMADO
-          if (eventStatus === "paid" || session.payment_status === "paid") {
+          if (conversionPath !== "direct_purchase" && (eventStatus === "paid" || session.payment_status === "paid")) {
             const hasDuplicate = await checkDuplicatePurchaseEvent(
               supabaseAdmin,
               eventUserId,
@@ -1277,6 +1296,7 @@ serve(async (req) => {
                 billing_cycle: billingCycle === "yearly" || billingCycle === "annual" || billingCycle === "year" ? "yearly" : "monthly",
                 source: "stripe_webhook",
                 conversion_path: conversionPath,
+                ...introOfferEvidence(metadata),
                 plan_resolution_source: planResolutionSource,
                 has_plan_conflict: hasPlanConflict,
                 conflict_details: conflictDetails,
@@ -1358,6 +1378,8 @@ serve(async (req) => {
                 email,
                 stripe_customer_id: stripeCustomerId,
                 stripe_subscription_id: stripeSubscriptionId,
+                conversion_path: conversionPath,
+                ...introOfferEvidence(metadata),
               });
               
               await logAppEvent(supabaseAdmin, eventUserId, "cancel_trial", {
@@ -1759,6 +1781,32 @@ serve(async (req) => {
                 hostedInvoiceUrl: invoice.hosted_invoice_url,
               });
             } else {
+              const introEvidence = introOfferEvidence(metadata);
+              if (
+                conversionPath === "direct_purchase"
+                && introEvidence.intro_offer_applied
+                && introEvidence.intro_offer
+              ) {
+                const { error: redeemError } = await supabaseAdmin
+                  .from("billing_intro_offer_redemptions")
+                  .update({
+                    status: "redeemed",
+                    redeemed_at: new Date().toISOString(),
+                    provider_customer_id: stripeCustomerId,
+                    provider_subscription_id: stripeSubscriptionId,
+                    provider_invoice_id: invoice.id,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("user_id", eventUserId)
+                  .eq("offer_key", introEvidence.intro_offer)
+                  .eq("status", "claimed");
+
+                if (redeemError) {
+                  console.error("[stripe-webhook] Falha ao persistir intro offer redeemed", redeemError);
+                  throw redeemError;
+                }
+              }
+
               await logAppEvent(supabaseAdmin, eventUserId, "Payment_Recovered", {
                 stripe_event_id: event.id,
                 event_type: event.type,
@@ -1835,6 +1883,7 @@ serve(async (req) => {
                   billing_cycle: billingCycle === "yearly" || billingCycle === "annual" || billingCycle === "year" ? "yearly" : "monthly",
                   source: "stripe_webhook",
                   conversion_path: conversionPath,
+                  ...introOfferEvidence(metadata),
                   plan_resolution_source: planResolutionSource,
                   has_plan_conflict: hasPlanConflict,
                   conflict_details: conflictDetails,

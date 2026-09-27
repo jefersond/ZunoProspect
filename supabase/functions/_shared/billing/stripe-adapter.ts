@@ -26,8 +26,6 @@ export class StripeAdapter implements BillingProviderAdapter {
         source: input.source ?? "hybrid_billing",
         offerId: input.offerId ?? null,
         conversionPath,
-        trialDurationDays: this.trialDurationDays,
-        trialPolicyVersion: this.trialPolicyVersion,
       }),
     });
 
@@ -42,9 +40,13 @@ export class StripeAdapter implements BillingProviderAdapter {
       provider: this.provider,
       url: payload.url,
       checkoutId: payload.sessionId ?? null,
-      trialDurationDays: conversionPath === "trial" ? this.trialDurationDays : 0,
-      trialPolicyVersion: this.trialPolicyVersion,
+      trialDurationDays: Number(payload.trialDurationDays ?? (conversionPath === "trial" ? this.trialDurationDays : 0)),
+      trialPolicyVersion: String(payload.trialPolicyVersion || this.trialPolicyVersion),
       conversionPath,
+      introOfferApplied: payload.introOfferApplied === true,
+      introOfferKey: payload.introOfferKey ? String(payload.introOfferKey) : null,
+      introPrice: Number.isFinite(Number(payload.introPrice)) ? Number(payload.introPrice) : null,
+      regularPrice: Number.isFinite(Number(payload.regularPrice)) ? Number(payload.regularPrice) : null,
     };
   }
 }

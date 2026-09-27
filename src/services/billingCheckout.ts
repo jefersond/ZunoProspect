@@ -11,6 +11,10 @@ export type BillingCheckoutResult = {
   trialDurationDays: number;
   trialPolicyVersion: string;
   conversionPath: BillingConversionPath;
+  introOfferApplied: boolean;
+  introOfferKey?: string | null;
+  introPrice?: number | null;
+  regularPrice?: number | null;
 };
 
 type CheckoutPlan = {
@@ -88,5 +92,9 @@ export async function createBillingCheckout({
     trialDurationDays: Number(data.trialDurationDays || 0),
     trialPolicyVersion: String(data.trialPolicyVersion || ""),
     conversionPath: data.conversionPath === "direct_purchase" ? "direct_purchase" : "trial",
+    introOfferApplied: data.introOfferApplied === true,
+    introOfferKey: data.introOfferKey ? String(data.introOfferKey) : null,
+    introPrice: Number.isFinite(Number(data.introPrice)) ? Number(data.introPrice) : null,
+    regularPrice: Number.isFinite(Number(data.regularPrice)) ? Number(data.regularPrice) : null,
   };
 }

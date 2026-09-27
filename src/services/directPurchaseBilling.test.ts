@@ -32,7 +32,8 @@ describe("Stripe optional direct purchase", () => {
 
   it("takes Stripe trial policy from canonical billing config", () => {
     expect(stripeCheckout).toContain('.from("billing_provider_config")');
-    expect(stripeCheckout).toContain('"stripe_trial_duration_days,stripe_trial_policy_version"');
+    expect(stripeCheckout).toContain("stripe_trial_duration_days");
+    expect(stripeCheckout).toContain("stripe_trial_policy_version");
     expect(stripeCheckout).toContain("billingConfig.stripe_trial_duration_days");
     expect(stripeCheckout).toContain("billingConfig.stripe_trial_policy_version");
   });
@@ -55,7 +56,7 @@ describe("Stripe optional direct purchase", () => {
     expect(stripeCheckout).toContain("stripe.subscriptions.retrieve");
     expect(stripeCheckout).toContain("stripe.subscriptions.list");
     expect(stripeCheckout).toContain("idempotencyKey");
-    expect(stripeCheckout).toContain('zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:${localSubscriptionState}');
+    expect(stripeCheckout).toContain('zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:${localSubscriptionState}:${localSubscription?.stripe_subscription_id || "none"}');
   });
 
   it("keeps webhook signature and provider-event idempotency", () => {

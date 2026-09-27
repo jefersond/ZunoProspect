@@ -110,6 +110,7 @@ export default function Checkout() {
   const anualParam = searchParams.get("anual") || "false";
   const leadsQtyParam = Number(searchParams.get("leadsQty") || "0");
   const googleAuth = searchParams.get("google_auth");
+  const conversionPath = searchParams.get("conversion_path") === "direct_purchase" ? "direct_purchase" : "trial";
   const referralCode = getCurrentReferralCode(searchParams);
   
   // State for selected plan - default to URL param or "pro"
@@ -190,6 +191,7 @@ export default function Checkout() {
         isAnual,
         leadsQty: selectedLeadsQty,
         referralCode,
+        conversionPath,
       }));
       saveReferralCode(referralCode);
 
@@ -308,6 +310,8 @@ export default function Checkout() {
       const data = await createBillingCheckout({
         selectedPlan: { nome: plano.nome, planKey: selectedPlano },
         billingCycle: isAnual ? "annual" : "monthly",
+        conversionPath,
+        source: "checkout_page",
       });
 
       const funnelContext = await getFunnelContext(null, "checkout_page");
@@ -324,6 +328,7 @@ export default function Checkout() {
         billing_provider: data.provider,
         trial_duration_days: data.trialDurationDays,
         trial_policy_version: data.trialPolicyVersion,
+        conversion_path: data.conversionPath,
         user_plan_before_checkout: usage?.plan_name || "free",
         current_leads_available: usage?.leads_available_total ?? 0,
         current_ai_available: usage?.ai_remaining ?? 0,
@@ -387,6 +392,7 @@ export default function Checkout() {
           ...funnelContext,
           plan_id: selectedPlano === "agencia" ? "agency" : selectedPlano,
           source: "checkout_page",
+          conversion_path: conversionPath,
           error_message_safe: errorMessage,
           error: errorMessage,
         });
@@ -501,30 +507,58 @@ export default function Checkout() {
               <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-lg space-y-3">
                 <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
                   <span className="font-semibold text-foreground">Plano {plano.nome}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">{trialDurationDays ? `${trialDurationDays} dias grátis` : "Duração do teste em confirmação"}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    {conversionPath === "direct_purchase"
+                      ? "Assinatura imediata"
+                      : trialDurationDays
+                        ? `${trialDurationDays} dias grátis`
+                        : "Duração do teste em confirmação"}
+                  </span>
                 </div>
                 
-                <div className="space-y-1.5 text-sm text-muted-foreground">
-                  <div className="flex justify-between">
-                    <span>Hoje:</span>
-                    <span className="font-bold text-emerald-400">R$ 0</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Após o teste:</span>
-                    <span className="font-semibold text-foreground">R$ {preco}{periodo}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span>Primeira cobrança:</span>
-                    <span className="text-foreground">{trialDurationDays ? `após ${trialDurationDays} dias do início do trial` : "após o período de teste vigente"}</span>
-                  </div>
-                </div>
+                {conversionPath === "direct_purchase" ? (
+                  <>
+                    <div className="space-y-1.5 text-sm text-muted-foreground">
+                      <div className="flex justify-between">
+                        <span>Hoje:</span>
+                        <span className="font-bold text-emerald-400">R$ {preco}{periodo}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span>Cobrança:</span>
+                        <span className="text-foreground">imediata após confirmação no Stripe</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
+                      <p>✓ Cobrança de R$ {preco} hoje.</p>
+                      <p>✓ A assinatura começa após a confirmação do pagamento.</p>
+                      <p>✓ Não há período de teste neste caminho.</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-1.5 text-sm text-muted-foreground">
+                      <div className="flex justify-between">
+                        <span>Hoje:</span>
+                        <span className="font-bold text-emerald-400">R$ 0</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Após o teste:</span>
+                        <span className="font-semibold text-foreground">R$ {preco}{periodo}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span>Primeira cobrança:</span>
+                        <span className="text-foreground">{trialDurationDays ? `após ${trialDurationDays} dias do início do trial` : "após o período de teste vigente"}</span>
+                      </div>
+                    </div>
 
-                <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
-                  <p>✓ Você não será cobrado hoje.</p>
-                  <p>✓ {trialDurationDays ? `Seu teste grátis dura ${trialDurationDays} dias.` : "A duração vigente será confirmada antes do pagamento."}</p>
-                  <p>✓ Após o teste, sua assinatura será renovada automaticamente.</p>
-                  <p>✓ Você pode cancelar antes do fim do teste para não ser cobrado.</p>
-                </div>
+                    <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
+                      <p>✓ Você não será cobrado hoje.</p>
+                      <p>✓ {trialDurationDays ? `Seu teste grátis dura ${trialDurationDays} dias.` : "A duração vigente será confirmada antes do pagamento."}</p>
+                      <p>✓ Após o teste, sua assinatura será renovada automaticamente.</p>
+                      <p>✓ Você pode cancelar antes do fim do teste para não ser cobrado.</p>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Google Sign In Button */}

@@ -15,8 +15,12 @@ describe("hybrid Stripe + Mercado Pago billing policy", () => {
   const migration = source("supabase/migrations/20260924230000_hybrid_billing_mercado_pago.sql");
   const offerHook = source("src/hooks/useBillingOfferConfig.ts");
 
-  it("preserves the Stripe baseline trial at seven days", () => {
-    expect(stripeCheckout).toContain("trial_period_days: 7");
+  it("preserves the Stripe baseline trial at seven days through canonical config", () => {
+    expect(migration).toContain("stripe_trial_duration_days integer not null default 7");
+    expect(stripeCheckout).toContain('.from("billing_provider_config")');
+    expect(stripeCheckout).toContain("billingConfig.stripe_trial_duration_days");
+    expect(stripeCheckout).toContain('conversionPath === "trial" ? { trial_period_days: trialDurationDays } : {}');
+    expect(stripeCheckout).not.toContain("trial_period_days: 7");
     expect(trialDurationDays("2026-09-01T12:00:00Z", "2026-09-08T12:00:00Z")).toBe(7);
     expect(stripeWebhook).toContain("trialEnd = subscription.trial_end");
   });

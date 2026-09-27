@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { createBillingCheckout, billingRedirectAdapter } from "@/services/billingCheckout";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
-import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, type BillingCycle, type PlanConfig } from "@/config/plans";
+import { PLAN_LIST, getPlanFeatures, getPlanPeriodLabel, getPlanPrice, type BillingCycle, type PlanConfig } from "@/config/plans";
 import { cn } from "@/lib/utils";
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 import { appendReferralToPath } from "@/lib/referral";
@@ -21,7 +21,7 @@ import { getFunnelContext } from "@/lib/funnelContext";
 
 export function PrecosSection() {
   const navigate = useNavigate();
-  const { trialDurationDays, defaultNewBillingProvider } = useBillingOfferConfig();
+  const { trialDays, defaultNewBillingProvider } = useBillingOfferConfig();
   const { user } = useAuth();
   const { hasUsaAddon, isAdmin } = useSubscription();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
@@ -170,13 +170,13 @@ export function PrecosSection() {
         <div className="mx-auto mb-12 max-w-2xl text-center">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#10d98a]/30 bg-[#10d98a]/10 px-3 py-1 text-xs font-semibold text-[#10d98a]">
             <Sparkles className="h-3.5 w-3.5" />
-            Teste disponível agora — comece hoje e tenha leads em minutos
+            Teste disponível agora. Comece hoje e tenha leads em minutos.
           </div>
           <h2 className="mb-4 text-3xl font-extrabold tracking-tight text-[#f4f4f5] md:text-5xl">
-            {trialDurationDays} dias para encontrar seus próximos clientes
+            {trialDays ? `${trialDays} dias para encontrar seus próximos clientes` : "Comece hoje a encontrar seus próximos clientes"}
           </h2>
           <p className="text-base text-[#9ca3af] md:text-lg leading-relaxed max-w-2xl mx-auto font-medium mb-8">
-            <span className="text-[#10d98a] font-bold">Hoje você paga R$0.</span> Escolha um plano, ative o teste com cartão e use o Zuno por {trialDurationDays} dias completos. Depois do teste, a assinatura começa automaticamente. <span className="text-[#f4f4f5] font-bold">Cancele antes do fim do teste e não será cobrado.</span>
+            <span className="text-[#10d98a] font-bold">Hoje você paga R$0.</span> {trialDays ? `Escolha um plano, ative o teste com cartão e use o Zuno por ${trialDays} dias completos.` : "Escolha um plano e ative o teste com cartão. A duração vigente será confirmada no checkout."} Depois do teste, a assinatura começa automaticamente. <span className="text-[#f4f4f5] font-bold">Cancele antes do fim do teste e não será cobrado.</span>
           </p>
 
           <div className="flex flex-col items-center gap-2">
@@ -240,7 +240,7 @@ export function PrecosSection() {
 
                 <div className="mt-6 text-center border-t border-[#1f2d29]/40 pt-5 pb-3">
                   <p className="text-[#10d98a] text-sm font-extrabold uppercase tracking-wider font-mono">
-                    Hoje R$0 por {trialDurationDays} dias
+                    {trialDays ? `Hoje R$0 por ${trialDays} dias` : "Hoje R$0. Duração confirmada no checkout"}
                   </p>
                   <p className="text-3xl font-black text-[#f4f4f5] mt-2">
                     Depois R$ {price.toLocaleString("pt-BR")}{getPlanPeriodLabel(billingCycle)}
@@ -253,7 +253,7 @@ export function PrecosSection() {
                 </div>
 
                 <ul className="mt-6 flex-1 space-y-2.5">
-                  {plan.features.map((feature) => (
+                  {getPlanFeatures(plan.id, trialDays).map((feature) => (
                     <li key={feature} className="flex items-start gap-2 text-xs leading-relaxed text-[#9ca3af]">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#10d98a]" />
                       <span>{feature}</span>
@@ -275,7 +275,7 @@ export function PrecosSection() {
                     {isCurrentProcessing ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
-                      `Ativar teste de ${trialDurationDays} dias`
+                      trialDays ? `Ativar teste de ${trialDays} dias` : "Ativar teste"
                     )}
                   </Button>
                   <p className="text-center text-xs font-semibold text-[#9ca3af] tracking-wide mt-1">
@@ -308,7 +308,7 @@ export function PrecosSection() {
             </div>
           </div>
           <p className="text-xs text-[#9ca3af] leading-relaxed">
-            * <strong>Segurança e Transparência</strong>: O cadastro do cartão é obrigatório para validação de identidade e prevenção contra abusos. Você pode cancelar sua assinatura síncronamente na área de perfil antes do encerramento dos {trialDurationDays} dias para evitar qualquer cobrança. A Zuno localiza oportunidades regionais de marketing e gera copies, mas a conversão e fechamento do cliente final são de sua responsabilidade comercial.
+            * <strong>Segurança e Transparência</strong>: O cadastro do cartão é obrigatório para validação de identidade e prevenção contra abusos. Você pode cancelar sua assinatura síncronamente na área de perfil {trialDays ? `antes do encerramento dos ${trialDays} dias para evitar qualquer cobrança.` : "antes do encerramento do período informado no checkout para evitar qualquer cobrança."} A Zuno localiza oportunidades regionais de marketing e gera copies, mas a conversão e fechamento do cliente final são de sua responsabilidade comercial.
           </p>
         </div>
 

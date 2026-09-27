@@ -4,6 +4,7 @@ import { ArrowRight, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
+import { LANDING_CTA_BASE, LANDING_CTA_ICON } from "./ctaStyles";
 
 interface StickyCtaBarProps {
   heroRef: React.RefObject<HTMLElement | null>;
@@ -48,11 +49,11 @@ export function StickyCtaBar({ heroRef }: StickyCtaBarProps) {
         </div>
         <Button
           size="sm"
-          className="ml-auto h-10 rounded-lg bg-[#12D98B] px-6 font-bold text-[#07100D] shadow-[0_0_20px_rgba(18,217,139,0.3)] hover:bg-[#21E6A0] hover:scale-[1.02] transition-all"
+          className={`${LANDING_CTA_BASE} w-full bg-[#12D98B] text-[#07100D] shadow-[0_0_20px_rgba(18,217,139,0.3)] transition-all hover:scale-[1.02] hover:bg-[#21E6A0] sm:ml-auto sm:w-auto`}
           onClick={handleClick}
         >
           Começar minha primeira busca
-          <ArrowRight className="ml-2 h-4 w-4" />
+          <ArrowRight className={LANDING_CTA_ICON} />
         </Button>
       </div>
     </div>

@@ -76,6 +76,14 @@ const formatUsage = (used?: number, limit?: number) => {
 };
 
 const getPaidConversionPath = (events: any[] = []) => {
+  const directIntroPurchase = events.find(
+    (event) =>
+      event?.event_type === "purchase_completed"
+      && event?.event_data?.conversion_path === "direct_purchase"
+      && event?.event_data?.intro_offer_applied === true,
+  );
+  if (directIntroPurchase) return "direct_purchase_intro";
+
   const directPurchase = events.find(
     (event) =>
       event?.event_type === "purchase_completed"
@@ -560,6 +568,9 @@ export const UsersDashboard = () => {
                       <CardContent className="space-y-2 text-sm">
                         <div className="flex flex-wrap items-center gap-2">
                           {getPlanBadge(userDetail.user.plan_name)}
+                          {getPaidConversionPath(userDetail.detail?.activity?.events) === "direct_purchase_intro" && (
+                            <Badge variant="secondary">PAID DIRECT COM INTRO OFFER</Badge>
+                          )}
                           {getPaidConversionPath(userDetail.detail?.activity?.events) === "direct_purchase" && (
                             <Badge variant="secondary">PAID DIRECT</Badge>
                           )}

@@ -1,15 +1,20 @@
 import { Bot, CheckCircle, FileText, Search, Target, Users } from "lucide-react";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 
-const metrics = [
+const baseMetrics = [
   { icon: Search, value: "Cidade + nicho", label: "Busca direcionada" },
   { icon: Bot, value: "IA sob demanda", label: "Análise quando você pedir" },
   { icon: FileText, value: "3 canais", label: "WhatsApp, Instagram e e-mail" },
   { icon: Target, value: "Score", label: "Priorização de oportunidades" },
   { icon: Users, value: "Pipeline", label: "Acompanhamento de leads" },
-  { icon: CheckCircle, value: "7 dias", label: "Plano de sequência" },
+  { icon: CheckCircle, value: "Teste", label: "Plano de sequência" },
 ];
 
 export function MetricsCarousel() {
+  const { trialDurationDays } = useBillingOfferConfig();
+  const metrics = baseMetrics.map((metric) => metric.label === "Plano de sequência"
+    ? { ...metric, value: trialDurationDays ? `${trialDurationDays} dias` : "Teste" }
+    : metric);
   const duplicatedMetrics = [...metrics, ...metrics];
 
   return (

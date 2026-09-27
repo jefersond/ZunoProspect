@@ -416,7 +416,7 @@ Deno.serve(async (req) => {
       return json({ ok: true }, 200);
     }
 
-    let authorizedPayment    let authorizedPayment: Record<string, any>;
+    let authorizedPayment: Record<string, any>;
     if (type === "subscription_authorized_payment") {
       authorizedPayment = await mpGet(accessToken, `/authorized_payments/${encodeURIComponent(dataId)}`);
     } else {

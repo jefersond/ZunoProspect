@@ -71,7 +71,7 @@ const PLANOS = {
     features: [
       "800 leads/mês",
       "100 análises com IA/mês",
-      "Plano 7 dias por lead",
+      "Plano de prospecção por lead",
       "Detecção de sinais digitais",
       "Exportar para Excel",
     ],

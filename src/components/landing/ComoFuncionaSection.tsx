@@ -25,32 +25,32 @@ export function ComoFuncionaSection() {
   const passos = [
     {
       titulo: "1. Escolha cidade e nicho",
-      subtitulo: "Diga onde e quem quer prospectar",
-      descricao: "Defina a região e o nicho de mercado (ex: Clínicas Odontológicas em Ribeirão Preto). A Zuno localiza empresas de forma focada e cirúrgica.",
+      subtitulo: "Defina onde e quem quer prospectar",
+      descricao: "Defina a região e o nicho de mercado. A Zuno organiza a busca para encontrar empresas dentro desse recorte.",
       icone: MapPin,
     },
     {
       titulo: "2. Encontre empresas",
-      subtitulo: "Lista organizada com dados completos",
-      descricao: "Acesse dados cruciais de contato e presença digital: WhatsApp ativo, redes sociais, site e canais de comunicação compilados em segundos.",
+      subtitulo: "Lista organizada com dados disponíveis",
+      descricao: "Veja canais de contato e presença digital quando estiverem disponíveis nas fontes públicas consultadas.",
       icone: Building2,
     },
     {
       titulo: "3. Analise oportunidades com IA",
-      subtitulo: "Diagnóstico e score de conversão",
-      descricao: "A IA da Zuno varre o ecossistema do lead e lista pontos fracos técnicos (Meta Pixel ausente, site lento ou lento no celular) calculando um score comercial.",
+      subtitulo: "Contexto para priorizar oportunidades",
+      descricao: "A Zuno organiza sinais de presença digital e contexto do lead para ajudar você a decidir quais oportunidades analisar primeiro.",
       icone: Bot,
     },
     {
       titulo: "4. Gere abordagens qualificadas",
-      subtitulo: "Copies para WhatsApp, Instagram e e-mail",
-      descricao: "A IA redige textos de abordagens altamente contextualizados para múltiplos canais, alinhando as fragilidades técnicas do lead com seus serviços.",
+      subtitulo: "Sugestões para WhatsApp, Instagram e e-mail",
+      descricao: "A IA sugere mensagens com base no contexto disponível para você revisar e adaptar ao seu serviço.",
       icone: Sparkles,
     },
     {
       titulo: "5. Copie e comece a conversa",
-      subtitulo: "Abordagem com um clique",
-      descricao: "Copie a mensagem gerada e abra o canal de contato direto do lead. Inicie diálogos de vendas sem bloqueios criativos e com alta taxa de resposta.",
+      subtitulo: "Revise e comece a conversa",
+      descricao: "Revise a mensagem sugerida, copie o texto e use o canal público disponível para iniciar a conversa.",
       icone: Zap,
     },
   ];
@@ -78,11 +78,11 @@ export function ComoFuncionaSection() {
             Como funciona
           </Badge>
           <h2 className="mb-4 text-3xl font-extrabold tracking-tight text-[#f4f4f5] md:text-5xl">
-            De zero a abordagem pronta em menos de 5 minutos
+            Da busca à abordagem em um fluxo simples
           </h2>
           <p className="text-base text-[#9ca3af] md:text-lg">
             Você escolhe cidade e nicho. O Zuno encontra as empresas, a IA analisa as oportunidades e gera a mensagem certa para cada lead.{" "}
-            <span className="text-[#10d98a] font-medium">Dados consultados ao vivo a cada busca. Nenhuma lista desatualizada.</span>
+            <span className="text-[#10d98a] font-medium">A disponibilidade dos dados depende das fontes públicas consultadas em cada busca.</span>
           </p>
         </div>
 
@@ -172,7 +172,7 @@ export function ComoFuncionaSection() {
             <div className="absolute top-0 left-0 w-full h-[3px] bg-[#10d98a]" />
             <div className="flex items-center gap-1.5 border-b border-[#1f2d29]/60 pb-3 mb-4 text-xs font-mono text-[#9ca3af] uppercase tracking-wider">
               <span className="h-2 w-2 rounded-full bg-[#10d98a]" />
-              <span>Zuno Software • {etapasFluxo[passoAtivo].label}</span>
+              <span>Exemplo demonstrativo. Zuno Software • {etapasFluxo[passoAtivo].label}</span>
             </div>
 
             <div className="flex-1 flex flex-col justify-center">
@@ -215,7 +215,7 @@ export function ComoFuncionaSection() {
                   
                   <div className="rounded-lg border border-[#10d98a]/20 bg-[#0b0f0e]/60 p-3 flex items-center justify-between">
                     <div>
-                      <h4 className="text-sm font-bold text-[#f4f4f5]">Odonto Care Centro</h4>
+                      <h4 className="text-sm font-bold text-[#f4f4f5]">Empresa demonstrativa A</h4>
                       <p className="text-[11px] text-[#9ca3af]">Ribeirão Preto • (16) 99281-XXXX</p>
                       <div className="mt-1.5 flex gap-1.5">
                         <span className="rounded bg-red-950/30 px-1.5 py-0.5 text-[9px] font-mono text-red-400 border border-red-900/30">Sem Pixel</span>
@@ -223,16 +223,16 @@ export function ComoFuncionaSection() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-bold text-[#10d98a] bg-[#10d98a]/10 px-2 py-0.5 rounded-full font-mono border border-[#10d98a]/20">92% Match</span>
+                      <span className="text-xs font-bold text-[#10d98a] bg-[#10d98a]/10 px-2 py-0.5 rounded-full font-mono border border-[#10d98a]/20">Prioridade sugerida</span>
                     </div>
                   </div>
 
                   <div className="rounded-lg border border-[#1f2d29] bg-[#0b0f0e]/20 p-3 opacity-60 flex items-center justify-between">
                     <div>
-                      <h4 className="text-sm font-semibold text-[#f4f4f5]">Sorriso & Cia</h4>
+                      <h4 className="text-sm font-semibold text-[#f4f4f5]">Empresa demonstrativa B</h4>
                       <p className="text-[11px] text-[#9ca3af]">Ribeirão Preto • (16) 98177-XXXX</p>
                     </div>
-                    <span className="text-xs font-bold text-zinc-400 bg-zinc-800/30 px-2 py-0.5 rounded-full font-mono">78% Match</span>
+                    <span className="text-xs font-bold text-zinc-400 bg-zinc-800/30 px-2 py-0.5 rounded-full font-mono">Outra oportunidade</span>
                   </div>
                 </div>
               )}

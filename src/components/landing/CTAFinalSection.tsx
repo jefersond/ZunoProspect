@@ -22,10 +22,10 @@ export function CTAFinalSection() {
         </div>
 
         <h2 className="mx-auto mb-4 max-w-3xl text-3xl font-extrabold text-[#f4f4f5] md:text-5xl tracking-tight">
-          Seus próximos clientes já existem. Falta você saber onde estão.
+          Comece sua próxima prospecção com uma busca mais clara.
         </h2>
         <p className="mx-auto mb-8 max-w-2xl text-base text-[#9ca3af] md:text-lg">
-          Ative o teste agora e comece sua primeira busca com empresas, análise de oportunidade e abordagem pronta para enviar.
+          Escolha um plano, ative o teste e use o Zuno para encontrar empresas, priorizar oportunidades e preparar sua primeira abordagem.
         </p>
 
         <div className="mx-auto flex max-w-md flex-col justify-center gap-3 sm:max-w-none sm:flex-row">
@@ -33,11 +33,12 @@ export function CTAFinalSection() {
             size="lg"
             className="h-14 w-full bg-[#10d98a] text-[#0b0f0e] font-bold shadow-[0_0_30px_rgba(16,217,138,0.25)] hover:bg-[#10d98a]/90 sm:w-auto px-8"
             onClick={() => {
-              trackEvent("cta_clicked", { cta: "comecar_gratis", location: "final_cta" });
+              trackEvent("cta_clicked", { cta: "comecar_primeira_busca", location: "final_cta", cta_location: "final" });
+              trackEvent("trial_cta_clicked", { cta_location: "final", cta_text: "Começar minha primeira busca", trial_duration_days: trialDurationDays });
               scrollToSection("precos");
             }}
           >
-            {trialDurationDays ? `Começar teste grátis de ${trialDurationDays} dias` : "Começar teste grátis"}
+            Começar minha primeira busca
             <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
         </div>

@@ -117,51 +117,35 @@ export const LEAD_QUANTITIES = [300, 800, 2000];
 
 export const FAQ_ITEMS = [
   {
-    pergunta: "Os dados incluem WhatsApp e Instagram reais?",
-    resposta: "Sim. A Zuno busca, quando disponível, o WhatsApp ativo, o perfil do Instagram, o site e outros canais de contato da empresa. Os dados são consultados ao vivo a cada busca. Não usamos listas estáticas ou bases desatualizadas.",
+    pergunta: "Isso é diferente do Google Maps?",
+    resposta: "Sim. O Google Maps ajuda a localizar empresas. O Zuno usa fontes públicas para organizar a prospecção por cidade e nicho, reúne canais disponíveis, adiciona contexto de presença digital e sugere uma abordagem para você iniciar a conversa.",
   },
   {
-    pergunta: "Quanto tempo leva para achar os primeiros leads?",
-    resposta: "Em média menos de 5 minutos. Você escolhe cidade e nicho, a Zuno localiza empresas e já entrega os dados de contato e presença digital. A análise de IA e geração de abordagem levam mais alguns segundos por lead.",
+    pergunta: "Os dados são atuais?",
+    resposta: "A Zuno consulta fontes públicas durante a busca. A disponibilidade e a completude dos dados dependem de cada fonte e podem mudar com o tempo.",
   },
   {
-    pergunta: "Como a Zuno encontra esses dados?",
-    resposta: "A Zuno combina dados públicos de presença digital (Google Maps, sites, redes sociais) com análise de IA para mapear empresas por região e nicho. Nenhuma informação privada é acessada. Usamos apenas o que está disponível publicamente.",
+    pergunta: "Preciso saber prospectar?",
+    resposta: "Não precisa chegar com um roteiro pronto. O Zuno organiza o contexto e sugere uma abordagem. Você continua no controle da mensagem, da conversa e da negociação.",
   },
   {
-    pergunta: "Vou ser cobrado hoje?",
-    resposta: "Não. Ao ativar o teste, você paga R$0 hoje. A cobrança do plano escolhido só acontece depois do período informado no checkout, se você não cancelar antes.",
+    pergunta: "O Zuno envia mensagens sozinho?",
+    resposta: "Não. O Zuno ajuda a preparar a abordagem e organiza os canais públicos disponíveis. Você revisa a mensagem e decide quando e onde enviar.",
   },
   {
-    pergunta: "Por que preciso colocar cartão?",
-    resposta: "O cartão é usado para ativar o teste do plano escolhido. A cobrança só acontece após o período informado no checkout, se você não cancelar antes.",
+    pergunta: "Preciso cadastrar cartão?",
+    resposta: "Sim. O cartão é necessário para ativar o teste do plano escolhido. Você paga R$0 hoje e vê a duração vigente antes de concluir o checkout.",
   },
   {
-    pergunta: "Posso cancelar antes da cobrança?",
-    resposta: "Sim. Você pode cancelar antes do fim do teste para não ser cobrado.",
+    pergunta: "Quando começa a cobrança?",
+    resposta: "A primeira cobrança acontece depois do período de teste informado no checkout, conforme o plano e a periodicidade escolhidos.",
   },
   {
-    pergunta: "O que acontece depois do teste?",
-    resposta: "Após o período de teste informado no checkout, a assinatura continua no plano escolhido e a cobrança é realizada conforme a periodicidade escolhida.",
+    pergunta: "Posso cancelar antes?",
+    resposta: "Sim. Você pode cancelar antes do fim do teste para evitar a primeira cobrança.",
   },
   {
-    pergunta: "Qual a diferença da Zuno para o Google Maps?",
-    resposta: "O Google Maps deixa você ver empresas uma por uma, sem dados de contato estruturados, sem análise de oportunidade e sem geração de abordagem. A Zuno entrega uma lista de empresas por cidade e nicho com WhatsApp, Instagram e site compilados, mais diagnóstico de presença digital e copy pronta para cada lead. Tudo em um fluxo de prospecção, não em uma busca manual.",
-  },
-  {
-    pergunta: "Funciona para qualquer cidade do Brasil?",
-    resposta: "Sim. A Zuno localiza empresas em qualquer cidade brasileira. Você escolhe a cidade e o nicho (ex: 'Clínica estética em Campinas') e o sistema busca empresas naquela região específica.",
-  },
-  {
-    pergunta: "A Zuno garante clientes?",
-    resposta: "Não. A Zuno não garante clientes. Ela ajuda você a encontrar empresas, analisar oportunidades e gerar abordagens com mais contexto. O resultado depende da sua oferta, abordagem e execução comercial.",
-  },
-  {
-    pergunta: "Para quem a Zuno é indicada?",
-    resposta: "Para gestores de tráfego, social medias, designers, freelancers, agências e operações que precisam prospectar empresas com mais clareza.",
-  },
-  {
-    pergunta: "Preciso de cartão para começar?",
-    resposta: "Sim. A oferta pública inclui teste no plano escolhido, com cartão obrigatório. A duração vigente aparece no checkout e você pode cancelar antes da primeira cobrança.",
+    pergunta: "Quais dados públicos são utilizados?",
+    resposta: "A Zuno trabalha com informações publicamente disponíveis sobre empresas, como presença em mapas, sites, redes sociais e canais de contato quando publicados. Nenhuma informação privada é acessada.",
   },
 ];

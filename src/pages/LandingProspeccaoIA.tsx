@@ -10,22 +10,18 @@ import { captureAttributionParams, trackMetaCustomEvent, trackOnce } from "@/lib
 
 import { LPHeader } from "@/components/landing/LPHeader";
 import { HeroSection } from "@/components/landing/HeroSection";
-import { StatsSection } from "@/components/landing/StatsSection";
+import { ProductProofSection } from "@/components/landing/ProductProofSection";
+import { SocialProofSection } from "@/components/landing/SocialProofSection";
 import { AntesDepoisSection } from "@/components/landing/AntesDepoisSection";
 import { ComoFuncionaSection } from "@/components/landing/ComoFuncionaSection";
 import { ParaQuemSection } from "@/components/landing/ParaQuemSection";
-import { CasosDeUsoSection } from "@/components/landing/CasosDeUsoSection";
 import { StickyCtaBar } from "@/components/landing/StickyCtaBar";
-
 
 const PrecosSection = lazy(() => import("@/components/landing/PrecosSection").then((m) => ({
   default: m.PrecosSection,
 })));
 const FAQSection = lazy(() => import("@/components/landing/FAQSection").then((m) => ({
   default: m.FAQSection,
-})));
-const ReferralSection = lazy(() => import("@/components/landing/ReferralSection").then((m) => ({
-  default: m.ReferralSection,
 })));
 const CTAFinalSection = lazy(() => import("@/components/landing/CTAFinalSection").then((m) => ({
   default: m.CTAFinalSection,
@@ -40,17 +36,12 @@ const SectionSkeleton = () => (
   </div>
 );
 
-
 export default function LandingProspeccaoIA() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const hasReferralInvite = Boolean(getReferralFromSearch(searchParams));
   const heroRef = useRef<HTMLElement>(null);
-
-  const scrollToSection = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-  };
 
   useEffect(() => {
     const noRedirect = searchParams.get("no_redirect") === "true";
@@ -84,6 +75,8 @@ export default function LandingProspeccaoIA() {
     if (!isCheckingAuth) {
       const attribution = captureAttributionParams();
       trackEvent("page_view", { page: "landing" });
+      trackEvent("landing_viewed", { page: "landing" });
+
       if (attribution.ref) {
         trackOnce("meta_referral_visit", () => {
           trackMetaCustomEvent("Referral_Visit", {
@@ -115,19 +108,16 @@ export default function LandingProspeccaoIA() {
           Você foi convidado para conhecer o Zuno Propect.
         </div>
       )}
+
       <div ref={heroRef as React.RefObject<HTMLDivElement>}>
         <HeroSection />
       </div>
 
-      <StatsSection />
-
+      <ProductProofSection />
+      <SocialProofSection items={[]} />
       <AntesDepoisSection />
-      
       <ComoFuncionaSection />
-      
       <ParaQuemSection />
-      
-      <CasosDeUsoSection />
 
       <Suspense fallback={<SectionSkeleton />}>
         <PrecosSection />
@@ -139,10 +129,6 @@ export default function LandingProspeccaoIA() {
 
       <Suspense fallback={<SectionSkeleton />}>
         <CTAFinalSection />
-      </Suspense>
-
-      <Suspense fallback={<SectionSkeleton />}>
-        <ReferralSection />
       </Suspense>
 
       <Suspense fallback={<SectionSkeleton />}>

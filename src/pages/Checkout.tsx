@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
 import { useUsage } from "@/hooks/useUsage";
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
+import { useSubscription } from "@/hooks/useSubscription";
 
 // Google Icon Component
 const GoogleIcon = () => (
@@ -99,9 +100,11 @@ const PLANOS = {
 type PlanoKey = "starter" | "pro" | "agencia";
 
 export default function Checkout() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, signOut } = useAuth();
   const { usage } = useUsage();
+  const { subscription, loading: subscriptionLoading } = useSubscription();
   const { trialDurationDays, defaultNewBillingProvider } = useBillingOfferConfig();
   
   // Get params from URL
@@ -129,6 +132,19 @@ export default function Checkout() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGoogleProcessing, setIsGoogleProcessing] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+
+  useEffect(() => {
+    if (subscriptionLoading || !subscription) return;
+    const status = String(subscription.subscription_status ?? subscription.status ?? "").toLowerCase();
+    const currentPlan = normalizePlanId(subscription.plan_name);
+    const selectedPlanId = selectedPlano === "agencia" ? "agency" : selectedPlano;
+    if (
+      currentPlan === selectedPlanId
+      && ["active", "trialing", "past_due", "unpaid", "incomplete", "paused"].includes(status)
+    ) {
+      navigate("/prospeccao", { replace: true });
+    }
+  }, [navigate, selectedPlano, subscription, subscriptionLoading]);
 
   // Monitor user changes from useAuth hook
   useEffect(() => {

@@ -101,10 +101,10 @@ export default function LandingProspeccaoIA() {
   }
 
   return (
-    <div className="dark min-h-screen overflow-x-hidden bg-[#0b0f0e] text-[#f4f4f5] selection:bg-[#10d98a]/30">
+    <div className="dark min-h-screen overflow-x-hidden bg-[#07100D] text-[#F3F7F5] selection:bg-[#12D98B]/30">
       <LPHeader />
       {hasReferralInvite && (
-        <div className="border-b border-[#10d98a]/20 bg-[#10d98a]/10 px-4 py-3 text-center text-sm text-[#10d98a]">
+        <div className="border-b border-[#12D98B]/20 bg-[#12D98B]/10 px-4 py-3 text-center text-sm text-[#12D98B]">
           Você foi convidado para conhecer o Zuno Propect.
         </div>
       )}

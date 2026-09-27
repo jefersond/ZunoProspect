@@ -27,7 +27,8 @@ export function StickyCtaBar({ heroRef }: StickyCtaBarProps) {
   }, [heroRef]);
 
   const handleClick = () => {
-    trackEvent("cta_clicked", { cta: "sticky_bar", location: "sticky" });
+    trackEvent("cta_clicked", { cta: "comecar_primeira_busca", location: "sticky", cta_location: "sticky" });
+    trackEvent("trial_cta_clicked", { cta_location: "sticky", cta_text: "Começar minha primeira busca", trial_duration_days: trialDurationDays });
     trackMetaCustomEvent("CTA_Sticky_Click", { page: "landing", location: "sticky_bar" });
     document.getElementById("precos")?.scrollIntoView({ behavior: "smooth" });
   };
@@ -50,7 +51,7 @@ export function StickyCtaBar({ heroRef }: StickyCtaBarProps) {
           className="ml-auto h-10 rounded-lg bg-[#10d98a] px-6 font-bold text-[#0b0f0e] shadow-[0_0_20px_rgba(16,217,138,0.3)] hover:bg-[#10d98a]/90 hover:scale-[1.02] transition-all"
           onClick={handleClick}
         >
-          Começar teste grátis
+          Começar minha primeira busca
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>

@@ -2,15 +2,18 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { BillingProvider } from "@/services/billingCheckout";
 
+export type IntroOfferPlanConfig = {
+  introPrice: number | null;
+  regularPrice: number | null;
+};
+
 export type IntroOfferConfig = {
   enabled: boolean;
   key: string;
-  planId: "starter";
   billingCycle: "monthly";
   conversionPath: "direct_purchase";
   duration: "first_billing_period";
-  introPrice: number | null;
-  regularPrice: number | null;
+  plans: Record<"starter" | "pro" | "agency", IntroOfferPlanConfig>;
   eligible: boolean;
   eligibilityReason: string;
 };
@@ -26,6 +29,8 @@ export type BillingOfferConfig = {
   introOffer: IntroOfferConfig;
 };
 
+const EMPTY_PLAN: IntroOfferPlanConfig = { introPrice: null, regularPrice: null };
+
 const INITIAL_CONFIG: BillingOfferConfig = {
   defaultNewBillingProvider: "stripe",
   effectiveBillingProvider: "stripe",
@@ -35,18 +40,29 @@ const INITIAL_CONFIG: BillingOfferConfig = {
   introOffer: {
     enabled: false,
     key: "",
-    planId: "starter",
     billingCycle: "monthly",
     conversionPath: "direct_purchase",
     duration: "first_billing_period",
-    introPrice: null,
-    regularPrice: null,
+    plans: {
+      starter: EMPTY_PLAN,
+      pro: EMPTY_PLAN,
+      agency: EMPTY_PLAN,
+    },
     eligible: false,
     eligibilityReason: "loading",
   },
   loading: true,
   error: null,
 };
+
+function normalizePlanOffer(value: any): IntroOfferPlanConfig {
+  const introPrice = Number(value?.introPrice);
+  const regularPrice = Number(value?.regularPrice);
+  return {
+    introPrice: Number.isFinite(introPrice) && introPrice > 0 ? introPrice : null,
+    regularPrice: Number.isFinite(regularPrice) && regularPrice > 0 ? regularPrice : null,
+  };
+}
 
 async function loadBillingOfferConfig(): Promise<BillingOfferConfig> {
   try {
@@ -64,8 +80,6 @@ async function loadBillingOfferConfig(): Promise<BillingOfferConfig> {
         ? "stripe"
         : defaultProvider;
     const days = Number(data.trialDurationDays);
-    const introPrice = Number(data.introOffer?.introPrice);
-    const regularPrice = Number(data.introOffer?.regularPrice);
 
     return {
       defaultNewBillingProvider: defaultProvider,
@@ -76,12 +90,14 @@ async function loadBillingOfferConfig(): Promise<BillingOfferConfig> {
       introOffer: {
         enabled: data.introOffer?.enabled === true,
         key: String(data.introOffer?.key || ""),
-        planId: "starter",
         billingCycle: "monthly",
         conversionPath: "direct_purchase",
         duration: "first_billing_period",
-        introPrice: Number.isFinite(introPrice) && introPrice > 0 ? introPrice : null,
-        regularPrice: Number.isFinite(regularPrice) && regularPrice > 0 ? regularPrice : null,
+        plans: {
+          starter: normalizePlanOffer(data.introOffer?.plans?.starter),
+          pro: normalizePlanOffer(data.introOffer?.plans?.pro),
+          agency: normalizePlanOffer(data.introOffer?.plans?.agency),
+        },
         eligible: data.introOffer?.eligible === true,
         eligibilityReason: String(data.introOffer?.eligibilityReason || ""),
       },

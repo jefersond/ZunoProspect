@@ -125,14 +125,15 @@ export default function Checkout() {
   
   const [isAnual] = useState(anualParam === "true");
   const selectedLeadsQty = plano.leadsLimit;
-  const starterIntroOfferSelected = Boolean(
+  const selectedPlanId = selectedPlano === "agencia" ? "agency" : selectedPlano;
+  const selectedIntroOffer = introOffer.plans[selectedPlanId];
+  const introOfferSelected = Boolean(
     conversionPath === "direct_purchase"
-      && selectedPlano === "starter"
       && !isAnual
       && introOffer.enabled
       && introOffer.eligible
-      && introOffer.introPrice
-      && introOffer.regularPrice,
+      && selectedIntroOffer?.introPrice
+      && selectedIntroOffer?.regularPrice,
   );
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
@@ -320,17 +321,17 @@ export default function Checkout() {
       trackMetaCustomEvent("Plan_Selected", {
         plan_id: trackingPlanId,
         plan_name: plano.nome,
-        value: starterIntroOfferSelected ? introOffer.introPrice : plano.precoMensal,
+        value: introOfferSelected ? selectedIntroOffer?.introPrice : plano.precoMensal,
         currency: "BRL",
         conversion_path: conversionPath,
-        intro_offer: starterIntroOfferSelected ? introOffer.key : null,
-        intro_price: starterIntroOfferSelected ? introOffer.introPrice : null,
-        regular_price: starterIntroOfferSelected ? introOffer.regularPrice : plano.precoMensal,
+        intro_offer: introOfferSelected ? introOffer.key : null,
+        intro_price: introOfferSelected ? selectedIntroOffer?.introPrice : null,
+        regular_price: introOfferSelected ? selectedIntroOffer?.regularPrice : plano.precoMensal,
       });
       trackAddPaymentInfo({
         content_category: defaultNewBillingProvider === "mercado_pago" ? "Mercado Pago" : "Stripe",
         currency: 'BRL',
-        value: starterIntroOfferSelected ? introOffer.introPrice ?? preco : preco
+        value: introOfferSelected ? selectedIntroOffer?.introPrice ?? preco : preco
       });
 
       toast.loading(hasSession ? "Gerando link de pagamento seguro..." : "Conta criada! Gerando link de pagamento seguro...");
@@ -341,7 +342,7 @@ export default function Checkout() {
         billingCycle: isAnual ? "annual" : "monthly",
         conversionPath,
         source: "checkout_page",
-        offerId: starterIntroOfferSelected ? introOffer.key : null,
+        offerId: introOfferSelected ? introOffer.key : null,
       });
 
       const funnelContext = await getFunnelContext(null, "checkout_page");
@@ -550,34 +551,34 @@ export default function Checkout() {
                 </div>
                 
                 {conversionPath === "direct_purchase" ? (
-                  starterIntroOfferSelected ? (
+                  introOfferSelected ? (
                     <>
                       <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
                         <p className="text-xs font-semibold text-emerald-400">Economize no primeiro mês</p>
                         <p className="mt-1 text-lg font-bold text-foreground">
-                          R$ {introOffer.introPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} hoje
+                          R$ {selectedIntroOffer?.introPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} hoje
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Depois R$ {introOffer.regularPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mês
+                          Depois R$ {selectedIntroOffer?.regularPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mês
                         </p>
                       </div>
                       <div className="space-y-1.5 text-sm text-muted-foreground">
                         <div className="flex justify-between">
                           <span>Hoje:</span>
                           <span className="font-bold text-emerald-400">
-                            R$ {introOffer.introPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            R$ {selectedIntroOffer?.introPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Próxima cobrança:</span>
                           <span className="text-right font-semibold text-foreground">
-                            R$ {introOffer.regularPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} na data confirmada pelo Stripe
+                            R$ {selectedIntroOffer?.regularPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} na data confirmada pelo Stripe
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Depois:</span>
                           <span className="font-semibold text-foreground">
-                            R$ {introOffer.regularPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mês
+                            R$ {selectedIntroOffer?.regularPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mês
                           </span>
                         </div>
                       </div>
@@ -777,8 +778,8 @@ export default function Checkout() {
                     ) : (
                       <>
                         <ExternalLink className="h-5 w-5 mr-2" />
-                        {starterIntroOfferSelected
-                          ? `Assinar agora por R$ ${introOffer.introPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        {introOfferSelected
+                          ? `Assinar agora por R$ ${selectedIntroOffer?.introPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                           : hasSession
                             ? "Ir para pagamento"
                             : "Criar conta e pagar"}

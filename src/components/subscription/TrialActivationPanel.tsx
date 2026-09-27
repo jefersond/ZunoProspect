@@ -48,13 +48,18 @@ export function TrialActivationPanel({
   const chargeDate = trialEnd ? formatTrialDate(trialEnd) : "—";
 
   useEffect(() => {
-    if (!user?.id || !isTrialing || !trialStart) {
+    if (!user?.id || !isTrialing) {
       setProgress(EMPTY_PROGRESS);
       return;
     }
 
     void trackEvent("onboarding_started", { source: "trial_activation_panel" });
     void trackEvent("returned_during_trial", { source: "trial_activation_panel" });
+
+    if (!trialStart) {
+      setProgress(EMPTY_PROGRESS);
+      return;
+    }
 
     let cancelled = false;
 
@@ -153,21 +158,25 @@ export function TrialActivationPanel({
             <>
               seu trial atual tem <strong className="text-foreground">{actualTrialDuration ?? "—"} dias</strong> com cartão cadastrado. A primeira cobrança está prevista para{" "}
               <strong className="text-foreground">{chargeDate}</strong>
+              {price ? (
+                <>
+                  {" "}no valor de <strong className="text-foreground">R$ {price.price}{price.periodLabel}</strong>
+                </>
+              ) : null}
+              . Você pode cancelar antes dessa data em{" "}
+              <Link to="/profile" className="font-medium text-emerald-500 hover:underline">
+                Perfil → Plano e assinatura
+              </Link>.
             </>
           ) : (
             <>
-              o provider informou status de trial, mas as datas de início/fim ainda não estão disponíveis. Nenhuma data foi estimada.
+              o provider informou status de trial, mas as datas de início/fim ainda não estão disponíveis. Nenhuma data foi estimada. Consulte{" "}
+              <Link to="/profile" className="font-medium text-emerald-500 hover:underline">
+                Perfil → Plano e assinatura
+              </Link>{" "}
+              para acompanhar a sincronização do billing.
             </>
           )}
-          {price ? (
-            <>
-              {" "}no valor de <strong className="text-foreground">R$ {price.price}{price.periodLabel}</strong>
-            </>
-          ) : null}
-          . Você pode cancelar antes dessa data em{" "}
-          <Link to="/profile" className="font-medium text-emerald-500 hover:underline">
-            Perfil → Plano e assinatura
-          </Link>.
         </div>
       </CardHeader>
 

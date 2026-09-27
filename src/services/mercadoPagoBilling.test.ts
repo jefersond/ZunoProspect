@@ -69,6 +69,9 @@ describe("Mercado Pago hybrid billing safety", () => {
     expect(webhook).toContain('if (approved)');
     expect(webhook).toContain('payment_status: "paid"');
     expect(webhook).toContain('subscription_status: "active"');
+    expect(webhook).toContain("if (!directPurchase)");
+    expect(webhook).toContain("preapprovalUpdate.plan_name = planRow.plan_id");
+    expect(webhook).toContain("const paidEntitlements = BILLING_CATALOG");
   });
 
   it("maps rejected payment to past_due and canonical failure analytics", () => {

@@ -18,6 +18,7 @@ import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 import { appendReferralToPath } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
 import { getFunnelContext } from "@/lib/funnelContext";
+import { LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, LANDING_PRICING_CTA_AREA } from "./ctaStyles";
 
 export function PrecosSection() {
   const navigate = useNavigate();
@@ -210,7 +211,7 @@ export function PrecosSection() {
               <Card
                 key={plan.id}
                 className={cn(
-                  "relative flex min-h-[540px] flex-col overflow-hidden rounded-xl border p-6 text-[#F3F7F5] shadow-lg bg-[#0D1713] transition-all duration-300",
+                  "relative flex h-full min-h-[540px] flex-col overflow-hidden rounded-xl border p-6 text-[#F3F7F5] shadow-lg bg-[#0D1713] transition-all duration-300",
                   plan.highlighted ? "border-[#12D98B] shadow-[0_0_35px_rgba(18,217,139,0.06)]" : "border-[#20312A]",
                 )}
               >
@@ -263,10 +264,11 @@ export function PrecosSection() {
                   ))}
                 </ul>
 
-                <div className="mt-6 flex flex-col gap-2">
+                <div className={LANDING_PRICING_CTA_AREA}>
                   <Button
                     className={cn(
-                      "h-12 w-full font-bold transition-all duration-300", 
+                      LANDING_CTA_BASE,
+                      "w-full transition-all duration-300", 
                       plan.highlighted 
                         ? "bg-[#12D98B] text-[#07100D] hover:bg-[#21E6A0] shadow-[0_0_20px_rgba(18,217,139,0.25)]" 
                         : "bg-transparent border border-[#20312A] text-[#F3F7F5] hover:border-[#21E6A0]/50 hover:bg-[#12D98B]/5"
@@ -339,7 +341,7 @@ export function PrecosSection() {
                   {isAdmin ? "Liberado para admin" : "Ativo"}
                 </Badge>
               )}
-              <Button variant="outline" onClick={() => setUsaDialogOpen(true)}>
+              <Button variant="outline" className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE}`} onClick={() => setUsaDialogOpen(true)}>
                 {hasUsaAddon || isAdmin ? "Complemento ativo" : "Ativar complemento"}
               </Button>
             </div>

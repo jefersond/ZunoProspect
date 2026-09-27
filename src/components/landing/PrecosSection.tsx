@@ -36,7 +36,7 @@ export function PrecosSection() {
         entries.forEach((entry) => {
           if (entry.isIntersecting && !hasTrackedView.current) {
             hasTrackedView.current = true;
-            trackEvent("pricing_viewed", { location: "landing" });
+            trackEvent("pricing_viewed", { location: "landing", cta_location: "pricing" });
             trackMetaCustomEvent("Pricing_View", {
               page: "landing",
               section: "pricing",
@@ -61,7 +61,9 @@ export function PrecosSection() {
     const price = getPlanPrice(plan.id, billingCycle);
     const trackingPrice = plan.monthlyPrice;
 
-    trackEvent("cta_clicked", { cta: `ativar_teste_${plan.id}`, location: "pricing", plan_id: plan.id });
+    trackEvent("cta_clicked", { cta: `ativar_teste_${plan.id}`, location: "pricing", cta_location: "pricing", plan: plan.id, plan_id: plan.id });
+    trackEvent("plan_selected", { plan: plan.id, plan_id: plan.id, billing_cycle: billingCycle, cta_location: "pricing" });
+    trackEvent("trial_cta_clicked", { plan: plan.id, plan_id: plan.id, billing_cycle: billingCycle, cta_location: "pricing", trial_duration_days: trialDurationDays });
 
     trackMetaCustomEvent("Pricing_Click", {
       page: "landing",
@@ -170,13 +172,13 @@ export function PrecosSection() {
         <div className="mx-auto mb-12 max-w-2xl text-center">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#10d98a]/30 bg-[#10d98a]/10 px-3 py-1 text-xs font-semibold text-[#10d98a]">
             <Sparkles className="h-3.5 w-3.5" />
-            Teste disponível agora. Comece hoje e tenha leads em minutos
+            Teste disponível no plano escolhido
           </div>
           <h2 className="mb-4 text-3xl font-extrabold tracking-tight text-[#f4f4f5] md:text-5xl">
-            {trialDurationDays ? `${trialDurationDays} dias para encontrar seus próximos clientes` : "Duração do teste confirmada pela oferta vigente"}
+            {trialDurationDays ? `Teste o Zuno por ${trialDurationDays} dias no plano escolhido` : "Teste o Zuno no plano escolhido"}
           </h2>
           <p className="text-base text-[#9ca3af] md:text-lg leading-relaxed max-w-2xl mx-auto font-medium mb-8">
-            <span className="text-[#10d98a] font-bold">Hoje você paga R$0.</span> Escolha um plano, ative o teste com cartão e {trialDurationDays ? `use o Zuno por ${trialDurationDays} dias completos.` : "confirme a duração vigente antes do checkout."} Depois do teste, a assinatura começa automaticamente. <span className="text-[#f4f4f5] font-bold">Cancele antes do fim do teste e não será cobrado.</span>
+            <span className="text-[#10d98a] font-bold">Hoje R$0.</span> Cartão necessário. {trialDurationDays ? `Teste de ${trialDurationDays} dias.` : "A duração vigente será confirmada antes do checkout."} A primeira cobrança acontece depois do teste, na data confirmada no checkout. <span className="text-[#f4f4f5] font-bold">Cancele antes e não será cobrado.</span>
           </p>
 
           <div className="flex flex-col items-center gap-2">
@@ -218,7 +220,7 @@ export function PrecosSection() {
                   {plan.highlighted ? (
                     <div className="mb-3 inline-flex items-center gap-1 rounded-full border border-[#10d98a]/30 bg-[#10d98a]/10 px-3 py-0.5 text-[10px] font-bold uppercase text-[#10d98a]">
                       <Sparkles className="h-3 w-3" />
-                      RECOMENDADO
+                      Melhor para uso recorrente
                     </div>
                   ) : (
                     <div className="mb-3 h-5" />
@@ -275,11 +277,11 @@ export function PrecosSection() {
                     {isCurrentProcessing ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
-                      trialDurationDays ? `Ativar teste de ${trialDurationDays} dias` : "Ativar teste"
+                      "Ativar meu teste"
                     )}
                   </Button>
                   <p className="text-center text-xs font-semibold text-[#9ca3af] tracking-wide mt-1">
-                    Cartão necessário • Cancele antes da cobrança
+                    Cartão necessário. Cancele antes da cobrança.
                   </p>
                 </div>
               </Card>
@@ -308,7 +310,7 @@ export function PrecosSection() {
             </div>
           </div>
           <p className="text-xs text-[#9ca3af] leading-relaxed">
-            * <strong>Segurança e Transparência</strong>: O cadastro do cartão é obrigatório para validação de identidade e prevenção contra abusos. Você pode cancelar sua assinatura síncronamente na área de perfil {trialDurationDays ? `antes do encerramento dos ${trialDurationDays} dias` : "antes do encerramento do período de teste"} para evitar qualquer cobrança. A Zuno localiza oportunidades regionais de marketing e gera copies, mas a conversão e fechamento do cliente final são de sua responsabilidade comercial.
+            <strong>Transparência:</strong> o cartão é necessário para ativar o teste. Você pode cancelar pela área de perfil {trialDurationDays ? `antes do fim dos ${trialDurationDays} dias` : "antes do fim do período de teste"} para evitar a primeira cobrança. O Zuno ajuda a encontrar, priorizar e abordar oportunidades. Não garante fechamento de clientes.
           </p>
         </div>
 

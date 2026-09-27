@@ -18,7 +18,7 @@ export function CTAFinalSection() {
       <div className="container mx-auto px-4 text-center relative z-10">
         <div className="mx-auto mb-4 inline-flex items-center gap-1.5 rounded-full border border-[#10d98a]/20 bg-[#10d98a]/5 px-3 py-1 text-xs font-semibold text-[#10d98a]">
           <Sparkles className="h-3.5 w-3.5" />
-          {trialDurationDays} dias grátis, acesso imediato
+          {trialDurationDays ? `${trialDurationDays} dias grátis, acesso imediato` : "Teste grátis com duração confirmada pela oferta vigente"}
         </div>
 
         <h2 className="mx-auto mb-4 max-w-3xl text-3xl font-extrabold text-[#f4f4f5] md:text-5xl tracking-tight">
@@ -37,7 +37,7 @@ export function CTAFinalSection() {
               scrollToSection("precos");
             }}
           >
-            Começar teste grátis de {trialDurationDays} dias
+            {trialDurationDays ? `Começar teste grátis de ${trialDurationDays} dias` : "Começar teste grátis"}
             <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
         </div>

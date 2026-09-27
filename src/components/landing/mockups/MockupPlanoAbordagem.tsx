@@ -16,7 +16,7 @@ export function MockupPlanoAbordagem() {
       {/* Header */}
       <div className="flex items-center gap-2 mb-6">
         <Calendar className="h-5 w-5 text-primary" />
-        <h3 className="font-semibold text-foreground">Plano de Prospecção - 7 dias</h3>
+        <h3 className="font-semibold text-foreground">Plano guiado de prospecção</h3>
       </div>
 
       {/* Timeline */}
@@ -45,7 +45,7 @@ export function MockupPlanoAbordagem() {
                   <div className="flex items-center gap-2 mb-1">
                     <Icon className={`h-4 w-4 ${item.ativo ? 'text-primary' : 'text-muted-foreground'}`} />
                     <span className={`text-sm font-medium ${item.ativo ? 'text-foreground' : 'text-muted-foreground'}`}>
-                      {item.canal} - {item.titulo}
+                      {item.canal}: {item.titulo}
                     </span>
                   </div>
                   {item.ativo && (

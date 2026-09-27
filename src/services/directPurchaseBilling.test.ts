@@ -55,7 +55,7 @@ describe("Stripe optional direct purchase", () => {
     expect(stripeCheckout).toContain("stripe.subscriptions.retrieve");
     expect(stripeCheckout).toContain("stripe.subscriptions.list");
     expect(stripeCheckout).toContain("idempotencyKey");
-    expect(stripeCheckout).toContain('zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}');
+    expect(stripeCheckout).toContain('zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:${localSubscriptionState}');
   });
 
   it("keeps webhook signature and provider-event idempotency", () => {
@@ -85,6 +85,7 @@ describe("Stripe optional direct purchase", () => {
     expect(checkout).toContain('"Assinatura imediata"');
     expect(checkout).toContain("Não há período de teste neste caminho.");
     expect(checkout).toContain("conversionPath");
+    expect(checkout).toContain('navigate("/prospeccao", { replace: true })');
   });
 
   it("preserves direct purchase through authentication", () => {

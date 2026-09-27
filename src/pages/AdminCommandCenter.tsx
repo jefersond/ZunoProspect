@@ -51,7 +51,7 @@ const HISTORY_KEY = "zuno-command-center-history";
 const quickCommands = [
   "Altere o post de hoje: deixe a copy mais direta e refa\u00e7a o design com foco na demonstra\u00e7\u00e3o da Zuno.",
   "Crie uma campanha sobre prospec\u00e7\u00e3o B2B com R$ 15 por dia, dois testes A/B, p\u00fablico, copy e criativos.",
-  "Crie 7 posts educativos para o Instagram da Zuno, com CTA para o teste grátis de 7 dias no plano escolhido.",
+  "Crie 7 posts educativos para o Instagram da Zuno, com CTA para o teste grátis vigente no plano escolhido.",
   "Monte uma campanha orgânica para conquistar os primeiros clientes da Zuno sem tráfego pago.",
   "Crie uma sequência de prospecção humana para Instagram e WhatsApp, sem reunião e sem promessas exageradas.",
   "Analise a oferta atual da Zuno e proponha as três melhorias com maior chance de gerar assinaturas.",
@@ -130,7 +130,7 @@ export default function AdminCommandCenter() {
         action: "create_campaign",
         name: `Central — ${summarizeCommand(command)}`,
         objective: command.trim(),
-        offer: "Teste grátis de 7 dias da Zuno Propect no plano escolhido, com cartão obrigatório e R$0 cobrados hoje.",
+        offer: "Teste grátis vigente da Zuno Propect no plano escolhido, com cartão obrigatório e R$0 cobrados hoje.",
         target_audience: "Freelancers, gestores de tráfego, social medias, designers e agências que vendem serviços para negócios locais.",
         paid_media_monthly_budget: 0,
         channels: ["instagram", "whatsapp"],
@@ -186,7 +186,7 @@ export default function AdminCommandCenter() {
       const result = await invokeMarketing({
         action: "director_command",
         instruction: command.trim(),
-        offer: "Teste gr\u00e1tis de 7 dias da Zuno Propect no plano escolhido, com cart\u00e3o obrigat\u00f3rio e R$0 cobrados hoje.",
+        offer: "Teste gr\u00e1tis vigente da Zuno Propect no plano escolhido, com cart\u00e3o obrigat\u00f3rio e R$0 cobrados hoje.",
         target_audience: "Prestadores de servi\u00e7os B2B, ag\u00eancias e profissionais comerciais que precisam prospectar com consist\u00eancia.",
       });
       setProgress(55);

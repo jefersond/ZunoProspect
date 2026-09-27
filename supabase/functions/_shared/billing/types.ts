@@ -1,6 +1,7 @@
 import type { BillingCycle, BillingPlanId } from "./catalog.ts";
 
 export type BillingProviderName = "stripe" | "mercado_pago";
+export type BillingConversionPath = "trial" | "direct_purchase";
 
 export type BillingProviderConfig = {
   default_new_billing_provider: BillingProviderName;
@@ -16,6 +17,7 @@ export type BillingCheckoutInput = {
   billingCycle: BillingCycle;
   source?: string | null;
   offerId?: string | null;
+  conversionPath?: BillingConversionPath;
 };
 
 export type BillingCheckoutResult = {
@@ -24,6 +26,7 @@ export type BillingCheckoutResult = {
   checkoutId?: string | null;
   trialDurationDays: number;
   trialPolicyVersion: string;
+  conversionPath: BillingConversionPath;
 };
 
 export interface BillingProviderAdapter {

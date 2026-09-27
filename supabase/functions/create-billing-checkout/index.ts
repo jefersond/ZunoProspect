@@ -3,6 +3,7 @@ import { MercadoPagoAdapter } from "../_shared/billing/mercado-pago-adapter.ts";
 import { StripeAdapter } from "../_shared/billing/stripe-adapter.ts";
 import type {
   BillingCheckoutInput,
+  BillingConversionPath,
   BillingProviderConfig,
   BillingProviderName,
 } from "../_shared/billing/types.ts";
@@ -26,6 +27,10 @@ function validPlan(value: unknown): value is BillingPlanId {
 
 function validCycle(value: unknown): value is BillingCycle {
   return ["monthly", "annual"].includes(String(value));
+}
+
+function validConversionPath(value: unknown): value is BillingConversionPath {
+  return value === "trial" || value === "direct_purchase";
 }
 
 Deno.serve(async (req) => {
@@ -55,12 +60,16 @@ Deno.serve(async (req) => {
   if (!validPlan(body.planId) || !validCycle(body.billingCycle)) {
     return json({ error: "invalid_plan_or_billing_cycle" }, 400);
   }
+  const conversionPath: BillingConversionPath = validConversionPath(body.conversionPath)
+    ? body.conversionPath
+    : "trial";
 
   const input: BillingCheckoutInput = {
     planId: body.planId,
     billingCycle: body.billingCycle,
     source: typeof body.source === "string" ? body.source.slice(0, 120) : null,
     offerId: typeof body.offerId === "string" ? body.offerId.slice(0, 120) : null,
+    conversionPath,
   };
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
@@ -112,6 +121,11 @@ Deno.serve(async (req) => {
   }
 
   const provider = String(claimedProvider) as BillingProviderName;
+
+  if (conversionPath === "direct_purchase" && provider !== "stripe") {
+    return json({ error: "direct_purchase_stripe_only" }, 409);
+  }
+
   try {
     if (provider === "stripe") {
       const adapter = new StripeAdapter(
@@ -140,7 +154,9 @@ Deno.serve(async (req) => {
     const result = await adapter.createCheckout(input);
     return json(result);
   } catch (error) {
-    const safeCode = (error as Error & { code?: string }).code || (error as Error)?.message || "billing_checkout_failed";
-    return json({ error: String(safeCode).slice(0, 160) }, 502);
+    const typedError = error as Error & { code?: string; status?: number };
+    const safeCode = typedError.code || typedError.message || "billing_checkout_failed";
+    const status = Number(typedError.status || 0);
+    return json({ error: String(safeCode).slice(0, 160) }, status >= 400 && status < 600 ? status : 502);
   }
 });

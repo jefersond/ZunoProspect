@@ -75,6 +75,25 @@ const formatUsage = (used?: number, limit?: number) => {
   return `${used || 0}/${limit || 0}`;
 };
 
+const getPaidConversionPath = (events: any[] = []) => {
+  const directPurchase = events.find(
+    (event) =>
+      event?.event_type === "purchase_completed"
+      && event?.event_data?.conversion_path === "direct_purchase",
+  );
+  if (directPurchase) return "direct_purchase";
+
+  const paidViaTrial = events.find(
+    (event) =>
+      event?.event_type === "trial_converted_to_paid"
+      || (
+        event?.event_type === "purchase_completed"
+        && event?.event_data?.conversion_path === "trial"
+      ),
+  );
+  return paidViaTrial ? "trial" : null;
+};
+
 const getReferralStatusBadge = (status?: string) => {
   const value = status || "pending";
   const labels: Record<string, string> = {
@@ -539,7 +558,15 @@ export const UsersDashboard = () => {
                         <CardTitle className="text-base">Plano</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-2 text-sm">
-                        <div>{getPlanBadge(userDetail.user.plan_name)}</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {getPlanBadge(userDetail.user.plan_name)}
+                          {getPaidConversionPath(userDetail.detail?.activity?.events) === "direct_purchase" && (
+                            <Badge variant="secondary">PAID DIRECT</Badge>
+                          )}
+                          {getPaidConversionPath(userDetail.detail?.activity?.events) === "trial" && (
+                            <Badge variant="outline">PAID VIA TRIAL</Badge>
+                          )}
+                        </div>
                         <p><span className="text-muted-foreground">Status:</span> {userDetail.user.plan_status}</p>
                         <p><span className="text-muted-foreground">Anual:</span> {userDetail.user.is_annual ? "Sim" : "Nao"}</p>
                         <p><span className="text-muted-foreground">Add-on EUA:</span> {userDetail.user.usa_addon ? "Ativo" : "Nao"}</p>

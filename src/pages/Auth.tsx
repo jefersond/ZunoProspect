@@ -77,6 +77,7 @@ const Auth = () => {
       source,
       plan: selectedPlan || null,
       plan_id: selectedPlan || null,
+      conversion_path: conversionPathParam,
     });
   };
   const [passwordValidation, setPasswordValidation] = useState({
@@ -88,10 +89,11 @@ const Auth = () => {
   const selectedPlan = searchParams.get("plan") || searchParams.get("plano");
   const selectedLeads = searchParams.get("leadsQty") || searchParams.get("leads") || "100";
   const isAnualParam = searchParams.get("anual") || searchParams.get("isAnual") || "false";
+  const conversionPathParam = searchParams.get("conversion_path") === "direct_purchase" ? "direct_purchase" : "trial";
   const referralCode = getCurrentReferralCode(searchParams);
 
   const checkoutTarget = selectedPlan
-    ? appendReferralToPath(`/checkout?plano=${encodeURIComponent(selectedPlan)}&anual=${encodeURIComponent(isAnualParam)}&leadsQty=${encodeURIComponent(selectedLeads)}`, referralCode)
+    ? appendReferralToPath(`/checkout?plano=${encodeURIComponent(selectedPlan)}&anual=${encodeURIComponent(isAnualParam)}&leadsQty=${encodeURIComponent(selectedLeads)}&conversion_path=${conversionPathParam}`, referralCode)
     : null;
 
   const storePendingCheckout = () => {
@@ -101,6 +103,7 @@ const Auth = () => {
       isAnual: isAnualParam === "true",
       leadsQty: Number(selectedLeads) || 100,
       referralCode,
+      conversionPath: conversionPathParam,
     }));
   };
 
@@ -110,7 +113,7 @@ const Auth = () => {
       try {
         const pending = JSON.parse(pendingCheckout);
         localStorage.removeItem("checkout_pending");
-        navigate(appendReferralToPath(`/checkout?plano=${encodeURIComponent(pending.plano || "pro")}&anual=${encodeURIComponent(String(!!pending.isAnual))}&leadsQty=${encodeURIComponent(String(pending.leadsQty || selectedLeads))}`, pending.referralCode || referralCode), { replace: true });
+        navigate(appendReferralToPath(`/checkout?plano=${encodeURIComponent(pending.plano || "pro")}&anual=${encodeURIComponent(String(!!pending.isAnual))}&leadsQty=${encodeURIComponent(String(pending.leadsQty || selectedLeads))}&conversion_path=${pending.conversionPath === "direct_purchase" ? "direct_purchase" : "trial"}`, pending.referralCode || referralCode), { replace: true });
         return;
       } catch {
         localStorage.removeItem("checkout_pending");
@@ -142,7 +145,7 @@ const Auth = () => {
     if (activeTab === "signup") {
       trackSignupStart("google", "google_button");
     } else {
-      trackEvent("login_started", { method: "google", plan_id: selectedPlan || null });
+      trackEvent("login_started", { method: "google", plan_id: selectedPlan || null, conversion_path: conversionPathParam });
     }
     
     try {
@@ -228,7 +231,7 @@ const Auth = () => {
       (event, session) => {
         // Only process on sign-in events
         if (event === 'SIGNED_IN' && session) {
-          trackEvent(activeTab === "signup" ? "signup_completed" : "login_completed", { method: "google", plan_id: selectedPlan || null });
+          trackEvent(activeTab === "signup" ? "signup_completed" : "login_completed", { method: "google", plan_id: selectedPlan || null, conversion_path: conversionPathParam });
           trackOnce(`meta_login_google_${session.user.id}`, () => {
             trackMetaCustomEvent("Login_Completed", { method: "google" });
           });
@@ -428,7 +431,7 @@ const Auth = () => {
           ref_source: "url",
         });
       }
-      trackEvent("signup_completed", { method: "email", has_session: Boolean(data.session), plan_id: selectedPlan || null });
+      trackEvent("signup_completed", { method: "email", has_session: Boolean(data.session), plan_id: selectedPlan || null, conversion_path: conversionPathParam });
       
       // Verificar se já existe sessão (auto-confirm ativado)
       if (data.session) {

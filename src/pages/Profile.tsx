@@ -46,7 +46,7 @@ const Profile = () => {
     ? formatTrialDate(subscription.trial_end)
     : subscription?.billing_period_end
       ? formatTrialDate(subscription.billing_period_end)
-      : "—";
+      : "Data não informada";
 
   // Handle checkout result from URL params
   useEffect(() => {

@@ -1749,7 +1749,7 @@ export const LeadsList = () => {
                          !lead.sinais.has_meta_pixel && 
                          !lead.sinais.has_gtag && 
                          !lead.sinais.has_gtm && (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-xs text-muted-foreground">Nenhum sinal</span>
                         )}
                       </div>
                     </TableCell>

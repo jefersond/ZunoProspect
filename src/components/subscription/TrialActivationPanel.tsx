@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { SubscriptionInfo } from "@/hooks/useSubscription";
 import { trackEvent } from "@/lib/analytics";
-import { formatTrialDate, trialDaysRemaining, trialDurationDays, trialPriceSummary } from "@/lib/trialActivation";
+import { formatTrialDate, resolveTrialUiState, trialDaysRemaining, trialDurationDays, trialPriceSummary } from "@/lib/trialActivation";
 
 type TrialProgress = {
   completedSearches: number;
@@ -24,28 +24,46 @@ const EMPTY_PROGRESS: TrialProgress = {
   exploredSegments: 0,
 };
 
-export function TrialActivationPanel({ subscription }: { subscription: SubscriptionInfo | null }) {
+export function TrialActivationPanel({
+  subscription,
+  loading = false,
+  error = null,
+}: {
+  subscription: SubscriptionInfo | null;
+  loading?: boolean;
+  error?: string | null;
+}) {
   const { user } = useAuth();
   const [progress, setProgress] = useState<TrialProgress>(EMPTY_PROGRESS);
-  const isTrialing = subscription?.subscription_status === "trialing";
+  const trialUiState = resolveTrialUiState({ subscription, loading, error });
+  const isTrialing = trialUiState === "trialing";
+  const trialStart = subscription?.trial_start ?? null;
+  const trialEnd = subscription?.trial_end ?? null;
   const price = useMemo(
     () => trialPriceSummary(subscription?.plan_name, subscription?.billing_cycle),
     [subscription?.plan_name, subscription?.billing_cycle],
   );
-  const daysRemaining = trialDaysRemaining(subscription?.trial_end);
-  const actualTrialDuration = trialDurationDays(subscription?.trial_start, subscription?.trial_end);
-  const chargeDate = subscription?.trial_end ? formatTrialDate(subscription.trial_end) : "—";
+  const daysRemaining = trialDaysRemaining(trialEnd);
+  const actualTrialDuration = trialDurationDays(trialStart, trialEnd);
+  const chargeDate = trialEnd ? formatTrialDate(trialEnd) : "—";
 
   useEffect(() => {
-    if (!user?.id || !isTrialing) return;
+    if (!user?.id || !isTrialing) {
+      setProgress(EMPTY_PROGRESS);
+      return;
+    }
 
     void trackEvent("onboarding_started", { source: "trial_activation_panel" });
     void trackEvent("returned_during_trial", { source: "trial_activation_panel" });
 
+    if (!trialStart) {
+      setProgress(EMPTY_PROGRESS);
+      return;
+    }
+
     let cancelled = false;
 
     const loadProgress = async () => {
-      const trialStart = subscription.trial_start || new Date(0).toISOString();
       const [searchesResponse, savedResponse] = await Promise.all([
         supabase
           .from("search_logs")
@@ -88,7 +106,27 @@ export function TrialActivationPanel({ subscription }: { subscription: Subscript
       window.removeEventListener("searchFinished", refresh);
       window.removeEventListener("zuno:first-value-reached", refresh);
     };
-  }, [isTrialing, subscription.trial_start, user?.id]);
+  }, [isTrialing, trialStart, user?.id]);
+
+  if (trialUiState === "loading") {
+    return (
+      <Card className="border-border/60">
+        <CardContent className="p-4">
+          <div className="h-4 w-48 animate-pulse rounded bg-muted" aria-label="Carregando dados do trial" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (trialUiState === "error") {
+    return (
+      <Card className="border-destructive/30 bg-destructive/5">
+        <CardContent className="p-4 text-sm text-muted-foreground">
+          Não foi possível carregar os dados da assinatura. O billing não foi assumido nem substituído por datas fictícias.
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (!isTrialing || !subscription) return null;
 
@@ -116,17 +154,29 @@ export function TrialActivationPanel({ subscription }: { subscription: Subscript
 
         <div className="rounded-lg border border-border/60 bg-background/70 p-3 text-sm leading-6 text-muted-foreground">
           <strong className="text-foreground">Transparência do trial:</strong>{" "}
-          seu trial atual tem <strong className="text-foreground">{actualTrialDuration ?? "—"} dias</strong> com cartão cadastrado. A primeira cobrança está prevista para{" "}
-          <strong className="text-foreground">{chargeDate}</strong>
-          {price ? (
+          {trialStart && trialEnd ? (
             <>
-              {" "}no valor de <strong className="text-foreground">R$ {price.price}{price.periodLabel}</strong>
+              seu trial atual tem <strong className="text-foreground">{actualTrialDuration ?? "—"} dias</strong> com cartão cadastrado. A primeira cobrança está prevista para{" "}
+              <strong className="text-foreground">{chargeDate}</strong>
+              {price ? (
+                <>
+                  {" "}no valor de <strong className="text-foreground">R$ {price.price}{price.periodLabel}</strong>
+                </>
+              ) : null}
+              . Você pode cancelar antes dessa data em{" "}
+              <Link to="/profile" className="font-medium text-emerald-500 hover:underline">
+                Perfil → Plano e assinatura
+              </Link>.
             </>
-          ) : null}
-          . Você pode cancelar antes dessa data em{" "}
-          <Link to="/profile" className="font-medium text-emerald-500 hover:underline">
-            Perfil → Plano e assinatura
-          </Link>.
+          ) : (
+            <>
+              o provider informou status de trial, mas as datas de início/fim ainda não estão disponíveis. Nenhuma data foi estimada. Consulte{" "}
+              <Link to="/profile" className="font-medium text-emerald-500 hover:underline">
+                Perfil → Plano e assinatura
+              </Link>{" "}
+              para acompanhar a sincronização do billing.
+            </>
+          )}
         </div>
       </CardHeader>
 

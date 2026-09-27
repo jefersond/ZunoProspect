@@ -610,6 +610,11 @@ Deno.serve(async (req) => {
         payment_status: paymentStatus,
         status_detail: rawStatusDetail,
         retry_attempt: Number(authorizedPayment.retry_attempt || 0),
+        conversion_path: conversionPath,
+        plan_id: context.planRow.plan_id,
+        intro_offer: introOfferApplied ? context.planRow.intro_offer_key : null,
+        intro_offer_price: introOfferPrice,
+        regular_price: regularPrice,
       },
     });
     return json({ ok: true }, 200);

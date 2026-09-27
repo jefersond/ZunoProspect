@@ -37,7 +37,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
       "30 análises com IA por mês",
       "Teste grátis no plano escolhido",
       "Análise de leads com diagnóstico",
-      "Plano de prospecção de 7 dias",
+      "Plano de prospecção guiado",
       "CRM para salvar status e anotações",
       "Templates de mensagem",
     ],
@@ -112,4 +112,14 @@ export function getPlanPrice(planId: PlanId, billingCycle: BillingCycle) {
 
 export function getPlanPeriodLabel(billingCycle: BillingCycle) {
   return billingCycle === "annual" ? "/ano" : "/mês";
+}
+
+
+export function getPlanFeatures(planId: PlanId, trialDays?: number | null) {
+  return PLANS[planId].features.map((feature) => {
+    if (feature === "Plano de prospecção guiado" && trialDays) {
+      return `Plano de prospecção de ${trialDays} dias`;
+    }
+    return feature;
+  });
 }

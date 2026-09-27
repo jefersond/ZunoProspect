@@ -6,7 +6,7 @@ import { TrendingUp, Megaphone, Palette, Building2, BriefcaseBusiness, Search, A
 import { trackEvent } from "@/lib/analytics";
 
 export function CasosDeUsoSection() {
-  const { trialDurationDays } = useBillingOfferConfig();
+  const { trialDays } = useBillingOfferConfig();
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -18,7 +18,7 @@ export function CasosDeUsoSection() {
       icone: TrendingUp,
       titulo: "Negócios Locais e Clínicas",
       descricao: "Mapeie clínicas estéticas, consultórios odontológicos e negócios locais por cidade que necessitam de anúncios patrocinados para atrair clientes.",
-      exemplo: "Busca: 'Clínica estética' em 'Campinas - SP'",
+      exemplo: "Busca: 'Clínica estética' em 'Campinas, SP'",
       foco: "Anúncios, landing pages, pixel de conversão e campanhas locais no Google/Meta."
     },
     {
@@ -26,7 +26,7 @@ export function CasosDeUsoSection() {
       icone: Megaphone,
       titulo: "Restaurantes e Lojas Locais",
       descricao: "Localize restaurantes, confeitarias e comércios locais que possuem presença digital tímida e que precisam melhorar sua atração orgânica e posicionamento digital.",
-      exemplo: "Busca: 'Restaurante' em 'Belo Horizonte - MG'",
+      exemplo: "Busca: 'Restaurante' em 'Belo Horizonte, MG'",
       foco: "Produção de conteúdo, bio vitrine, engajamento orgânico e transformação de seguidores em contatos de WhatsApp."
     },
     {
@@ -34,7 +34,7 @@ export function CasosDeUsoSection() {
       icone: Palette,
       titulo: "Empresas com Identidade Visual Fraca",
       descricao: "Encontre empresas consolidadas fisicamente, mas que possuem sites ou marcas visivelmente desatualizados e que necessitam de um impacto visual profissional.",
-      exemplo: "Busca: 'Oficina mecânica' ou 'Contabilidade' em 'Curitiba - PR'",
+      exemplo: "Busca: 'Oficina mecânica' ou 'Contabilidade' em 'Curitiba, PR'",
       foco: "Redesenho de marcas, embalagens, layouts digitais, apresentações comerciais e impacto na decisão visual."
     },
     {
@@ -42,7 +42,7 @@ export function CasosDeUsoSection() {
       icone: Building2,
       titulo: "Busca Estratégica Regional",
       descricao: "Mapeie segmentos inteiros em lote em qualquer região brasileira para alimentar o time de vendas (SDRs) com empresas validadas e contatos ativos.",
-      exemplo: "Busca: 'Distribuidora' ou 'Construtora' em 'Ribeirão Preto - SP'",
+      exemplo: "Busca: 'Distribuidora' ou 'Construtora' em 'Ribeirão Preto, SP'",
       foco: "Diagnóstico integrado de canais digitais, estruturação de prospecção comercial recorrente e volume de abordagens."
     },
     {
@@ -50,7 +50,7 @@ export function CasosDeUsoSection() {
       icone: BriefcaseBusiness,
       titulo: "Clientes sem Depender de Indicação",
       descricao: "Prospecte ativamente em qualquer cidade para fechar novos clientes sem esperar indicação. Monte listas por nicho e aborde com mensagem personalizada para cada empresa.",
-      exemplo: "Busca: 'Salão de beleza' ou 'Pet shop' em 'Goiânia - GO'",
+      exemplo: "Busca: 'Salão de beleza' ou 'Pet shop' em 'Goiânia, GO'",
       foco: "Independência de pipeline, abordagem direta por WhatsApp e Instagram com copy gerada por IA."
     }
   ];
@@ -118,7 +118,7 @@ export function CasosDeUsoSection() {
               scrollToSection("precos");
             }}
           >
-            Começar teste grátis de {trialDurationDays} dias
+            {trialDays ? `Começar teste grátis de ${trialDays} dias` : "Começar teste grátis"}
             <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
           <p className="text-xs font-semibold text-[#9ca3af] mt-3 tracking-wide">

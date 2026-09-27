@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { XCircle, CheckCircle2, ArrowRight } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
+import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE, LANDING_SECTION_CTA_WRAP } from "./ctaStyles";
 
 export function AntesDepoisSection() {
   const itensManuais = [
@@ -85,14 +86,14 @@ export function AntesDepoisSection() {
           </Card>
         </div>
 
-        <div className="mt-10 text-center">
+        <div className={LANDING_SECTION_CTA_WRAP}>
           <Button
             size="lg"
-            className="h-14 rounded-lg bg-[#12D98B] px-8 text-base font-bold text-[#07100D] shadow-[0_0_30px_rgba(18,217,139,0.2)] transition-all hover:bg-[#21E6A0] md:text-lg"
+            className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} bg-[#12D98B] text-base text-[#07100D] shadow-[0_0_30px_rgba(18,217,139,0.2)] transition-all hover:bg-[#21E6A0] md:text-lg`}
             onClick={goToPricing}
           >
             Ver oportunidades para meu negócio
-            <ArrowRight className="ml-2 h-5 w-5" />
+            <ArrowRight className={LANDING_CTA_ICON} />
           </Button>
         </div>
       </div>

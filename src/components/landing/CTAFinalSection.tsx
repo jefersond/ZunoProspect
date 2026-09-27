@@ -2,6 +2,7 @@ import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
+import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE } from "./ctaStyles";
 
 export function CTAFinalSection() {
   const { trialDurationDays } = useBillingOfferConfig();
@@ -24,14 +25,14 @@ export function CTAFinalSection() {
         <h2 className="mx-auto mb-4 max-w-3xl text-3xl font-extrabold text-[#F3F7F5] md:text-5xl tracking-tight">
           Comece sua próxima prospecção com uma busca mais clara.
         </h2>
-        <p className="mx-auto mb-8 max-w-2xl text-base text-[#A9B8B1] md:text-lg">
+        <p className="mx-auto max-w-2xl text-base text-[#A9B8B1] md:text-lg">
           Escolha um plano, ative o teste e use o Zuno para encontrar empresas, priorizar oportunidades e preparar sua primeira abordagem.
         </p>
 
-        <div className="mx-auto flex max-w-md flex-col justify-center gap-3 sm:max-w-none sm:flex-row">
+        <div className="mx-auto mt-6 flex max-w-md flex-col items-stretch justify-center gap-3 sm:max-w-none sm:flex-row sm:items-center">
           <Button
             size="lg"
-            className="h-14 w-full bg-[#12D98B] text-[#07100D] font-bold shadow-[0_0_30px_rgba(18,217,139,0.25)] hover:bg-[#21E6A0] sm:w-auto px-8"
+            className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} bg-[#12D98B] text-[#07100D] shadow-[0_0_30px_rgba(18,217,139,0.25)] hover:bg-[#21E6A0] sm:px-8`}
             onClick={() => {
               trackEvent("cta_clicked", { cta: "comecar_primeira_busca", location: "final_cta", cta_location: "final" });
               trackEvent("trial_cta_clicked", { cta_location: "final", cta_text: "Começar minha primeira busca", trial_duration_days: trialDurationDays });
@@ -39,7 +40,7 @@ export function CTAFinalSection() {
             }}
           >
             Começar minha primeira busca
-            <ArrowRight className="ml-2 h-5 w-5" />
+            <ArrowRight className={LANDING_CTA_ICON} />
           </Button>
         </div>
         <p className="text-sm font-semibold text-[#F3F7F5] mt-4">

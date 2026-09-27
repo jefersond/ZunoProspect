@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { appendReferralToPath } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
+import { LANDING_CTA_BASE } from "./ctaStyles";
 
 const navItems = [
   { id: "como-funciona", label: "Como funciona" },
@@ -47,11 +48,11 @@ export function LPHeader() {
 
           <div className="hidden items-center gap-3 lg:flex">
             <ThemeToggle />
-            <Button variant="ghost" className="text-sm font-medium text-[#A9B8B1] transition-colors hover:bg-[#12D98B]/5 hover:text-[#21E6A0]" asChild>
+            <Button variant="ghost" className={`${LANDING_CTA_BASE} text-sm font-medium text-[#A9B8B1] transition-colors hover:bg-[#12D98B]/5 hover:text-[#21E6A0]`} asChild>
               <Link to={appendReferralToPath("/auth")}>Entrar</Link>
             </Button>
             <Button 
-              className="bg-[#12D98B] px-6 text-[#07100D] font-bold shadow-lg shadow-[#12D98B]/20 hover:bg-[#21E6A0] hover:scale-[1.02] transition-transform" 
+              className={`${LANDING_CTA_BASE} bg-[#12D98B] text-[#07100D] shadow-lg shadow-[#12D98B]/20 transition-transform hover:scale-[1.02] hover:bg-[#21E6A0]`} 
               onClick={() => {
                 trackEvent("cta_clicked", { cta: "comecar_gratis", location: "header" });
                 scrollToSection("precos");
@@ -82,7 +83,7 @@ export function LPHeader() {
                   ))}
                   <div className="mt-2 space-y-3 border-t border-[#20312A] pt-4">
                     <Button 
-                      className="w-full bg-[#12D98B] text-[#07100D] font-bold hover:bg-[#21E6A0]" 
+                      className={`${LANDING_CTA_BASE} w-full bg-[#12D98B] text-[#07100D] hover:bg-[#21E6A0]`} 
                       onClick={() => {
                         trackEvent("cta_clicked", { cta: "comecar_gratis", location: "mobile_header" });
                         scrollToSection("precos");
@@ -90,7 +91,7 @@ export function LPHeader() {
                     >
                       Começar teste grátis
                     </Button>
-                    <Button variant="outline" className="w-full border-[#20312A] text-[#F3F7F5] hover:bg-[#12D98B]/5" asChild>
+                    <Button variant="outline" className={`${LANDING_CTA_BASE} w-full border-[#20312A] text-[#F3F7F5] hover:bg-[#12D98B]/5`} asChild>
                       <Link to={appendReferralToPath("/auth?tab=login")}>Entrar</Link>
                     </Button>
                   </div>

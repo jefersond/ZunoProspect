@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Building2, MapPin, MessageSquareText, Search, Sparkles, Target } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
+import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE } from "./ctaStyles";
 
 const flow = [
   { label: "Busca", detail: "Cidade ou região + nicho", icon: Search },
@@ -90,11 +91,11 @@ export function ProductProofSection() {
 
               <Button
                 size="lg"
-                className="mt-6 h-12 w-full bg-[#12D98B] font-bold text-[#07100D] hover:bg-[#21E6A0] sm:w-auto"
+                className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} mt-6 bg-[#12D98B] text-[#07100D] hover:bg-[#21E6A0]`}
                 onClick={goToPricing}
               >
                 Ver oportunidades para meu negócio
-                <ArrowRight className="ml-2 h-4 w-4" />
+                <ArrowRight className={LANDING_CTA_ICON} />
               </Button>
             </div>
           </div>

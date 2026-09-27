@@ -21,7 +21,7 @@ const Prospeccao = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
-  const { subscription, isAdmin } = useSubscription();
+  const { subscription, loading: subscriptionLoading, error: subscriptionError, isAdmin } = useSubscription();
   const { user } = useAuth();
 
   // Handle checkout success/cancel and Google OAuth checkout
@@ -141,7 +141,7 @@ const Prospeccao = () => {
 
       <main className="container mx-auto px-4 py-8 space-y-8">
         <PaymentRecoveryBanner />
-        <TrialActivationPanel subscription={subscription} />
+        <TrialActivationPanel subscription={subscription} loading={subscriptionLoading} error={subscriptionError} />
         <div id="primeira-busca">
           <ProspeccaoForm />
         </div>

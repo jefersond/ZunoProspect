@@ -1,39 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.25.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { BILLING_CATALOG, billingAmount, type BillingCycle, type BillingPlanId } from "../_shared/billing/catalog.ts";
 
-const PLANS = {
-  starter: {
-    name: "Starter",
-    monthlyPrice: 47,
-    annualPrice: 470,
-    monthlyUnitAmount: 4700,
-    annualUnitAmount: 47000,
-    leadsLimit: 300,
-    aiLimit: 30,
-  },
-  pro: {
-    name: "Pro",
-    monthlyPrice: 97,
-    annualPrice: 970,
-    monthlyUnitAmount: 9700,
-    annualUnitAmount: 97000,
-    leadsLimit: 800,
-    aiLimit: 100,
-  },
-  agency: {
-    name: "Agency",
-    monthlyPrice: 247,
-    annualPrice: 2470,
-    monthlyUnitAmount: 24700,
-    annualUnitAmount: 247000,
-    leadsLimit: 2000,
-    aiLimit: 300,
-  },
-} as const;
-
-type PlanId = keyof typeof PLANS;
-type BillingCycle = "monthly" | "annual";
+/* legacy catalog removed: billing amounts come from the shared hybrid billing catalog */
+const LEGACY_PLANS_REMOVED = {} as const;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,7 +21,7 @@ function jsonResponse(body: Record<string, unknown>, status: number) {
   });
 }
 
-function normalizePlanId(value: unknown): PlanId | null {
+function normalizePlanId(value: unknown): BillingPlanId | null {
   const planId = String(value || "").trim().toLowerCase();
 
   if (planId === "iniciante") return "starter";
@@ -225,17 +196,45 @@ serve(async (req) => {
       userId: user.id,
       userEmail: user.email ?? null,
     });
-    const plan = PLANS[planId];
-    const unitAmount = billingCycle === "annual" ? plan.annualUnitAmount : plan.monthlyUnitAmount;
+    const plan = BILLING_CATALOG[planId];
+    const unitAmount = billingAmount(planId, billingCycle) * 100;
     const stripe = new Stripe(stripeSecretKey, {
       apiVersion: "2023-10-16",
     });
 
     const source = body.source || "upgrade";
     const offerId = body.offerId || null;
+    const conversionPath = body.conversionPath === "direct_purchase" ? "direct_purchase" : "trial";
+    const requestedTrialDays = Number(body.trialDurationDays || 0);
+    const trialDurationDays = conversionPath === "trial" && Number.isFinite(requestedTrialDays) && requestedTrialDays > 0
+      ? Math.round(requestedTrialDays)
+      : 0;
+    const trialPolicyVersion = String(body.trialPolicyVersion || "").slice(0, 80);
+
+    const { data: localSubscription, error: localSubscriptionError } = await supabaseAdmin
+      .from("user_subscriptions")
+      .select("stripe_customer_id,stripe_subscription_id,subscription_status,status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (localSubscriptionError) {
+      return jsonResponse({ error: "subscription_lookup_failed" }, 500);
+    }
+
+    const liveStatuses = new Set(["active", "trialing", "past_due", "unpaid", "incomplete", "paused"]);
+    if (localSubscription?.stripe_subscription_id) {
+      try {
+        const existing = await stripe.subscriptions.retrieve(localSubscription.stripe_subscription_id);
+        if (liveStatuses.has(existing.status)) {
+          return jsonResponse({ error: "subscription_already_active", status: existing.status }, 409);
+        }
+      } catch (lookupError) {
+        console.warn("[create-stripe-checkout] Falha ao consultar subscription local no Stripe", lookupError);
+      }
+    }
 
     // Buscar stripe_customer_id existente no banco para evitar duplicados no Stripe
-    let stripeCustomerId: string | null = null;
+    let stripeCustomerId: string | null = localSubscription?.stripe_customer_id || null;
     try {
       // 1. Procurar em user_addons
       const { data: addonData } = await supabaseAdmin
@@ -246,9 +245,9 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
-      if (addonData?.stripe_customer_id) {
+      if (!stripeCustomerId && addonData?.stripe_customer_id) {
         stripeCustomerId = addonData.stripe_customer_id;
-      } else {
+      } else if (!stripeCustomerId) {
         // 2. Procurar em user_subscriptions (coluna criada na migração)
         const { data: subData } = await supabaseAdmin
           .from("user_subscriptions")
@@ -280,12 +279,28 @@ serve(async (req) => {
       console.warn("Erro ao buscar stripe_customer_id do banco:", dbError);
     }
 
+    if (stripeCustomerId) {
+      try {
+        const subscriptions = await stripe.subscriptions.list({
+          customer: stripeCustomerId,
+          status: "all",
+          limit: 10,
+        });
+        const existingLive = subscriptions.data.find((subscription) => liveStatuses.has(subscription.status));
+        if (existingLive) {
+          return jsonResponse({ error: "subscription_already_active", status: existingLive.status }, 409);
+        }
+      } catch (lookupError) {
+        console.warn("[create-stripe-checkout] Falha ao verificar subscriptions existentes do customer", lookupError);
+      }
+    }
+
     const checkoutMetadata = {
       user_id: user.id,
       email: user.email || "",
       user_email: user.email || "",
       plan_id: planId,
-      plan_name: plan.name,
+      plan_name: plan.displayName,
       plan_key: planId,
       billing_cycle: billingCycle === "annual" ? "yearly" : "monthly",
       source: String(source),
@@ -294,8 +309,11 @@ serve(async (req) => {
       leads_limit: String(plan.leadsLimit),
       ai_limit: String(plan.aiLimit),
       is_annual: String(billingCycle === "annual"),
-      trial_days: "7",
-      trial_requires_card: "true",
+      conversion_path: conversionPath,
+      trial_days: String(trialDurationDays),
+      trial_duration_days: String(trialDurationDays),
+      trial_policy_version: trialPolicyVersion,
+      trial_requires_card: String(conversionPath === "trial"),
     };
 
     const sessionArgs: any = {
@@ -312,7 +330,7 @@ serve(async (req) => {
               interval: billingCycle === "annual" ? "year" : "month",
             },
             product_data: {
-              name: `Zuno Propect ${plan.name}`,
+              name: `Zuno Propect ${plan.displayName}`,
               description: `${plan.leadsLimit} leads/mês + ${plan.aiLimit} roteiros IA/mês`,
             },
           },
@@ -322,11 +340,11 @@ serve(async (req) => {
       cancel_url: `${publicSiteUrl}/precos?checkout=cancelled`,
       metadata: checkoutMetadata,
       subscription_data: {
-        trial_period_days: 7,
         metadata: {
           ...checkoutMetadata,
-          trial_type: "7_day_card_required",
+          trial_type: conversionPath === "trial" ? "card_required_trial" : "none",
         },
+        ...(conversionPath === "trial" ? { trial_period_days: trialDurationDays } : {}),
       },
       client_reference_id: user.id,
     };
@@ -339,7 +357,8 @@ serve(async (req) => {
       console.log(`Nenhum stripe_customer_id encontrado, usando customer_email: ${user.email}`);
     }
 
-    const session = await stripe.checkout.sessions.create(sessionArgs);
+    const idempotencyKey = `zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}`;
+    const session = await stripe.checkout.sessions.create(sessionArgs, { idempotencyKey });
 
     console.log("Checkout session created", {
       functionName,
@@ -347,6 +366,8 @@ serve(async (req) => {
       planId,
       billingCycle,
       unitAmount,
+      conversionPath,
+      trialDurationDays,
       userId: user.id,
       hasUrl: Boolean(session.url),
     });
@@ -363,10 +384,18 @@ serve(async (req) => {
         billingCycle,
         checkoutUrlCreated: Boolean(session.url),
         stripeMode: getStripeMode(stripeSecretKey),
+        conversion_path: conversionPath,
+        trial_duration_days: trialDurationDays,
       },
     });
 
-    return jsonResponse({ url: session.url, sessionId: session.id }, 200);
+    return jsonResponse({
+      url: session.url,
+      sessionId: session.id,
+      conversionPath,
+      trialDurationDays,
+      trialPolicyVersion,
+    }, 200);
   } catch (error: any) {
     console.error("Checkout error", {
       functionName,

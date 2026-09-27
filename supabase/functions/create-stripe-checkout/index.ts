@@ -145,8 +145,6 @@ serve(async (req) => {
       billingCycle,
       userId: null,
       stripeMode: getStripeMode(stripeSecretKey),
-        trialDurationDays: stripeTrialDurationDays,
-        trialPolicyVersion: stripeTrialPolicyVersion,
     });
 
     if (!planId) {
@@ -385,6 +383,8 @@ serve(async (req) => {
         billingCycle,
         checkoutUrlCreated: Boolean(session.url),
         stripeMode: getStripeMode(stripeSecretKey),
+        trialDurationDays: stripeTrialDurationDays,
+        trialPolicyVersion: stripeTrialPolicyVersion,
       },
     });
 

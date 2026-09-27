@@ -2,6 +2,37 @@ import { getPlanPeriodLabel, getPlanPrice, normalizePlanId, type BillingCycle } 
 
 export const TRIAL_TIME_ZONE = "America/Sao_Paulo";
 
+export type TrialUiState = "loading" | "error" | "none" | "trialing" | "active" | "cancelled" | "past_due" | "other";
+
+export type TrialUiSubscription = {
+  subscription_status?: string | null;
+  status?: string | null;
+  billing_provider?: "stripe" | "mercado_pago" | null;
+  trial_start?: string | null;
+  trial_end?: string | null;
+};
+
+export function resolveTrialUiState(input: {
+  subscription: TrialUiSubscription | null;
+  loading: boolean;
+  error: string | null;
+}): TrialUiState {
+  if (input.loading) return "loading";
+  if (input.error) return "error";
+  if (!input.subscription) return "none";
+
+  const status = String(
+    input.subscription.subscription_status ?? input.subscription.status ?? "",
+  ).trim().toLowerCase();
+
+  if (!status || status === "free") return "none";
+  if (status === "trialing") return "trialing";
+  if (status === "active") return "active";
+  if (["cancelled", "canceled", "incomplete_expired"].includes(status)) return "cancelled";
+  if (["past_due", "unpaid"].includes(status)) return "past_due";
+  return "other";
+}
+
 export function normalizeBillingCycle(value: unknown): BillingCycle {
   const normalized = String(value || "").trim().toLowerCase();
   return ["annual", "yearly", "year"].includes(normalized) ? "annual" : "monthly";

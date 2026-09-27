@@ -68,6 +68,17 @@ const Auth = () => {
     return localStorage.getItem('rememberMe') !== 'false';
   });
   const [signupStartedTracked, setSignupStartedTracked] = useState(false);
+
+  const trackSignupStart = (method: "email" | "google", source: string) => {
+    if (signupStartedTracked) return;
+    setSignupStartedTracked(true);
+    trackEvent("signup_started", {
+      method,
+      source,
+      plan: selectedPlan || null,
+      plan_id: selectedPlan || null,
+    });
+  };
   const [passwordValidation, setPasswordValidation] = useState({
     minLength: false,
     hasUppercase: false,
@@ -128,7 +139,11 @@ const Auth = () => {
   // Handle Google OAuth login
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
-    trackEvent(activeTab === "signup" ? "signup_started" : "login_started", { method: "google", plan_id: selectedPlan || null });
+    if (activeTab === "signup") {
+      trackSignupStart("google", "google_button");
+    } else {
+      trackEvent("login_started", { method: "google", plan_id: selectedPlan || null });
+    }
     
     try {
       const referralCode = searchParams.get("ref");
@@ -301,7 +316,7 @@ const Auth = () => {
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-    trackEvent("signup_started", { method: "email", plan_id: selectedPlan || null });
+    trackSignupStart("email", "submit");
     trackMetaCustomEvent("Signup_Started", {
       method: "email",
       source: selectedPlan ? "checkout" : "landing_or_app",
@@ -681,7 +696,7 @@ const Auth = () => {
                     A indicacao sera registrada, mas o bonus do indicador so sera liberado se voce assinar um plano.
                   </div>
                 )}
-                <form onSubmit={handleSignUp} className="space-y-4">
+                <form onSubmit={handleSignUp} onFocus={() => trackSignupStart("email", "form_interaction")} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signup-fullname">Nome Completo</Label>
                     <Input id="signup-fullname" name="fullName" type="text" placeholder="Seu nome completo" required minLength={3} className={authInputClass} />
@@ -705,10 +720,6 @@ const Auth = () => {
                       required 
                       value={signupPassword} 
                       onChange={e => {
-                        if (!signupStartedTracked) {
-                          setSignupStartedTracked(true);
-                          trackEvent("signup_started", { method: "email", source: "password_input", plan_id: selectedPlan || null });
-                        }
                         setSignupPassword(e.target.value);
                         validatePasswordStrength(e.target.value);
                       }}

@@ -325,7 +325,7 @@ export default function Checkout() {
         currency: "BRL",
         conversion_path: conversionPath,
         intro_offer: introOfferSelected ? introOffer.key : null,
-        intro_price: introOfferSelected ? selectedIntroOffer?.introPrice : null,
+        intro_offer_price: introOfferSelected ? selectedIntroOffer?.introPrice : null,
         regular_price: introOfferSelected ? selectedIntroOffer?.regularPrice : plano.precoMensal,
       });
       trackAddPaymentInfo({
@@ -361,7 +361,7 @@ export default function Checkout() {
         trial_policy_version: data.trialPolicyVersion,
         conversion_path: data.conversionPath,
         intro_offer: data.introOfferApplied ? data.introOfferKey : null,
-        intro_price: data.introOfferApplied ? data.introPrice : null,
+        intro_offer_price: data.introOfferApplied ? data.introPrice : null,
         regular_price: data.regularPrice ?? preco,
         user_plan_before_checkout: usage?.plan_name || "free",
         current_leads_available: usage?.leads_available_total ?? 0,
@@ -779,7 +779,7 @@ export default function Checkout() {
                       <>
                         <ExternalLink className="h-5 w-5 mr-2" />
                         {introOfferSelected
-                          ? `Assinar agora por R$ ${selectedIntroOffer?.introPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          ? "Assinar agora"
                           : hasSession
                             ? "Ir para pagamento"
                             : "Criar conta e pagar"}

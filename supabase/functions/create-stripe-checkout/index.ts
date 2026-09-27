@@ -206,7 +206,7 @@ serve(async (req) => {
 
     const { data: billingConfig, error: billingConfigError } = await supabaseAdmin
       .from("billing_provider_config")
-      .select("stripe_trial_duration_days,stripe_trial_policy_version,starter_intro_offer_enabled,starter_intro_offer_key,starter_intro_offer_plan_id,starter_intro_offer_billing_cycle,starter_intro_offer_conversion_path,starter_intro_offer_intro_amount_cents,starter_intro_offer_regular_amount_cents,starter_intro_offer_duration,stripe_starter_intro_coupon_id")
+      .select("stripe_trial_duration_days,stripe_trial_policy_version,intro_offer_enabled,intro_offer_key,intro_offer_duration,intro_offer_plans")
       .eq("singleton", true)
       .single();
 
@@ -305,17 +305,23 @@ serve(async (req) => {
       }
     }
 
+    const configuredIntroPlans = (billingConfig.intro_offer_plans || {}) as Record<string, {
+      intro_amount_cents?: number;
+      regular_amount_cents?: number;
+      stripe_coupon_id?: string;
+    }>;
+    const configuredPlanOffer = configuredIntroPlans[planId] || {};
     const introOfferConfigured = Boolean(
-      billingConfig.starter_intro_offer_enabled
-      && planId === String(billingConfig.starter_intro_offer_plan_id || "starter")
-      && billingCycle === String(billingConfig.starter_intro_offer_billing_cycle || "monthly")
-      && conversionPath === String(billingConfig.starter_intro_offer_conversion_path || "direct_purchase")
+      billingConfig.intro_offer_enabled
+      && billingCycle === "monthly"
+      && conversionPath === "direct_purchase"
+      && configuredPlanOffer
     );
-    const introOfferKey = String(billingConfig.starter_intro_offer_key || "");
-    const introAmountCents = Number(billingConfig.starter_intro_offer_intro_amount_cents || 0);
-    const regularAmountCents = Number(billingConfig.starter_intro_offer_regular_amount_cents || 0);
-    const introOfferDuration = String(billingConfig.starter_intro_offer_duration || "");
-    const stripeIntroCouponId = String(billingConfig.stripe_starter_intro_coupon_id || "");
+    const introOfferKey = String(billingConfig.intro_offer_key || "");
+    const introAmountCents = Number(configuredPlanOffer.intro_amount_cents || 0);
+    const regularAmountCents = Number(configuredPlanOffer.regular_amount_cents || 0);
+    const introOfferDuration = String(billingConfig.intro_offer_duration || "");
+    const stripeIntroCouponId = String(configuredPlanOffer.stripe_coupon_id || "");
     const hasPaidHistory = Boolean(localSubscription?.last_payment_succeeded_at);
     let introOfferApplied = false;
     let introClaim: any = null;
@@ -329,21 +335,22 @@ serve(async (req) => {
         || introAmountCents >= regularAmountCents
         || !stripeIntroCouponId
       ) {
-        return jsonResponse({ error: "starter_intro_offer_config_invalid" }, 503);
+        return jsonResponse({ error: "intro_offer_config_invalid" }, 503);
       }
 
       const { data: existingClaim, error: claimLookupError } = await supabaseAdmin
         .from("billing_intro_offer_redemptions")
         .select("*")
         .eq("user_id", user.id)
-        .eq("offer_key", introOfferKey)
         .maybeSingle();
 
       if (claimLookupError) {
         return jsonResponse({ error: "intro_offer_lookup_failed" }, 500);
       }
 
-      if (existingClaim?.status !== "redeemed" && !existingClaim?.redeemed_at) {
+      if (existingClaim?.status === "redeemed" || existingClaim?.redeemed_at) {
+        introClaim = null;
+      } else {
         introClaim = existingClaim;
 
         if (!introClaim) {
@@ -370,7 +377,6 @@ serve(async (req) => {
               .from("billing_intro_offer_redemptions")
               .select("*")
               .eq("user_id", user.id)
-              .eq("offer_key", introOfferKey)
               .single();
             if (racedClaimError || !racedClaim) {
               return jsonResponse({ error: "intro_offer_claim_failed" }, 409);
@@ -383,12 +389,18 @@ serve(async (req) => {
           }
         }
 
-        if (introClaim?.provider_checkout_id) {
+        if (introClaim?.status === "redeemed" || introClaim?.redeemed_at) {
+          introClaim = null;
+        } else if (introClaim?.provider_checkout_id) {
           try {
             const previousSession = await stripe.checkout.sessions.retrieve(introClaim.provider_checkout_id);
+            if (previousSession.status === "complete") {
+              return jsonResponse({ error: "intro_offer_payment_pending" }, 409);
+            }
             if (
               previousSession.status === "open"
               && previousSession.url
+              && String(introClaim.plan_id) === planId
               && (!previousSession.expires_at || previousSession.expires_at * 1000 > Date.now())
             ) {
               return jsonResponse({
@@ -404,41 +416,64 @@ serve(async (req) => {
                 resumed: true,
               }, 200);
             }
+            if (previousSession.status === "open" && String(introClaim.plan_id) !== planId) {
+              await stripe.checkout.sessions.expire(previousSession.id);
+            }
           } catch (resumeError) {
-            console.warn("[create-stripe-checkout] Não foi possível retomar checkout introdutório anterior", resumeError);
+            console.warn("[create-stripe-checkout] Não foi possível retomar/expirar checkout introdutório anterior", resumeError);
           }
-
-          const nextGeneration = Number(introClaim.claim_generation || 1) + 1;
-          const { data: refreshedClaim, error: refreshClaimError } = await supabaseAdmin
-            .from("billing_intro_offer_redemptions")
-            .update({
-              claim_generation: nextGeneration,
-              provider_checkout_id: null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", introClaim.id)
-            .eq("status", "claimed")
-            .select("*")
-            .single();
-
-          if (refreshClaimError || !refreshedClaim) {
-            return jsonResponse({ error: "intro_offer_resume_failed" }, 409);
-          }
-          introClaim = refreshedClaim;
         }
 
-        const coupon = await stripe.coupons.retrieve(stripeIntroCouponId);
-        const expectedDiscount = regularAmountCents - introAmountCents;
-        if (
-          !coupon.valid
-          || coupon.duration !== "once"
-          || coupon.currency?.toLowerCase() !== "brl"
-          || Number(coupon.amount_off || 0) !== expectedDiscount
-        ) {
-          return jsonResponse({ error: "stripe_intro_coupon_mismatch" }, 503);
-        }
+        if (introClaim) {
+          const needsRefresh = Boolean(
+            introClaim.provider_checkout_id
+            || String(introClaim.plan_id) !== planId
+            || String(introClaim.offer_key) !== introOfferKey
+            || Number(introClaim.intro_amount_cents) !== introAmountCents
+            || Number(introClaim.regular_amount_cents) !== regularAmountCents
+          );
+          if (needsRefresh) {
+            const nextGeneration = Number(introClaim.claim_generation || 1) + 1;
+            const { data: refreshedClaim, error: refreshClaimError } = await supabaseAdmin
+              .from("billing_intro_offer_redemptions")
+              .update({
+                offer_key: introOfferKey,
+                plan_id: planId,
+                billing_cycle: billingCycle,
+                conversion_path: conversionPath,
+                billing_provider: "stripe",
+                intro_amount_cents: introAmountCents,
+                regular_amount_cents: regularAmountCents,
+                provider_coupon_id: stripeIntroCouponId,
+                provider_customer_id: stripeCustomerId,
+                provider_checkout_id: null,
+                claim_generation: nextGeneration,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", introClaim.id)
+              .eq("status", "claimed")
+              .select("*")
+              .single();
 
-        introOfferApplied = true;
+            if (refreshClaimError || !refreshedClaim) {
+              return jsonResponse({ error: "intro_offer_resume_failed" }, 409);
+            }
+            introClaim = refreshedClaim;
+          }
+
+          const coupon = await stripe.coupons.retrieve(stripeIntroCouponId);
+          const expectedDiscount = regularAmountCents - introAmountCents;
+          if (
+            !coupon.valid
+            || coupon.duration !== "once"
+            || coupon.currency?.toLowerCase() !== "brl"
+            || Number(coupon.amount_off || 0) !== expectedDiscount
+          ) {
+            return jsonResponse({ error: "stripe_intro_coupon_mismatch" }, 503);
+          }
+
+          introOfferApplied = true;
+        }
       }
     }
 

@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
+import { createContext, createElement, type ReactNode, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { BillingProvider } from "@/services/billingCheckout";
 
@@ -105,11 +105,7 @@ export function BillingOfferProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  return (
-    <BillingOfferContext.Provider value={config}>
-      {children}
-    </BillingOfferContext.Provider>
-  );
+  return createElement(BillingOfferContext.Provider, { value: config }, children);
 }
 
 export function useBillingOfferConfig() {

@@ -19,9 +19,12 @@ import { trackEvent } from "@/lib/analytics";
 import { getFunnelContext } from "@/lib/funnelContext";
 import { LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, LANDING_PRICING_CTA_AREA } from "./ctaStyles";
 
+const formatBRL = (value: number) =>
+  value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export function PrecosSection() {
   const navigate = useNavigate();
-  const { trialDurationDays, defaultNewBillingProvider } = useBillingOfferConfig();
+  const { trialDurationDays, defaultNewBillingProvider, introOffer } = useBillingOfferConfig();
   const { hasUsaAddon, isAdmin, subscription, loading: subscriptionLoading } = useSubscription();
   const subscriptionStatus = String(subscription?.subscription_status ?? subscription?.status ?? "").toLowerCase();
   const hasExistingSubscription = Boolean(
@@ -66,6 +69,21 @@ export function PrecosSection() {
   const handleSelectPlano = async (plan: PlanConfig, conversionPath: BillingConversionPath = "trial") => {
     const price = getPlanPrice(plan.id, billingCycle);
     const trackingPrice = plan.monthlyPrice;
+    const introOfferSelected = Boolean(
+      conversionPath === "direct_purchase"
+        && plan.id === "starter"
+        && billingCycle === "monthly"
+        && introOffer.enabled
+        && introOffer.eligible
+        && introOffer.introPrice
+        && introOffer.regularPrice,
+    );
+    const commercialValue = introOfferSelected ? introOffer.introPrice! : price;
+    const introAnalytics = introOfferSelected ? {
+      intro_offer: introOffer.key,
+      intro_price: introOffer.introPrice,
+      regular_price: introOffer.regularPrice,
+    } : {};
 
     trackEvent("cta_clicked", {
       cta: conversionPath === "trial" ? `ativar_teste_${plan.id}` : `assinar_agora_${plan.id}`,
@@ -74,6 +92,7 @@ export function PrecosSection() {
       plan: plan.id,
       plan_id: plan.id,
       conversion_path: conversionPath,
+      ...introAnalytics,
     });
     trackEvent("plan_selected", {
       plan: plan.id,
@@ -81,6 +100,7 @@ export function PrecosSection() {
       billing_cycle: billingCycle,
       cta_location: "pricing",
       conversion_path: conversionPath,
+      ...introAnalytics,
     });
     if (conversionPath === "trial") {
       trackEvent("trial_cta_clicked", {
@@ -97,22 +117,24 @@ export function PrecosSection() {
       page: "landing",
       plan_id: plan.id,
       plan_name: plan.displayName,
-      value: trackingPrice,
+      value: commercialValue,
       currency: "BRL",
       conversion_path: conversionPath,
+      ...introAnalytics,
     });
     trackMetaCustomEvent("Plan_Selected", {
       plan_id: plan.id,
       plan_name: plan.displayName,
-      value: trackingPrice,
+      value: commercialValue,
       currency: "BRL",
       conversion_path: conversionPath,
+      ...introAnalytics,
     });
 
     trackLead({
       content_name: `${plan.displayName} - ${plan.leadsLimit} leads`,
       content_category: "Paid Plan",
-      value: price,
+      value: commercialValue,
       currency: "BRL",
     });
     const funnelContext = await getFunnelContext(null, "pricing_page");
@@ -124,6 +146,7 @@ export function PrecosSection() {
       location: "pricing",
       cta_text: conversionPath === "trial" ? plan.cta : "Prefiro assinar agora",
       conversion_path: conversionPath,
+      ...introAnalytics,
     };
     trackEvent("plan_clicked", { plan_id: plan.id, location: "pricing", billing_cycle: billingCycle });
     trackEvent("upgrade_clicked", upgradeMetadata);
@@ -147,6 +170,7 @@ export function PrecosSection() {
         billingCycle,
         conversionPath,
         source: "pricing_page",
+        offerId: introOfferSelected ? introOffer.key : null,
       });
 
       trackEvent("checkout_started", {
@@ -164,6 +188,9 @@ export function PrecosSection() {
         trial_duration_days: data.trialDurationDays,
         trial_policy_version: data.trialPolicyVersion,
         conversion_path: data.conversionPath,
+        intro_offer: data.introOfferApplied ? data.introOfferKey : null,
+        intro_price: data.introOfferApplied ? data.introPrice : null,
+        regular_price: data.regularPrice ?? price,
         content_name: `Zuno Propect ${plan.name}`,
       });
       trackInitiateCheckout({
@@ -323,24 +350,65 @@ export function PrecosSection() {
                       >
                         {isCurrentProcessing ? (
                           <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : plan.id === "starter" ? (
+                          "Começar meu teste"
                         ) : (
                           "Ativar meu teste"
                         )}
                       </Button>
                       <p className="text-center text-xs font-semibold leading-relaxed text-[#A9B8B1] mt-1">
-                        Hoje R$0. Cartão necessário. {trialDurationDays ? `Teste de ${trialDurationDays} dias. ` : ""}Primeira cobrança com data confirmada no checkout. Cancele antes e não será cobrado.
+                        Hoje R$0. Cartão necessário. {trialDurationDays ? `Teste grátis por ${trialDurationDays} dias. ` : ""}Depois R$ {price.toLocaleString("pt-BR")}{getPlanPeriodLabel(billingCycle)}. Cancele antes e não será cobrado.
                       </p>
-                      <button
-                        type="button"
-                        className="mx-auto mt-2 text-xs font-semibold text-[#A9B8B1] underline decoration-[#20312A] underline-offset-4 transition-colors hover:text-[#F3F7F5] disabled:cursor-not-allowed disabled:opacity-50"
-                        onClick={() => handleSelectPlano(plan, "direct_purchase")}
-                        disabled={Boolean(isProcessing) || subscriptionLoading}
-                      >
-                        Prefiro assinar agora
-                      </button>
-                      <p className="text-center text-xs leading-relaxed text-[#A9B8B1]">
-                        Cobrança de R$ {price.toLocaleString("pt-BR")} hoje.
-                      </p>
+
+                      {plan.id === "starter"
+                        && billingCycle === "monthly"
+                        && introOffer.enabled
+                        && introOffer.eligible
+                        && introOffer.introPrice
+                        && introOffer.regularPrice ? (
+                        <div className="mt-3 rounded-lg border border-[#12D98B]/25 bg-[#07100D] p-3 text-center">
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-[#12D98B]">
+                            Assine agora e economize no primeiro mês
+                          </p>
+                          <p className="mt-1 text-sm font-bold text-[#F3F7F5]">
+                            R$ {formatBRL(introOffer.introPrice)} hoje
+                          </p>
+                          <p className="text-xs text-[#A9B8B1]">
+                            Depois R$ {formatBRL(introOffer.regularPrice)}/mês
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              LANDING_CTA_BASE,
+                              "mt-3 w-full border-[#12D98B]/40 bg-transparent text-[#F3F7F5] hover:border-[#21E6A0] hover:bg-[#12D98B]/5",
+                            )}
+                            onClick={() => handleSelectPlano(plan, "direct_purchase")}
+                            disabled={Boolean(isProcessing) || subscriptionLoading}
+                          >
+                            {isCurrentProcessing ? (
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                            ) : (
+                              `Assinar agora por R$ ${formatBRL(introOffer.introPrice)}`
+                            )}
+                          </Button>
+                          <p className="mt-2 text-[11px] text-[#A9B8B1]">Cancele quando quiser.</p>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className="mx-auto mt-2 text-xs font-semibold text-[#A9B8B1] underline decoration-[#20312A] underline-offset-4 transition-colors hover:text-[#F3F7F5] disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={() => handleSelectPlano(plan, "direct_purchase")}
+                            disabled={Boolean(isProcessing) || subscriptionLoading}
+                          >
+                            Prefiro assinar agora
+                          </button>
+                          <p className="text-center text-xs leading-relaxed text-[#A9B8B1]">
+                            Cobrança de R$ {price.toLocaleString("pt-BR")} hoje.
+                          </p>
+                        </>
+                      )}
                     </>
                   )}
                 </div>

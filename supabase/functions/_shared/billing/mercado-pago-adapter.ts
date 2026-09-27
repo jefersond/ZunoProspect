@@ -73,6 +73,11 @@ export class MercadoPagoAdapter implements BillingProviderAdapter {
         checkoutId: checkout.provider_plan_id,
         trialDurationDays: this.trialDurationDays,
         trialPolicyVersion: this.trialPolicyVersion,
+        conversionPath: input.conversionPath ?? "trial",
+        introOfferApplied: false,
+        introOfferKey: null,
+        introPrice: null,
+        regularPrice: amount,
       };
     }
 

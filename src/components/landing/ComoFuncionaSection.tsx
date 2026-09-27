@@ -16,6 +16,7 @@ import {
   Zap
 } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
+import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE, LANDING_SECTION_CTA_WRAP } from "./ctaStyles";
 
 export function ComoFuncionaSection() {
   const { trialDurationDays } = useBillingOfferConfig();
@@ -319,17 +320,17 @@ export function ComoFuncionaSection() {
         </div>
 
         {/* CTA final da seção */}
-        <div className="mt-14 text-center">
+        <div className={`${LANDING_SECTION_CTA_WRAP} flex-col items-center`}>
           <Button
             size="lg"
-            className="h-14 rounded-lg bg-[#12D98B] text-[#07100D] font-bold shadow-[0_0_30px_rgba(18,217,139,0.2)] hover:bg-[#21E6A0] transition-all px-8 text-base md:text-lg"
+            className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} bg-[#12D98B] text-base text-[#07100D] shadow-[0_0_30px_rgba(18,217,139,0.2)] transition-all hover:bg-[#21E6A0] md:text-lg`}
             onClick={() => {
               trackEvent("cta_clicked", { cta: "comecar_gratis", location: "como_funciona" });
               scrollToSection("precos");
             }}
           >
             {trialDurationDays ? `Começar teste grátis de ${trialDurationDays} dias` : "Começar teste grátis"}
-            <ArrowRight className="ml-2 h-5 w-5" />
+            <ArrowRight className={LANDING_CTA_ICON} />
           </Button>
           <p className="text-xs font-semibold text-[#A9B8B1] mt-3 tracking-wide">
             Hoje R$0. Cartão necessário. Cancele antes da cobrança

@@ -4,6 +4,7 @@ import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
+import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_PAIR, LANDING_CTA_RESPONSIVE } from "./ctaStyles";
 
 export function HeroSection() {
   const { trialDurationDays } = useBillingOfferConfig();
@@ -57,22 +58,22 @@ export function HeroSection() {
                 Escolha uma cidade ou região e o perfil de empresa que procura. O Zuno encontra negócios, organiza os dados públicos disponíveis, destaca sinais de oportunidade e prepara uma abordagem contextual para você começar a conversa.
               </p>
 
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <div className={LANDING_CTA_PAIR}>
                 <Button
                   size="lg"
-                  className="h-14 rounded-lg bg-[#12D98B] px-6 text-base font-bold text-[#07100D] shadow-[0_0_32px_rgba(18,217,139,0.3)] transition-all hover:scale-[1.02] hover:bg-[#21E6A0] sm:px-8 sm:text-lg"
+                  className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} bg-[#12D98B] text-base text-[#07100D] shadow-[0_0_32px_rgba(18,217,139,0.3)] transition-all hover:scale-[1.02] hover:bg-[#21E6A0] sm:px-8 sm:text-lg`}
                   onClick={handlePrimaryCta}
                 >
                   Começar minha primeira busca
-                  <ArrowRight className="ml-2 h-5 w-5" />
+                  <ArrowRight className={LANDING_CTA_ICON} />
                 </Button>
                 <Button
                   size="lg"
                   variant="outline"
-                  className="h-12 rounded-lg border-[#20312A] bg-transparent px-6 text-sm text-[#F3F7F5] hover:border-[#21E6A0]/50 hover:bg-[#12D98B]/5 sm:h-14 sm:text-base"
+                  className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} border-[#20312A] bg-transparent text-sm text-[#F3F7F5] hover:border-[#21E6A0]/50 hover:bg-[#12D98B]/5 sm:px-8 sm:text-base`}
                   onClick={handleProofCta}
                 >
-                  <Play className="mr-2 h-4 w-4" />
+                  <Play className={LANDING_CTA_ICON} />
                   Ver o que o Zuno entrega
                 </Button>
               </div>

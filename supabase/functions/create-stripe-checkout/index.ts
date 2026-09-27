@@ -206,7 +206,7 @@ serve(async (req) => {
 
     const { data: billingConfig, error: billingConfigError } = await supabaseAdmin
       .from("billing_provider_config")
-      .select("stripe_trial_duration_days,stripe_trial_policy_version")
+      .select("stripe_trial_duration_days,stripe_trial_policy_version,starter_intro_offer_enabled,starter_intro_offer_key,starter_intro_offer_plan_id,starter_intro_offer_billing_cycle,starter_intro_offer_conversion_path,starter_intro_offer_intro_amount_cents,starter_intro_offer_regular_amount_cents,starter_intro_offer_duration,stripe_starter_intro_coupon_id")
       .eq("singleton", true)
       .single();
 
@@ -223,7 +223,7 @@ serve(async (req) => {
 
     const { data: localSubscription, error: localSubscriptionError } = await supabaseAdmin
       .from("user_subscriptions")
-      .select("stripe_customer_id,stripe_subscription_id,subscription_status,status")
+      .select("stripe_customer_id,stripe_subscription_id,subscription_status,status,last_payment_succeeded_at")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -305,6 +305,143 @@ serve(async (req) => {
       }
     }
 
+    const introOfferConfigured = Boolean(
+      billingConfig.starter_intro_offer_enabled
+      && planId === String(billingConfig.starter_intro_offer_plan_id || "starter")
+      && billingCycle === String(billingConfig.starter_intro_offer_billing_cycle || "monthly")
+      && conversionPath === String(billingConfig.starter_intro_offer_conversion_path || "direct_purchase")
+    );
+    const introOfferKey = String(billingConfig.starter_intro_offer_key || "");
+    const introAmountCents = Number(billingConfig.starter_intro_offer_intro_amount_cents || 0);
+    const regularAmountCents = Number(billingConfig.starter_intro_offer_regular_amount_cents || 0);
+    const introOfferDuration = String(billingConfig.starter_intro_offer_duration || "");
+    const stripeIntroCouponId = String(billingConfig.stripe_starter_intro_coupon_id || "");
+    const hasPaidHistory = Boolean(localSubscription?.last_payment_succeeded_at);
+    let introOfferApplied = false;
+    let introClaim: any = null;
+
+    if (introOfferConfigured && !hasPaidHistory) {
+      if (
+        !introOfferKey
+        || introOfferDuration !== "first_billing_period"
+        || introAmountCents <= 0
+        || regularAmountCents !== unitAmount
+        || introAmountCents >= regularAmountCents
+        || !stripeIntroCouponId
+      ) {
+        return jsonResponse({ error: "starter_intro_offer_config_invalid" }, 503);
+      }
+
+      const { data: existingClaim, error: claimLookupError } = await supabaseAdmin
+        .from("billing_intro_offer_redemptions")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("offer_key", introOfferKey)
+        .maybeSingle();
+
+      if (claimLookupError) {
+        return jsonResponse({ error: "intro_offer_lookup_failed" }, 500);
+      }
+
+      if (existingClaim?.status !== "redeemed" && !existingClaim?.redeemed_at) {
+        introClaim = existingClaim;
+
+        if (!introClaim) {
+          const { data: insertedClaim, error: insertClaimError } = await supabaseAdmin
+            .from("billing_intro_offer_redemptions")
+            .insert({
+              user_id: user.id,
+              offer_key: introOfferKey,
+              plan_id: planId,
+              billing_cycle: billingCycle,
+              conversion_path: conversionPath,
+              billing_provider: "stripe",
+              intro_amount_cents: introAmountCents,
+              regular_amount_cents: regularAmountCents,
+              provider_coupon_id: stripeIntroCouponId,
+              provider_customer_id: stripeCustomerId,
+              status: "claimed",
+            })
+            .select("*")
+            .single();
+
+          if (insertClaimError?.code === "23505") {
+            const { data: racedClaim, error: racedClaimError } = await supabaseAdmin
+              .from("billing_intro_offer_redemptions")
+              .select("*")
+              .eq("user_id", user.id)
+              .eq("offer_key", introOfferKey)
+              .single();
+            if (racedClaimError || !racedClaim) {
+              return jsonResponse({ error: "intro_offer_claim_failed" }, 409);
+            }
+            introClaim = racedClaim;
+          } else if (insertClaimError || !insertedClaim) {
+            return jsonResponse({ error: "intro_offer_claim_failed" }, 500);
+          } else {
+            introClaim = insertedClaim;
+          }
+        }
+
+        if (introClaim?.provider_checkout_id) {
+          try {
+            const previousSession = await stripe.checkout.sessions.retrieve(introClaim.provider_checkout_id);
+            if (
+              previousSession.status === "open"
+              && previousSession.url
+              && (!previousSession.expires_at || previousSession.expires_at * 1000 > Date.now())
+            ) {
+              return jsonResponse({
+                url: previousSession.url,
+                sessionId: previousSession.id,
+                conversionPath,
+                trialDurationDays,
+                trialPolicyVersion,
+                introOfferApplied: true,
+                introOfferKey,
+                introPrice: introAmountCents / 100,
+                regularPrice: regularAmountCents / 100,
+                resumed: true,
+              }, 200);
+            }
+          } catch (resumeError) {
+            console.warn("[create-stripe-checkout] Não foi possível retomar checkout introdutório anterior", resumeError);
+          }
+
+          const nextGeneration = Number(introClaim.claim_generation || 1) + 1;
+          const { data: refreshedClaim, error: refreshClaimError } = await supabaseAdmin
+            .from("billing_intro_offer_redemptions")
+            .update({
+              claim_generation: nextGeneration,
+              provider_checkout_id: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", introClaim.id)
+            .eq("status", "claimed")
+            .select("*")
+            .single();
+
+          if (refreshClaimError || !refreshedClaim) {
+            return jsonResponse({ error: "intro_offer_resume_failed" }, 409);
+          }
+          introClaim = refreshedClaim;
+        }
+
+        const coupon = await stripe.coupons.retrieve(stripeIntroCouponId);
+        const expectedDiscount = regularAmountCents - introAmountCents;
+        if (
+          !coupon.valid
+          || coupon.duration !== "once"
+          || coupon.currency?.toLowerCase() !== "brl"
+          || Number(coupon.amount_off || 0) !== expectedDiscount
+        ) {
+          return jsonResponse({ error: "stripe_intro_coupon_mismatch" }, 503);
+        }
+
+        introOfferApplied = true;
+      }
+    }
+
     const checkoutMetadata = {
       user_id: user.id,
       email: user.email || "",
@@ -314,7 +451,7 @@ serve(async (req) => {
       plan_key: planId,
       billing_cycle: billingCycle === "annual" ? "yearly" : "monthly",
       source: String(source),
-      offer_id: offerId ? String(offerId) : "",
+      offer_id: introOfferApplied ? introOfferKey : (offerId ? String(offerId) : ""),
       supabase_user_id: user.id,
       leads_limit: String(plan.leadsLimit),
       ai_limit: String(plan.aiLimit),
@@ -324,12 +461,17 @@ serve(async (req) => {
       trial_duration_days: String(trialDurationDays),
       trial_policy_version: trialPolicyVersion,
       trial_requires_card: String(conversionPath === "trial"),
+      intro_offer: introOfferApplied ? introOfferKey : "",
+      intro_offer_applied: String(introOfferApplied),
+      intro_offer_duration: introOfferApplied ? introOfferDuration : "",
+      intro_price_cents: introOfferApplied ? String(introAmountCents) : "",
+      regular_price_cents: introOfferApplied ? String(regularAmountCents) : String(unitAmount),
+      intro_offer_claim_id: introOfferApplied && introClaim?.id ? String(introClaim.id) : "",
     };
 
     const sessionArgs: any = {
       mode: "subscription",
       allow_promotion_codes: planId === "pro",
-      payment_method_types: ["card"],
       line_items: [
         {
           quantity: 1,
@@ -346,7 +488,7 @@ serve(async (req) => {
           },
         },
       ],
-      success_url: `${publicSiteUrl}/prospeccao?checkout=success`,
+      success_url: `${publicSiteUrl}/prospeccao?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${publicSiteUrl}/precos?checkout=cancelled`,
       metadata: checkoutMetadata,
       subscription_data: {
@@ -357,6 +499,7 @@ serve(async (req) => {
         ...(conversionPath === "trial" ? { trial_period_days: trialDurationDays } : {}),
       },
       client_reference_id: user.id,
+      ...(introOfferApplied ? { discounts: [{ coupon: stripeIntroCouponId }] } : {}),
     };
 
     if (stripeCustomerId) {
@@ -370,8 +513,27 @@ serve(async (req) => {
     const localSubscriptionState = String(
       localSubscription?.subscription_status || localSubscription?.status || "none",
     ).toLowerCase();
-    const idempotencyKey = `zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:${localSubscriptionState}`;
+    const idempotencyKey = introOfferApplied && introClaim?.id
+      ? `zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:intro:${introClaim.id}:${introClaim.claim_generation || 1}`
+      : `zuno_checkout:${user.id}:${planId}:${billingCycle}:${conversionPath}:${localSubscriptionState}`;
     const session = await stripe.checkout.sessions.create(sessionArgs, { idempotencyKey });
+
+    if (introOfferApplied && introClaim?.id) {
+      const { error: claimUpdateError } = await supabaseAdmin
+        .from("billing_intro_offer_redemptions")
+        .update({
+          provider_checkout_id: session.id,
+          provider_customer_id: stripeCustomerId,
+          last_checkout_created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", introClaim.id)
+        .eq("status", "claimed");
+
+      if (claimUpdateError) {
+        console.warn("[create-stripe-checkout] Checkout criado, mas claim introdutório não atualizou", claimUpdateError);
+      }
+    }
 
     console.log("Checkout session created", {
       functionName,
@@ -379,7 +541,9 @@ serve(async (req) => {
       planId,
       billingCycle,
       unitAmount,
+      amountToday: introOfferApplied ? introAmountCents : unitAmount,
       conversionPath,
+      introOfferApplied,
       trialDurationDays,
       userId: user.id,
       hasUrl: Boolean(session.url),
@@ -390,7 +554,7 @@ serve(async (req) => {
       provider: "stripe",
       stripe_checkout_session_id: session.id,
       plan_name: planId,
-      amount: unitAmount,
+      amount: introOfferApplied ? introAmountCents : unitAmount,
       currency: "brl",
       status: session.status || "created",
       event_data: {
@@ -399,6 +563,10 @@ serve(async (req) => {
         stripeMode: getStripeMode(stripeSecretKey),
         conversion_path: conversionPath,
         trial_duration_days: trialDurationDays,
+        intro_offer: introOfferApplied ? introOfferKey : null,
+        intro_offer_applied: introOfferApplied,
+        intro_price: introOfferApplied ? introAmountCents / 100 : null,
+        regular_price: unitAmount / 100,
       },
     });
 
@@ -408,6 +576,10 @@ serve(async (req) => {
       conversionPath,
       trialDurationDays,
       trialPolicyVersion,
+      introOfferApplied,
+      introOfferKey: introOfferApplied ? introOfferKey : null,
+      introPrice: introOfferApplied ? introAmountCents / 100 : null,
+      regularPrice: unitAmount / 100,
     }, 200);
   } catch (error: any) {
     console.error("Checkout error", {

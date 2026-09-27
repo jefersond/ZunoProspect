@@ -1148,19 +1148,6 @@ serve(async (req) => {
           error_message: "Usuário não encontrado para ativação automática.",
         }, email || session.customer_details?.email || session.customer_email);
       } else {
-        await logAppEvent(supabaseAdmin, eventUserId, "checkout_completed", {
-          stripe_event_id: event.id,
-          stripe_checkout_session_id: stripeCheckoutSessionId,
-          stripe_customer_id: stripeCustomerId,
-          stripe_subscription_id: stripeSubscriptionId,
-          plan_id: finalPlanId,
-          billing_cycle: metadata?.billing_cycle || "monthly",
-          conversion_path: conversionPath,
-          payment_status: session.payment_status,
-          amount_total: amount,
-          currency: currency?.toUpperCase() || "BRL",
-        }, email, `checkout_completed:${stripeCheckoutSessionId || event.id}`);
-
         if (isAddonMetadata(metadata)) {
           await upsertAddon(supabaseAdmin, {
             userId: eventUserId,
@@ -1171,6 +1158,19 @@ serve(async (req) => {
           });
           console.log(`[stripe-webhook] Add-on ${metadata.addon_id} ativado via checkout.session.completed para o usuário ${eventUserId}`);
         } else {
+          await logAppEvent(supabaseAdmin, eventUserId, "checkout_completed", {
+            stripe_event_id: event.id,
+            stripe_checkout_session_id: stripeCheckoutSessionId,
+            stripe_customer_id: stripeCustomerId,
+            stripe_subscription_id: stripeSubscriptionId,
+            plan_id: finalPlanId,
+            billing_cycle: metadata?.billing_cycle || "monthly",
+            conversion_path: conversionPath,
+            payment_status: session.payment_status,
+            amount_total: amount,
+            currency: currency?.toUpperCase() || "BRL",
+          }, email, `checkout_completed:${stripeCheckoutSessionId || event.id}`);
+
           // Ativação do plano principal
           const billingCycle = metadata?.billing_cycle || "monthly";
           

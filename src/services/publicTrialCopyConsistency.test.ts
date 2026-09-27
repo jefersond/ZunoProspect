@@ -7,6 +7,9 @@ const source = (path: string) => readFileSync(resolve(process.cwd(), path), "utf
 const publicCopyFiles = [
   "index.html",
   "src/components/landing/HeroSection.tsx",
+  "src/components/landing/ProductProofSection.tsx",
+  "src/components/landing/AntesDepoisSection.tsx",
+  "src/components/landing/ParaQuemSection.tsx",
   "src/components/landing/StatsSection.tsx",
   "src/components/landing/ComoFuncionaSection.tsx",
   "src/components/landing/ParaQuemSection.tsx",

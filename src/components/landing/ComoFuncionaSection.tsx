@@ -332,7 +332,7 @@ export function ComoFuncionaSection() {
             <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
           <p className="text-xs font-semibold text-[#9ca3af] mt-3 tracking-wide">
-            Hoje R$0 • Cartão necessário • Cancele antes da cobrança
+            Hoje R$0. Cartão necessário. Cancele antes da cobrança
           </p>
         </div>
       </div>

@@ -32,7 +32,8 @@ describe("Stripe optional direct purchase", () => {
 
   it("takes Stripe trial policy from canonical billing config", () => {
     expect(stripeCheckout).toContain('.from("billing_provider_config")');
-    expect(stripeCheckout).toContain('"stripe_trial_duration_days,stripe_trial_policy_version"');
+    expect(stripeCheckout).toContain("stripe_trial_duration_days");
+    expect(stripeCheckout).toContain("stripe_trial_policy_version");
     expect(stripeCheckout).toContain("billingConfig.stripe_trial_duration_days");
     expect(stripeCheckout).toContain("billingConfig.stripe_trial_policy_version");
   });

@@ -14,6 +14,7 @@ const publicCopyFiles = [
   "src/components/landing/PrecosSection.tsx",
   "src/components/landing/CTAFinalSection.tsx",
   "src/components/landing/StickyCtaBar.tsx",
+  "src/components/landing/mockups/MockupHeroProspeccao.tsx",
   "src/components/landing/data.ts",
   "src/pages/Checkout.tsx",
   "src/config/plans.ts",
@@ -46,6 +47,7 @@ describe("public trial copy consistency", () => {
     expect(joined).not.toContain(" — ");
     expect(joined).not.toContain(" – ");
     expect(joined).not.toContain("Goiânia - GO");
+    expect(joined).not.toContain("São Paulo - SP");
     expect(joined).toContain("Goiânia, GO");
     expect(source("index.html")).not.toContain("Zuno Propect - Prospecção B2B com IA");
   });

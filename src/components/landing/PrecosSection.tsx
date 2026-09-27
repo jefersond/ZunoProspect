@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { createBillingCheckout, billingRedirectAdapter } from "@/services/billingCheckout";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
-import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, type BillingCycle, type PlanConfig } from "@/config/plans";
+import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, resolveTrialDaysCopy, type BillingCycle, type PlanConfig } from "@/config/plans";
 import { cn } from "@/lib/utils";
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 import { appendReferralToPath } from "@/lib/referral";
@@ -256,7 +256,7 @@ export function PrecosSection() {
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2 text-xs leading-relaxed text-[#9ca3af]">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#10d98a]" />
-                      <span>{feature}</span>
+                      <span>{resolveTrialDaysCopy(feature, trialDurationDays)}</span>
                     </li>
                   ))}
                 </ul>

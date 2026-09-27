@@ -14,6 +14,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminRoute } from "@/components/AdminRoute";
 import { initTracking } from "@/lib/tracking";
+import { BillingOfferProvider } from "@/hooks/useBillingOfferConfig";
 
 initTracking();
 
@@ -130,9 +131,11 @@ const App = () => (
           <Toaster />
           <Sonner />
           <AuthProvider>
-            <BrowserRouter>
-              <AppContent />
-            </BrowserRouter>
+            <BillingOfferProvider>
+              <BrowserRouter>
+                <AppContent />
+              </BrowserRouter>
+            </BillingOfferProvider>
           </AuthProvider>
         </TooltipProvider>
       </ThemeProvider>

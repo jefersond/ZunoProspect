@@ -5,6 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+type IntroPlan = {
+  intro_amount_cents?: number;
+  regular_amount_cents?: number;
+  stripe_coupon_id?: string;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "GET" && req.method !== "POST") {
@@ -17,9 +23,10 @@ Deno.serve(async (req) => {
   const url = Deno.env.get("SUPABASE_URL") || "";
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
   const admin = createClient(url, key, { auth: { persistSession: false } });
+
   const { data: config, error } = await admin
     .from("billing_provider_config")
-    .select("default_new_billing_provider,stripe_trial_duration_days,stripe_trial_policy_version,mercado_pago_trial_duration_days,mercado_pago_trial_policy_version,mercado_pago_cutover_ready,starter_intro_offer_enabled,starter_intro_offer_key,starter_intro_offer_plan_id,starter_intro_offer_billing_cycle,starter_intro_offer_conversion_path,starter_intro_offer_intro_amount_cents,starter_intro_offer_regular_amount_cents,starter_intro_offer_duration")
+    .select("default_new_billing_provider,stripe_trial_duration_days,stripe_trial_policy_version,mercado_pago_trial_duration_days,mercado_pago_trial_policy_version,mercado_pago_cutover_ready,intro_offer_enabled,intro_offer_key,intro_offer_duration,intro_offer_plans")
     .eq("singleton", true)
     .single();
 
@@ -31,7 +38,7 @@ Deno.serve(async (req) => {
   }
 
   let effectiveProvider: "stripe" | "mercado_pago" | null = null;
-  let introOfferEligible = Boolean(config.starter_intro_offer_enabled);
+  let introOfferEligible = Boolean(config.intro_offer_enabled);
   let introOfferEligibilityReason = introOfferEligible ? "eligible_preview" : "offer_disabled";
   const authHeader = req.headers.get("authorization") || "";
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
@@ -48,9 +55,8 @@ Deno.serve(async (req) => {
           .maybeSingle(),
         admin
           .from("billing_intro_offer_redemptions")
-          .select("status,redeemed_at")
+          .select("status,redeemed_at,offer_key,plan_id")
           .eq("user_id", userId)
-          .eq("offer_key", config.starter_intro_offer_key)
           .maybeSingle(),
       ]);
 
@@ -65,7 +71,7 @@ Deno.serve(async (req) => {
       const hasPaidHistory = Boolean(relation?.last_payment_succeeded_at);
       const alreadyRedeemed = Boolean(redemption?.redeemed_at || redemption?.status === "redeemed");
 
-      if (!config.starter_intro_offer_enabled) {
+      if (!config.intro_offer_enabled) {
         introOfferEligible = false;
         introOfferEligibilityReason = "offer_disabled";
       } else if (hasActiveSubscription) {
@@ -95,6 +101,17 @@ Deno.serve(async (req) => {
     ? config.mercado_pago_trial_policy_version
     : config.stripe_trial_policy_version;
 
+  const plans = (config.intro_offer_plans || {}) as Record<string, IntroPlan>;
+  const publicPlans = Object.fromEntries(
+    ["starter", "pro", "agency"].map((planId) => {
+      const plan = plans[planId] || {};
+      return [planId, {
+        introPrice: Number(plan.intro_amount_cents || 0) / 100,
+        regularPrice: Number(plan.regular_amount_cents || 0) / 100,
+      }];
+    }),
+  );
+
   return new Response(JSON.stringify({
     defaultNewBillingProvider: defaultProvider,
     effectiveBillingProvider: provider,
@@ -102,14 +119,12 @@ Deno.serve(async (req) => {
     trialPolicyVersion,
     requiresCard: true,
     introOffer: {
-      enabled: Boolean(config.starter_intro_offer_enabled),
-      key: String(config.starter_intro_offer_key || ""),
-      planId: String(config.starter_intro_offer_plan_id || "starter"),
-      billingCycle: String(config.starter_intro_offer_billing_cycle || "monthly"),
-      conversionPath: String(config.starter_intro_offer_conversion_path || "direct_purchase"),
-      duration: String(config.starter_intro_offer_duration || "first_billing_period"),
-      introPrice: Number(config.starter_intro_offer_intro_amount_cents || 0) / 100,
-      regularPrice: Number(config.starter_intro_offer_regular_amount_cents || 0) / 100,
+      enabled: Boolean(config.intro_offer_enabled),
+      key: String(config.intro_offer_key || ""),
+      billingCycle: "monthly",
+      conversionPath: "direct_purchase",
+      duration: String(config.intro_offer_duration || "first_billing_period"),
+      plans: publicPlans,
       eligible: introOfferEligible && provider === "stripe",
       eligibilityReason: provider === "stripe" ? introOfferEligibilityReason : "stripe_only",
     },

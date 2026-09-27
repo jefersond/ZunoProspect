@@ -466,29 +466,99 @@ Deno.serve(async (req) => {
     const paymentId = safeString(payment.id || authorizedPayment.id, 160);
     const approved = paymentStatus === "approved";
     const rejected = paymentStatus === "rejected" || authorizedPayment.status === "rejected";
+    const conversionPath = context.planRow.conversion_path === "direct_purchase" ? "direct_purchase" : "trial";
+    const introOfferApplied = Boolean(context.planRow.intro_offer_applied);
+    const introOfferPrice = introOfferApplied ? Number(context.planRow.intro_amount_cents || 0) / 100 : null;
+    const regularPrice = Number(context.planRow.regular_amount_cents || 0) / 100 || Number(context.planRow.transaction_amount || 0);
+    const chargedAmount = Number(authorizedPayment.transaction_amount || 0);
     const common = {
       plan_id: context.planRow.plan_id,
       billing_cycle: context.planRow.billing_cycle,
+      conversion_path: conversionPath,
       mercado_pago_subscription_id: subscriptionId,
       provider_payment_id: paymentId || null,
       provider_invoice_id: safeString(authorizedPayment.id, 160),
       provider_status: paymentStatus,
       provider_status_detail: rawStatusDetail,
       retry_attempt: Number(authorizedPayment.retry_attempt || 0),
-      amount: Number(authorizedPayment.transaction_amount || 0),
+      amount: chargedAmount,
       currency: safeString(authorizedPayment.currency_id, 10) || "BRL",
       trial_start: local?.trial_start ?? null,
       trial_end: local?.trial_end ?? null,
       trial_duration_days: local?.trial_duration_days ?? context.planRow.trial_duration_days,
       trial_policy_version: local?.trial_policy_version ?? context.planRow.trial_policy_version,
+      intro_offer: introOfferApplied ? context.planRow.intro_offer_key : null,
+      intro_offer_price: introOfferPrice,
+      regular_price: regularPrice,
     };
 
     if (approved) {
       const trialEndMs = local?.trial_end ? Date.parse(local.trial_end) : NaN;
       const paidAtMs = Date.parse(safeString(authorizedPayment.debit_date || authorizedPayment.date_created, 60));
-      const conversion = Number.isFinite(trialEndMs)
+      const trialConverted = conversionPath === "trial"
+        && Number.isFinite(trialEndMs)
         && Number.isFinite(paidAtMs)
         && paidAtMs >= trialEndMs - 15 * 60_000;
+
+      let providerAfterPayment = subscription;
+
+      if (conversionPath === "direct_purchase" && introOfferApplied) {
+        const { data: claim, error: claimError } = await admin
+          .from("billing_intro_offer_redemptions")
+          .select("id,status,redeemed_at,provider_subscription_id,provider_invoice_id")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (claimError || !claim || claim.provider_subscription_id !== subscriptionId) {
+          throw new Error("intro_offer_redemption_context_missing");
+        }
+
+        if (claim.status === "claimed" && !claim.redeemed_at) {
+          if (!introOfferPrice || Math.abs(chargedAmount - introOfferPrice) > 0.001) {
+            throw new Error("mercado_pago_intro_payment_amount_mismatch");
+          }
+          providerAfterPayment = await mpPut(accessToken, `/preapproval/${encodeURIComponent(subscriptionId)}`, {
+            auto_recurring: {
+              transaction_amount: regularPrice,
+              currency_id: "BRL",
+            },
+          });
+          const providerRegularAmount = Number(providerAfterPayment?.auto_recurring?.transaction_amount || 0);
+          if (!Number.isFinite(providerRegularAmount) || Math.abs(providerRegularAmount - regularPrice) > 0.001) {
+            throw new Error("mercado_pago_regular_amount_update_failed");
+          }
+
+          const { data: redeemed, error: redeemError } = await admin
+            .from("billing_intro_offer_redemptions")
+            .update({
+              status: "redeemed",
+              redeemed_at: new Date().toISOString(),
+              provider_invoice_id: safeString(authorizedPayment.id, 160) || null,
+              provider_customer_id: safeString(subscription.payer_id, 160) || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", claim.id)
+            .eq("status", "claimed")
+            .eq("provider_subscription_id", subscriptionId)
+            .select("id")
+            .maybeSingle();
+          if (redeemError || !redeemed) {
+            throw new Error("intro_offer_redemption_persist_failed");
+          }
+        } else {
+          const currentAmount = Number(subscription?.auto_recurring?.transaction_amount || 0);
+          if (Number.isFinite(currentAmount) && currentAmount > 0 && Math.abs(currentAmount - regularPrice) > 0.001) {
+            providerAfterPayment = await mpPut(accessToken, `/preapproval/${encodeURIComponent(subscriptionId)}`, {
+              auto_recurring: {
+                transaction_amount: regularPrice,
+                currency_id: "BRL",
+              },
+            });
+          }
+        }
+      }
+
+      const nextPaymentDate = safeString(providerAfterPayment?.next_payment_date || subscription?.next_payment_date, 60) || null;
+      const activateNow = conversionPath === "direct_purchase" || trialConverted;
 
       await admin.from("user_subscriptions").update({
         payment_status: "paid",
@@ -497,12 +567,16 @@ Deno.serve(async (req) => {
         amount_remaining: 0,
         amount_due: 0,
         invoice_attempt_count: Number(authorizedPayment.retry_attempt || 0) + 1,
-        ...(conversion ? { subscription_status: "active", status: "active" } : {}),
+        ...(nextPaymentDate ? {
+          current_period_end: nextPaymentDate,
+          billing_period_end: nextPaymentDate,
+        } : {}),
+        ...(activateNow ? { subscription_status: "active", status: "active" } : {}),
         updated_at: new Date().toISOString(),
       }).eq("user_id", userId).eq("billing_provider", "mercado_pago");
 
       await canonicalEvent(userId, "purchase_completed", common, paymentId || safeString(authorizedPayment.id, 160));
-      if (conversion) {
+      if (trialConverted) {
         await canonicalEvent(userId, "trial_converted_to_paid", common, subscriptionId);
       }
     } else if (rejected) {

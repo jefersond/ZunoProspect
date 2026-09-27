@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
     if (!subscriptionId || !providerPlanId) return null;
 
     const { data: sessionRow } = await admin.from("mercado_pago_checkout_sessions")
-      .select("id,user_id,plan_id,billing_cycle,trial_duration_days,trial_policy_version,transaction_amount,currency_id,provider_plan_id,provider_subscription_id,status")
+      .select("id,user_id,plan_id,billing_cycle,conversion_path,trial_duration_days,trial_policy_version,transaction_amount,currency_id,provider_plan_id,provider_subscription_id,status,intro_offer_applied,intro_offer_key,intro_amount_cents,regular_amount_cents")
       .eq("provider_plan_id", providerPlanId)
       .maybeSingle();
 
@@ -253,75 +253,142 @@ Deno.serve(async (req) => {
       }).eq("id", planRow.id);
       if (checkoutBindError) throw checkoutBindError;
 
+      const conversionPath = planRow.conversion_path === "direct_purchase" ? "direct_purchase" : "trial";
+      const directPurchase = conversionPath === "direct_purchase";
       const providerPlan = await mpGet(accessToken, `/preapproval_plan/${encodeURIComponent(planRow.provider_plan_id)}`);
       const providerTrial = providerPlan?.auto_recurring?.free_trial;
-      const expectedDays = Number(planRow.trial_duration_days);
-      const providerTrialOk = providerTrial
-        && Number(providerTrial.frequency) === expectedDays
-        && providerTrial.frequency_type === "days";
+      const expectedDays = Number(planRow.trial_duration_days || 0);
+      const providerAmount = Number(providerPlan?.auto_recurring?.transaction_amount || 0);
+      const expectedInitialAmount = Number(planRow.transaction_amount || 0);
 
-      if (!providerTrialOk) {
+      if (!Number.isFinite(providerAmount) || Math.abs(providerAmount - expectedInitialAmount) > 0.001) {
         try { await mpPut(accessToken, `/preapproval/${encodeURIComponent(subscription.id)}`, { status: "canceled" }); } catch {}
-        throw new Error("mercado_pago_trial_policy_mismatch");
+        throw new Error("mercado_pago_initial_amount_mismatch");
       }
 
-      const trialStart = safeString(subscription.last_modified || subscription.date_created, 60) || null;
-      const trialEnd = safeString(subscription.next_payment_date, 60) || null;
+      if (!directPurchase) {
+        const providerTrialOk = providerTrial
+          && Number(providerTrial.frequency) === expectedDays
+          && providerTrial.frequency_type === "days";
+        if (!providerTrialOk) {
+          try { await mpPut(accessToken, `/preapproval/${encodeURIComponent(subscription.id)}`, { status: "canceled" }); } catch {}
+          throw new Error("mercado_pago_trial_policy_mismatch");
+        }
+      } else if (providerTrial) {
+        try { await mpPut(accessToken, `/preapproval/${encodeURIComponent(subscription.id)}`, { status: "canceled" }); } catch {}
+        throw new Error("mercado_pago_direct_purchase_has_trial");
+      }
+
+      if (planRow.intro_offer_applied) {
+        const { data: claim, error: claimError } = await admin
+          .from("billing_intro_offer_redemptions")
+          .select("id,billing_provider,status,redeemed_at,provider_subscription_id")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (claimError || !claim || claim.billing_provider !== "mercado_pago") {
+          try { await mpPut(accessToken, `/preapproval/${encodeURIComponent(subscription.id)}`, { status: "canceled" }); } catch {}
+          throw new Error("intro_offer_claim_missing");
+        }
+        if (claim.provider_subscription_id && claim.provider_subscription_id !== incomingSubscriptionId) {
+          try { await mpPut(accessToken, `/preapproval/${encodeURIComponent(subscription.id)}`, { status: "canceled" }); } catch {}
+          throw new Error("duplicate_mercado_pago_intro_subscription");
+        }
+        if (!claim.provider_subscription_id) {
+          const { data: boundClaim, error: bindError } = await admin
+            .from("billing_intro_offer_redemptions")
+            .update({
+              provider_subscription_id: incomingSubscriptionId,
+              provider_customer_id: safeString(subscription.payer_id, 160) || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", claim.id)
+            .eq("status", "claimed")
+            .is("provider_subscription_id", null)
+            .select("id")
+            .maybeSingle();
+          if (bindError || !boundClaim) {
+            try { await mpPut(accessToken, `/preapproval/${encodeURIComponent(subscription.id)}`, { status: "canceled" }); } catch {}
+            throw new Error("intro_offer_subscription_bind_failed");
+          }
+        }
+      }
+
+      const trialStart = !directPurchase
+        ? safeString(subscription.last_modified || subscription.date_created, 60) || null
+        : null;
+      const trialEnd = !directPurchase
+        ? safeString(subscription.next_payment_date, 60) || null
+        : null;
       const trialStartMs = trialStart ? Date.parse(trialStart) : NaN;
       const trialEndMs = trialEnd ? Date.parse(trialEnd) : NaN;
-      const trialDurationMs = Number.isFinite(trialStartMs) && Number.isFinite(trialEndMs)
-        ? trialEndMs - trialStartMs
-        : NaN;
-      const expectedMs = expectedDays * 86_400_000;
-      const providerDatesOk = Number.isFinite(trialDurationMs)
-        && Math.abs(trialDurationMs - expectedMs) <= 15 * 60_000;
 
-      if (!providerDatesOk) {
-        try { await mpPut(accessToken, `/preapproval/${encodeURIComponent(subscription.id)}`, { status: "canceled" }); } catch {}
-        throw new Error("mercado_pago_trial_end_mismatch");
+      if (!directPurchase) {
+        const trialDurationMs = Number.isFinite(trialStartMs) && Number.isFinite(trialEndMs)
+          ? trialEndMs - trialStartMs
+          : NaN;
+        const expectedMs = expectedDays * 86_400_000;
+        const providerDatesOk = Number.isFinite(trialDurationMs)
+          && Math.abs(trialDurationMs - expectedMs) <= 15 * 60_000;
+        if (!providerDatesOk) {
+          try { await mpPut(accessToken, `/preapproval/${encodeURIComponent(subscription.id)}`, { status: "canceled" }); } catch {}
+          throw new Error("mercado_pago_trial_end_mismatch");
+        }
       }
 
       const providerStatus = safeString(subscription.status, 50);
       const cancelled = providerStatus === "canceled" || providerStatus === "cancelled";
-      const now = Date.now();
-      const inTrial = !cancelled && trialEndMs > now;
-      const localStatus = cancelled ? "cancelled" : inTrial ? "trialing" : providerStatus === "authorized" ? "active" : providerStatus;
+      const inTrial = !directPurchase && !cancelled && Number.isFinite(trialEndMs) && trialEndMs > Date.now();
+      const localStatus = cancelled
+        ? "cancelled"
+        : inTrial
+          ? "trialing"
+          : "incomplete";
       const entitlements = BILLING_CATALOG[planRow.plan_id as BillingPlanId];
+      const providerNextPayment = safeString(subscription.next_payment_date, 60) || null;
 
-      const { error: updateError } = await admin.from("user_subscriptions").update({
+      const preapprovalUpdate: Record<string, unknown> = {
         billing_provider: "mercado_pago",
         mercado_pago_subscription_id: safeString(subscription.id, 160),
         mercado_pago_plan_id: safeString(subscription.preapproval_plan_id, 160),
         mercado_pago_payer_id: safeString(subscription.payer_id, 160) || null,
-        plan_name: planRow.plan_id,
         billing_cycle: planRow.billing_cycle,
         is_annual: planRow.billing_cycle === "annual",
-        leads_limit: entitlements.leadsLimit,
-        ai_limit: entitlements.aiLimit,
         subscription_status: localStatus,
         status: localStatus,
         trial_start: trialStart,
         trial_end: trialEnd,
-        current_period_start: trialStart,
-        current_period_end: trialEnd,
-        billing_period_end: trialEnd,
+        current_period_start: trialStart || safeString(subscription.date_created, 60) || null,
+        current_period_end: trialEnd || providerNextPayment,
+        billing_period_end: trialEnd || providerNextPayment,
         trial_duration_days: expectedDays,
         trial_policy_version: planRow.trial_policy_version,
         cancel_at_period_end: false,
         canceled_at: cancelled ? new Date().toISOString() : null,
         updated_at: new Date().toISOString(),
-      }).eq("user_id", userId).eq("billing_provider", "mercado_pago");
+      };
+      if (!directPurchase) {
+        preapprovalUpdate.plan_name = planRow.plan_id;
+        preapprovalUpdate.leads_limit = entitlements.leadsLimit;
+        preapprovalUpdate.ai_limit = entitlements.aiLimit;
+      }
+
+      const { error: updateError } = await admin.from("user_subscriptions").update(preapprovalUpdate)
+        .eq("user_id", userId).eq("billing_provider", "mercado_pago");
       if (updateError) throw updateError;
 
       const common = {
         plan_id: planRow.plan_id,
         billing_cycle: planRow.billing_cycle,
+        conversion_path: conversionPath,
         mercado_pago_subscription_id: safeString(subscription.id, 160),
         mercado_pago_plan_id: safeString(subscription.preapproval_plan_id, 160),
         trial_start: trialStart,
         trial_end: trialEnd,
         trial_duration_days: expectedDays,
         trial_policy_version: planRow.trial_policy_version,
+        intro_offer: planRow.intro_offer_applied ? planRow.intro_offer_key : null,
+        intro_offer_price: planRow.intro_offer_applied ? Number(planRow.intro_amount_cents || 0) / 100 : null,
+        regular_price: Number(planRow.regular_amount_cents || 0) / 100 || null,
         provider_status: providerStatus,
       };
 
@@ -334,7 +401,7 @@ Deno.serve(async (req) => {
 
       if (cancelled) {
         await canonicalEvent(userId, "subscription_cancelled", common, safeString(subscription.id, 160));
-        if (trialEndMs > Date.now()) {
+        if (!directPurchase && Number.isFinite(trialEndMs) && trialEndMs > Date.now()) {
           await canonicalEvent(userId, "trial_cancelled", common, safeString(subscription.id, 160));
         }
       }
@@ -342,7 +409,14 @@ Deno.serve(async (req) => {
       await persistPaymentEvent({
         user_id: userId,
         status: "processed",
-        event_data: { action, data_id: dataId, provider_status: providerStatus, subscription_id: subscription.id },
+        event_data: {
+          action,
+          data_id: dataId,
+          provider_status: providerStatus,
+          subscription_id: subscription.id,
+          conversion_path: conversionPath,
+          intro_offer_applied: Boolean(planRow.intro_offer_applied),
+        },
       });
       return json({ ok: true }, 200);
     }
@@ -397,43 +471,121 @@ Deno.serve(async (req) => {
     const paymentId = safeString(payment.id || authorizedPayment.id, 160);
     const approved = paymentStatus === "approved";
     const rejected = paymentStatus === "rejected" || authorizedPayment.status === "rejected";
+    const conversionPath = context.planRow.conversion_path === "direct_purchase" ? "direct_purchase" : "trial";
+    const introOfferApplied = Boolean(context.planRow.intro_offer_applied);
+    const introOfferPrice = introOfferApplied ? Number(context.planRow.intro_amount_cents || 0) / 100 : null;
+    const regularPrice = Number(context.planRow.regular_amount_cents || 0) / 100 || Number(context.planRow.transaction_amount || 0);
+    const chargedAmount = Number(authorizedPayment.transaction_amount || 0);
     const common = {
       plan_id: context.planRow.plan_id,
       billing_cycle: context.planRow.billing_cycle,
+      conversion_path: conversionPath,
       mercado_pago_subscription_id: subscriptionId,
       provider_payment_id: paymentId || null,
       provider_invoice_id: safeString(authorizedPayment.id, 160),
       provider_status: paymentStatus,
       provider_status_detail: rawStatusDetail,
       retry_attempt: Number(authorizedPayment.retry_attempt || 0),
-      amount: Number(authorizedPayment.transaction_amount || 0),
+      amount: chargedAmount,
       currency: safeString(authorizedPayment.currency_id, 10) || "BRL",
       trial_start: local?.trial_start ?? null,
       trial_end: local?.trial_end ?? null,
       trial_duration_days: local?.trial_duration_days ?? context.planRow.trial_duration_days,
       trial_policy_version: local?.trial_policy_version ?? context.planRow.trial_policy_version,
+      intro_offer: introOfferApplied ? context.planRow.intro_offer_key : null,
+      intro_offer_price: introOfferPrice,
+      regular_price: regularPrice,
     };
 
     if (approved) {
       const trialEndMs = local?.trial_end ? Date.parse(local.trial_end) : NaN;
       const paidAtMs = Date.parse(safeString(authorizedPayment.debit_date || authorizedPayment.date_created, 60));
-      const conversion = Number.isFinite(trialEndMs)
+      const trialConverted = conversionPath === "trial"
+        && Number.isFinite(trialEndMs)
         && Number.isFinite(paidAtMs)
         && paidAtMs >= trialEndMs - 15 * 60_000;
 
+      let providerAfterPayment = subscription;
+
+      if (conversionPath === "direct_purchase" && introOfferApplied) {
+        const { data: claim, error: claimError } = await admin
+          .from("billing_intro_offer_redemptions")
+          .select("id,status,redeemed_at,provider_subscription_id,provider_invoice_id")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (claimError || !claim || claim.provider_subscription_id !== subscriptionId) {
+          throw new Error("intro_offer_redemption_context_missing");
+        }
+
+        if (claim.status === "claimed" && !claim.redeemed_at) {
+          if (!introOfferPrice || Math.abs(chargedAmount - introOfferPrice) > 0.001) {
+            throw new Error("mercado_pago_intro_payment_amount_mismatch");
+          }
+          providerAfterPayment = await mpPut(accessToken, `/preapproval/${encodeURIComponent(subscriptionId)}`, {
+            auto_recurring: {
+              transaction_amount: regularPrice,
+              currency_id: "BRL",
+            },
+          });
+          const providerRegularAmount = Number(providerAfterPayment?.auto_recurring?.transaction_amount || 0);
+          if (!Number.isFinite(providerRegularAmount) || Math.abs(providerRegularAmount - regularPrice) > 0.001) {
+            throw new Error("mercado_pago_regular_amount_update_failed");
+          }
+
+          const { data: redeemed, error: redeemError } = await admin
+            .from("billing_intro_offer_redemptions")
+            .update({
+              status: "redeemed",
+              redeemed_at: new Date().toISOString(),
+              provider_invoice_id: safeString(authorizedPayment.id, 160) || null,
+              provider_customer_id: safeString(subscription.payer_id, 160) || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", claim.id)
+            .eq("status", "claimed")
+            .eq("provider_subscription_id", subscriptionId)
+            .select("id")
+            .maybeSingle();
+          if (redeemError || !redeemed) {
+            throw new Error("intro_offer_redemption_persist_failed");
+          }
+        } else {
+          const currentAmount = Number(subscription?.auto_recurring?.transaction_amount || 0);
+          if (Number.isFinite(currentAmount) && currentAmount > 0 && Math.abs(currentAmount - regularPrice) > 0.001) {
+            providerAfterPayment = await mpPut(accessToken, `/preapproval/${encodeURIComponent(subscriptionId)}`, {
+              auto_recurring: {
+                transaction_amount: regularPrice,
+                currency_id: "BRL",
+              },
+            });
+          }
+        }
+      }
+
+      const nextPaymentDate = safeString(providerAfterPayment?.next_payment_date || subscription?.next_payment_date, 60) || null;
+      const activateNow = conversionPath === "direct_purchase" || trialConverted;
+
+      const paidEntitlements = BILLING_CATALOG[context.planRow.plan_id as BillingPlanId];
       await admin.from("user_subscriptions").update({
+        plan_name: context.planRow.plan_id,
+        leads_limit: paidEntitlements.leadsLimit,
+        ai_limit: paidEntitlements.aiLimit,
         payment_status: "paid",
         last_payment_succeeded_at: new Date().toISOString(),
         latest_invoice_id: safeString(authorizedPayment.id, 160),
         amount_remaining: 0,
         amount_due: 0,
         invoice_attempt_count: Number(authorizedPayment.retry_attempt || 0) + 1,
-        ...(conversion ? { subscription_status: "active", status: "active" } : {}),
+        ...(nextPaymentDate ? {
+          current_period_end: nextPaymentDate,
+          billing_period_end: nextPaymentDate,
+        } : {}),
+        ...(activateNow ? { subscription_status: "active", status: "active" } : {}),
         updated_at: new Date().toISOString(),
       }).eq("user_id", userId).eq("billing_provider", "mercado_pago");
 
       await canonicalEvent(userId, "purchase_completed", common, paymentId || safeString(authorizedPayment.id, 160));
-      if (conversion) {
+      if (trialConverted) {
         await canonicalEvent(userId, "trial_converted_to_paid", common, subscriptionId);
       }
     } else if (rejected) {
@@ -467,6 +619,11 @@ Deno.serve(async (req) => {
         payment_status: paymentStatus,
         status_detail: rawStatusDetail,
         retry_attempt: Number(authorizedPayment.retry_attempt || 0),
+        conversion_path: conversionPath,
+        plan_id: context.planRow.plan_id,
+        intro_offer: introOfferApplied ? context.planRow.intro_offer_key : null,
+        intro_offer_price: introOfferPrice,
+        regular_price: regularPrice,
       },
     });
     return json({ ok: true }, 200);

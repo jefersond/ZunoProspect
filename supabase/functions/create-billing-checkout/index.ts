@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
   const [{ data: config, error: configError }, { data: subscription, error: subscriptionError }] = await Promise.all([
     admin.from("billing_provider_config").select("*").eq("singleton", true).single(),
     admin.from("user_subscriptions")
-      .select("billing_provider,stripe_customer_id,stripe_subscription_id,mercado_pago_subscription_id")
+      .select("billing_provider,stripe_customer_id,stripe_subscription_id,mercado_pago_subscription_id,subscription_status,status,last_payment_succeeded_at")
       .eq("user_id", user.id)
       .maybeSingle(),
   ]);
@@ -111,6 +111,12 @@ Deno.serve(async (req) => {
     return json({ error: "mercado_pago_credentials_missing" }, 503);
   }
 
+  const currentStatus = String(subscription?.subscription_status || subscription?.status || "").toLowerCase();
+  const liveStatuses = new Set(["active", "trialing", "past_due", "unpaid", "incomplete", "paused"]);
+  if (subscription && liveStatuses.has(currentStatus)) {
+    return json({ error: "subscription_already_active", status: currentStatus }, 409);
+  }
+
   const { data: claimedProvider, error: claimError } = await admin.rpc("claim_billing_provider", {
     p_user_id: user.id,
     p_requested_provider: requestedProvider,
@@ -121,10 +127,6 @@ Deno.serve(async (req) => {
   }
 
   const provider = String(claimedProvider) as BillingProviderName;
-
-  if (conversionPath === "direct_purchase" && provider !== "stripe") {
-    return json({ error: "direct_purchase_stripe_only" }, 409);
-  }
 
   try {
     if (provider === "stripe") {
@@ -139,17 +141,20 @@ Deno.serve(async (req) => {
       return json(result);
     }
 
-    const accessToken = Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN") || "";
-    if (!accessToken) return json({ error: "mercado_pago_credentials_missing" }, 503);
-
     const appUrl = (Deno.env.get("APP_URL") || "https://www.zunopropect.com.br").replace(/\/$/, "");
     const adapter = new MercadoPagoAdapter(
       admin,
-      accessToken,
+      mercadoPagoAccessToken,
       user.id,
       typedConfig.mercado_pago_trial_duration_days,
       typedConfig.mercado_pago_trial_policy_version,
       `${appUrl}/prospeccao?subscription=success&provider=mercado_pago`,
+      {
+        enabled: typedConfig.intro_offer_enabled === true,
+        key: String(typedConfig.intro_offer_key || ""),
+        duration: typedConfig.intro_offer_duration,
+        plans: typedConfig.intro_offer_plans || {},
+      },
     );
     const result = await adapter.createCheckout(input);
     return json(result);

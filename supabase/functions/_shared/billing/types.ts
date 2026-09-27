@@ -3,6 +3,12 @@ import type { BillingCycle, BillingPlanId } from "./catalog.ts";
 export type BillingProviderName = "stripe" | "mercado_pago";
 export type BillingConversionPath = "trial" | "direct_purchase";
 
+export type BillingIntroOfferPlanConfig = {
+  intro_amount_cents: number;
+  regular_amount_cents: number;
+  stripe_coupon_id?: string | null;
+};
+
 export type BillingProviderConfig = {
   default_new_billing_provider: BillingProviderName;
   stripe_trial_duration_days: number;
@@ -10,15 +16,10 @@ export type BillingProviderConfig = {
   mercado_pago_trial_duration_days: number;
   mercado_pago_trial_policy_version: string;
   mercado_pago_cutover_ready: boolean;
-  starter_intro_offer_enabled: boolean;
-  starter_intro_offer_key: string;
-  starter_intro_offer_plan_id: "starter";
-  starter_intro_offer_billing_cycle: "monthly";
-  starter_intro_offer_conversion_path: "direct_purchase";
-  starter_intro_offer_intro_amount_cents: number;
-  starter_intro_offer_regular_amount_cents: number;
-  starter_intro_offer_duration: "first_billing_period";
-  stripe_starter_intro_coupon_id: string | null;
+  intro_offer_enabled: boolean;
+  intro_offer_key: string;
+  intro_offer_duration: "first_billing_period";
+  intro_offer_plans: Partial<Record<BillingPlanId, BillingIntroOfferPlanConfig>>;
 };
 
 export type BillingCheckoutInput = {

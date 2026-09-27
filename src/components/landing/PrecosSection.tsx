@@ -280,8 +280,8 @@ export function PrecosSection() {
                       "Ativar meu teste"
                     )}
                   </Button>
-                  <p className="text-center text-xs font-semibold text-[#9ca3af] tracking-wide mt-1">
-                    Cartão necessário. Cancele antes da cobrança.
+                  <p className="text-center text-xs font-semibold leading-relaxed text-[#9ca3af] mt-1">
+                    Hoje R$0. Cartão necessário. {trialDurationDays ? `Teste de ${trialDurationDays} dias. ` : ""}Primeira cobrança com data confirmada no checkout. Cancele antes e não será cobrado.
                   </p>
                 </div>
               </Card>

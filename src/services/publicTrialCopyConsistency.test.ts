@@ -1,54 +1,52 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const source = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
+const root = process.cwd();
+const source = (path: string) => readFileSync(resolve(root, path), "utf8");
 const visibleSource = (path: string) =>
   source(path)
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/^\s*\/\/.*$/gm, "");
 
-const PUBLIC_COPY_FILES = [
-  "src/components/landing/HeroSection.tsx",
-  "src/components/landing/CTAFinalSection.tsx",
-  "src/components/landing/PrecosSection.tsx",
-  "src/components/landing/FAQSection.tsx",
-  "src/components/landing/ComoFuncionaSection.tsx",
-  "src/components/landing/CasosDeUsoSection.tsx",
-  "src/components/landing/StatsSection.tsx",
-  "src/components/landing/StickyCtaBar.tsx",
-  "src/components/landing/data.ts",
-  "src/components/landing/ParaQuemSection.tsx",
-  "src/components/landing/CheckoutDialog.tsx",
-  "src/pages/Checkout.tsx",
-  "src/pages/Auth.tsx",
-  "src/pages/Dashboard.tsx",
-  "src/pages/Profile.tsx",
-  "src/components/subscription/TrialActivationPanel.tsx",
+function collectFiles(dir: string): string[] {
+  return readdirSync(resolve(root, dir)).flatMap((entry) => {
+    const relative = `${dir}/${entry}`;
+    const absolute = resolve(root, relative);
+    if (statSync(absolute).isDirectory()) return collectFiles(relative);
+    return /\.(?:ts|tsx)$/.test(entry) ? [relative] : [];
+  });
+}
+
+const PUBLIC_UI_FILES = [
+  ...collectFiles("src/components/landing"),
+  ...collectFiles("src/components/subscription"),
+  ...collectFiles("src/components/profile"),
+  ...collectFiles("src/pages").filter((path) => !/\/Admin[^/]*\.tsx$/.test(path)),
   "src/config/plans.ts",
   "index.html",
 ];
 
 describe("public Zuno trial copy", () => {
-  it("does not hardcode a public seven-day offer", () => {
-    for (const path of PUBLIC_COPY_FILES) {
+  it("does not hardcode a public seven-day offer anywhere in the user-facing UI", () => {
+    for (const path of PUBLIC_UI_FILES) {
       expect(visibleSource(path), path).not.toMatch(/\b7\s*(?:dia|dias|day|days)\b|\bsete\s+dias\b/i);
     }
   });
 
-  it("does not use em dash or en dash as public punctuation", () => {
-    for (const path of PUBLIC_COPY_FILES) {
+  it("does not use em dash or en dash as user-facing punctuation", () => {
+    for (const path of PUBLIC_UI_FILES) {
       expect(visibleSource(path), path).not.toMatch(/[—–]/);
     }
   });
 
-  it("uses comma for city and state examples", () => {
-    const copy = PUBLIC_COPY_FILES.map(visibleSource).join("\n");
+  it("uses comma for the public city and state examples", () => {
+    const copy = PUBLIC_UI_FILES.map(visibleSource).join("\n");
     expect(copy).not.toMatch(/\b(?:Campinas|Goiânia|Belo Horizonte|Curitiba|Ribeirão Preto)\s+-\s+[A-Z]{2}\b/);
     expect(copy).toContain("Goiânia, GO");
   });
 
-  it("shares the canonical billing offer config across the app", () => {
+  it("shares the canonical billing offer config across the app and Stripe provider", () => {
     const hook = source("src/hooks/useBillingOfferConfig.ts");
     const app = source("src/App.tsx");
     const stripeCheckout = source("supabase/functions/create-stripe-checkout/index.ts");
@@ -58,5 +56,6 @@ describe("public Zuno trial copy", () => {
     expect(hook).not.toContain("trialDurationDays: 7");
     expect(app).toContain("<BillingOfferProvider>");
     expect(stripeCheckout).toContain("trial_period_days: stripeTrialDurationDays");
+    expect(stripeCheckout).not.toContain("trial_period_days: 7");
   });
 });

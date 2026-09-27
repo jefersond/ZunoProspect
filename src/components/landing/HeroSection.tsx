@@ -37,30 +37,30 @@ export function HeroSection() {
   };
 
   return (
-    <section className="relative overflow-hidden border-b border-[#1f2d29]/40 bg-[#0b0f0e] pb-12 pt-10 selection:bg-[#10d98a]/30 md:pb-20 md:pt-20">
-      <div className="pointer-events-none absolute left-1/3 top-1/4 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-[#10d98a]/5 blur-[120px]" />
+    <section className="relative overflow-hidden border-b border-[#20312A]/40 bg-[#07100D] pb-12 pt-10 selection:bg-[#12D98B]/30 md:pb-20 md:pt-20">
+      <div className="pointer-events-none absolute left-1/3 top-1/4 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-[#12D98B]/5 blur-[120px]" />
 
       <div className="container relative z-10 mx-auto px-4">
         <div className="grid min-w-0 items-center gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8">
           <div className="relative min-w-0">
-            <div className="rounded-2xl border border-[#1f2d29] bg-[#111816]/80 p-5 shadow-[0_0_50px_rgba(16,217,138,0.02)] backdrop-blur-md sm:p-6 md:p-8">
-              <div className="mb-4 inline-flex max-w-full items-start gap-1.5 rounded-full border border-[#10d98a]/30 bg-[#10d98a]/10 px-3 py-1 text-left text-xs font-semibold leading-relaxed text-[#10d98a]">
+            <div className="rounded-2xl border border-[#20312A] bg-[#0D1713]/80 p-5 shadow-[0_0_50px_rgba(18,217,139,0.02)] backdrop-blur-md sm:p-6 md:p-8">
+              <div className="mb-4 inline-flex max-w-full items-start gap-1.5 rounded-full border border-[#12D98B]/30 bg-[#12D98B]/10 px-3 py-1 text-left text-xs font-semibold leading-relaxed text-[#12D98B]">
                 <Sparkles className="h-3.5 w-3.5 shrink-0" />
                 Plataforma de prospecção B2B para agências e freelancers
               </div>
 
-              <h1 className="max-w-3xl text-3xl font-extrabold leading-[1.08] tracking-tight text-[#f4f4f5] sm:text-4xl lg:text-6xl">
+              <h1 className="max-w-3xl text-3xl font-extrabold leading-[1.08] tracking-tight text-[#F3F7F5] sm:text-4xl lg:text-6xl">
                 Encontre empresas com potencial para comprar de você e saiba como iniciar a conversa.
               </h1>
 
-              <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#9ca3af] sm:text-base md:text-lg">
+              <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#A9B8B1] sm:text-base md:text-lg">
                 Escolha uma cidade ou região e o perfil de empresa que procura. O Zuno encontra negócios, organiza os dados públicos disponíveis, destaca sinais de oportunidade e prepara uma abordagem contextual para você começar a conversa.
               </p>
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Button
                   size="lg"
-                  className="h-14 rounded-lg bg-[#10d98a] px-6 text-base font-bold text-[#0b0f0e] shadow-[0_0_32px_rgba(16,217,138,0.3)] transition-all hover:scale-[1.02] hover:bg-[#10d98a]/90 sm:px-8 sm:text-lg"
+                  className="h-14 rounded-lg bg-[#12D98B] px-6 text-base font-bold text-[#07100D] shadow-[0_0_32px_rgba(18,217,139,0.3)] transition-all hover:scale-[1.02] hover:bg-[#21E6A0] sm:px-8 sm:text-lg"
                   onClick={handlePrimaryCta}
                 >
                   Começar minha primeira busca
@@ -69,7 +69,7 @@ export function HeroSection() {
                 <Button
                   size="lg"
                   variant="outline"
-                  className="h-12 rounded-lg border-[#1f2d29] bg-transparent px-6 text-sm text-[#f4f4f5] hover:border-[#10d98a]/40 hover:bg-[#10d98a]/5 sm:h-14 sm:text-base"
+                  className="h-12 rounded-lg border-[#20312A] bg-transparent px-6 text-sm text-[#F3F7F5] hover:border-[#21E6A0]/50 hover:bg-[#12D98B]/5 sm:h-14 sm:text-base"
                   onClick={handleProofCta}
                 >
                   <Play className="mr-2 h-4 w-4" />
@@ -78,8 +78,8 @@ export function HeroSection() {
               </div>
 
               <div className="mt-4 flex items-start gap-2 sm:items-center">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#10d98a] sm:mt-0" />
-                <p className="text-xs font-medium leading-snug text-[#9ca3af]">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#12D98B] sm:mt-0" />
+                <p className="text-xs font-medium leading-snug text-[#A9B8B1]">
                   {trialDurationDays
                     ? `Hoje R$0. Cartão necessário. Teste de ${trialDurationDays} dias. Cancele antes da primeira cobrança.`
                     : "Hoje R$0. Cartão necessário. A duração vigente será confirmada antes do checkout."}

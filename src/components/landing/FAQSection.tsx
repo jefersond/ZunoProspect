@@ -25,11 +25,11 @@ export function FAQSection() {
   }, []);
 
   return (
-    <section id="faq" ref={sectionRef} className="py-20 bg-[#0b0f0e] border-b border-[#1f2d29]/40">
+    <section id="faq" ref={sectionRef} className="py-20 bg-[#07100D] border-b border-[#20312A]/40">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
-          <Badge variant="outline" className="mb-4 border-[#1f2d29] text-[#9ca3af] bg-[#111816]/50">Dúvidas frequentes</Badge>
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-[#f4f4f5]">
+          <Badge variant="outline" className="mb-4 border-[#20312A] text-[#A9B8B1] bg-[#0D1713]/50">Dúvidas frequentes</Badge>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-[#F3F7F5]">
             Dúvidas antes de começar
           </h2>
         </div>
@@ -40,12 +40,12 @@ export function FAQSection() {
               <AccordionItem
                 key={index}
                 value={`item-${index}`}
-                className="bg-[#111816] rounded-lg px-6 border border-[#1f2d29] text-[#f4f4f5]"
+                className="bg-[#0D1713] rounded-lg px-6 border border-[#20312A] text-[#F3F7F5]"
               >
-                <AccordionTrigger className="text-left font-semibold hover:no-underline hover:text-[#10d98a] py-4 transition-colors">
+                <AccordionTrigger className="text-left font-semibold hover:no-underline hover:text-[#21E6A0] py-4 transition-colors">
                   {item.pergunta}
                 </AccordionTrigger>
-                <AccordionContent className="text-[#9ca3af] leading-relaxed pb-4">
+                <AccordionContent className="text-[#A9B8B1] leading-relaxed pb-4">
                   {item.resposta}
                 </AccordionContent>
               </AccordionItem>

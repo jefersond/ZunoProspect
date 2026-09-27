@@ -159,11 +159,11 @@ export function UsaAddonDialog({ open, onOpenChange }: UsaAddonDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="border-[#20312A] bg-[#111D18] text-[#F3F7F5] sm:max-w-xl">
         <DialogHeader>
           <div className="mb-2 flex items-center gap-3">
-            <div className="rounded-lg bg-blue-500/10 p-2">
-              <Globe className="h-6 w-6 text-blue-500" />
+            <div className="rounded-lg bg-[#12D98B]/10 p-2">
+              <Globe className="h-6 w-6 text-[#12D98B]" />
             </div>
             <span className="text-2xl">US</span>
           </div>
@@ -174,22 +174,22 @@ export function UsaAddonDialog({ open, onOpenChange }: UsaAddonDialogProps) {
         <div className="mt-4">
           {userState.type === "loading" && (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Loader2 className="h-8 w-8 animate-spin text-[#A9B8B1]" />
             </div>
           )}
 
           {(userState.type === "already_has_addon" || userState.type === "admin") && (
             <div className="py-6 text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10">
-                <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#12D98B]/10">
+                <CheckCircle2 className="h-8 w-8 text-[#12D98B]" />
               </div>
               <h3 className="mb-2 text-xl font-semibold">
                 {userState.type === "admin" ? "Liberado para admin" : "Complemento ativo"}
               </h3>
-              <p className="mb-4 text-muted-foreground">
+              <p className="mb-4 text-[#A9B8B1]">
                 Você já pode prospectar em todos os estados dos EUA.
               </p>
-              <Button onClick={goToProspeccao} className="bg-blue-600 hover:bg-blue-700">
+              <Button onClick={goToProspeccao} className="bg-[#12D98B] text-[#07100D] hover:bg-[#21E6A0]">
                 <Globe className="mr-2 h-4 w-4" />
                 Ir para Prospecção
               </Button>
@@ -198,29 +198,29 @@ export function UsaAddonDialog({ open, onOpenChange }: UsaAddonDialogProps) {
 
           {userState.type === "eligible" && (
             <div className="py-6 text-center">
-              <Badge className="mb-4 border-emerald-500/20 bg-emerald-500/10 text-emerald-600">
+              <Badge className="mb-4 border-[#12D98B]/20 bg-[#12D98B]/10 text-[#12D98B]">
                 <CheckCircle2 className="mr-1 h-3 w-3" />
                 Plano ativo: {userState.planName}
               </Badge>
 
               <h3 className="mb-2 text-xl font-semibold">Ative o complemento EUA</h3>
-              <p className="mb-6 text-muted-foreground">
+              <p className="mb-6 text-[#A9B8B1]">
                 Acesse leads em todos os 50 estados americanos + DC.
               </p>
 
-              <div className="mb-6 rounded-lg border border-blue-500/20 bg-blue-500/5 p-6">
+              <div className="mb-6 rounded-lg border border-[#12D98B]/20 bg-[#12D98B]/5 p-6">
                 <div className="mb-2 flex items-baseline justify-center gap-2">
-                  <span className="text-3xl font-bold text-blue-600">+ R$ {addon.monthlyPrice}</span>
-                  <span className="text-muted-foreground">/mês</span>
+                  <span className="text-3xl font-bold text-[#12D98B]">+ R$ {addon.monthlyPrice}</span>
+                  <span className="text-[#A9B8B1]">/mês</span>
                 </div>
-                <p className="text-sm text-muted-foreground">assinatura mensal via Stripe</p>
+                <p className="text-sm text-[#A9B8B1]">assinatura mensal via Stripe</p>
               </div>
 
               <Button
                 size="lg"
                 onClick={handleAddonCheckout}
                 disabled={isProcessing}
-                className="w-full bg-blue-600 hover:bg-blue-700"
+                className="w-full bg-[#12D98B] text-[#07100D] hover:bg-[#21E6A0]"
               >
                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                 Ativar complemento
@@ -230,13 +230,13 @@ export function UsaAddonDialog({ open, onOpenChange }: UsaAddonDialogProps) {
 
           {(userState.type === "not_logged_in" || userState.type === "not_eligible") && (
             <div className="py-6 text-center">
-              <Badge variant="outline" className="mb-4">
+              <Badge variant="outline" className="mb-4 border-[#20312A] bg-[#0D1713] text-[#A9B8B1]">
                 {userState.type === "not_eligible" ? `Plano atual: ${userState.planName}` : "Login necessário"}
               </Badge>
               <h3 className="mb-2 text-xl font-semibold">
                 Este complemento está disponível apenas para usuários com plano ativo.
               </h3>
-              <p className="mb-6 text-muted-foreground">
+              <p className="mb-6 text-[#A9B8B1]">
                 Escolha Starter, Pro ou Agency para ativar a prospecção nos EUA.
               </p>
               <Button onClick={choosePlan} className="w-full">

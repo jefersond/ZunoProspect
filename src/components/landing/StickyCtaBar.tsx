@@ -35,20 +35,20 @@ export function StickyCtaBar({ heroRef }: StickyCtaBarProps) {
 
   return (
     <div
-      className={`fixed bottom-0 left-0 right-0 z-50 border-t border-[#1f2d29] bg-[#0b0f0e]/95 backdrop-blur-md transition-transform duration-300 ${
+      className={`fixed bottom-0 left-0 right-0 z-50 border-t border-[#20312A] bg-[#07100D]/95 backdrop-blur-md transition-transform duration-300 ${
         visible ? "translate-y-0" : "translate-y-full"
       }`}
     >
       <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-3">
         <div className="hidden items-center gap-2 sm:flex">
-          <ShieldCheck className="h-4 w-4 text-[#10d98a]" />
-          <p className="text-sm text-[#9ca3af]">
-            <span className="font-semibold text-[#f4f4f5]">Zuno Propect</span>. {trialDurationDays ? `Teste grátis de ${trialDurationDays} dias. Hoje R$0.` : "Teste grátis. Hoje R$0."}
+          <ShieldCheck className="h-4 w-4 text-[#12D98B]" />
+          <p className="text-sm text-[#A9B8B1]">
+            <span className="font-semibold text-[#F3F7F5]">Zuno Propect</span>. {trialDurationDays ? `Teste grátis de ${trialDurationDays} dias. Hoje R$0.` : "Teste grátis. Hoje R$0."}
           </p>
         </div>
         <Button
           size="sm"
-          className="ml-auto h-10 rounded-lg bg-[#10d98a] px-6 font-bold text-[#0b0f0e] shadow-[0_0_20px_rgba(16,217,138,0.3)] hover:bg-[#10d98a]/90 hover:scale-[1.02] transition-all"
+          className="ml-auto h-10 rounded-lg bg-[#12D98B] px-6 font-bold text-[#07100D] shadow-[0_0_20px_rgba(18,217,139,0.3)] hover:bg-[#21E6A0] hover:scale-[1.02] transition-all"
           onClick={handleClick}
         >
           Começar minha primeira busca

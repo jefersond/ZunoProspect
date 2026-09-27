@@ -42,7 +42,7 @@ export function CTAFinalSection() {
           </Button>
         </div>
         <p className="text-sm font-semibold text-[#f4f4f5] mt-4">
-          Hoje R$0 • Cartão necessário • Cancele antes da cobrança
+          Hoje R$0. Cartão necessário. Cancele antes da cobrança
         </p>
       </div>
     </section>

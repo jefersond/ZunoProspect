@@ -145,6 +145,8 @@ serve(async (req) => {
       billingCycle,
       userId: null,
       stripeMode: getStripeMode(stripeSecretKey),
+        trialDurationDays: stripeTrialDurationDays,
+        trialPolicyVersion: stripeTrialPolicyVersion,
     });
 
     if (!planId) {
@@ -191,6 +193,24 @@ serve(async (req) => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
+
+    const { data: trialConfig, error: trialConfigError } = await supabaseAdmin
+      .from("billing_provider_config")
+      .select("stripe_trial_duration_days,stripe_trial_policy_version")
+      .eq("singleton", true)
+      .single();
+
+    const stripeTrialDurationDays = Number(trialConfig?.stripe_trial_duration_days);
+    const stripeTrialPolicyVersion = String(trialConfig?.stripe_trial_policy_version || "").trim();
+
+    if (
+      trialConfigError
+      || !Number.isInteger(stripeTrialDurationDays)
+      || stripeTrialDurationDays <= 0
+      || !stripeTrialPolicyVersion
+    ) {
+      return jsonResponse({ error: "stripe_trial_config_invalid" }, 503);
+    }
 
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
 
@@ -294,7 +314,8 @@ serve(async (req) => {
       leads_limit: String(plan.leadsLimit),
       ai_limit: String(plan.aiLimit),
       is_annual: String(billingCycle === "annual"),
-      trial_days: "7",
+      trial_days: String(stripeTrialDurationDays),
+      trial_policy_version: stripeTrialPolicyVersion,
       trial_requires_card: "true",
     };
 
@@ -322,10 +343,11 @@ serve(async (req) => {
       cancel_url: `${publicSiteUrl}/precos?checkout=cancelled`,
       metadata: checkoutMetadata,
       subscription_data: {
-        trial_period_days: 7,
+        trial_period_days: stripeTrialDurationDays,
         metadata: {
           ...checkoutMetadata,
-          trial_type: "7_day_card_required",
+          trial_type: `${stripeTrialDurationDays}_day_card_required`,
+          trial_policy_version: stripeTrialPolicyVersion,
         },
       },
       client_reference_id: user.id,
@@ -366,7 +388,7 @@ serve(async (req) => {
       },
     });
 
-    return jsonResponse({ url: session.url, sessionId: session.id }, 200);
+    return jsonResponse({ url: session.url, sessionId: session.id, trialDurationDays: stripeTrialDurationDays, trialPolicyVersion: stripeTrialPolicyVersion }, 200);
   } catch (error: any) {
     console.error("Checkout error", {
       functionName,

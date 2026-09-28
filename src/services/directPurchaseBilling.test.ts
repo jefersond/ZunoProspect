@@ -46,9 +46,11 @@ describe("Stripe optional direct purchase", () => {
     expect(catalog).toContain('agency: { displayName: "Agency", monthlyAmount: 247, annualAmount: 2470');
   });
 
-  it("keeps direct purchase Stripe-only without changing Mercado Pago", () => {
-    expect(billingCheckout).toContain('conversionPath === "direct_purchase" && provider !== "stripe"');
-    expect(billingCheckout).toContain('"direct_purchase_stripe_only"');
+  it("keeps Stripe direct purchase intact while Mercado Pago can implement the same path independently", () => {
+    expect(stripeAdapter).toContain('const conversionPath = input.conversionPath ?? "trial"');
+    expect(billingCheckout).toContain("new StripeAdapter");
+    expect(billingCheckout).toContain("new MercadoPagoAdapter");
+    expect(billingCheckout).not.toContain('"direct_purchase_stripe_only"');
   });
 
   it("guards against duplicate subscriptions and retry duplication", () => {

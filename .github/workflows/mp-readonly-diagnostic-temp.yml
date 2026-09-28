@@ -1,0 +1,25 @@
+name: MP Readonly Diagnostic Temp
+
+on:
+  push:
+    branches:
+      - test/mp-readonly-diagnostic-2026-09-28
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call readonly Mercado Pago diagnostic
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "SUPABASE_SERVICE_ROLE_KEY secret unavailable"
+            exit 2
+          fi
+          curl -fsS             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Accept: application/json"             "https://ihtltqxxlvbsxbiacbpr.supabase.co/functions/v1/mp-readonly-diagnostic-temp"

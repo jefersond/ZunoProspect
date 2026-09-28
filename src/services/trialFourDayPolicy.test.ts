@@ -30,7 +30,7 @@ describe("hybrid Stripe + Mercado Pago billing policy", () => {
     expect(migration).toContain("stripe_trial_duration_days integer not null default 7");
     expect(migration).toContain("mercado_pago_trial_duration_days integer not null default 4");
     expect(migration).toContain("mercado_pago_trial_policy_version text not null default '4d_2026_09'");
-    expect(mpAdapter).toContain("frequency: this.trialDurationDays");
+    expect(mpAdapter).toContain("frequency: trialDays");
     expect(mpAdapter).toContain('frequency_type: "days"');
     expect(mpAdapter).not.toMatch(/frequency:\s*4,\s*\n\s*frequency_type:\s*"days"/);
   });

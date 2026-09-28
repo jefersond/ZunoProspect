@@ -24,7 +24,7 @@ describe("Mercado Pago hybrid billing readiness", () => {
   });
 
   it("creates direct purchase without a trial", () => {
-    expect(adapter).toContain('conversionPath === "direct_purchase"');
+    expect(adapter).toContain('conversionPath !== "direct_purchase"');
     expect(adapter).toContain('if (conversionPath === "trial")');
     expect(webhook).toContain('"mercado_pago_direct_purchase_has_trial"');
     expect(directMigration).toContain("(conversion_path = 'direct_purchase' and trial_duration_days = 0)");

@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
   const [{ data: config, error: configError }, { data: subscription, error: subscriptionError }] = await Promise.all([
     admin.from("billing_provider_config").select("*").eq("singleton", true).single(),
     admin.from("user_subscriptions")
-      .select("billing_provider,stripe_customer_id,stripe_subscription_id,mercado_pago_subscription_id")
+      .select("billing_provider,stripe_customer_id,stripe_subscription_id,mercado_pago_subscription_id,subscription_status,status,last_payment_succeeded_at")
       .eq("user_id", user.id)
       .maybeSingle(),
   ]);
@@ -122,10 +122,6 @@ Deno.serve(async (req) => {
 
   const provider = String(claimedProvider) as BillingProviderName;
 
-  if (conversionPath === "direct_purchase" && provider !== "stripe") {
-    return json({ error: "direct_purchase_stripe_only" }, 409);
-  }
-
   try {
     if (provider === "stripe") {
       const adapter = new StripeAdapter(
@@ -143,6 +139,14 @@ Deno.serve(async (req) => {
     if (!accessToken) return json({ error: "mercado_pago_credentials_missing" }, 503);
 
     const appUrl = (Deno.env.get("APP_URL") || "https://www.zunopropect.com.br").replace(/\/$/, "");
+    const relationStatus = String(subscription?.subscription_status || subscription?.status || "").toLowerCase();
+    if (
+      subscription?.mercado_pago_subscription_id
+      && ["active", "trialing", "past_due", "unpaid", "incomplete", "paused"].includes(relationStatus)
+    ) {
+      return json({ error: "subscription_already_active" }, 409);
+    }
+
     const adapter = new MercadoPagoAdapter(
       admin,
       accessToken,
@@ -150,6 +154,7 @@ Deno.serve(async (req) => {
       typedConfig.mercado_pago_trial_duration_days,
       typedConfig.mercado_pago_trial_policy_version,
       `${appUrl}/prospeccao?subscription=success&provider=mercado_pago`,
+      typedConfig,
     );
     const result = await adapter.createCheckout(input);
     return json(result);

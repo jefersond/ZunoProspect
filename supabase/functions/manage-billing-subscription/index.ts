@@ -71,5 +71,15 @@ Deno.serve(async (req) => {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) return json({ error: payload?.message || "mercado_pago_cancel_failed" }, 502);
 
+  if (payload?.status === "canceled" || payload?.status === "cancelled") {
+    await admin.from("user_subscriptions").update({
+      subscription_status: "cancelled",
+      status: "cancelled",
+      cancel_at_period_end: false,
+      canceled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq("user_id", authData.user.id).eq("billing_provider", "mercado_pago");
+  }
+
   return json({ ok: true, provider: "mercado_pago", status: payload?.status || "canceled" }, 200);
 });

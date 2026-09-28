@@ -125,8 +125,8 @@ Deno.serve(async (req) => {
       conversionPath: "direct_purchase",
       duration: String(config.intro_offer_duration || "first_billing_period"),
       plans: publicPlans,
-      eligible: introOfferEligible && provider === "stripe",
-      eligibilityReason: provider === "stripe" ? introOfferEligibilityReason : "stripe_only",
+      eligible: introOfferEligible,
+      eligibilityReason: introOfferEligibilityReason,
     },
   }), {
     status: 200,

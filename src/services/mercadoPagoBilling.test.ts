@@ -8,6 +8,7 @@ describe("Mercado Pago hybrid billing readiness", () => {
   const adapter = source("supabase/functions/_shared/billing/mercado-pago-adapter.ts");
   const router = source("supabase/functions/create-billing-checkout/index.ts");
   const webhook = source("supabase/functions/mercado-pago-webhook/index.ts");
+  const webhookPolicy = source("supabase/functions/_shared/billing/mercado-pago-webhook-policy.ts");
   const manage = source("supabase/functions/manage-billing-subscription/index.ts");
   const offerConfig = source("supabase/functions/billing-offer-config/index.ts");
   const catalog = source("supabase/functions/_shared/billing/catalog.ts");
@@ -26,7 +27,7 @@ describe("Mercado Pago hybrid billing readiness", () => {
   it("creates direct purchase without a trial", () => {
     expect(adapter).toContain('conversionPath !== "direct_purchase"');
     expect(adapter).toContain('if (conversionPath === "trial")');
-    expect(webhook).toContain('"mercado_pago_direct_purchase_has_trial"');
+    expect(webhookPolicy).toContain('"mercado_pago_direct_purchase_has_trial"');
     expect(directMigration).toContain("(conversion_path = 'direct_purchase' and trial_duration_days = 0)");
   });
 
@@ -43,7 +44,8 @@ describe("Mercado Pago hybrid billing readiness", () => {
 
   it("applies intro only to first payment then switches recurrence to regular price", () => {
     expect(adapter).toContain("transactionAmount = intro.applied ? intro.introAmount : regularAmount");
-    expect(webhook).toContain("mercado_pago_intro_payment_amount_mismatch");
+    expect(webhookPolicy).toContain("mercado_pago_intro_payment_amount_mismatch");
+    expect(webhookPolicy).toContain("mercado_pago_intro_offer_already_redeemed");
     expect(webhook).toContain("mercado_pago_regular_price_update_mismatch");
     expect(webhook).toContain("transaction_amount: regularAmount");
     expect(webhook).toContain('status: "redeemed"');

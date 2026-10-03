@@ -5,7 +5,9 @@ import {
   evaluateIntroPayment,
   isInitialSubscriptionAuthorization,
   isIntroRedemptionRedeemed,
+  MP_TRIAL_OFFSET_MS,
   resolvePreapprovalLocalStatus,
+  trialDurationWindow,
   validateInitialAuthorization,
 } from "./mercado-pago-webhook-policy.ts";
 
@@ -45,9 +47,9 @@ describe("Mercado Pago trial validation", () => {
   });
 
   it("tolerates small provider clock skew on the initial trial window", () => {
-    expect(validateInitialAuthorization({ ...trialPlan, nextPaymentDate: plus(created, 4 * DAY + 10 * 60_000) }).ok)
+    expect(validateInitialAuthorization({ ...trialPlan, nextPaymentDate: plus(created, 4 * DAY - 10 * 60_000) }).ok)
       .toBe(true);
-    expect(validateInitialAuthorization({ ...trialPlan, nextPaymentDate: plus(created, 4 * DAY + 20 * 60_000) }).ok)
+    expect(validateInitialAuthorization({ ...trialPlan, nextPaymentDate: plus(created, 4 * DAY - 20 * 60_000) }).ok)
       .toBe(false);
   });
 
@@ -277,5 +279,77 @@ describe("Mercado Pago past_due recovery path", () => {
 
   it("keeps the original canceled_at when a cancelled subscription receives another event", () => {
     expect(preapprovalBlock).toContain("alreadyCancelledLocally && localBefore?.canceled_at ? localBefore.canceled_at");
+  });
+});
+
+describe("Mercado Pago trial window from real TEST subscriptions", () => {
+  const HOUR = 3_600_000;
+  const MIN = 60_000;
+  // Real MP TEST preapprovals (seller 3716084566): date_created / next_payment_date as returned by the API.
+  const realSamples = [
+    { id: "c422ac3907034570810d57869c3bf595", created: "2026-10-03T14:30:41.000-04:00", next: "2026-10-07T18:27:07.000-04:00" },
+    { id: "55eded2f13ba4d52a52f6bb4e6437040", created: "2026-09-27T21:45:36.000-04:00", next: "2026-10-02T01:44:36.000-04:00" },
+    { id: "2326182abb40465aa99edb14c75f1464", created: "2026-09-27T21:39:45.000-04:00", next: "2026-10-02T01:35:16.000-04:00" },
+    { id: "0e418a876ca74d029f031b1bfe20c25b", created: "2026-09-27T21:46:40.000-04:00", next: "2026-10-02T01:44:36.000-04:00" },
+    { id: "b12019669a00448493a3c0fcf3a86ccd", created: "2026-09-27T21:36:47.000-04:00", next: "2026-10-02T01:35:16.000-04:00" },
+  ];
+  const at = (created: string, next: string | null) =>
+    validateInitialAuthorization({ ...trialPlan, dateCreated: created, nextPaymentDate: next });
+
+  it("documents a bounded window: 4 days -15min up to 4 days +4h +15min", () => {
+    expect(MP_TRIAL_OFFSET_MS).toBe(4 * HOUR);
+    expect(trialDurationWindow(4)).toEqual({ minMs: 4 * DAY - 15 * MIN, maxMs: 4 * DAY + 4 * HOUR + 15 * MIN });
+  });
+
+  it("A. exactly date_created + 4 days passes", () => {
+    expect(at(created, plus(created, 4 * DAY))).toEqual({ ok: true, trialStart: created, trialEnd: plus(created, 4 * DAY) });
+  });
+
+  it("B. real observed case (4 days + ~3h56min) passes", () => {
+    const real = realSamples[0];
+    expect(at(real.created, real.next)).toEqual({ ok: true, trialStart: real.created, trialEnd: real.next });
+  });
+
+  it("C. every real sample passes and lies inside the window", () => {
+    const window = trialDurationWindow(4);
+    for (const sample of realSamples) {
+      const duration = Date.parse(sample.next) - Date.parse(sample.created);
+      expect(duration).toBeGreaterThanOrEqual(window.minMs);
+      expect(duration).toBeLessThanOrEqual(window.maxMs);
+      expect(at(sample.created, sample.next).ok).toBe(true);
+    }
+  });
+
+  it("D. a 3-day interval fails closed", () => {
+    expect(at(created, plus(created, 3 * DAY))).toEqual({ ok: false, error: "mercado_pago_trial_end_mismatch" });
+  });
+
+  it("E. 5 days, or anything past 4 days +4h15min, fails closed", () => {
+    expect(at(created, plus(created, 5 * DAY))).toEqual({ ok: false, error: "mercado_pago_trial_end_mismatch" });
+    expect(at(created, plus(created, 4 * DAY + 4 * HOUR + 16 * MIN)).ok).toBe(false);
+    expect(at(created, plus(created, 4 * DAY + 4 * HOUR + 15 * MIN)).ok).toBe(true);
+    expect(at(created, plus(created, 4 * DAY + 6 * HOUR)).ok).toBe(false);
+  });
+
+  it("F. next_payment_date before date_created fails closed", () => {
+    expect(at(created, plus(created, -60 * MIN))).toEqual({ ok: false, error: "mercado_pago_trial_end_mismatch" });
+    expect(at(created, created)).toEqual({ ok: false, error: "mercado_pago_trial_end_mismatch" });
+  });
+
+  it("G. missing or invalid date_created / next_payment_date fails closed", () => {
+    expect(validateInitialAuthorization({ ...trialPlan, dateCreated: null })).toEqual({ ok: false, error: "mercado_pago_trial_end_mismatch" });
+    expect(validateInitialAuthorization({ ...trialPlan, dateCreated: "not-a-date" })).toEqual({ ok: false, error: "mercado_pago_trial_end_mismatch" });
+    expect(at(created, null)).toEqual({ ok: false, error: "mercado_pago_trial_end_mismatch" });
+  });
+
+  it("still requires the plan to carry a 4-day trial", () => {
+    const real = realSamples[0];
+    expect(validateInitialAuthorization({ ...trialPlan, dateCreated: real.created, nextPaymentDate: real.next, providerTrial: { frequency: 5, frequency_type: "days" } }))
+      .toEqual({ ok: false, error: "mercado_pago_trial_policy_mismatch" });
+  });
+
+  it("H/I. later events (incl. cancellation) never reach trial validation", () => {
+    const bound = { status: "authorized", provider_subscription_id: realSamples[0].id };
+    expect(isInitialSubscriptionAuthorization(bound, realSamples[0].id)).toBe(false);
   });
 });

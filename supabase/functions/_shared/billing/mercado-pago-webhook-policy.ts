@@ -7,6 +7,30 @@
 
 export const TRIAL_DATE_TOLERANCE_MS = 15 * 60_000;
 const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
+
+/**
+ * Mercado Pago does not set next_payment_date to exactly date_created + trial.
+ * In every real TEST subscription observed (5 samples, 2026-09-27 and
+ * 2026-10-03, seller 3716084566, MLB) the interval was trial + 3h55m31s to
+ * trial + 3h59m00s: MP anchors the first charge on the checkout start shifted
+ * by the account's -04:00 offset (4h), minus the seconds/minutes the buyer
+ * spent in checkout.
+ *
+ * The initial authorization therefore accepts a duration in
+ *   [trial - TRIAL_DATE_TOLERANCE_MS, trial + MP_TRIAL_OFFSET_MS + TRIAL_DATE_TOLERANCE_MS]
+ * i.e. for a 4-day trial: from 3d23h45m up to 4d04h15m. Anything shorter,
+ * longer, or with next_payment_date before date_created still fails closed.
+ */
+export const MP_TRIAL_OFFSET_MS = 4 * HOUR_MS;
+
+export function trialDurationWindow(expectedTrialDays: number) {
+  const expectedMs = expectedTrialDays * DAY_MS;
+  return {
+    minMs: expectedMs - TRIAL_DATE_TOLERANCE_MS,
+    maxMs: expectedMs + MP_TRIAL_OFFSET_MS + TRIAL_DATE_TOLERANCE_MS,
+  };
+}
 
 export type CheckoutSessionLike = {
   status?: string | null;
@@ -82,8 +106,11 @@ export function validateInitialAuthorization(input: InitialAuthorizationInput): 
   const startMs = trialStart ? Date.parse(trialStart) : NaN;
   const endMs = trialEnd ? Date.parse(trialEnd) : NaN;
   const durationMs = Number.isFinite(startMs) && Number.isFinite(endMs) ? endMs - startMs : NaN;
+  const window = trialDurationWindow(input.expectedTrialDays);
   const datesOk = Number.isFinite(durationMs)
-    && Math.abs(durationMs - input.expectedTrialDays * DAY_MS) <= TRIAL_DATE_TOLERANCE_MS;
+    && durationMs > 0
+    && durationMs >= window.minMs
+    && durationMs <= window.maxMs;
   if (!datesOk) return { ok: false, error: "mercado_pago_trial_end_mismatch" };
 
   return { ok: true, trialStart, trialEnd };

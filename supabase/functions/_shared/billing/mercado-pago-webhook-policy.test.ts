@@ -5,7 +5,7 @@ import {
   evaluateIntroPayment,
   isInitialSubscriptionAuthorization,
   isIntroRedemptionRedeemed,
-  MP_TRIAL_OFFSET_MS,
+  MP_TRIAL_MAX_PROVIDER_SKEW_MS,
   resolvePreapprovalLocalStatus,
   trialDurationWindow,
   validateInitialAuthorization,
@@ -297,7 +297,7 @@ describe("Mercado Pago trial window from real TEST subscriptions", () => {
     validateInitialAuthorization({ ...trialPlan, dateCreated: created, nextPaymentDate: next });
 
   it("documents a bounded window: 4 days -15min up to 4 days +4h +15min", () => {
-    expect(MP_TRIAL_OFFSET_MS).toBe(4 * HOUR);
+    expect(MP_TRIAL_MAX_PROVIDER_SKEW_MS).toBe(4 * HOUR);
     expect(trialDurationWindow(4)).toEqual({ minMs: 4 * DAY - 15 * MIN, maxMs: 4 * DAY + 4 * HOUR + 15 * MIN });
   });
 

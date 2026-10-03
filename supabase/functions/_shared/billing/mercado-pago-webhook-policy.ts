@@ -11,24 +11,28 @@ const HOUR_MS = 3_600_000;
 
 /**
  * Mercado Pago does not set next_payment_date to exactly date_created + trial.
- * In every real TEST subscription observed (5 samples, 2026-09-27 and
- * 2026-10-03, seller 3716084566, MLB) the interval was trial + 3h55m31s to
- * trial + 3h59m00s: MP anchors the first charge on the checkout start shifted
- * by the account's -04:00 offset (4h), minus the seconds/minutes the buyer
- * spent in checkout.
+ *
+ * Observed behavior: 5 real TEST subscriptions (seller 3716084566, MLB,
+ * 2026-09-27 and 2026-10-03) showed next_payment_date between
+ * trial + 3h55m31s and trial + 3h59m00s after date_created.
+ *
+ * The exact cause of this provider-side skew is still unknown; it is NOT
+ * assumed here to be a timezone effect. The extra allowance is a bounded
+ * tolerance derived only from that observed behavior.
  *
  * The initial authorization therefore accepts a duration in
- *   [trial - TRIAL_DATE_TOLERANCE_MS, trial + MP_TRIAL_OFFSET_MS + TRIAL_DATE_TOLERANCE_MS]
- * i.e. for a 4-day trial: from 3d23h45m up to 4d04h15m. Anything shorter,
- * longer, or with next_payment_date before date_created still fails closed.
+ *   [trial - TRIAL_DATE_TOLERANCE_MS, trial + MP_TRIAL_MAX_PROVIDER_SKEW_MS + TRIAL_DATE_TOLERANCE_MS]
+ * i.e. [trial - 15min, trial + 4h15min]; for a 4-day trial, from 3d23h45m up
+ * to 4d04h15m. Anything outside the window, missing/invalid dates, or
+ * next_payment_date <= date_created keeps failing closed.
  */
-export const MP_TRIAL_OFFSET_MS = 4 * HOUR_MS;
+export const MP_TRIAL_MAX_PROVIDER_SKEW_MS = 4 * HOUR_MS;
 
 export function trialDurationWindow(expectedTrialDays: number) {
   const expectedMs = expectedTrialDays * DAY_MS;
   return {
     minMs: expectedMs - TRIAL_DATE_TOLERANCE_MS,
-    maxMs: expectedMs + MP_TRIAL_OFFSET_MS + TRIAL_DATE_TOLERANCE_MS,
+    maxMs: expectedMs + MP_TRIAL_MAX_PROVIDER_SKEW_MS + TRIAL_DATE_TOLERANCE_MS,
   };
 }
 

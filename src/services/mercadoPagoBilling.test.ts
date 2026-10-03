@@ -74,7 +74,7 @@ describe("Mercado Pago hybrid billing readiness", () => {
   });
 
   it("does not count an authorized direct subscription as paid before provider payment", () => {
-    expect(webhook).toContain('? "incomplete"');
+    expect(webhookPolicy).toContain('return { status: "incomplete", kept: false }');
     expect(webhook).toContain('if (approved)');
     expect(webhook).toContain('"purchase_completed"');
   });

@@ -3,6 +3,8 @@ import { BILLING_CATALOG, type BillingPlanId } from "../_shared/billing/catalog.
 import {
   evaluateIntroPayment,
   isInitialSubscriptionAuthorization,
+  isProviderCancelledStatus,
+  resolvePreapprovalLocalStatus,
   validateInitialAuthorization,
 } from "../_shared/billing/mercado-pago-webhook-policy.ts";
 import { emitZanotelliProductEvent, type ZanotelliProductEventName } from "../_shared/zanotelli-inbound-bridge.ts";
@@ -261,6 +263,7 @@ Deno.serve(async (req) => {
 
       let trialStart: string | null = null;
       let trialEnd: string | null = null;
+      let localBefore: { subscription_status?: string | null; status?: string | null; canceled_at?: string | null } | null = null;
 
       if (initialAuthorization) {
         const providerPlan = await mpGet(accessToken, `/preapproval_plan/${encodeURIComponent(planRow.provider_plan_id)}`);
@@ -281,29 +284,37 @@ Deno.serve(async (req) => {
         trialEnd = initialPolicy.trialEnd;
       } else {
         const { data: localTrial, error: localTrialError } = await admin.from("user_subscriptions")
-          .select("trial_start,trial_end")
+          .select("trial_start,trial_end,subscription_status,status,canceled_at")
           .eq("user_id", userId)
           .single();
         if (localTrialError) throw localTrialError;
         trialStart = localTrial?.trial_start ?? null;
         trialEnd = localTrial?.trial_end ?? null;
+        localBefore = localTrial;
       }
 
       const trialEndMs = trialEnd ? Date.parse(trialEnd) : NaN;
 
       const providerStatus = safeString(subscription.status, 50);
-      const cancelled = providerStatus === "canceled" || providerStatus === "cancelled";
+      const cancelled = isProviderCancelledStatus(providerStatus);
       const now = Date.now();
       const inTrial = conversionPath === "trial" && !cancelled && trialEndMs > now;
-      const localStatus = cancelled
-        ? "cancelled"
-        : inTrial
-          ? "trialing"
-          : conversionPath === "direct_purchase" && providerStatus === "authorized"
-            ? "incomplete"
-            : providerStatus === "authorized"
-              ? "active"
-              : providerStatus;
+      // A later preapproval event can downgrade but never revives a locally
+      // cancelled or past_due/unpaid subscription by itself: only an approved
+      // payment (payment / subscription_authorized_payment) can do that.
+      const currentLocalStatus = localBefore?.subscription_status || localBefore?.status || null;
+      const resolvedStatus = resolvePreapprovalLocalStatus({
+        initialAuthorization,
+        providerStatus,
+        conversionPath,
+        inTrial,
+        currentLocalStatus,
+      });
+      const localStatus = resolvedStatus.status;
+      const alreadyCancelledLocally = isProviderCancelledStatus(String(currentLocalStatus || "").toLowerCase());
+      const canceledAt = localStatus === "cancelled"
+        ? (alreadyCancelledLocally && localBefore?.canceled_at ? localBefore.canceled_at : new Date().toISOString())
+        : null;
       const entitlements = BILLING_CATALOG[planRow.plan_id as BillingPlanId];
 
       const { error: updateError } = await admin.from("user_subscriptions").update({
@@ -329,7 +340,7 @@ Deno.serve(async (req) => {
           trial_policy_version: planRow.trial_policy_version,
         } : {}),
         cancel_at_period_end: false,
-        canceled_at: cancelled ? new Date().toISOString() : null,
+        canceled_at: canceledAt,
         updated_at: new Date().toISOString(),
       }).eq("user_id", userId).eq("billing_provider", "mercado_pago");
       if (updateError) throw updateError;
@@ -362,12 +373,12 @@ Deno.serve(async (req) => {
         provider_status: providerStatus,
       };
 
-      if (!cancelled && inTrial) {
+      if (localStatus === "trialing") {
         if (subscription.card_id) {
           await canonicalEvent(userId, "card_added", common, safeString(subscription.id, 160));
         }
         await canonicalEvent(userId, "trial_started", common, safeString(subscription.id, 160));
-      } else if (!cancelled && conversionPath === "direct_purchase" && subscription.card_id) {
+      } else if (!cancelled && !resolvedStatus.kept && conversionPath === "direct_purchase" && subscription.card_id) {
         await canonicalEvent(userId, "card_added", common, safeString(subscription.id, 160));
       }
 

@@ -159,3 +159,61 @@ export function evaluateIntroPayment(input: IntroPaymentInput): IntroPaymentDeci
   if (paidCents === introCents) return { kind: "reject", error: "mercado_pago_intro_offer_already_redeemed" };
   return { kind: "reject", error: "mercado_pago_regular_payment_amount_mismatch" };
 }
+
+/**
+ * Local states that may only be left through the approved-payment path
+ * (payment / subscription_authorized_payment webhook), never by a bare
+ * subscription_preapproval event. Reuses the states the webhook already writes.
+ */
+export const PAYMENT_FAILURE_LOCAL_STATUSES = ["past_due", "unpaid"] as const;
+
+export function isProviderCancelledStatus(status: string | null | undefined): boolean {
+  return status === "canceled" || status === "cancelled";
+}
+
+export type PreapprovalStatusInput = {
+  initialAuthorization: boolean;
+  providerStatus: string;
+  conversionPath: "trial" | "direct_purchase";
+  inTrial: boolean;
+  /** Current local subscription_status (or status) before this event. */
+  currentLocalStatus: string | null | undefined;
+};
+
+export type PreapprovalStatusResult = {
+  status: string;
+  /** True when the local status was intentionally kept instead of upgraded. */
+  kept: boolean;
+};
+
+/**
+ * Maps a subscription_preapproval event to the local status.
+ * A later preapproval event can downgrade (cancel/pause) but can never, by
+ * itself, revive a subscription that is locally cancelled or in a payment
+ * failure state: that requires an approved payment.
+ */
+export function resolvePreapprovalLocalStatus(input: PreapprovalStatusInput): PreapprovalStatusResult {
+  const providerCancelled = isProviderCancelledStatus(input.providerStatus);
+  if (providerCancelled) return { status: "cancelled", kept: false };
+
+  const current = String(input.currentLocalStatus || "").toLowerCase();
+  if (!input.initialAuthorization) {
+    if (isProviderCancelledStatus(current)) return { status: "cancelled", kept: true };
+    if (
+      (PAYMENT_FAILURE_LOCAL_STATUSES as readonly string[]).includes(current)
+      && input.providerStatus === "authorized"
+    ) {
+      return { status: current, kept: true };
+    }
+  }
+
+  if (input.inTrial) return { status: "trialing", kept: false };
+  if (input.conversionPath === "direct_purchase" && input.providerStatus === "authorized") {
+    // Direct purchase stays incomplete until the approved payment arrives;
+    // a later event must not demote an already active subscription.
+    if (!input.initialAuthorization && current === "active") return { status: "active", kept: true };
+    return { status: "incomplete", kept: false };
+  }
+  if (input.providerStatus === "authorized") return { status: "active", kept: false };
+  return { status: input.providerStatus, kept: false };
+}

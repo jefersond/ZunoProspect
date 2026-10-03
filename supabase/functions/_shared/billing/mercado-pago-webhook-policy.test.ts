@@ -5,6 +5,7 @@ import {
   evaluateIntroPayment,
   isInitialSubscriptionAuthorization,
   isIntroRedemptionRedeemed,
+  resolvePreapprovalLocalStatus,
   validateInitialAuthorization,
 } from "./mercado-pago-webhook-policy.ts";
 
@@ -182,7 +183,7 @@ describe("Mercado Pago webhook wiring", () => {
   });
 
   it("reads trial dates from local state on later events and writes them only on the initial one", () => {
-    expect(preapprovalBlock).toContain('.select("trial_start,trial_end")');
+    expect(preapprovalBlock).toContain('.select("trial_start,trial_end,');
     expect(preapprovalBlock).toContain("...(initialAuthorization ? {");
   });
 
@@ -190,5 +191,91 @@ describe("Mercado Pago webhook wiring", () => {
     expect(webhook).toContain("evaluateIntroPayment(");
     expect(webhook).toContain('introDecision.kind === "redeem_intro"');
     expect(webhook).toContain('if (introDecision.kind === "reject") throw new Error(introDecision.error)');
+  });
+});
+
+describe("Mercado Pago preapproval status sync", () => {
+  const later = { initialAuthorization: false, conversionPath: "trial" as const, inTrial: false };
+
+  it("A. active subscription + normal authorized event stays active", () => {
+    expect(resolvePreapprovalLocalStatus({ ...later, providerStatus: "authorized", currentLocalStatus: "active" }))
+      .toEqual({ status: "active", kept: false });
+  });
+
+  it("B. past_due/unpaid subscription + new authorized preapproval does NOT become active", () => {
+    expect(resolvePreapprovalLocalStatus({ ...later, providerStatus: "authorized", currentLocalStatus: "past_due" }))
+      .toEqual({ status: "past_due", kept: true });
+    expect(resolvePreapprovalLocalStatus({ ...later, providerStatus: "authorized", currentLocalStatus: "unpaid" }))
+      .toEqual({ status: "unpaid", kept: true });
+    expect(resolvePreapprovalLocalStatus({ ...later, conversionPath: "direct_purchase", providerStatus: "authorized", currentLocalStatus: "past_due" }))
+      .toEqual({ status: "past_due", kept: true });
+  });
+
+  it("past_due can still be downgraded by the provider (cancel/pause)", () => {
+    expect(resolvePreapprovalLocalStatus({ ...later, providerStatus: "cancelled", currentLocalStatus: "past_due" }))
+      .toEqual({ status: "cancelled", kept: false });
+    expect(resolvePreapprovalLocalStatus({ ...later, providerStatus: "paused", currentLocalStatus: "past_due" }))
+      .toEqual({ status: "paused", kept: false });
+  });
+
+  it("D. cancelled subscription + later authorized event is NOT revived", () => {
+    expect(resolvePreapprovalLocalStatus({ ...later, providerStatus: "authorized", currentLocalStatus: "cancelled" }))
+      .toEqual({ status: "cancelled", kept: true });
+    expect(resolvePreapprovalLocalStatus({ ...later, inTrial: true, providerStatus: "authorized", currentLocalStatus: "cancelled" }))
+      .toEqual({ status: "cancelled", kept: true });
+  });
+
+  it("E. the same event applied twice yields the same status (idempotent)", () => {
+    for (const currentLocalStatus of ["active", "past_due", "cancelled", "trialing"]) {
+      const first = resolvePreapprovalLocalStatus({ ...later, providerStatus: "authorized", currentLocalStatus });
+      const second = resolvePreapprovalLocalStatus({ ...later, providerStatus: "authorized", currentLocalStatus: first.status });
+      expect(second.status).toBe(first.status);
+    }
+  });
+
+  it("F. initial trial authorization still starts the trial, regardless of prior local state", () => {
+    expect(resolvePreapprovalLocalStatus({ initialAuthorization: true, conversionPath: "trial", inTrial: true, providerStatus: "authorized", currentLocalStatus: "free" }))
+      .toEqual({ status: "trialing", kept: false });
+    expect(resolvePreapprovalLocalStatus({ initialAuthorization: true, conversionPath: "trial", inTrial: true, providerStatus: "authorized", currentLocalStatus: null }))
+      .toEqual({ status: "trialing", kept: false });
+    // A later event during the trial keeps it trialing.
+    expect(resolvePreapprovalLocalStatus({ ...later, inTrial: true, providerStatus: "authorized", currentLocalStatus: "trialing" }))
+      .toEqual({ status: "trialing", kept: false });
+  });
+
+  it("G. direct purchase / intro offer: incomplete until paid, and a later event does not demote active", () => {
+    expect(resolvePreapprovalLocalStatus({ initialAuthorization: true, conversionPath: "direct_purchase", inTrial: false, providerStatus: "authorized", currentLocalStatus: null }))
+      .toEqual({ status: "incomplete", kept: false });
+    expect(resolvePreapprovalLocalStatus({ ...later, conversionPath: "direct_purchase", providerStatus: "authorized", currentLocalStatus: "active" }))
+      .toEqual({ status: "active", kept: true });
+  });
+});
+
+describe("Mercado Pago past_due recovery path", () => {
+  const webhook = readFileSync(resolve(process.cwd(), "supabase/functions/mercado-pago-webhook/index.ts"), "utf8");
+  const preapprovalBlock = webhook.slice(
+    webhook.indexOf('if (type === "subscription_preapproval")'),
+    webhook.indexOf("let authorizedPayment"),
+  );
+  const paymentBlock = webhook.slice(webhook.indexOf("let authorizedPayment"));
+
+  it("C. only an approved payment sets active; the preapproval block derives status from the resolver", () => {
+    expect(preapprovalBlock).toContain("resolvePreapprovalLocalStatus(");
+    expect(preapprovalBlock).toContain("subscription_status: localStatus");
+    expect(preapprovalBlock).not.toContain('subscription_status: "active"');
+    const approvedAt = paymentBlock.indexOf("if (approved)");
+    const activeAt = paymentBlock.indexOf('subscription_status: "active"');
+    const rejectedAt = paymentBlock.indexOf("} else if (rejected)");
+    expect(approvedAt).toBeGreaterThan(-1);
+    expect(activeAt).toBeGreaterThan(approvedAt);
+    expect(activeAt).toBeLessThan(rejectedAt);
+  });
+
+  it("reads the current local status before resolving a later event", () => {
+    expect(preapprovalBlock).toContain('.select("trial_start,trial_end,subscription_status,status,canceled_at")');
+  });
+
+  it("keeps the original canceled_at when a cancelled subscription receives another event", () => {
+    expect(preapprovalBlock).toContain("alreadyCancelledLocally && localBefore?.canceled_at ? localBefore.canceled_at");
   });
 });

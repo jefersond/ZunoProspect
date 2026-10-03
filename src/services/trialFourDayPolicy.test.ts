@@ -11,6 +11,7 @@ describe("hybrid Stripe + Mercado Pago billing policy", () => {
   const trackEvent = source("supabase/functions/track-event/index.ts");
   const mpAdapter = source("supabase/functions/_shared/billing/mercado-pago-adapter.ts");
   const mpWebhook = source("supabase/functions/mercado-pago-webhook/index.ts");
+  const mpWebhookPolicy = source("supabase/functions/_shared/billing/mercado-pago-webhook-policy.ts");
   const billingRouter = source("supabase/functions/create-billing-checkout/index.ts");
   const migration = source("supabase/migrations/20260924230000_hybrid_billing_mercado_pago.sql");
   const offerHook = source("src/hooks/useBillingOfferConfig.ts");
@@ -94,11 +95,14 @@ describe("hybrid Stripe + Mercado Pago billing policy", () => {
   });
 
   it("fails closed when Mercado Pago trial dates do not match the four-day provider plan", () => {
-    expect(mpWebhook).toContain("mercado_pago_trial_policy_mismatch");
-    expect(mpWebhook).toContain("mercado_pago_trial_end_mismatch");
+    expect(mpWebhookPolicy).toContain("mercado_pago_trial_policy_mismatch");
+    expect(mpWebhookPolicy).toContain("mercado_pago_trial_end_mismatch");
     expect(mpWebhook).toContain("subscription.next_payment_date");
-    expect(mpWebhook).toContain("subscription.last_modified || subscription.date_created");
-    expect(mpWebhook).toContain("providerTrial.frequency_type === \"days\"");
+    // Trial start is anchored on the immutable date_created, validated only on
+    // the initial authorization (see mercado-pago-webhook-policy.test.ts).
+    expect(mpWebhook).toContain("dateCreated: safeString(subscription.date_created, 60)");
+    expect(mpWebhook).not.toContain("subscription.last_modified");
+    expect(mpWebhookPolicy).toContain("providerTrial?.frequency_type === \"days\"");
   });
 
   it("preserves raw Mercado Pago payment failure detail and only maps known reasons", () => {

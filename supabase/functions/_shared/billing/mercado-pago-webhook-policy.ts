@@ -7,6 +7,34 @@
 
 export const TRIAL_DATE_TOLERANCE_MS = 15 * 60_000;
 const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
+
+/**
+ * Mercado Pago does not set next_payment_date to exactly date_created + trial.
+ *
+ * Observed behavior: 5 real TEST subscriptions (seller 3716084566, MLB,
+ * 2026-09-27 and 2026-10-03) showed next_payment_date between
+ * trial + 3h55m31s and trial + 3h59m00s after date_created.
+ *
+ * The exact cause of this provider-side skew is still unknown; it is NOT
+ * assumed here to be a timezone effect. The extra allowance is a bounded
+ * tolerance derived only from that observed behavior.
+ *
+ * The initial authorization therefore accepts a duration in
+ *   [trial - TRIAL_DATE_TOLERANCE_MS, trial + MP_TRIAL_MAX_PROVIDER_SKEW_MS + TRIAL_DATE_TOLERANCE_MS]
+ * i.e. [trial - 15min, trial + 4h15min]; for a 4-day trial, from 3d23h45m up
+ * to 4d04h15m. Anything outside the window, missing/invalid dates, or
+ * next_payment_date <= date_created keeps failing closed.
+ */
+export const MP_TRIAL_MAX_PROVIDER_SKEW_MS = 4 * HOUR_MS;
+
+export function trialDurationWindow(expectedTrialDays: number) {
+  const expectedMs = expectedTrialDays * DAY_MS;
+  return {
+    minMs: expectedMs - TRIAL_DATE_TOLERANCE_MS,
+    maxMs: expectedMs + MP_TRIAL_MAX_PROVIDER_SKEW_MS + TRIAL_DATE_TOLERANCE_MS,
+  };
+}
 
 export type CheckoutSessionLike = {
   status?: string | null;
@@ -82,8 +110,11 @@ export function validateInitialAuthorization(input: InitialAuthorizationInput): 
   const startMs = trialStart ? Date.parse(trialStart) : NaN;
   const endMs = trialEnd ? Date.parse(trialEnd) : NaN;
   const durationMs = Number.isFinite(startMs) && Number.isFinite(endMs) ? endMs - startMs : NaN;
+  const window = trialDurationWindow(input.expectedTrialDays);
   const datesOk = Number.isFinite(durationMs)
-    && Math.abs(durationMs - input.expectedTrialDays * DAY_MS) <= TRIAL_DATE_TOLERANCE_MS;
+    && durationMs > 0
+    && durationMs >= window.minMs
+    && durationMs <= window.maxMs;
   if (!datesOk) return { ok: false, error: "mercado_pago_trial_end_mismatch" };
 
   return { ok: true, trialStart, trialEnd };

@@ -30,7 +30,8 @@ dist-ssr
 .env*
 
 # Claude Code local tooling state (subagent worktrees, etc.) — never part of the repo
-.claude/
+.claude/*
+!.claude/settings.json
 
 # Never commit local audit/debug artifacts or credentials
 .tmp/

@@ -1,0 +1,49 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Caption,Inter ExtraBold,56,&H00FFFFFF,&H00FFFFFF,&H00202B06,&H80000000,0,0,0,0,100,100,0,0,1,5,3,5,60,60,0,1
+Style: Tag,Inter SemiBold,30,&H00FFFFFF,&H00FFFFFF,&H00202B06,&HFF000000,0,0,0,0,100,100,4,0,1,0,0,5,0,0,0,1
+Style: Hook,Inter Bold,50,&H00FFFFFF,&H00FFFFFF,&H00202B06,&HFF000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
+Style: Shape,Inter,10,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: EndBrand,Inter Display Bold,104,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
+Style: EndSub,Inter Medium,42,&H00EEF3F5,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,0,0,0,0,100,100,1,0,1,0,0,5,0,0,0,1
+Style: EndCta,Inter SemiBold,38,&H009ED222,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,0,0,0,0,100,100,1,0,1,0,0,5,0,0,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 1,0:00:00.25,0:00:10.01,Shape,,0,0,0,,{\an7\pos(0,0)\1c00202B06&\bord0\shad0\fad(300,200)\1a&H26&\p1}m 96 210 l 338 210 b 355.6 210 370 224.4 370 242 l 370 242 b 370 259.6 355.6 274 338 274 l 96 274 b 78.4 274 64 259.6 64 242 l 64 242 b 64 224.4 78.4 210 96 210{\p0}
+Dialogue: 2,0:00:00.25,0:00:10.01,Shape,,0,0,0,,{\an7\pos(90,235)\1c009ED222&\bord0\shad0\fad(300,200)\p1}m 7 0 l 7 0 b 10.850000000000001 0 14 3.1499999999999995 14 7 l 14 7 b 14 10.850000000000001 10.850000000000001 14 7 14 l 7 14 b 3.1499999999999995 14 0 10.850000000000001 0 7 l 0 7 b 0 3.1499999999999995 3.1499999999999995 0 7 0{\p0}
+Dialogue: 2,0:00:00.25,0:00:10.01,Tag,,0,0,0,,{\an4\pos(120,242)\fad(300,200)}ZUNO PROPECT
+Dialogue: 3,0:00:00.20,0:00:01.75,Shape,,0,0,0,,{\an7\pos(0,0)\1c00202B06&\bord0\shad0\fad(120,160)\1a&H20&\p1}m 268.928203125 1180 l 811.071796875 1180 b 834.171796875 1180 853.071796875 1198.9 853.071796875 1222 l 853.071796875 1230 b 853.071796875 1253.1 834.171796875 1272 811.071796875 1272 l 268.928203125 1272 b 245.828203125 1272 226.92820312499998 1253.1 226.92820312499998 1230 l 226.92820312499998 1222 b 226.92820312499998 1198.9 245.828203125 1180 268.928203125 1180{\p0}
+Dialogue: 4,0:00:00.20,0:00:01.75,Hook,,0,0,0,,{\an5\pos(540,1226)\fad(120,160)\fscx92\fscy92\t(0,140,\fscx100\fscy100)}Depender só de {\1c009ED222&}indicação{\1c&HFFFFFF&}?
+Dialogue: 5,0:00:00.14,0:00:00.73,Caption,,0,0,0,,{\an5\move(540,1426,540,1400,0,110)\fad(60,50)\fscx88\fscy88\t(0,110,\fscx100\fscy100)}{\fs56}Se sua agência
+Dialogue: 5,0:00:00.73,0:00:01.32,Caption,,0,0,0,,{\an5\move(540,1426,540,1400,0,110)\fad(60,50)\fscx88\fscy88\t(0,110,\fscx100\fscy100)}{\fs56}ainda depende
+Dialogue: 5,0:00:01.32,0:00:02.02,Caption,,0,0,0,,{\an5\move(540,1426,540,1400,0,110)\fad(60,50)\fscx88\fscy88\t(0,110,\fscx100\fscy100)}{\fs56}só de {\1c009ED222&\fs64\t(0,130,\fscx116\fscy116)\t(130,300,\fscx100\fscy100)}INDICAÇÃO{\1c&HFFFFFF&\fs56}
+Dialogue: 4,0:00:01.42,0:00:02.02,Shape,,0,0,0,,{\an7\pos(456,1439)\1c009ED222&\bord0\shad0\fscx0\t(0,260,\fscx100)\fad(0,120)\p1}m 0 0 l 301.6484375 0 l 301.6484375 8 l 0 8{\p0}
+Dialogue: 5,0:00:02.02,0:00:03.04,Caption,,0,0,0,,{\an5\move(540,1426,540,1400,0,110)\fad(60,50)\fscx88\fscy88\t(0,110,\fscx100\fscy100)}{\fs56}para conseguir clientes,
+Dialogue: 5,0:00:03.24,0:00:03.92,Caption,,0,0,0,,{\an5\move(540,1426,540,1400,0,110)\fad(60,50)\fscx88\fscy88\t(0,110,\fscx100\fscy100)}{\fs56}presta atenção.
+Dialogue: 5,0:00:04.14,0:00:04.84,Caption,,0,0,0,,{\an5\move(540,1426,540,1400,0,110)\fad(60,50)\fscx88\fscy88\t(0,110,\fscx100\fscy100)}{\fs56}O problema não é
+Dialogue: 5,0:00:04.84,0:00:05.59,Caption,,0,0,0,,{\an5\move(540,1426,540,1400,0,110)\fad(60,50)\fscx88\fscy88\t(0,110,\fscx100\fscy100)}{\fs56}falta de mercado.
+Dialogue: 5,0:00:05.62,0:00:06.10,Caption,,0,0,0,,{\an5\move(540,1426,540,1400,0,110)\fad(60,50)\fscx88\fscy88\t(0,110,\fscx100\fscy100)}{\fs56}É não ter um
+Dialogue: 5,0:00:06.10,0:00:06.95,Caption,,0,0,0,,{\an5\move(540,1426,540,1400,0,110)\fad(60,50)\fscx88\fscy88\t(0,110,\fscx100\fscy100)}{\fs56}{\1c009ED222&\fs64\t(0,130,\fscx116\fscy116)\t(130,300,\fscx100\fscy100)}PROCESSO PREVISÍVEL{\1c&HFFFFFF&\fs56}
+Dialogue: 4,0:00:06.20,0:00:06.95,Shape,,0,0,0,,{\an7\pos(211,1360)\1a&HFF&\3c009ED222&\bord4\shad0\fscx0\fscy100\t(0,280,\fscx100)\fad(0,120)\p1}m 14 0 l 644.34296875 0 b 652.04296875 0 658.34296875 6.299999999999999 658.34296875 14 l 658.34296875 65.36 b 658.34296875 73.06 652.04296875 79.36 644.34296875 79.36 l 14 79.36 b 6.299999999999999 79.36 0 73.06 0 65.36 l 0 14 b 0 6.299999999999999 6.299999999999999 0 14 0{\p0}
+Dialogue: 5,0:00:06.95,0:00:07.37,Caption,,0,0,0,,{\an5\move(540,1426,540,1400,0,110)\fad(60,50)\fscx88\fscy88\t(0,110,\fscx100\fscy100)}{\fs56}para encontrar
+Dialogue: 5,0:00:07.37,0:00:08.08,Caption,,0,0,0,,{\an5\move(540,1426,540,1400,0,110)\fad(60,50)\fscx88\fscy88\t(0,110,\fscx100\fscy100)}{\fs56}{\1c009ED222&\fs64\t(0,130,\fscx116\fscy116)\t(130,300,\fscx100\fscy100)}NOVAS OPORTUNIDADES{\1c&HFFFFFF&\fs56}
+Dialogue: 4,0:00:07.47,0:00:08.08,Shape,,0,0,0,,{\an7\pos(208,1439)\1c009ED222&\bord0\shad0\fscx0\t(0,260,\fscx100)\fad(0,120)\p1}m 0 0 l 664.131875 0 l 664.131875 8 l 0 8{\p0}
+Dialogue: 4,0:00:07.52,0:00:08.08,Shape,,0,0,0,,{\an7\pos(826,1290)\1c009ED222&\bord0\shad0\fscy0\t(0,220,\fscy112)\t(220,380,\fscy100)\fad(0,120)\p1}m 0 34 l 28 0 l 56 34 l 40 34 l 40 62 l 16 62 l 16 34{\p0}
+Dialogue: 5,0:00:08.08,0:00:09.15,Caption,,0,0,0,,{\an5\move(540,1426,540,1400,0,110)\fad(60,50)\fscx88\fscy88\t(0,110,\fscx100\fscy100)}{\fs56}É exatamente nisso que
+Dialogue: 5,0:00:09.15,0:00:09.94,Caption,,0,0,0,,{\an5\move(540,1426,540,1400,0,110)\fad(60,50)\fscx88\fscy88\t(0,110,\fscx100\fscy100)}{\fs56}o {\1c009ED222&\fs64\t(0,130,\fscx116\fscy116)\t(130,300,\fscx100\fscy100)}ZUNO PROPECT{\1c&HFFFFFF&\fs56} entra.
+Dialogue: 3,0:00:09.15,0:00:10.10,Shape,,0,0,0,,{\an7\pos(0,0)\1c00202B06&\bord0\shad0\fad(140,0)\move(0,18,0,0,0,140)\1a&H1A&\p1}m 402.389453125 1262 l 677.610546875 1262 b 694.110546875 1262 707.610546875 1275.5 707.610546875 1292 l 707.610546875 1292 b 707.610546875 1308.5 694.110546875 1322 677.610546875 1322 l 402.389453125 1322 b 385.889453125 1322 372.389453125 1308.5 372.389453125 1292 l 372.389453125 1292 b 372.389453125 1275.5 385.889453125 1262 402.389453125 1262{\p0}
+Dialogue: 4,0:00:09.15,0:00:10.10,Shape,,0,0,0,,{\an7\pos(396,1285)\1c009ED222&\bord0\shad0\fad(140,0)\move(0,18,0,0,0,140)\p1}m 7 0 l 7 0 b 10.850000000000001 0 14 3.1499999999999995 14 7 l 14 7 b 14 10.850000000000001 10.850000000000001 14 7 14 l 7 14 b 3.1499999999999995 14 0 10.850000000000001 0 7 l 0 7 b 0 3.1499999999999995 3.1499999999999995 0 7 0{\p0}
+Dialogue: 4,0:00:09.15,0:00:10.10,Tag,,0,0,0,,{\an4\pos(422,1292)\fad(140,0)\move(422,1310,422,1292,0,140)}ZUNO PROPECT
+Dialogue: 6,0:00:10.06,0:00:11.40,Shape,,0,0,0,,{\an7\pos(492,850)\1c009ED222&\bord0\shad0\fad(250,0)\p1}m 5 0 l 91 0 b 93.75 0 96 2.25 96 5 l 96 5 b 96 7.75 93.75 10 91 10 l 5 10 b 2.25 10 0 7.75 0 5 l 0 5 b 0 2.25 2.25 0 5 0{\p0}
+Dialogue: 6,0:00:10.06,0:00:11.40,EndBrand,,0,0,0,,{\an5\pos(540,960)\fad(250,0)}Zuno Propect
+Dialogue: 6,0:00:10.06,0:00:11.40,EndSub,,0,0,0,,{\an5\pos(540,1060)\fad(350,0)}Prospecção B2B com IA
+Dialogue: 6,0:00:10.06,0:00:11.40,EndCta,,0,0,0,,{\an5\pos(540,1170)\fad(450,0)}Encontre novas oportunidades.

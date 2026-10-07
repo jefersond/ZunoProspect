@@ -22,7 +22,7 @@ W, H = 1080, 1920
 GREEN = "#22D29E"          # --primary do app: hsl(162 72% 48%)
 DARK_GREEN = "#062B20"     # verde escuro da marca
 OFF_WHITE = "#F5F3EE"
-END_CARD_SECONDS = 1.6
+END_CARD_SECONDS = 1.4
 FONT = "Inter"
 
 
@@ -69,7 +69,7 @@ def read_srt(path):
         if len(lines) < 3:
             continue
         start, end = (parse_ts(x) for x in lines[1].split("-->"))
-        cues.append((start, end, " ".join(lines[2:])))
+        cues.append((start, end, "\n".join(lines[2:])))
     return cues
 
 
@@ -150,7 +150,7 @@ def srt_text_to_ass(text):
     def repl(m):
         return "{\\c" + ass_color(m.group(1))[2:] + "&}" + m.group(2) + "{\\c" + ass_color("#FFFFFF")[2:] + "&}"
     text = re.sub(r'<font color="(#[0-9A-Fa-f]{6})">(.*?)</font>', repl, text)
-    return re.sub(r"<[^>]+>", "", text)
+    return re.sub(r"<[^>]+>", "", text).replace("\n", "\\N")
 
 
 def pill(x, y, w, h, r):
@@ -174,12 +174,13 @@ YCbCr Matrix: TV.709
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Caption,{FONT} ExtraBold,70,{white},{white},{ass_color(DARK_GREEN)},{ass_color('#000000', 0x90)},0,0,0,0,100,100,0,0,1,5,3,5,60,60,0,1
+Style: Caption,{FONT} ExtraBold,56,{white},{white},{ass_color(DARK_GREEN)},{ass_color('#000000', 0x90)},0,0,0,0,100,100,0,0,1,5,3,5,60,60,0,1
 Style: Tag,{FONT} SemiBold,30,{white},{white},{ass_color(DARK_GREEN)},{ass_color('#000000', 0xFF)},0,0,0,0,100,100,4,0,1,0,0,4,0,0,0,1
 Style: Title,{FONT} Display ExtraBold,58,{white},{white},{ass_color(DARK_GREEN)},{ass_color('#000000', 0x90)},0,0,0,0,100,100,0,0,1,4,3,5,60,60,0,1
 Style: Shape,{FONT},10,{white},{white},{white},{white},0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: EndBrand,{FONT} Display Bold,104,{white},{white},{white},{white},0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
 Style: EndSub,{FONT} Medium,42,{ass_color(OFF_WHITE)},{white},{white},{white},0,0,0,0,100,100,1,0,1,0,0,5,0,0,0,1
+Style: EndCta,{FONT} SemiBold,32,{ass_color(DARK_GREEN)},{white},{white},{white},0,0,0,0,100,100,1,0,1,0,0,5,0,0,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -206,10 +207,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             f"{srt_text_to_ass(text)}")
 
     # Cartão final sobre o último quadro desfocado.
-    e0, e1 = ts_ass(speech_end + 0.12), ts_ass(speech_end + END_CARD_SECONDS)
+    e0, e1 = ts_ass(speech_end + 0.05), ts_ass(speech_end + END_CARD_SECONDS)
     ev.append(f"Dialogue: 6,{e0},{e1},Shape,,0,0,0,,{{\\an7\\pos(0,0)\\fad(250,0)\\1c{ass_color(GREEN)[2:]}&\\bord0\\shad0\\p1}}{pill(W // 2 - 48, 850, 96, 10, 5)}{{\\p0}}")
     ev.append(f"Dialogue: 6,{e0},{e1},EndBrand,,0,0,0,,{{\\an5\\pos({W // 2},960)\\fad(250,0)}}Zuno Prospect")
     ev.append(f"Dialogue: 6,{e0},{e1},EndSub,,0,0,0,,{{\\an5\\pos({W // 2},1060)\\fad(350,0)}}Prospecção B2B com IA")
+    ev.append(f"Dialogue: 6,{e0},{e1},Shape,,0,0,0,,{{\\an7\\pos(0,0)\\fad(400,0)\\1c{ass_color(GREEN)[2:]}&\\bord0\\shad0\\p1}}{pill(W // 2 - 220, 1150, 440, 72, 36)}{{\\p0}}")
+    ev.append(f"Dialogue: 7,{e0},{e1},EndCta,,0,0,0,,{{\\an5\\pos({W // 2},1186)\\fad(400,0)}}Conheça o Zuno Prospect")
 
     Path(out_ass).write_text(header + "\n".join(ev) + "\n", encoding="utf-8")
 

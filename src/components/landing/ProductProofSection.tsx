@@ -44,13 +44,13 @@ export function ProductProofSection() {
           ))}
         </div>
 
-        <div className="mx-auto mt-8 max-w-6xl overflow-hidden rounded-2xl border border-[#20312A] bg-[#0D1713] shadow-[0_0_50px_rgba(18,217,139,0.03)]">
+        <div className="mx-auto mt-8 min-w-0 max-w-6xl overflow-hidden rounded-2xl border border-[#20312A] bg-[#0D1713] shadow-[0_0_50px_rgba(18,217,139,0.03)]">
           <div className="border-b border-[#20312A] px-5 py-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#12D98B]">É isso que você recebe</p>
           </div>
 
-          <div className="grid gap-0 lg:grid-cols-2">
-            <div className="border-b border-[#20312A] p-5 lg:border-b-0 lg:border-r">
+          <div className="grid min-w-0 gap-0 lg:grid-cols-2">
+            <div className="min-w-0 border-b border-[#20312A] p-5 max-[319px]:p-3 lg:border-b-0 lg:border-r">
               <div className="flex items-center gap-2 text-xs text-[#A9B8B1]">
                 <MapPin className="h-4 w-4 text-[#12D98B]" />
                 Ribeirão Preto, SP
@@ -78,7 +78,7 @@ export function ProductProofSection() {
               </div>
             </div>
 
-            <div className="p-5">
+            <div className="min-w-0 p-5 max-[319px]:p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#12D98B]">Abordagem sugerida</p>
               <div className="mt-3 rounded-xl border border-[#20312A] bg-[#07100D] p-4">
                 <p className="text-sm leading-7 text-[#A9B8B1]">
@@ -90,6 +90,7 @@ export function ProductProofSection() {
               </p>
 
               <Button
+                data-zuno-wrap-cta
                 size="lg"
                 className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} mt-6 bg-[#12D98B] text-[#07100D] hover:bg-[#21E6A0]`}
                 onClick={goToPricing}

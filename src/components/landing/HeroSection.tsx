@@ -1,6 +1,6 @@
-import { Button } from "@/components/ui/button";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { ArrowRight, Check, Play, ShieldCheck, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ArrowRight, Check, Play, ScanSearch, ShieldCheck, Sparkles } from "lucide-react";
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
@@ -21,8 +21,8 @@ export function HeroSection() {
     const bounds = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - bounds.left) / bounds.width - 0.5;
     const y = (event.clientY - bounds.top) / bounds.height - 0.5;
-    event.currentTarget.style.setProperty("--zuno-tilt-x", `${(-y * 9).toFixed(2)}deg`);
-    event.currentTarget.style.setProperty("--zuno-tilt-y", `${(x * 12).toFixed(2)}deg`);
+    event.currentTarget.style.setProperty("--zuno-tilt-x", String((-y * 7).toFixed(2)) + "deg");
+    event.currentTarget.style.setProperty("--zuno-tilt-y", String((x * 9).toFixed(2)) + "deg");
   };
 
   const resetPreviewTilt = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -58,30 +58,43 @@ export function HeroSection() {
     scrollToSection("product-proof");
   };
 
+  const handleDemoCta = () => {
+    trackEvent("landing_demo_cta_clicked", { location: "interactive_demo" });
+    trackHeroMeta("CTA_Demo_Click", "Ver planos e começar");
+    scrollToSection("precos");
+  };
+
   return (
-    <section className="relative overflow-hidden border-b border-[#0B8F60]/20 bg-[#DDF9E9] text-[#07100D] selection:bg-[#12D98B]/40">
-      <div className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full border-[64px] border-[#12D98B]/20" />
+    <section className="zuno-hero-future relative isolate overflow-hidden border-b border-[#12D98B]/15 bg-[#07100D] text-[#F3F7F5] selection:bg-[#12D98B]/40">
+      <div className="zuno-hero-grid pointer-events-none absolute inset-0" aria-hidden="true" />
+      <div className="zuno-hero-halo pointer-events-none absolute -right-40 top-0 h-[650px] w-[650px] rounded-full" aria-hidden="true" />
+      <div className="pointer-events-none absolute left-1/2 top-0 h-px w-[75%] -translate-x-1/2 bg-gradient-to-r from-transparent via-[#12D98B]/45 to-transparent" aria-hidden="true" />
       <div className="container relative mx-auto px-4">
-        <div className="grid items-start gap-8 pb-8 pt-7 sm:pt-10 lg:grid-cols-[0.95fr_1.05fr] lg:gap-12 lg:pb-10 lg:pt-10">
-          <div className="max-w-2xl lg:pt-8">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#0B8F60]/25 bg-white/70 px-3 py-1.5 text-xs font-bold text-[#0B8F60]">
+        <div className="grid items-center gap-10 pb-8 pt-10 sm:pt-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-12 lg:pb-12 lg:pt-16">
+          <div className="relative z-10 max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#0B8F60]/50 bg-[#12D98B]/10 px-3 py-1.5 text-xs font-bold text-[#8DF0BE] backdrop-blur-md">
               <Sparkles className="h-3.5 w-3.5" />
               Plataforma de prospecção B2B para agências e freelancers
             </div>
 
-            <h1 className="mt-5 text-[2.4rem] font-extrabold leading-[1.02] tracking-[-0.055em] sm:text-5xl lg:text-[3.5rem]">
+            <h1 className="mt-6 text-[2.7rem] font-extrabold leading-[1.01] tracking-[-0.06em] sm:text-6xl lg:text-[4.2rem]">
               Encontre empresas.<br />
-              <span className="text-[#0B8F60]">Saiba como abordar.</span>
+              <span className="zuno-hero-gradient-text text-[#12D98B]">Saiba como abordar.</span>
             </h1>
 
-            <p className="mt-5 max-w-xl text-base leading-relaxed text-[#28443A] sm:text-lg">
+            <p className="mt-6 max-w-xl text-base leading-relaxed text-[#A9B8B1] sm:text-lg">
               Escolha uma cidade e um nicho. O Zuno organiza dados públicos, mostra sinais de oportunidade e sugere a primeira mensagem para cada empresa.
             </p>
+
+            <div className="mt-6 flex items-center gap-3 rounded-2xl border border-[#12D98B]/20 bg-[#0D1713]/80 p-3.5 text-sm text-[#D7E4DC] backdrop-blur-md sm:max-w-[480px]">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#12D98B]/10 text-[#12D98B]"><ScanSearch className="h-5 w-5" /></span>
+              <span>Explore exemplos em diferentes nichos antes de começar.</span>
+            </div>
 
             <div className={LANDING_CTA_PAIR}>
               <Button
                 size="lg"
-                className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} bg-[#07100D] text-base text-[#F3F7F5] shadow-xl shadow-[#0B8F60]/20 transition-transform hover:scale-[1.02] hover:bg-[#0D1713] sm:px-8 sm:text-lg`}
+                className={[LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, "bg-[#12D98B] text-base text-[#07100D] shadow-[0_14px_32px_rgba(18,217,139,0.18)] transition-transform hover:scale-[1.02] hover:bg-[#21E6A0] sm:px-8 sm:text-lg"].join(" ")}
                 onClick={handlePrimaryCta}
               >
                 Começar minha primeira busca
@@ -90,7 +103,7 @@ export function HeroSection() {
               <Button
                 size="lg"
                 variant="outline"
-                className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} border-[#07100D]/25 bg-white/50 text-sm text-[#07100D] hover:border-[#0B8F60] hover:bg-white sm:px-8 sm:text-base`}
+                className={[LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, "border-[#12D98B]/30 bg-[#0D1713]/70 text-sm text-[#F3F7F5] hover:border-[#12D98B] hover:bg-[#12D98B]/10 sm:px-8 sm:text-base"].join(" ")}
                 onClick={handleProofCta}
               >
                 <Play className={LANDING_CTA_ICON} />
@@ -99,36 +112,28 @@ export function HeroSection() {
             </div>
 
             <div className="mt-5 flex items-start gap-2">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#0B8F60]" />
-              <p className="text-xs font-medium leading-snug text-[#36564A]">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#12D98B]" />
+              <p className="text-xs font-medium leading-snug text-[#A9B8B1]">
                 {trialDurationDays
-                  ? `Hoje R$0. Cartão necessário. Teste de ${trialDurationDays} dias. Cancele antes da primeira cobrança.`
+                  ? "Hoje R$0. Cartão necessário. Teste de " + trialDurationDays + " dias. Cancele antes da primeira cobrança."
                   : "Hoje R$0. Cartão necessário. A duração vigente será confirmada antes do checkout."}
               </p>
             </div>
           </div>
 
           <div className="zuno-hero-stage relative mx-auto w-full min-w-0 max-w-[590px] lg:max-w-none" onPointerMove={tiltPreview} onPointerLeave={resetPreviewTilt}>
-            <div className="pointer-events-none absolute inset-8 rounded-[3rem] bg-[#12D98B]/40 blur-3xl" />
-            <div className="zuno-hero-orbit pointer-events-none absolute inset-6 hidden rounded-[2.5rem] border border-[#0B8F60]/20 lg:block" aria-hidden="true" />
-            <div className="zuno-hero-window relative -mx-4 sm:mx-0"><MockupHeroProspeccao /></div>
-            <div className="zuno-hero-chip zuno-hero-chip-top pointer-events-none absolute right-1 top-0 hidden items-center gap-2 rounded-xl border border-[#12D98B]/35 bg-[#07100D]/95 px-3 py-2 text-xs font-semibold text-[#DDF9E9] shadow-xl lg:flex" aria-hidden="true">
-              <span className="h-2 w-2 rounded-full bg-[#12D98B] shadow-[0_0_12px_#12D98B]" />
-              Busca por cidade e nicho
-            </div>
-            <div className="zuno-hero-chip zuno-hero-chip-bottom pointer-events-none absolute -bottom-1 left-1 hidden items-center gap-2 rounded-xl border border-[#12D98B]/35 bg-[#07100D]/95 px-3 py-2 text-xs font-semibold text-[#DDF9E9] shadow-xl lg:flex" aria-hidden="true">
-              <Sparkles className="h-4 w-4 text-[#12D98B]" />
-              Abordagem sugerida
-            </div>
+            <div className="pointer-events-none absolute -inset-8 rounded-[3rem] bg-[#12D98B]/15 blur-[65px]" aria-hidden="true" />
+            <div className="zuno-hero-orbit pointer-events-none absolute -inset-3 hidden rounded-[2.5rem] border border-[#12D98B]/20 lg:block" aria-hidden="true" />
+            <div className="zuno-hero-window relative"><MockupHeroProspeccao onStart={handleDemoCta} /></div>
           </div>
         </div>
 
-        <div className="grid gap-3 border-t border-[#0B8F60]/25 py-5 text-sm font-semibold sm:grid-cols-3 sm:gap-6">
+        <div className="grid gap-3 border-t border-[#12D98B]/20 py-5 text-sm font-semibold text-[#D7E4DC] sm:grid-cols-3 sm:gap-6">
           {heroSteps.map((step, index) => (
             <div key={step} className="flex items-center gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0B8F60] text-xs text-white">{index + 1}</span>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#12D98B]/40 bg-[#12D98B]/10 text-xs text-[#12D98B]">{index + 1}</span>
               <span>{step}</span>
-              <Check className="ml-auto h-4 w-4 shrink-0 text-[#0B8F60] sm:hidden" />
+              <Check className="ml-auto h-4 w-4 shrink-0 text-[#12D98B] sm:hidden" />
             </div>
           ))}
         </div>

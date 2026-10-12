@@ -15,20 +15,20 @@ const heroSteps = [
 
 export function HeroSection() {
   const { trialDurationDays } = useBillingOfferConfig();
-  const [gridPulse, setGridPulse] = useState<{ id: number; x: number; y: number } | null>(null);
+  const [lightPulse, setLightPulse] = useState<{ id: number; x: number; y: number } | null>(null);
 
-  const moveGridLight = (event: ReactPointerEvent<HTMLElement>) => {
+  const moveAmbientLight = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.pointerType !== "mouse" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const bounds = event.currentTarget.getBoundingClientRect();
-    event.currentTarget.style.setProperty("--zuno-grid-x", String(event.clientX - bounds.left) + "px");
-    event.currentTarget.style.setProperty("--zuno-grid-y", String(event.clientY - bounds.top) + "px");
+    event.currentTarget.style.setProperty("--zuno-light-x", String(event.clientX - bounds.left) + "px");
+    event.currentTarget.style.setProperty("--zuno-light-y", String(event.clientY - bounds.top) + "px");
   };
 
-  const pulseGrid = (event: ReactPointerEvent<HTMLElement>) => {
+  const pulseLight = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.pointerType !== "mouse" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     if ((event.target as Element).closest("button, a, select, input, textarea")) return;
     const bounds = event.currentTarget.getBoundingClientRect();
-    setGridPulse({ id: event.timeStamp, x: event.clientX - bounds.left, y: event.clientY - bounds.top });
+    setLightPulse({ id: event.timeStamp, x: event.clientX - bounds.left, y: event.clientY - bounds.top });
   };
 
   const tiltPreview = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -80,10 +80,10 @@ export function HeroSection() {
   };
 
   return (
-    <section className="zuno-hero-future relative isolate overflow-hidden border-b border-[#12D98B]/15 bg-[#07100D] text-[#F3F7F5] selection:bg-[#12D98B]/40" onPointerMove={moveGridLight} onPointerDown={pulseGrid}>
-      <div className="zuno-hero-grid pointer-events-none absolute inset-0" aria-hidden="true" />
+    <section className="zuno-hero-future relative isolate overflow-hidden border-b border-[#12D98B]/15 bg-[#07100D] text-[#F3F7F5] selection:bg-[#12D98B]/40" onPointerMove={moveAmbientLight} onPointerDown={pulseLight}>
+      <div className="zuno-hero-atmosphere pointer-events-none absolute inset-0" aria-hidden="true" />
       <div className="zuno-hero-halo pointer-events-none absolute -right-40 top-0 h-[650px] w-[650px] rounded-full" aria-hidden="true" />
-      {gridPulse && <span key={gridPulse.id} className="zuno-grid-ripple pointer-events-none absolute z-10" style={{ left: gridPulse.x, top: gridPulse.y }} aria-hidden="true" />}
+      {lightPulse && <span key={lightPulse.id} className="zuno-light-ripple pointer-events-none absolute z-10" style={{ left: lightPulse.x, top: lightPulse.y }} aria-hidden="true" />}
       <div className="pointer-events-none absolute left-1/2 top-0 h-px w-[75%] -translate-x-1/2 bg-gradient-to-r from-transparent via-[#12D98B]/45 to-transparent" aria-hidden="true" />
       <div className="container relative mx-auto px-4">
         <div className="grid items-center gap-10 pb-8 pt-10 sm:pt-14 lg:grid-cols-2 lg:gap-10 lg:pb-12 lg:pt-16">
@@ -137,7 +137,7 @@ export function HeroSection() {
             </div>
             <p className="mt-4 hidden items-center gap-2 text-xs text-[#8DF0BE] lg:flex">
               <MousePointer2 className="h-3.5 w-3.5" />
-              Mova o cursor e clique no grid para explorar o efeito.
+              Mova o cursor e clique no fundo para explorar o efeito.
             </p>
           </div>
 

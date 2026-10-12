@@ -1,16 +1,16 @@
-import { Bot, CheckCircle, Mail, MapPin, MessageCircle, Search, Send, Sparkles, Target, TrendingUp, Star } from "lucide-react";
+import { Bot, CheckCircle, Mail, MapPin, MessageCircle, Search, Send, Sparkles, TrendingUp } from "lucide-react";
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 
 export function MockupHeroProspeccao() {
   const { trialDurationDays } = useBillingOfferConfig();
   const leads = [
-    { nome: "Clínica Bella Saúde", nicho: "Clínica Estética", score: 94, badges: ["Sem pixel", "SEO ruim"] },
-    { nome: "Studio Forma Fit", nicho: "Academia", score: 87, badges: ["Instagram fraco"] },
-    { nome: "Odonto Prime", nicho: "Clínica Odontológica", score: 79, badges: ["Sem Google Ads"] },
+    { nome: "Empresa exemplo 1", nicho: "Clínica estética", badges: ["Site", "Instagram"] },
+    { nome: "Empresa exemplo 2", nicho: "Clínica estética", badges: ["Site"] },
+    { nome: "Empresa exemplo 3", nicho: "Clínica estética", badges: ["Instagram"] },
   ];
 
   return (
-    <div className="relative p-6 lg:p-8">
+    <div className="relative p-2 sm:p-6 lg:p-8">
       {/* Elementos decorativos circulares de fundo para profundidade */}
       <div className="absolute right-0 top-0 -z-10 h-72 w-72 rounded-full bg-[#12D98B]/5 blur-[80px]" />
       <div className="absolute left-0 bottom-0 -z-10 h-64 w-64 rounded-full bg-[#0B8F60]/10 blur-[80px]" />
@@ -32,14 +32,14 @@ export function MockupHeroProspeccao() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#12D98B] opacity-75"></span>
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#12D98B]"></span>
             </span>
-            IA ATIVA
+            EXEMPLO
           </div>
         </div>
 
         {/* Workspace do Mockup */}
-        <div className="space-y-4 p-4 lg:p-5">
+        <div className="space-y-4 p-3 sm:p-4 lg:p-5">
           {/* Barra de Filtros / Inputs */}
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid gap-2.5 sm:grid-cols-2">
             <div className="flex items-center gap-2 rounded-lg border border-[#20312A] bg-[#07100D] px-3 py-2">
               <MapPin className="h-3.5 w-3.5 text-[#12D98B]" />
               <span className="text-xs font-medium text-[#F3F7F5]">São Paulo, SP</span>
@@ -53,8 +53,8 @@ export function MockupHeroProspeccao() {
           {/* Seção Central de Leads Encontrados */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs font-bold text-[#A9B8B1] tracking-wider font-mono">
-              <span>EMPRESAS ENCONTRADAS</span>
-              <span className="text-[#12D98B]">3 OPORTUNIDADES</span>
+              <span>RESULTADOS ILUSTRATIVOS</span>
+              <span className="text-[#12D98B]">3 EXEMPLOS</span>
             </div>
 
             <div className="space-y-2">
@@ -79,8 +79,7 @@ export function MockupHeroProspeccao() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-sm font-bold text-[#12D98B] font-mono">{lead.score}%</span>
-                      <p className="text-[9px] text-[#A9B8B1]/70 font-mono uppercase">Score</p>
+                      <span className="text-[10px] font-bold text-[#12D98B] font-mono">EXEMPLO</span>
                     </div>
                   </div>
                 </div>
@@ -96,11 +95,11 @@ export function MockupHeroProspeccao() {
                 <Bot className="h-4 w-4 text-[#12D98B]" />
                 <span className="text-xs font-bold text-[#F3F7F5] tracking-wide">Abordagem Gerada com IA</span>
               </div>
-              <span className="text-[10px] font-mono text-[#A9B8B1]">Qualificação Máxima</span>
+              <span className="text-[10px] font-mono text-[#A9B8B1]">Sugestão ilustrativa</span>
             </div>
             
             <p className="text-xs leading-relaxed text-[#A9B8B1] italic bg-[#0D1713]/60 p-2.5 rounded border border-[#20312A]/40">
-              "Vi que a sua clínica aparece bem no Google Maps em Campinas, mas identifiquei que o seu site está sem o pixel de anúncios do Meta e com tempo de resposta lento. Quer ver um diagnóstico rápido de como isso afeta seus agendamentos?"
+              "Oi! Encontrei sua clínica em São Paulo e reuni alguns dados públicos sobre sua presença digital. Posso compartilhar o que observei?"
             </p>
 
             <div className="mt-3 flex items-center justify-between">
@@ -115,20 +114,19 @@ export function MockupHeroProspeccao() {
                   <Mail className="h-3 w-3" /> E-mail
                 </span>
               </div>
-              <button className="text-[11px] font-bold text-[#12D98B] hover:underline flex items-center gap-0.5">
-                Copiar
-              </button>
+              <span className="text-[11px] font-bold text-[#12D98B]">Envio manual</span>
             </div>
           </div>
 
           {/* Barra de Status Inferior */}
-          <div className="flex items-center justify-between rounded-lg border border-[#12D98B]/20 bg-[#12D98B]/5 px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#12D98B]/20 bg-[#12D98B]/5 px-3 py-2">
             <div className="flex items-center gap-2">
               <Sparkles className="h-3.5 w-3.5 text-[#12D98B] animate-pulse" />
               <span className="text-[11px] font-semibold text-[#12D98B]">{trialDurationDays ? `Sequência comercial de ${trialDurationDays} dias disponível` : "Sequência comercial disponível durante o teste"}</span>
             </div>
             <TrendingUp className="h-3.5 w-3.5 text-[#12D98B]" />
           </div>
+          <p className="text-[11px] leading-relaxed text-[#A9B8B1]">Demonstração ilustrativa. O Zuno organiza a pesquisa e sugere uma abordagem; você decide se quer enviar a mensagem.</p>
         </div>
       </div>
     </div>

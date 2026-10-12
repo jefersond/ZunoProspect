@@ -4,7 +4,7 @@ import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
-import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_PAIR, LANDING_CTA_RESPONSIVE } from "./ctaStyles";
+import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_PAIR, LANDING_CTA_RESPONSIVE, getTrialCtaLabel } from "./ctaStyles";
 
 export function HeroSection() {
   const { trialDurationDays } = useBillingOfferConfig();
@@ -22,7 +22,7 @@ export function HeroSection() {
   };
 
   const handlePrimaryCta = () => {
-    const ctaText = "Começar minha primeira busca";
+    const ctaText = getTrialCtaLabel(trialDurationDays);
     trackEvent("cta_clicked", { cta: "comecar_primeira_busca", location: "hero", cta_location: "hero" });
     trackEvent("hero_cta_clicked", { cta_location: "hero", cta_text: ctaText, trial_duration_days: trialDurationDays });
     trackEvent("trial_cta_clicked", { cta_location: "hero", cta_text: ctaText, trial_duration_days: trialDurationDays });
@@ -50,12 +50,12 @@ export function HeroSection() {
                 Plataforma de prospecção B2B para agências e freelancers
               </div>
 
-              <h1 className="max-w-3xl text-3xl font-extrabold leading-[1.08] tracking-tight text-[#F3F7F5] sm:text-4xl lg:text-6xl">
-                Encontre empresas com potencial para comprar de você e saiba como iniciar a conversa.
+              <h1 className="max-w-3xl text-3xl font-extrabold leading-[1.08] tracking-tight text-[#F3F7F5] sm:text-4xl lg:text-[3rem]">
+                Encontre empresas que podem se tornar seus próximos clientes.
               </h1>
 
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#A9B8B1] sm:text-base md:text-lg">
-                Escolha uma cidade ou região e o perfil de empresa que procura. O Zuno encontra negócios, organiza os dados públicos disponíveis, destaca sinais de oportunidade e prepara uma abordagem contextual para você começar a conversa.
+                Pesquise negócios por cidade e segmento, descubra oportunidades e organize sua prospecção em um só lugar.
               </p>
 
               <div className={LANDING_CTA_PAIR}>
@@ -64,7 +64,7 @@ export function HeroSection() {
                   className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} bg-[#12D98B] text-base text-[#07100D] shadow-[0_0_32px_rgba(18,217,139,0.3)] transition-all hover:scale-[1.02] hover:bg-[#21E6A0] sm:px-8 sm:text-lg`}
                   onClick={handlePrimaryCta}
                 >
-                  Começar minha primeira busca
+                  {getTrialCtaLabel(trialDurationDays)}
                   <ArrowRight className={LANDING_CTA_ICON} />
                 </Button>
                 <Button

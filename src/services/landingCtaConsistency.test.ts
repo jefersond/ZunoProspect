@@ -71,7 +71,7 @@ describe("landing CTA visual consistency", () => {
   it("uses the same 24px section-to-CTA spacing token where applicable", () => {
     const styles = source("src/components/landing/ctaStyles.ts");
     expect(styles).toContain('LANDING_SECTION_CTA_WRAP = "mt-6 flex justify-center"');
-    expect(styles).toContain('LANDING_CTA_PAIR =\n  "mt-6');
+    expect(styles).toMatch(/LANDING_CTA_PAIR =\r?\n {2}"mt-6/);
     expect(source("src/components/landing/ProductProofSection.tsx")).toContain("mt-6");
     expect(source("src/components/landing/AntesDepoisSection.tsx")).toContain("LANDING_SECTION_CTA_WRAP");
     expect(source("src/components/landing/ComoFuncionaSection.tsx")).toContain("LANDING_SECTION_CTA_WRAP");

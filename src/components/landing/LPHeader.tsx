@@ -7,7 +7,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { appendReferralToPath } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
-import { LANDING_CTA_BASE } from "./ctaStyles";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
+import { LANDING_CTA_BASE, getTrialCtaLabel } from "./ctaStyles";
 
 const navItems = [
   { id: "como-funciona", label: "Como funciona" },
@@ -19,9 +20,10 @@ const navItems = [
 
 export function LPHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { trialDurationDays } = useBillingOfferConfig();
 
-  const scrollToSection = (id: string) => {
-    if (id === "precos") {
+  const scrollToSection = (id: string, trackNavigation = true) => {
+    if (id === "precos" && trackNavigation) {
       trackEvent("cta_clicked", { cta: "ver_planos", location: "header" });
     }
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -55,10 +57,10 @@ export function LPHeader() {
               className={`${LANDING_CTA_BASE} bg-[#12D98B] text-[#07100D] shadow-lg shadow-[#12D98B]/20 transition-transform hover:scale-[1.02] hover:bg-[#21E6A0]`} 
               onClick={() => {
                 trackEvent("cta_clicked", { cta: "comecar_gratis", location: "header" });
-                scrollToSection("precos");
+                scrollToSection("precos", false);
               }}
             >
-              Começar teste grátis
+              {getTrialCtaLabel(trialDurationDays)}
             </Button>
           </div>
 
@@ -86,10 +88,10 @@ export function LPHeader() {
                       className={`${LANDING_CTA_BASE} w-full bg-[#12D98B] text-[#07100D] hover:bg-[#21E6A0]`} 
                       onClick={() => {
                         trackEvent("cta_clicked", { cta: "comecar_gratis", location: "mobile_header" });
-                        scrollToSection("precos");
+                        scrollToSection("precos", false);
                       }}
                     >
-                      Começar teste grátis
+                      {getTrialCtaLabel(trialDurationDays)}
                     </Button>
                     <Button variant="outline" className={`${LANDING_CTA_BASE} w-full border-[#20312A] text-[#F3F7F5] hover:bg-[#12D98B]/5`} asChild>
                       <Link to={appendReferralToPath("/auth?tab=login")}>Entrar</Link>

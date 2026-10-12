@@ -2,7 +2,7 @@ import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
-import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE } from "./ctaStyles";
+import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE, getTrialCtaLabel } from "./ctaStyles";
 
 export function CTAFinalSection() {
   const { trialDurationDays } = useBillingOfferConfig();
@@ -35,11 +35,11 @@ export function CTAFinalSection() {
             className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} bg-[#12D98B] text-[#07100D] shadow-[0_0_30px_rgba(18,217,139,0.25)] hover:bg-[#21E6A0] sm:px-8`}
             onClick={() => {
               trackEvent("cta_clicked", { cta: "comecar_primeira_busca", location: "final_cta", cta_location: "final" });
-              trackEvent("trial_cta_clicked", { cta_location: "final", cta_text: "Começar minha primeira busca", trial_duration_days: trialDurationDays });
+              trackEvent("trial_cta_clicked", { cta_location: "final", cta_text: getTrialCtaLabel(trialDurationDays), trial_duration_days: trialDurationDays });
               scrollToSection("precos");
             }}
           >
-            Começar minha primeira busca
+            {getTrialCtaLabel(trialDurationDays)}
             <ArrowRight className={LANDING_CTA_ICON} />
           </Button>
         </div>

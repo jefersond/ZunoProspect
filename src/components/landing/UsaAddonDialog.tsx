@@ -237,7 +237,7 @@ export function UsaAddonDialog({ open, onOpenChange }: UsaAddonDialogProps) {
                 Este complemento está disponível apenas para usuários com plano ativo.
               </h3>
               <p className="mb-6 text-[#A9B8B1]">
-                Escolha Starter, Pro ou Agency para ativar a prospecção nos EUA.
+                Escolha Starter, Plus ou Agency para ativar a prospecção nos EUA.
               </p>
               <Button onClick={choosePlan} className="w-full">
                 Escolher plano

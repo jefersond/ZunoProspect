@@ -4,7 +4,7 @@ import { ArrowRight, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
-import { LANDING_CTA_BASE, LANDING_CTA_ICON } from "./ctaStyles";
+import { LANDING_CTA_BASE, LANDING_CTA_ICON, getTrialCtaLabel } from "./ctaStyles";
 
 interface StickyCtaBarProps {
   heroRef: React.RefObject<HTMLElement | null>;
@@ -29,7 +29,7 @@ export function StickyCtaBar({ heroRef }: StickyCtaBarProps) {
 
   const handleClick = () => {
     trackEvent("cta_clicked", { cta: "comecar_primeira_busca", location: "sticky", cta_location: "sticky" });
-    trackEvent("trial_cta_clicked", { cta_location: "sticky", cta_text: "Começar minha primeira busca", trial_duration_days: trialDurationDays });
+    trackEvent("trial_cta_clicked", { cta_location: "sticky", cta_text: getTrialCtaLabel(trialDurationDays), trial_duration_days: trialDurationDays });
     trackMetaCustomEvent("CTA_Sticky_Click", { page: "landing", location: "sticky_bar" });
     document.getElementById("precos")?.scrollIntoView({ behavior: "smooth" });
   };
@@ -52,7 +52,7 @@ export function StickyCtaBar({ heroRef }: StickyCtaBarProps) {
           className={`${LANDING_CTA_BASE} w-full bg-[#12D98B] text-[#07100D] shadow-[0_0_20px_rgba(18,217,139,0.3)] transition-all hover:scale-[1.02] hover:bg-[#21E6A0] sm:ml-auto sm:w-auto`}
           onClick={handleClick}
         >
-          Começar minha primeira busca
+          {getTrialCtaLabel(trialDurationDays)}
           <ArrowRight className={LANDING_CTA_ICON} />
         </Button>
       </div>

@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Building2, MapPin, MessageSquareText, Search, Sparkles, Target } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
-import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE } from "./ctaStyles";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
+import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE, getTrialCtaLabel } from "./ctaStyles";
 
 const flow = [
   { label: "Busca", detail: "Cidade ou região + nicho", icon: Search },
@@ -12,6 +13,7 @@ const flow = [
 ];
 
 export function ProductProofSection() {
+  const { trialDurationDays } = useBillingOfferConfig();
   const goToPricing = () => {
     trackEvent("cta_clicked", {
       cta: "ver_oportunidades_para_meu_negocio",
@@ -30,7 +32,7 @@ export function ProductProofSection() {
             Veja o que o Zuno entrega em uma busca
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-[#A9B8B1] md:text-base">
-            O exemplo abaixo mostra o formato do fluxo. Os dados variam conforme a região, o nicho e o que estiver publicamente disponível para cada empresa.
+            Exemplo ilustrativo de uma busca por cidade e segmento. Os resultados reais dependem dos dados públicos disponíveis para cada empresa.
           </p>
         </div>
 
@@ -44,17 +46,18 @@ export function ProductProofSection() {
           ))}
         </div>
 
-        <div className="mx-auto mt-8 max-w-6xl overflow-hidden rounded-2xl border border-[#20312A] bg-[#0D1713] shadow-[0_0_50px_rgba(18,217,139,0.03)]">
+        <div className="mx-auto mt-8 min-w-0 max-w-6xl overflow-hidden rounded-2xl border border-[#20312A] bg-[#0D1713] shadow-[0_0_50px_rgba(18,217,139,0.03)]">
           <div className="border-b border-[#20312A] px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#12D98B]">É isso que você recebe</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#12D98B]">Resultado ilustrativo da pesquisa</p>
           </div>
 
-          <div className="grid gap-0 lg:grid-cols-2">
-            <div className="border-b border-[#20312A] p-5 lg:border-b-0 lg:border-r">
+          <div className="grid min-w-0 gap-0 lg:grid-cols-2">
+            <div className="min-w-0 border-b border-[#20312A] p-5 max-[319px]:p-3 lg:border-b-0 lg:border-r">
               <div className="flex items-center gap-2 text-xs text-[#A9B8B1]">
                 <MapPin className="h-4 w-4 text-[#12D98B]" />
-                Ribeirão Preto, SP
+                Cidade escolhida: Ribeirão Preto, SP
               </div>
+              <p className="mt-2 text-xs text-[#A9B8B1]">Segmento pesquisado: clínicas odontológicas</p>
               <h3 className="mt-3 text-xl font-bold text-[#F3F7F5]">Empresa demonstrativa</h3>
               <p className="mt-1 text-sm text-[#A9B8B1]">Clínica odontológica</p>
 
@@ -71,14 +74,14 @@ export function ProductProofSection() {
               </div>
 
               <div className="mt-3 rounded-lg border border-[#12D98B]/20 bg-[#12D98B]/5 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#12D98B]">Diagnóstico</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#12D98B]">Organize sua prospecção</p>
                 <p className="mt-2 text-sm leading-relaxed text-[#A9B8B1]">
-                  O Zuno reúne o contexto disponível para ajudar você a decidir se vale abordar essa empresa e qual ponto usar para iniciar a conversa.
+                  O Zuno reúne o contexto disponível para você avaliar a empresa e salvar status e anotações no CRM antes de iniciar a conversa.
                 </p>
               </div>
             </div>
 
-            <div className="p-5">
+            <div className="min-w-0 p-5 max-[319px]:p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#12D98B]">Abordagem sugerida</p>
               <div className="mt-3 rounded-xl border border-[#20312A] bg-[#07100D] p-4">
                 <p className="text-sm leading-7 text-[#A9B8B1]">
@@ -86,7 +89,7 @@ export function ProductProofSection() {
                 </p>
               </div>
               <p className="mt-3 text-xs leading-relaxed text-[#6F8179]">
-                A mensagem é uma sugestão. Você revisa, adapta e decide quando enviar.
+                A mensagem é uma sugestão. Você revisa, adapta e decide quando enviar. O Zuno não dispara mensagens automaticamente.
               </p>
 
               <Button
@@ -94,7 +97,7 @@ export function ProductProofSection() {
                 className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} mt-6 bg-[#12D98B] text-[#07100D] hover:bg-[#21E6A0]`}
                 onClick={goToPricing}
               >
-                Ver oportunidades para meu negócio
+                {getTrialCtaLabel(trialDurationDays)}
                 <ArrowRight className={LANDING_CTA_ICON} />
               </Button>
             </div>

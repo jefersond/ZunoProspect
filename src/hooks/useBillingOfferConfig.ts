@@ -113,12 +113,19 @@ async function loadBillingOfferConfig(): Promise<BillingOfferConfig> {
   }
 }
 
+let billingOfferConfigPromise: Promise<BillingOfferConfig> | null = null;
+
+function getBillingOfferConfig() {
+  billingOfferConfigPromise ??= loadBillingOfferConfig();
+  return billingOfferConfigPromise;
+}
+
 export function useBillingOfferConfig() {
   const [config, setConfig] = useState<BillingOfferConfig>(INITIAL_CONFIG);
 
   useEffect(() => {
     let active = true;
-    void loadBillingOfferConfig().then((next) => {
+    void getBillingOfferConfig().then((next) => {
       if (active) setConfig(next);
     });
     return () => {

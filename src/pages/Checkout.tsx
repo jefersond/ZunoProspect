@@ -89,7 +89,7 @@ const PLANOS = {
     features: [
       "2.000 leads/mês",
       "300 análises com IA/mês",
-      "Tudo do Pro +",
+      "Tudo do Plus +",
       "API de integração",
       "Relatórios avançados",
       "Suporte prioritário",

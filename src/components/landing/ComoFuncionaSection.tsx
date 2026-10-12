@@ -16,7 +16,7 @@ import {
   Zap
 } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
-import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE, LANDING_SECTION_CTA_WRAP } from "./ctaStyles";
+import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE, LANDING_SECTION_CTA_WRAP, getTrialCtaLabel } from "./ctaStyles";
 
 export function ComoFuncionaSection() {
   const { trialDurationDays } = useBillingOfferConfig();
@@ -329,7 +329,7 @@ export function ComoFuncionaSection() {
               scrollToSection("precos");
             }}
           >
-            {trialDurationDays ? `Começar teste grátis de ${trialDurationDays} dias` : "Começar teste grátis"}
+            {getTrialCtaLabel(trialDurationDays)}
             <ArrowRight className={LANDING_CTA_ICON} />
           </Button>
           <p className="text-xs font-semibold text-[#A9B8B1] mt-3 tracking-wide">

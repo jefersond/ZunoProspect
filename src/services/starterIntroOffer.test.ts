@@ -87,7 +87,7 @@ describe("all-plan first-month intro offer", () => {
   });
 
   it("shows trial and direct choices clearly on mobile-safe cards", () => {
-    expect(pricing).toContain("Começar meu teste");
+    expect(pricing).toContain("getTrialCtaLabel(trialDurationDays)");
     expect(pricing).toContain("Economize no primeiro mês");
     expect(pricing).toContain('"Assinar agora"');
     expect(pricing).toContain("w-full");

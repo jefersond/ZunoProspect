@@ -17,7 +17,7 @@ import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 import { appendReferralToPath } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
 import { getFunnelContext } from "@/lib/funnelContext";
-import { LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, LANDING_PRICING_CTA_AREA } from "./ctaStyles";
+import { LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, LANDING_PRICING_CTA_AREA, getTrialCtaLabel } from "./ctaStyles";
 
 const formatBRL = (value: number) =>
   value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -354,7 +354,7 @@ export function PrecosSection() {
                         {isCurrentProcessing ? (
                           <Loader2 className="h-5 w-5 animate-spin" />
                         ) : (
-                          "Começar meu teste"
+                          getTrialCtaLabel(trialDurationDays)
                         )}
                       </Button>
                       <p className="text-center text-xs font-semibold leading-relaxed text-[#A9B8B1] mt-1">

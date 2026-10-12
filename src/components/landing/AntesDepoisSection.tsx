@@ -3,9 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { XCircle, CheckCircle2, ArrowRight } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
-import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE, LANDING_SECTION_CTA_WRAP } from "./ctaStyles";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
+import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE, LANDING_SECTION_CTA_WRAP, getTrialCtaLabel } from "./ctaStyles";
 
 export function AntesDepoisSection() {
+  const { trialDurationDays } = useBillingOfferConfig();
   const itensManuais = [
     "Pesquisa empresas em uma ferramenta",
     "Salva contatos em planilhas ou abas",
@@ -92,7 +94,7 @@ export function AntesDepoisSection() {
             className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} bg-[#12D98B] text-base text-[#07100D] shadow-[0_0_30px_rgba(18,217,139,0.2)] transition-all hover:bg-[#21E6A0] md:text-lg`}
             onClick={goToPricing}
           >
-            Ver oportunidades para meu negócio
+            {getTrialCtaLabel(trialDurationDays)}
             <ArrowRight className={LANDING_CTA_ICON} />
           </Button>
         </div>

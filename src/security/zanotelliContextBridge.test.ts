@@ -62,6 +62,6 @@ describe('Zanotelli lead context bridge', () => {
     expect(endpoint).toContain('ALLOWED_KEYS');
     expect(endpoint).toContain('internal_zanotelli_context_bridge_secret');
     expect(endpoint).toContain('internal_lookup_zanotelli_lead_context_v2');
-    expect(config).toContain('[functions.zanotelli-lead-context-lookup]\nverify_jwt = false');
+    expect(config).toMatch(/\[functions\.zanotelli-lead-context-lookup\]\r?\nverify_jwt = false/);
   });
 });

@@ -436,7 +436,7 @@ const Auth = () => {
       // Verificar se já existe sessão (auto-confirm ativado)
       if (data.session) {
         toast({
-          title: "Bem-vindo ao Zuno Prospect!",
+          title: "Bem-vindo ao Zuno Propect!",
           description: "Sua conta foi criada com sucesso."
         });
         // Login automático - redireciona direto para o app

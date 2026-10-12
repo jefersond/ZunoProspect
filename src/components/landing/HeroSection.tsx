@@ -51,11 +51,11 @@ export function HeroSection() {
               </div>
 
               <h1 className="max-w-3xl text-3xl font-extrabold leading-[1.08] tracking-tight text-[#F3F7F5] sm:text-4xl lg:text-6xl">
-                Encontre empresas com potencial para comprar de você e saiba como iniciar a conversa.
+                Encontre empresas para prospectar. Saiba como começar a conversa.
               </h1>
 
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#A9B8B1] sm:text-base md:text-lg">
-                Escolha uma cidade ou região e o perfil de empresa que procura. O Zuno encontra negócios, organiza os dados públicos disponíveis, destaca sinais de oportunidade e prepara uma abordagem contextual para você começar a conversa.
+                Busque por cidade e nicho. O Zuno organiza dados públicos, destaca oportunidades e sugere uma abordagem para WhatsApp, Instagram ou e-mail.
               </p>
 
               <div className={LANDING_CTA_PAIR}>

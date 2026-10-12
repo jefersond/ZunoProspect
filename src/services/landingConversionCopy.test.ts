@@ -8,7 +8,7 @@ describe("landing conversion copy", () => {
   it("makes the first screen answer what Zuno is, what it does and what to do next", () => {
     const hero = source("src/components/landing/HeroSection.tsx");
     expect(hero).toContain("Plataforma de prospecção B2B");
-    expect(hero).toContain("Encontre empresas com potencial para comprar de você");
+    expect(hero).toContain("Encontre empresas para prospectar.");
     expect(hero).toContain("Começar minha primeira busca");
     expect(hero).toContain("hero_cta_clicked");
     expect(hero).toContain("trial_cta_clicked");

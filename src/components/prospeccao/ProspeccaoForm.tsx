@@ -1044,7 +1044,7 @@ export const ProspeccaoForm = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="nicho">Nicho</Label>
+              <Label htmlFor="nicho">Tipo de empresa que você quer encontrar</Label>
               <Input
                 id="nicho"
                 placeholder={selectedCountry === "US" ? "Ex: restaurant, clinic, gym" : "Ex: restaurante, clínica, academia"}
@@ -1084,10 +1084,10 @@ export const ProspeccaoForm = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="foco">Foco</Label>
-              <Select onValueChange={(value) => setValue("foco", value)} value={foco}>
+              <Label htmlFor="foco">Serviço que você oferece</Label>
+              <Select onValueChange={(value) => setValue("foco", value, { shouldValidate: true })} value={foco}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o foco" />
+                  <SelectValue placeholder="Selecione seu serviço" />
                 </SelectTrigger>
                 <SelectContent>
                   {visibleFocusOptions.map((option) => (
@@ -1097,6 +1097,7 @@ export const ProspeccaoForm = () => {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">Usado para identificar oportunidades e sugerir uma abordagem relevante.</p>
               {errors.foco && (
                 <p className="text-sm text-destructive">{errors.foco.message}</p>
               )}

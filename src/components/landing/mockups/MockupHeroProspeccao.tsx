@@ -5,8 +5,8 @@ export function MockupHeroProspeccao() {
   const { trialDurationDays } = useBillingOfferConfig();
   const leads = [
     { nome: "Clínica Bella Saúde", nicho: "Clínica Estética", score: 94, badges: ["Sem pixel", "SEO ruim"] },
-    { nome: "Studio Forma Fit", nicho: "Academia", score: 87, badges: ["Instagram fraco"] },
-    { nome: "Odonto Prime", nicho: "Clínica Odontológica", score: 79, badges: ["Sem Google Ads"] },
+    { nome: "Studio Bella Pele", nicho: "Clínica Estética", score: 87, badges: ["Instagram fraco"] },
+    { nome: "Espaço Viva", nicho: "Clínica Estética", score: 79, badges: ["Sem Google Ads"] },
   ];
 
   return (
@@ -25,7 +25,7 @@ export function MockupHeroProspeccao() {
               <span className="h-3 w-3 rounded-full bg-[#20312A]" />
               <span className="h-3 w-3 rounded-full bg-[#20312A]" />
             </div>
-            <span className="ml-2 text-xs font-semibold text-[#A9B8B1] font-mono tracking-wider">PROSPECT_OS_V2</span>
+            <span className="ml-2 text-xs font-semibold text-[#A9B8B1] font-mono tracking-wider">EXEMPLO ILUSTRATIVO</span>
           </div>
           <div className="flex items-center gap-1.5 rounded-full bg-[#12D98B]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#12D98B]">
             <span className="relative flex h-1.5 w-1.5">
@@ -100,7 +100,7 @@ export function MockupHeroProspeccao() {
             </div>
             
             <p className="text-xs leading-relaxed text-[#A9B8B1] italic bg-[#0D1713]/60 p-2.5 rounded border border-[#20312A]/40">
-              "Vi que a sua clínica aparece bem no Google Maps em Campinas, mas identifiquei que o seu site está sem o pixel de anúncios do Meta e com tempo de resposta lento. Quer ver um diagnóstico rápido de como isso afeta seus agendamentos?"
+              "Vi que a sua clínica aparece no Google Maps em São Paulo. Encontrei alguns pontos na presença digital que podem abrir espaço para atrair mais agendamentos. Posso compartilhar uma análise rápida?"
             </p>
 
             <div className="mt-3 flex items-center justify-between">
@@ -115,9 +115,7 @@ export function MockupHeroProspeccao() {
                   <Mail className="h-3 w-3" /> E-mail
                 </span>
               </div>
-              <button className="text-[11px] font-bold text-[#12D98B] hover:underline flex items-center gap-0.5">
-                Copiar
-              </button>
+              <span className="text-[11px] font-bold text-[#12D98B]">Prévia</span>
             </div>
           </div>
 

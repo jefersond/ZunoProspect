@@ -233,6 +233,65 @@ All colors MUST be HSL.
   animation-play-state: paused;
 }
 
+/* Depth cues for the landing preview and product cards. */
+.zuno-hero-stage,
+.zuno-proof-grid {
+  perspective: 1100px;
+}
+
+.zuno-hero-window {
+  transform-style: preserve-3d;
+  transform: rotateX(var(--zuno-tilt-x, 3deg)) rotateY(var(--zuno-tilt-y, -5deg));
+  transition: transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  filter: drop-shadow(14px 28px 25px rgba(7, 16, 13, 0.22));
+  will-change: transform;
+}
+
+.zuno-hero-stage:hover .zuno-hero-window {
+  transition-duration: 120ms;
+}
+
+.zuno-hero-orbit {
+  transform: translateZ(-24px) rotate(-5deg);
+  box-shadow: 0 0 0 14px rgba(18, 217, 139, 0.04);
+}
+
+.zuno-hero-chip {
+  transform: translateZ(55px);
+  box-shadow: 0 14px 30px rgba(7, 16, 13, 0.24), 0 0 25px rgba(18, 217, 139, 0.13);
+}
+
+.zuno-proof-card,
+.zuno-dashboard-card {
+  transform-style: preserve-3d;
+  transition: transform 350ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 350ms, border-color 350ms;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .zuno-proof-card:hover,
+  .zuno-dashboard-card:hover {
+    transform: translateY(-7px) rotateX(4deg) rotateY(-3deg);
+    border-color: rgba(18, 217, 139, 0.42);
+    box-shadow: 0 18px 32px rgba(0, 0, 0, 0.24), 0 0 26px rgba(18, 217, 139, 0.09);
+  }
+}
+
+@media (max-width: 1023px), (hover: none) {
+  .zuno-hero-window {
+    transform: none;
+    filter: drop-shadow(0 15px 20px rgba(7, 16, 13, 0.14));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zuno-hero-window,
+  .zuno-proof-card,
+  .zuno-dashboard-card {
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
 /* Custom Scrollbar Styles */
 .custom-scrollbar {
   scrollbar-width: thin;

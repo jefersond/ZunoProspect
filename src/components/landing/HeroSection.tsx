@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { ArrowRight, Check, Play, ShieldCheck, Sparkles } from "lucide-react";
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 import { trackEvent } from "@/lib/analytics";
@@ -14,6 +15,20 @@ const heroSteps = [
 
 export function HeroSection() {
   const { trialDurationDays } = useBillingOfferConfig();
+
+  const tiltPreview = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "mouse" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - bounds.left) / bounds.width - 0.5;
+    const y = (event.clientY - bounds.top) / bounds.height - 0.5;
+    event.currentTarget.style.setProperty("--zuno-tilt-x", `${(-y * 9).toFixed(2)}deg`);
+    event.currentTarget.style.setProperty("--zuno-tilt-y", `${(x * 12).toFixed(2)}deg`);
+  };
+
+  const resetPreviewTilt = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.style.removeProperty("--zuno-tilt-x");
+    event.currentTarget.style.removeProperty("--zuno-tilt-y");
+  };
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -93,9 +108,18 @@ export function HeroSection() {
             </div>
           </div>
 
-          <div className="relative mx-auto w-full min-w-0 max-w-[590px] lg:max-w-none">
+          <div className="zuno-hero-stage relative mx-auto w-full min-w-0 max-w-[590px] lg:max-w-none" onPointerMove={tiltPreview} onPointerLeave={resetPreviewTilt}>
             <div className="pointer-events-none absolute inset-8 rounded-[3rem] bg-[#12D98B]/40 blur-3xl" />
-            <div className="relative -mx-4 sm:mx-0"><MockupHeroProspeccao /></div>
+            <div className="zuno-hero-orbit pointer-events-none absolute inset-6 hidden rounded-[2.5rem] border border-[#0B8F60]/20 lg:block" aria-hidden="true" />
+            <div className="zuno-hero-window relative -mx-4 sm:mx-0"><MockupHeroProspeccao /></div>
+            <div className="zuno-hero-chip zuno-hero-chip-top pointer-events-none absolute right-1 top-0 hidden items-center gap-2 rounded-xl border border-[#12D98B]/35 bg-[#07100D]/95 px-3 py-2 text-xs font-semibold text-[#DDF9E9] shadow-xl lg:flex" aria-hidden="true">
+              <span className="h-2 w-2 rounded-full bg-[#12D98B] shadow-[0_0_12px_#12D98B]" />
+              Busca por cidade e nicho
+            </div>
+            <div className="zuno-hero-chip zuno-hero-chip-bottom pointer-events-none absolute -bottom-1 left-1 hidden items-center gap-2 rounded-xl border border-[#12D98B]/35 bg-[#07100D]/95 px-3 py-2 text-xs font-semibold text-[#DDF9E9] shadow-xl lg:flex" aria-hidden="true">
+              <Sparkles className="h-4 w-4 text-[#12D98B]" />
+              Abordagem sugerida
+            </div>
           </div>
         </div>
 

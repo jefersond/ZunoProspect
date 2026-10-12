@@ -1,10 +1,16 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Play, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Play, ShieldCheck, Sparkles } from "lucide-react";
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_PAIR, LANDING_CTA_RESPONSIVE } from "./ctaStyles";
+
+const heroSteps = [
+  "Busque por cidade e nicho",
+  "Compare sinais de oportunidade",
+  "Revise a abordagem sugerida",
+];
 
 export function HeroSection() {
   const { trialDurationDays } = useBillingOfferConfig();
@@ -38,60 +44,69 @@ export function HeroSection() {
   };
 
   return (
-    <section className="relative overflow-hidden border-b border-[#20312A]/40 bg-[#07100D] pb-12 pt-10 selection:bg-[#12D98B]/30 md:pb-20 md:pt-20">
-      <div className="pointer-events-none absolute left-1/3 top-1/4 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-[#12D98B]/5 blur-[120px]" />
+    <section className="relative overflow-hidden border-b border-[#0B8F60]/20 bg-[#DDF9E9] text-[#07100D] selection:bg-[#12D98B]/40">
+      <div className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full border-[64px] border-[#12D98B]/20" />
+      <div className="container relative mx-auto px-4">
+        <div className="grid items-start gap-8 pb-8 pt-7 sm:pt-10 lg:grid-cols-[0.95fr_1.05fr] lg:gap-12 lg:pb-10 lg:pt-10">
+          <div className="max-w-2xl lg:pt-8">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#0B8F60]/25 bg-white/70 px-3 py-1.5 text-xs font-bold text-[#0B8F60]">
+              <Sparkles className="h-3.5 w-3.5" />
+              Plataforma de prospecção B2B para agências e freelancers
+            </div>
 
-      <div className="container relative z-10 mx-auto px-4">
-        <div className="grid min-w-0 items-center gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8">
-          <div className="relative min-w-0">
-            <div className="rounded-2xl border border-[#20312A] bg-[#0D1713]/80 p-5 shadow-[0_0_50px_rgba(18,217,139,0.02)] backdrop-blur-md sm:p-6 md:p-8">
-              <div className="mb-4 inline-flex max-w-full items-start gap-1.5 rounded-full border border-[#12D98B]/30 bg-[#12D98B]/10 px-3 py-1 text-left text-xs font-semibold leading-relaxed text-[#12D98B]">
-                <Sparkles className="h-3.5 w-3.5 shrink-0" />
-                Plataforma de prospecção B2B para agências e freelancers
-              </div>
+            <h1 className="mt-5 text-[2.4rem] font-extrabold leading-[1.02] tracking-[-0.055em] sm:text-5xl lg:text-[3.5rem]">
+              Encontre empresas.<br />
+              <span className="text-[#0B8F60]">Saiba como abordar.</span>
+            </h1>
 
-              <h1 className="max-w-3xl text-3xl font-extrabold leading-[1.08] tracking-tight text-[#F3F7F5] sm:text-4xl lg:text-6xl">
-                Encontre empresas para prospectar. Saiba como começar a conversa.
-              </h1>
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-[#28443A] sm:text-lg">
+              Escolha uma cidade e um nicho. O Zuno organiza dados públicos, mostra sinais de oportunidade e sugere a primeira mensagem para cada empresa.
+            </p>
 
-              <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#A9B8B1] sm:text-base md:text-lg">
-                Busque por cidade e nicho. O Zuno organiza dados públicos, destaca oportunidades e sugere uma abordagem para WhatsApp, Instagram ou e-mail.
+            <div className={LANDING_CTA_PAIR}>
+              <Button
+                size="lg"
+                className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} bg-[#07100D] text-base text-[#F3F7F5] shadow-xl shadow-[#0B8F60]/20 transition-transform hover:scale-[1.02] hover:bg-[#0D1713] sm:px-8 sm:text-lg`}
+                onClick={handlePrimaryCta}
+              >
+                Começar minha primeira busca
+                <ArrowRight className={LANDING_CTA_ICON} />
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} border-[#07100D]/25 bg-white/50 text-sm text-[#07100D] hover:border-[#0B8F60] hover:bg-white sm:px-8 sm:text-base`}
+                onClick={handleProofCta}
+              >
+                <Play className={LANDING_CTA_ICON} />
+                Ver o que o Zuno entrega
+              </Button>
+            </div>
+
+            <div className="mt-5 flex items-start gap-2">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#0B8F60]" />
+              <p className="text-xs font-medium leading-snug text-[#36564A]">
+                {trialDurationDays
+                  ? `Hoje R$0. Cartão necessário. Teste de ${trialDurationDays} dias. Cancele antes da primeira cobrança.`
+                  : "Hoje R$0. Cartão necessário. A duração vigente será confirmada antes do checkout."}
               </p>
-
-              <div className={LANDING_CTA_PAIR}>
-                <Button
-                  size="lg"
-                  className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} bg-[#12D98B] text-base text-[#07100D] shadow-[0_0_32px_rgba(18,217,139,0.3)] transition-all hover:scale-[1.02] hover:bg-[#21E6A0] sm:px-8 sm:text-lg`}
-                  onClick={handlePrimaryCta}
-                >
-                  Começar minha primeira busca
-                  <ArrowRight className={LANDING_CTA_ICON} />
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} border-[#20312A] bg-transparent text-sm text-[#F3F7F5] hover:border-[#21E6A0]/50 hover:bg-[#12D98B]/5 sm:px-8 sm:text-base`}
-                  onClick={handleProofCta}
-                >
-                  <Play className={LANDING_CTA_ICON} />
-                  Ver o que o Zuno entrega
-                </Button>
-              </div>
-
-              <div className="mt-4 flex items-start gap-2 sm:items-center">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#12D98B] sm:mt-0" />
-                <p className="text-xs font-medium leading-snug text-[#A9B8B1]">
-                  {trialDurationDays
-                    ? `Hoje R$0. Cartão necessário. Teste de ${trialDurationDays} dias. Cancele antes da primeira cobrança.`
-                    : "Hoje R$0. Cartão necessário. A duração vigente será confirmada antes do checkout."}
-                </p>
-              </div>
             </div>
           </div>
 
-          <div className="relative mx-auto w-full min-w-0 max-w-[560px] lg:max-w-none">
-            <MockupHeroProspeccao />
+          <div className="relative mx-auto w-full min-w-0 max-w-[590px] lg:max-w-none">
+            <div className="pointer-events-none absolute inset-8 rounded-[3rem] bg-[#12D98B]/40 blur-3xl" />
+            <div className="relative -mx-4 sm:mx-0"><MockupHeroProspeccao /></div>
           </div>
+        </div>
+
+        <div className="grid gap-3 border-t border-[#0B8F60]/25 py-5 text-sm font-semibold sm:grid-cols-3 sm:gap-6">
+          {heroSteps.map((step, index) => (
+            <div key={step} className="flex items-center gap-3">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0B8F60] text-xs text-white">{index + 1}</span>
+              <span>{step}</span>
+              <Check className="ml-auto h-4 w-4 shrink-0 text-[#0B8F60] sm:hidden" />
+            </div>
+          ))}
         </div>
       </div>
     </section>

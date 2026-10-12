@@ -264,6 +264,9 @@ export const ProspeccaoForm = () => {
   }, [usage?.plan_name, isAdmin, leadsAvailableTotal, setValue]);
 
   const foco = watch("foco");
+  const cidade = watch("cidade");
+  const estado = watch("estado");
+  const nicho = watch("nicho");
   const canaisProspeccao = watch("canaisProspeccao");
   const quantidade = watch("quantidade");
   const visibleFocusOptions = focusOptions.filter((option) => !option.adminOnly || isAdmin);
@@ -838,16 +841,16 @@ export const ProspeccaoForm = () => {
   };
 
   return (
-    <Card className="shadow-lg border-primary/10">
-      <CardHeader>
+    <Card className="overflow-hidden border-primary/20 shadow-xl">
+      <CardHeader className="border-b border-primary/15 bg-[#E5F9ED] dark:bg-[#0D1713]">
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
               <Search className="h-5 w-5 text-primary" />
-              Buscar Leads
+              Monte sua próxima busca
             </CardTitle>
             <CardDescription>
-              Encontre empresas potenciais para sua prospecção
+              Defina quem procurar, o serviço que você oferece e os canais de contato.
               <span className="ml-2 text-xs text-muted-foreground">
                 (País: {selectedCountry === "US" ? "Estados Unidos" : "Brasil"})
               </span>
@@ -856,7 +859,7 @@ export const ProspeccaoForm = () => {
           <UsageIndicator compact />
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         {(subscriptionLoading || usageLoading) && (
           <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground flex items-center gap-3">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -922,6 +925,13 @@ export const ProspeccaoForm = () => {
         )}
         
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div className="flex items-center gap-3 border-b border-border pb-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">1</span>
+            <div>
+              <h3 className="font-semibold">Onde buscar</h3>
+              <p className="text-xs text-muted-foreground">Escolha a região e o tipo de empresa.</p>
+            </div>
+          </div>
           {/* Linha 1: País (destaque) */}
           <div className="p-4 rounded-lg border border-primary/30 bg-primary/5">
             <div className="space-y-2">
@@ -1059,6 +1069,13 @@ export const ProspeccaoForm = () => {
             </div>
           </div>
 
+          <div className="flex items-center gap-3 border-b border-border pb-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">2</span>
+            <div>
+              <h3 className="font-semibold">Sua oferta</h3>
+              <p className="text-xs text-muted-foreground">Defina quantas empresas buscar e o serviço que você vende.</p>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
             <div className="space-y-2">
@@ -1104,6 +1121,13 @@ export const ProspeccaoForm = () => {
             </div>
           </div>
 
+          <div className="flex items-center gap-3 border-b border-border pb-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">3</span>
+            <div>
+              <h3 className="font-semibold">Como abordar</h3>
+              <p className="text-xs text-muted-foreground">Ajuste proximidade e canais para as sugestões de contato.</p>
+            </div>
+          </div>
           <div className="space-y-4 p-4 bg-secondary/20 rounded-lg border border-border">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
@@ -1210,15 +1234,30 @@ export const ProspeccaoForm = () => {
             )}
           </div>
 
-          <div className="rounded-xl border border-border/60 bg-card/45 p-5 shadow-sm ring-1 ring-white/5 sm:p-6">
+          <div className="rounded-xl border border-primary/25 bg-primary/5 p-5 shadow-sm sm:p-6">
             <div className="mx-auto flex max-w-xl flex-col items-center gap-4 text-center">
               <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">
-                  Revise os filtros e inicie sua busca
+                <p className="text-base font-semibold text-foreground">
+                  Sua busca está pronta?
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Quando estiver tudo pronto, clique para encontrar os leads.
+                  Confira o resumo antes de encontrar empresas.
                 </p>
+              </div>
+
+              <div className="grid w-full gap-2 text-left text-xs sm:grid-cols-3">
+                <div className="rounded-lg border border-border bg-background p-3">
+                  <span className="font-semibold uppercase tracking-wide text-muted-foreground">Região</span>
+                  <p className="mt-1 break-words font-medium text-foreground">{cidade ? `${cidade}${estado ? `, ${estado}` : ""}` : "Escolha uma cidade"}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-background p-3">
+                  <span className="font-semibold uppercase tracking-wide text-muted-foreground">Empresas</span>
+                  <p className="mt-1 break-words font-medium text-foreground">{nicho || "Informe um tipo de empresa"}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-background p-3">
+                  <span className="font-semibold uppercase tracking-wide text-muted-foreground">Seu serviço</span>
+                  <p className="mt-1 break-words font-medium text-foreground">{foco || "Selecione seu serviço"}</p>
+                </div>
               </div>
 
               <Button

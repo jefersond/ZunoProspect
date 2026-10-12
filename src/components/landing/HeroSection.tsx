@@ -1,6 +1,6 @@
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Check, MousePointer2, Play, ScanSearch, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Play, ShieldCheck, Sparkles } from "lucide-react";
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
@@ -102,11 +102,6 @@ export function HeroSection() {
               Escolha uma cidade e um nicho. O Zuno organiza dados públicos, mostra sinais de oportunidade e sugere a primeira mensagem para cada empresa.
             </p>
 
-            <div className="mt-6 flex items-center gap-3 rounded-2xl border border-[#12D98B]/20 bg-[#0D1713]/80 p-3.5 text-sm text-[#D7E4DC] backdrop-blur-md sm:max-w-[480px]">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#12D98B]/10 text-[#12D98B]"><ScanSearch className="h-5 w-5" /></span>
-              <span>Explore exemplos em diferentes nichos antes de começar.</span>
-            </div>
-
             <div className={LANDING_CTA_PAIR}>
               <Button
                 size="lg"
@@ -135,10 +130,6 @@ export function HeroSection() {
                   : "Hoje R$0. Cartão necessário. A duração vigente será confirmada antes do checkout."}
               </p>
             </div>
-            <p className="mt-4 hidden items-center gap-2 text-xs text-[#8DF0BE] lg:flex">
-              <MousePointer2 className="h-3.5 w-3.5" />
-              Mova o cursor e clique no fundo para explorar o efeito.
-            </p>
           </div>
 
           <div className="zuno-hero-stage relative mx-auto w-full min-w-0 max-w-[590px]" onPointerMove={tiltPreview} onPointerLeave={resetPreviewTilt}>

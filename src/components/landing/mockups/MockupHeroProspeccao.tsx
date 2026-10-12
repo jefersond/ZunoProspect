@@ -43,7 +43,7 @@ export function MockupHeroProspeccao({ onStart }: MockupHeroProspeccaoProps) {
   return (
     <div className="zuno-demo-shell relative overflow-hidden rounded-[24px] border border-[#12D98B]/25 bg-[#0D1713] shadow-[0_35px_100px_rgba(0,0,0,0.55)]">
       <div className="zuno-demo-sheen pointer-events-none absolute inset-0" aria-hidden="true" />
-      <div className="relative flex items-center justify-between gap-3 border-b border-[#20312A] bg-[#07100D]/80 px-4 py-3 sm:px-5">
+      <div className="relative flex flex-wrap items-center justify-between gap-2 border-b border-[#20312A] bg-[#07100D]/80 px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex gap-1.5" aria-hidden="true">
             <span className="h-2 w-2 rounded-full bg-[#E55757]/70" />
@@ -64,7 +64,7 @@ export function MockupHeroProspeccao({ onStart }: MockupHeroProspeccaoProps) {
             <Radar className="h-4 w-4" />
             Explore uma busca
           </div>
-          <div className="grid grid-cols-3 gap-2" role="group" aria-label="Escolha um nicho para a simulação">
+          <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-3" role="group" aria-label="Escolha um nicho para a simulação">
             {scenarios.map((item) => (
               <button
                 key={item.id}
@@ -84,7 +84,7 @@ export function MockupHeroProspeccao({ onStart }: MockupHeroProspeccaoProps) {
           </div>
         </div>
 
-        <label className="flex items-center gap-3 rounded-xl border border-[#20312A] bg-[#07100D]/75 px-3 py-2.5">
+        <label className="flex flex-wrap items-center gap-2 rounded-xl border border-[#20312A] bg-[#07100D]/75 px-3 py-2.5 min-[320px]:gap-3">
           <MapPin className="h-4 w-4 shrink-0 text-[#12D98B]" />
           <span className="text-xs text-[#A9B8B1]">Cidade</span>
           <select
@@ -94,26 +94,26 @@ export function MockupHeroProspeccao({ onStart }: MockupHeroProspeccaoProps) {
               setCity(nextCity);
               trackEvent("landing_demo_city_selected", { city: nextCity });
             }}
-            className="ml-auto min-w-0 max-w-[62%] cursor-pointer bg-transparent text-right text-xs font-semibold text-[#F3F7F5] outline-none focus-visible:ring-2 focus-visible:ring-[#21E6A0] [&_option]:bg-[#0D1713]"
+            className="min-w-0 w-full cursor-pointer bg-transparent text-left text-xs font-semibold text-[#F3F7F5] outline-none focus-visible:ring-2 focus-visible:ring-[#21E6A0] min-[320px]:ml-auto min-[320px]:w-auto min-[320px]:max-w-[62%] min-[320px]:text-right [&_option]:bg-[#0D1713]"
           >
             {cities.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
         </label>
 
         <div className="zuno-demo-result rounded-2xl border border-[#12D98B]/25 bg-[#111D18] p-4 shadow-[0_0_35px_rgba(18,217,139,0.07)]" aria-live="polite">
-          <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="mb-3 flex flex-col items-start gap-1 min-[320px]:flex-row min-[320px]:items-center min-[320px]:justify-between">
             <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-[#12D98B]">Exemplo de resultado</span>
             <span className="text-[11px] text-[#A9B8B1]">Dados ilustrativos</span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#12D98B]/20 bg-[#12D98B]/10">
+          <div className="flex items-center gap-2 min-[320px]:gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[#12D98B]/20 bg-[#12D98B]/10 min-[320px]:h-11 min-[320px]:w-11">
               <Building2 className="h-5 w-5 text-[#12D98B]" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-bold text-[#F3F7F5]">Empresa demonstrativa</p>
-              <p className="truncate text-xs text-[#A9B8B1]">{scenario.category} · {city}</p>
+              <p className="text-sm font-bold text-[#F3F7F5] max-[319px]:text-xs">Empresa demonstrativa</p>
+              <p className="break-words text-xs text-[#A9B8B1]">{scenario.category} · {city}</p>
             </div>
-            <Check className="ml-auto h-4 w-4 shrink-0 text-[#12D98B]" aria-hidden="true" />
+            <Check className="ml-auto hidden h-4 w-4 shrink-0 text-[#12D98B] min-[320px]:block" aria-hidden="true" />
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <div className="rounded-lg border border-[#20312A] bg-[#07100D]/70 p-3">

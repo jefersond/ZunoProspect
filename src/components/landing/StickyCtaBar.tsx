@@ -48,6 +48,7 @@ export function StickyCtaBar({ heroRef }: StickyCtaBarProps) {
           </p>
         </div>
         <Button
+          data-zuno-wrap-cta
           size="sm"
           className={`${LANDING_CTA_BASE} w-full bg-[#12D98B] text-[#07100D] shadow-[0_0_20px_rgba(18,217,139,0.3)] transition-all hover:scale-[1.02] hover:bg-[#21E6A0] sm:ml-auto sm:w-auto`}
           onClick={handleClick}

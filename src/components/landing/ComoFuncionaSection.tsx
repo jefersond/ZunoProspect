@@ -89,12 +89,12 @@ export function ComoFuncionaSection() {
 
         {/* Sequência Visual Horizontal (Esteira de Prospecção) - O Coração do Produto */}
         <div className="mx-auto mb-10 max-w-6xl rounded-xl border border-[#20312A] bg-[#0D1713]/40 p-4 md:p-5 backdrop-blur shadow-2xl">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-1.5 lg:gap-2">
+          <div className="zuno-how-stepper flex flex-col gap-4 md:grid md:grid-cols-5 md:items-stretch md:gap-2 xl:flex xl:flex-row xl:items-center">
             {etapasFluxo.map((etapa, idx) => {
               const ativo = passoAtivo === etapa.index;
               const concluido = passoAtivo > etapa.index;
               return (
-                <div key={idx} className="flex-1 flex items-center">
+                <div key={idx} className="flex min-w-0 flex-1 items-center">
                   <button
                     onClick={() => setPassoAtivo(etapa.index)}
                     className={`flex flex-col md:flex-row items-center gap-2 md:gap-1.5 lg:gap-2.5 px-3 py-2.5 md:px-1.5 md:py-2 lg:px-3 lg:py-2.5 rounded-lg border text-left transition-all duration-300 w-full ${
@@ -114,13 +114,13 @@ export function ComoFuncionaSection() {
                     }`}>
                       <etapa.icone className="h-4 w-4 md:h-3.5 md:w-3.5 lg:h-4 lg:w-4" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-[9px] md:text-[8px] lg:text-[9px] uppercase font-mono tracking-wider text-[#A9B8B1]">Etapa {idx + 1}</p>
-                      <p className="text-xs md:text-[10px] lg:text-xs font-bold whitespace-nowrap">{etapa.label}</p>
+                      <p className="break-words text-xs font-bold leading-tight md:text-[10px] lg:text-xs">{etapa.label}</p>
                     </div>
                   </button>
                   {idx < etapasFluxo.length - 1 && (
-                    <div className="hidden md:block mx-1.5 lg:mx-2 xl:mx-3 text-[#20312A] font-bold text-base lg:text-lg">➔</div>
+                    <div className="mx-1.5 hidden text-base font-bold text-[#20312A] xl:block xl:mx-3">➔</div>
                   )}
                 </div>
               );

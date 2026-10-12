@@ -88,6 +88,7 @@ export function AntesDepoisSection() {
 
         <div className={LANDING_SECTION_CTA_WRAP}>
           <Button
+            data-zuno-wrap-cta
             size="lg"
             className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} bg-[#12D98B] text-base text-[#07100D] shadow-[0_0_30px_rgba(18,217,139,0.2)] transition-all hover:bg-[#21E6A0] md:text-lg`}
             onClick={goToPricing}

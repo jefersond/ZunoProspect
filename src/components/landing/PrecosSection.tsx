@@ -301,7 +301,7 @@ export function PrecosSection() {
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <div className="rounded-lg border border-[#20312A] bg-[#07100D] p-2.5 text-center">
                     <p className="text-base font-bold text-[#F3F7F5]">{plan.leadsLimit.toLocaleString("pt-BR")}</p>
-                    <p className="text-[10px] text-[#A9B8B1] uppercase tracking-wider font-mono">leads/mês</p>
+                    <p className="text-[10px] text-[#A9B8B1] uppercase tracking-wider font-mono max-[319px]:text-[9px] max-[319px]:tracking-normal">leads/mês</p>
                   </div>
                   <div className="rounded-lg border border-[#20312A] bg-[#07100D] p-2.5 text-center">
                     <p className="text-base font-bold text-[#F3F7F5]">{plan.aiLimit.toLocaleString("pt-BR")}</p>
@@ -426,8 +426,8 @@ export function PrecosSection() {
               <p className="mt-0.5 text-[9px] uppercase">Hoje</p>
             </div>
             <div className="p-3 bg-[#0D1713]/40 rounded-lg border border-[#20312A]/40">
-              <p className="text-[#F3F7F5] font-bold">Obrigatório</p>
-              <p className="mt-0.5 text-[9px] uppercase">Cartão</p>
+              <p className="text-[#F3F7F5] font-bold">Cartão</p>
+              <p className="mt-0.5 text-[9px] uppercase">Necessário</p>
             </div>
             <div className="p-3 bg-[#0D1713]/40 rounded-lg border border-[#20312A]/40">
               <p className="text-[#12D98B] font-bold">1 Clique</p>

@@ -31,6 +31,7 @@ export function CTAFinalSection() {
 
         <div className="mx-auto mt-6 flex max-w-md flex-col items-stretch justify-center gap-3 sm:max-w-none sm:flex-row sm:items-center">
           <Button
+            data-zuno-wrap-cta
             size="lg"
             className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} bg-[#12D98B] text-[#07100D] shadow-[0_0_30px_rgba(18,217,139,0.25)] hover:bg-[#21E6A0] sm:px-8`}
             onClick={() => {

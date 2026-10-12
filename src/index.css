@@ -242,15 +242,50 @@ All colors MUST be HSL.
 
 .zuno-hero-grid {
   background-image:
-    linear-gradient(rgba(18, 217, 139, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(18, 217, 139, 0.055) 1px, transparent 1px);
-  background-size: 46px 46px;
-  mask-image: linear-gradient(to bottom, transparent, black 18%, black 73%, transparent);
+    linear-gradient(rgba(18, 217, 139, 0.13) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(18, 217, 139, 0.13) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, transparent 1%, black 14%, black 82%, transparent);
+}
+
+.zuno-hero-grid::before {
+  content: "";
+  position: absolute;
+  inset: 36% -12% -20%;
+  background-image:
+    linear-gradient(rgba(18, 217, 139, 0.21) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(18, 217, 139, 0.21) 1px, transparent 1px);
+  background-size: 48px 48px;
+  transform: perspective(650px) rotateX(62deg) scale(1.3);
+  transform-origin: center bottom;
+  mask-image: linear-gradient(to top, black, transparent 85%);
+}
+
+.zuno-hero-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(240px circle at var(--zuno-grid-x, 72%) var(--zuno-grid-y, 34%), rgba(18, 217, 139, 0.2), transparent 75%);
 }
 
 .zuno-hero-halo {
-  background: radial-gradient(circle, rgba(18, 217, 139, 0.19), rgba(18, 217, 139, 0.04) 45%, transparent 69%);
-  filter: blur(25px);
+  background: radial-gradient(circle, rgba(18, 217, 139, 0.12), rgba(18, 217, 139, 0.025) 45%, transparent 69%);
+  filter: blur(12px);
+}
+
+.zuno-grid-ripple {
+  width: 24px;
+  height: 24px;
+  margin: -12px;
+  border: 2px solid rgba(18, 217, 139, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(18, 217, 139, 0.35), 0 0 24px rgba(18, 217, 139, 0.65);
+  animation: zuno-grid-ripple 900ms ease-out forwards;
+}
+
+@keyframes zuno-grid-ripple {
+  from { transform: scale(0.4); opacity: 1; }
+  to { transform: scale(8); opacity: 0; }
 }
 
 .zuno-hero-gradient-text {
@@ -265,19 +300,12 @@ All colors MUST be HSL.
 }
 
 .zuno-hero-window {
-  transform-style: preserve-3d;
-  transform: rotateX(var(--zuno-tilt-x, 2deg)) rotateY(var(--zuno-tilt-y, -3deg));
-  transition: transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  filter: drop-shadow(14px 28px 25px rgba(0, 0, 0, 0.38));
-  will-change: transform;
-}
-
-.zuno-hero-stage:hover .zuno-hero-window {
-  transition-duration: 120ms;
+  isolation: isolate;
 }
 
 .zuno-hero-orbit {
-  transform: translateZ(-24px) rotate(-5deg);
+  transform: rotateX(var(--zuno-tilt-x, 0deg)) rotateY(var(--zuno-tilt-y, 0deg)) translateZ(-24px) rotate(-5deg);
+  transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
   box-shadow: 0 0 0 14px rgba(18, 217, 139, 0.04);
 }
 
@@ -307,6 +335,14 @@ All colors MUST be HSL.
   transition: transform 350ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 350ms, border-color 350ms;
 }
 
+@media (min-width: 768px) and (max-width: 1279px) {
+  .zuno-how-stepper button {
+    min-width: 0;
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .zuno-proof-card:hover,
   .zuno-dashboard-card:hover {
@@ -317,18 +353,36 @@ All colors MUST be HSL.
 }
 
 @media (max-width: 1023px), (hover: none) {
-  .zuno-hero-window {
+  .zuno-hero-orbit {
     transform: none;
-    filter: drop-shadow(0 15px 20px rgba(7, 16, 13, 0.14));
+  }
+}
+
+@media (max-width: 379px) {
+  .zuno-hero-halo {
+    opacity: 0.45;
+  }
+
+  [data-zuno-wrap-cta] {
+    height: auto;
+    min-height: 3rem;
+    padding: 0.75rem;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.25;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .zuno-grid-ripple {
+    animation: none;
+    display: none;
+  }
   .zuno-demo-sheen {
     animation: none;
   }
 
-  .zuno-hero-window,
+  .zuno-hero-orbit,
   .zuno-proof-card,
   .zuno-dashboard-card {
     transform: none !important;

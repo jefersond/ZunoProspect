@@ -1,6 +1,6 @@
-import type { PointerEvent as ReactPointerEvent } from "react";
+import { useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Check, Play, ScanSearch, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Check, MousePointer2, Play, ScanSearch, ShieldCheck, Sparkles } from "lucide-react";
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
@@ -15,6 +15,21 @@ const heroSteps = [
 
 export function HeroSection() {
   const { trialDurationDays } = useBillingOfferConfig();
+  const [gridPulse, setGridPulse] = useState<{ id: number; x: number; y: number } | null>(null);
+
+  const moveGridLight = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.pointerType !== "mouse" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    event.currentTarget.style.setProperty("--zuno-grid-x", String(event.clientX - bounds.left) + "px");
+    event.currentTarget.style.setProperty("--zuno-grid-y", String(event.clientY - bounds.top) + "px");
+  };
+
+  const pulseGrid = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.pointerType !== "mouse" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if ((event.target as Element).closest("button, a, select, input, textarea")) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setGridPulse({ id: event.timeStamp, x: event.clientX - bounds.left, y: event.clientY - bounds.top });
+  };
 
   const tiltPreview = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== "mouse" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -65,19 +80,20 @@ export function HeroSection() {
   };
 
   return (
-    <section className="zuno-hero-future relative isolate overflow-hidden border-b border-[#12D98B]/15 bg-[#07100D] text-[#F3F7F5] selection:bg-[#12D98B]/40">
+    <section className="zuno-hero-future relative isolate overflow-hidden border-b border-[#12D98B]/15 bg-[#07100D] text-[#F3F7F5] selection:bg-[#12D98B]/40" onPointerMove={moveGridLight} onPointerDown={pulseGrid}>
       <div className="zuno-hero-grid pointer-events-none absolute inset-0" aria-hidden="true" />
       <div className="zuno-hero-halo pointer-events-none absolute -right-40 top-0 h-[650px] w-[650px] rounded-full" aria-hidden="true" />
+      {gridPulse && <span key={gridPulse.id} className="zuno-grid-ripple pointer-events-none absolute z-10" style={{ left: gridPulse.x, top: gridPulse.y }} aria-hidden="true" />}
       <div className="pointer-events-none absolute left-1/2 top-0 h-px w-[75%] -translate-x-1/2 bg-gradient-to-r from-transparent via-[#12D98B]/45 to-transparent" aria-hidden="true" />
       <div className="container relative mx-auto px-4">
-        <div className="grid items-center gap-10 pb-8 pt-10 sm:pt-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-12 lg:pb-12 lg:pt-16">
-          <div className="relative z-10 max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#0B8F60]/50 bg-[#12D98B]/10 px-3 py-1.5 text-xs font-bold text-[#8DF0BE] backdrop-blur-md">
-              <Sparkles className="h-3.5 w-3.5" />
-              Plataforma de prospecção B2B para agências e freelancers
+        <div className="grid items-center gap-10 pb-8 pt-10 sm:pt-14 lg:grid-cols-2 lg:gap-10 lg:pb-12 lg:pt-16">
+          <div className="relative z-10 min-w-0 max-w-2xl">
+            <div className="inline-flex max-w-full items-start gap-2 rounded-full border border-[#0B8F60]/50 bg-[#12D98B]/10 px-3 py-1.5 text-xs font-bold text-[#8DF0BE] backdrop-blur-md">
+              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0">Plataforma de prospecção B2B para agências e freelancers</span>
             </div>
 
-            <h1 className="mt-6 text-[2.7rem] font-extrabold leading-[1.01] tracking-[-0.06em] sm:text-6xl lg:text-[4.2rem]">
+            <h1 className="mt-6 break-words text-[2.7rem] font-extrabold leading-[1.01] tracking-[-0.06em] max-[319px]:text-[2rem] sm:text-6xl lg:text-[3.45rem] xl:text-[3.6rem]">
               Encontre empresas.<br />
               <span className="zuno-hero-gradient-text text-[#12D98B]">Saiba como abordar.</span>
             </h1>
@@ -94,7 +110,7 @@ export function HeroSection() {
             <div className={LANDING_CTA_PAIR}>
               <Button
                 size="lg"
-                className={[LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, "bg-[#12D98B] text-base text-[#07100D] shadow-[0_14px_32px_rgba(18,217,139,0.18)] transition-transform hover:scale-[1.02] hover:bg-[#21E6A0] sm:px-8 sm:text-lg"].join(" ")}
+                className={[LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, "whitespace-normal px-3 text-center text-base leading-tight text-[#07100D] bg-[#12D98B] shadow-[0_14px_32px_rgba(18,217,139,0.18)] transition-transform hover:scale-[1.02] hover:bg-[#21E6A0] sm:px-5 sm:text-base"].join(" ")}
                 onClick={handlePrimaryCta}
               >
                 Começar minha primeira busca
@@ -103,7 +119,7 @@ export function HeroSection() {
               <Button
                 size="lg"
                 variant="outline"
-                className={[LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, "border-[#12D98B]/30 bg-[#0D1713]/70 text-sm text-[#F3F7F5] hover:border-[#12D98B] hover:bg-[#12D98B]/10 sm:px-8 sm:text-base"].join(" ")}
+                className={[LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, "whitespace-normal border-[#12D98B]/30 bg-[#0D1713]/70 px-3 text-center text-sm leading-tight text-[#F3F7F5] hover:border-[#12D98B] hover:bg-[#12D98B]/10 sm:px-5 sm:text-sm"].join(" ")}
                 onClick={handleProofCta}
               >
                 <Play className={LANDING_CTA_ICON} />
@@ -119,9 +135,13 @@ export function HeroSection() {
                   : "Hoje R$0. Cartão necessário. A duração vigente será confirmada antes do checkout."}
               </p>
             </div>
+            <p className="mt-4 hidden items-center gap-2 text-xs text-[#8DF0BE] lg:flex">
+              <MousePointer2 className="h-3.5 w-3.5" />
+              Mova o cursor e clique no grid para explorar o efeito.
+            </p>
           </div>
 
-          <div className="zuno-hero-stage relative mx-auto w-full min-w-0 max-w-[590px] lg:max-w-none" onPointerMove={tiltPreview} onPointerLeave={resetPreviewTilt}>
+          <div className="zuno-hero-stage relative mx-auto w-full min-w-0 max-w-[590px]" onPointerMove={tiltPreview} onPointerLeave={resetPreviewTilt}>
             <div className="pointer-events-none absolute -inset-8 rounded-[3rem] bg-[#12D98B]/15 blur-[65px]" aria-hidden="true" />
             <div className="zuno-hero-orbit pointer-events-none absolute -inset-3 hidden rounded-[2.5rem] border border-[#12D98B]/20 lg:block" aria-hidden="true" />
             <div className="zuno-hero-window relative"><MockupHeroProspeccao onStart={handleDemoCta} /></div>

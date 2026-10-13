@@ -14,6 +14,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, resolveTrialDaysCopy, type BillingCycle, type PlanConfig } from "@/config/plans";
 import { cn } from "@/lib/utils";
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
+import { cardTrialCopy, trialDurationLabel } from "./trialCopy";
 import { appendReferralToPath } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
 import { getFunnelContext } from "@/lib/funnelContext";
@@ -25,6 +26,7 @@ const formatBRL = (value: number) =>
 export function PrecosSection() {
   const navigate = useNavigate();
   const { trialDurationDays, defaultNewBillingProvider, introOffer } = useBillingOfferConfig();
+  const trialDuration = trialDurationLabel(trialDurationDays);
   const { hasUsaAddon, isAdmin, subscription, loading: subscriptionLoading } = useSubscription();
   const subscriptionStatus = String(subscription?.subscription_status ?? subscription?.status ?? "").toLowerCase();
   const hasExistingSubscription = Boolean(
@@ -246,7 +248,7 @@ export function PrecosSection() {
             {trialDurationDays ? `Teste o Zuno por ${trialDurationDays} dias no plano escolhido` : "Teste o Zuno no plano escolhido"}
           </h2>
           <p className="text-base text-[#A9B8B1] md:text-lg leading-relaxed max-w-2xl mx-auto font-medium mb-8">
-            <span className="text-[#12D98B] font-bold">Hoje R$0.</span> Cartão necessário. {trialDurationDays ? `Teste de ${trialDurationDays} dias.` : "A duração vigente será confirmada antes do checkout."} A primeira cobrança acontece depois do teste, na data confirmada no checkout. <span className="text-[#F3F7F5] font-bold">Cancele antes e não será cobrado.</span>
+            <span className="text-[#12D98B] font-bold">Hoje R$0.</span> {cardTrialCopy(trialDurationDays)} A primeira cobrança acontece depois do teste, na data confirmada no checkout. <span className="text-[#F3F7F5] font-bold">Cancele antes e não será cobrado.</span>
           </p>
 
           <div className="flex flex-col items-center gap-2">
@@ -358,7 +360,7 @@ export function PrecosSection() {
                         )}
                       </Button>
                       <p className="text-center text-xs font-semibold leading-relaxed text-[#A9B8B1] mt-1">
-                        Hoje R$0. Cartão necessário. {trialDurationDays ? `Teste grátis por ${trialDurationDays} dias. ` : ""}Depois R$ {price.toLocaleString("pt-BR")}{getPlanPeriodLabel(billingCycle)}. Cancele antes e não será cobrado.
+                        Hoje R$0. {cardTrialCopy(trialDurationDays)} Depois R$ {price.toLocaleString("pt-BR")}{getPlanPeriodLabel(billingCycle)}. Cancele antes e não será cobrado.
                       </p>
 
                       {billingCycle === "monthly"
@@ -428,6 +430,7 @@ export function PrecosSection() {
             <div className="p-3 bg-[#0D1713]/40 rounded-lg border border-[#20312A]/40">
               <p className="text-[#F3F7F5] font-bold">Obrigatório</p>
               <p className="mt-0.5 text-[9px] uppercase">Cartão</p>
+              <p className="mt-1 text-[10px]">{trialDuration ? `Teste de ${trialDuration}` : "Duração no checkout"}</p>
             </div>
             <div className="p-3 bg-[#0D1713]/40 rounded-lg border border-[#20312A]/40">
               <p className="text-[#12D98B] font-bold">1 Clique</p>
@@ -439,7 +442,7 @@ export function PrecosSection() {
             </div>
           </div>
           <p className="text-xs text-[#A9B8B1] leading-relaxed">
-            <strong>Transparência:</strong> o cartão é necessário para ativar o teste. Você pode cancelar pela área de perfil {trialDurationDays ? `antes do fim dos ${trialDurationDays} dias` : "antes do fim do período de teste"} para evitar a primeira cobrança. O Zuno ajuda a encontrar, priorizar e abordar oportunidades. Não garante fechamento de clientes.
+            <strong>Transparência:</strong> {cardTrialCopy(trialDurationDays)} Você pode cancelar pela área de perfil {trialDurationDays ? `antes do fim dos ${trialDurationDays} dias` : "antes do fim do período de teste"} para evitar a primeira cobrança. O Zuno ajuda a encontrar, priorizar e abordar oportunidades. Não garante fechamento de clientes.
           </p>
         </div>
 

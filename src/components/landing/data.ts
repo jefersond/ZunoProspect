@@ -8,6 +8,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { PLAN_LIST, PLANS } from "@/config/plans";
+import { cardTrialCopy, trialDurationLabel } from "./trialCopy";
 
 export const buildMetricas = (trialDurationDays: number | null) => [
   { numero: "Cidade + nicho", label: "Busca direcionada", descricao: "para sair da pesquisa manual genérica" },
@@ -134,11 +135,11 @@ export const FAQ_ITEMS = [
   },
   {
     pergunta: "Preciso cadastrar cartão?",
-    resposta: "Sim. O cartão é necessário para ativar o teste do plano escolhido. Você paga R$0 hoje e vê a duração vigente antes de concluir o checkout.",
+    resposta: (days: number | null) => `Sim. ${cardTrialCopy(days)} Você paga R$0 hoje e confirma as condições antes de concluir o checkout.`,
   },
   {
     pergunta: "Quando começa a cobrança?",
-    resposta: "A primeira cobrança acontece depois do período de teste informado no checkout, conforme o plano e a periodicidade escolhidos.",
+    resposta: (days: number | null) => `A primeira cobrança acontece ${trialDurationLabel(days) ? `depois dos ${trialDurationLabel(days)} de teste` : "depois do período de teste informado no checkout"}, conforme o plano e a periodicidade escolhidos.`,
   },
   {
     pergunta: "Posso cancelar antes?",

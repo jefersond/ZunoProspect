@@ -3,8 +3,10 @@ import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { FAQ_ITEMS } from "./data";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
+import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 
 export function FAQSection() {
+  const { trialDurationDays } = useBillingOfferConfig();
   const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function FAQSection() {
                   {item.pergunta}
                 </AccordionTrigger>
                 <AccordionContent className="text-[#A9B8B1] leading-relaxed pb-4">
-                  {item.resposta}
+                  {typeof item.resposta === "function" ? item.resposta(trialDurationDays) : item.resposta}
                 </AccordionContent>
               </AccordionItem>
             ))}

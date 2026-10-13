@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
 import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE } from "./ctaStyles";
+import { cardTrialCopy } from "./trialCopy";
 
 export function CTAFinalSection() {
   const { trialDurationDays } = useBillingOfferConfig();
@@ -44,7 +45,7 @@ export function CTAFinalSection() {
           </Button>
         </div>
         <p className="text-sm font-semibold text-[#F3F7F5] mt-4">
-          Hoje R$0. Cartão necessário. Cancele antes da cobrança
+          Hoje R$0. {cardTrialCopy(trialDurationDays)} Cancele antes da cobrança.
         </p>
       </div>
     </section>

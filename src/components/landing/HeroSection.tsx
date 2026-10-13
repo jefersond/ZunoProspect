@@ -6,6 +6,7 @@ import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_PAIR, LANDING_CTA_RESPONSIVE } from "./ctaStyles";
+import { cardTrialCopy } from "./trialCopy";
 
 const heroSteps = [
   "Busque por cidade e nicho",
@@ -112,9 +113,7 @@ export function HeroSection() {
             <div className="mt-5 flex items-start gap-2">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#12D98B]" />
               <p className="text-xs font-medium leading-snug text-[#A9B8B1]">
-                {trialDurationDays
-                  ? "Hoje R$0. Cartão necessário. Teste de " + trialDurationDays + " dias. Cancele antes da primeira cobrança."
-                  : "Hoje R$0. Cartão necessário. A duração vigente será confirmada antes do checkout."}
+                Hoje R$0. {cardTrialCopy(trialDurationDays)} Cancele antes da primeira cobrança.
               </p>
             </div>
           </div>

@@ -71,13 +71,13 @@ export function HeroSection() {
       <div className="pointer-events-none absolute left-1/2 top-0 h-px w-[75%] -translate-x-1/2 bg-gradient-to-r from-transparent via-[#12D98B]/45 to-transparent" aria-hidden="true" />
       <div className="container relative mx-auto px-4">
         <div className="grid items-center gap-10 pb-8 pt-10 sm:pt-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-12 lg:pb-12 lg:pt-16">
-          <div className="relative z-10 min-w-0 max-w-2xl">
-            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[#0B8F60]/50 bg-[#12D98B]/10 px-3 py-1.5 text-xs font-bold text-[#8DF0BE] backdrop-blur-md">
-              <Sparkles className="h-3.5 w-3.5 shrink-0" />
-              <span className="min-w-0">Plataforma de prospecção B2B para agências e freelancers</span>
+          <div className="relative z-10 max-w-2xl max-lg:min-w-0">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#0B8F60]/50 bg-[#12D98B]/10 px-3 py-1.5 text-xs font-bold text-[#8DF0BE] backdrop-blur-md max-lg:max-w-full">
+              <Sparkles className="h-3.5 w-3.5 max-lg:shrink-0" />
+              <span className="max-lg:min-w-0">Plataforma de prospecção B2B para agências e freelancers</span>
             </div>
 
-            <h1 className="mt-6 break-words text-[2.7rem] font-extrabold leading-[1.01] tracking-[-0.06em] max-[319px]:text-[2rem] sm:text-6xl lg:text-[4.2rem]">
+            <h1 className="mt-6 text-[2.7rem] font-extrabold leading-[1.01] tracking-[-0.06em] max-lg:break-words max-[319px]:text-[2rem] sm:text-6xl lg:text-[4.2rem]">
               Encontre empresas.<br />
               <span className="zuno-hero-gradient-text text-[#12D98B]">Saiba como abordar.</span>
             </h1>
@@ -94,7 +94,7 @@ export function HeroSection() {
             <div className={LANDING_CTA_PAIR}>
               <Button
                 size="lg"
-                className={[LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, "h-auto min-h-12 whitespace-normal px-3 py-3 text-center text-base leading-tight text-[#07100D] bg-[#12D98B] shadow-[0_14px_32px_rgba(18,217,139,0.18)] transition-transform hover:scale-[1.02] hover:bg-[#21E6A0] sm:px-8 sm:text-lg"].join(" ")}
+                className={[LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, "bg-[#12D98B] text-base text-[#07100D] shadow-[0_14px_32px_rgba(18,217,139,0.18)] transition-transform hover:scale-[1.02] hover:bg-[#21E6A0] max-sm:h-auto max-sm:whitespace-normal max-sm:px-3 max-sm:py-3 max-sm:text-center max-sm:leading-tight sm:px-8 sm:text-lg"].join(" ")}
                 onClick={handlePrimaryCta}
               >
                 Começar minha primeira busca
@@ -103,7 +103,7 @@ export function HeroSection() {
               <Button
                 size="lg"
                 variant="outline"
-                className={[LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, "h-auto min-h-12 whitespace-normal border-[#12D98B]/30 bg-[#0D1713]/70 px-3 py-3 text-center text-sm leading-tight text-[#F3F7F5] hover:border-[#12D98B] hover:bg-[#12D98B]/10 sm:px-8 sm:text-base"].join(" ")}
+                className={[LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, "border-[#12D98B]/30 bg-[#0D1713]/70 text-sm text-[#F3F7F5] hover:border-[#12D98B] hover:bg-[#12D98B]/10 max-sm:h-auto max-sm:whitespace-normal max-sm:px-3 max-sm:py-3 max-sm:text-center max-sm:leading-tight sm:px-8 sm:text-base"].join(" ")}
                 onClick={handleProofCta}
               >
                 <Play className={LANDING_CTA_ICON} />

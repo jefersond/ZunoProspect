@@ -279,7 +279,7 @@ export function PrecosSection() {
               <Card
                 key={plan.id}
                 className={cn(
-                  "relative flex h-full min-h-[540px] flex-col overflow-hidden rounded-xl border p-6 text-[#F3F7F5] shadow-lg bg-[#0D1713] transition-all duration-300",
+                  "zuno-depth-card relative flex h-full min-h-[540px] flex-col overflow-hidden rounded-xl border p-6 text-[#F3F7F5] shadow-lg bg-[#0D1713]",
                   plan.highlighted ? "border-[#12D98B] shadow-[0_0_35px_rgba(18,217,139,0.06)]" : "border-[#20312A]",
                 )}
               >

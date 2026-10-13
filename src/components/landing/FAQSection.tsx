@@ -40,7 +40,7 @@ export function FAQSection() {
               <AccordionItem
                 key={index}
                 value={`item-${index}`}
-                className="bg-[#0D1713] rounded-lg px-6 border border-[#20312A] text-[#F3F7F5]"
+                className="zuno-depth-card bg-[#0D1713] rounded-lg px-6 border border-[#20312A] text-[#F3F7F5]"
               >
                 <AccordionTrigger className="text-left font-semibold hover:no-underline hover:text-[#21E6A0] py-4 transition-colors">
                   {item.pergunta}

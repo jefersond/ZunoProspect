@@ -44,7 +44,7 @@ export function ProductProofSection() {
           ))}
         </div>
 
-        <div className="mx-auto mt-8 min-w-0 max-w-6xl overflow-hidden rounded-2xl border border-[#20312A] bg-[#0D1713] shadow-[0_0_50px_rgba(18,217,139,0.03)]">
+        <div className="zuno-depth-card mx-auto mt-8 min-w-0 max-w-6xl overflow-hidden rounded-2xl border border-[#20312A] bg-[#0D1713] shadow-[0_0_50px_rgba(18,217,139,0.03)]">
           <div className="border-b border-[#20312A] px-5 py-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#12D98B]">É isso que você recebe</p>
           </div>

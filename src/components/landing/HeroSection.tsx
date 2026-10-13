@@ -1,6 +1,6 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Check, Play, ScanSearch, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Play, ShieldCheck, Sparkles } from "lucide-react";
 import { MockupHeroProspeccao } from "./mockups/MockupHeroProspeccao";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
@@ -21,13 +21,17 @@ export function HeroSection() {
     const bounds = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - bounds.left) / bounds.width - 0.5;
     const y = (event.clientY - bounds.top) / bounds.height - 0.5;
-    event.currentTarget.style.setProperty("--zuno-tilt-x", String((-y * 7).toFixed(2)) + "deg");
-    event.currentTarget.style.setProperty("--zuno-tilt-y", String((x * 9).toFixed(2)) + "deg");
+    event.currentTarget.style.setProperty("--zuno-tilt-x", String((-y * 4).toFixed(2)) + "deg");
+    event.currentTarget.style.setProperty("--zuno-tilt-y", String((x * 5).toFixed(2)) + "deg");
+    event.currentTarget.style.setProperty("--zuno-pointer-x", String(((x + 0.5) * 100).toFixed(1)) + "%");
+    event.currentTarget.style.setProperty("--zuno-pointer-y", String(((y + 0.5) * 100).toFixed(1)) + "%");
   };
 
   const resetPreviewTilt = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.currentTarget.style.removeProperty("--zuno-tilt-x");
     event.currentTarget.style.removeProperty("--zuno-tilt-y");
+    event.currentTarget.style.removeProperty("--zuno-pointer-x");
+    event.currentTarget.style.removeProperty("--zuno-pointer-y");
   };
 
   const scrollToSection = (id: string) => {
@@ -66,7 +70,6 @@ export function HeroSection() {
 
   return (
     <section className="zuno-hero-future relative isolate overflow-hidden border-b border-[#12D98B]/15 bg-[#07100D] text-[#F3F7F5] selection:bg-[#12D98B]/40">
-      <div className="zuno-hero-grid pointer-events-none absolute inset-0" aria-hidden="true" />
       <div className="zuno-hero-halo pointer-events-none absolute -right-40 top-0 h-[650px] w-[650px] rounded-full" aria-hidden="true" />
       <div className="pointer-events-none absolute left-1/2 top-0 h-px w-[75%] -translate-x-1/2 bg-gradient-to-r from-transparent via-[#12D98B]/45 to-transparent" aria-hidden="true" />
       <div className="container relative mx-auto px-4">
@@ -85,11 +88,6 @@ export function HeroSection() {
             <p className="mt-6 max-w-xl text-base leading-relaxed text-[#A9B8B1] sm:text-lg">
               Escolha uma cidade e um nicho. O Zuno organiza dados públicos, mostra sinais de oportunidade e sugere a primeira mensagem para cada empresa.
             </p>
-
-            <div className="mt-6 flex items-center gap-3 rounded-2xl border border-[#12D98B]/20 bg-[#0D1713]/80 p-3.5 text-sm text-[#D7E4DC] backdrop-blur-md sm:max-w-[480px]">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#12D98B]/10 text-[#12D98B]"><ScanSearch className="h-5 w-5" /></span>
-              <span>Explore exemplos em diferentes nichos antes de começar.</span>
-            </div>
 
             <div className={LANDING_CTA_PAIR}>
               <Button
@@ -123,7 +121,6 @@ export function HeroSection() {
 
           <div className="zuno-hero-stage relative mx-auto w-full min-w-0 max-w-[590px] lg:max-w-none" onPointerMove={tiltPreview} onPointerLeave={resetPreviewTilt}>
             <div className="pointer-events-none absolute -inset-8 rounded-[3rem] bg-[#12D98B]/15 blur-[65px]" aria-hidden="true" />
-            <div className="zuno-hero-orbit pointer-events-none absolute -inset-3 hidden rounded-[2.5rem] border border-[#12D98B]/20 lg:block" aria-hidden="true" />
             <div className="zuno-hero-window relative"><MockupHeroProspeccao onStart={handleDemoCta} /></div>
           </div>
         </div>

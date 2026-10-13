@@ -88,7 +88,7 @@ export function ComoFuncionaSection() {
         </div>
 
         {/* Sequência Visual Horizontal (Esteira de Prospecção) - O Coração do Produto */}
-        <div className="mx-auto mb-10 max-w-6xl rounded-xl border border-[#20312A] bg-[#0D1713]/40 p-4 md:p-5 backdrop-blur shadow-2xl">
+        <div className="zuno-depth-card mx-auto mb-10 max-w-6xl rounded-xl border border-[#20312A] bg-[#0D1713]/80 p-4 shadow-2xl md:p-5">
           <div className="zuno-how-stepper flex flex-col gap-4 md:grid md:grid-cols-5 md:items-stretch md:gap-2 xl:flex xl:flex-row xl:items-center">
             {etapasFluxo.map((etapa, idx) => {
               const ativo = passoAtivo === etapa.index;
@@ -168,7 +168,7 @@ export function ComoFuncionaSection() {
           </div>
 
           {/* Lado Direito: Simulador de Interface (Muda conforme o passo) */}
-          <div className="relative overflow-hidden rounded-xl border border-[#20312A] bg-[#0D1713] shadow-2xl p-4 lg:p-6 min-h-[400px] flex flex-col justify-between">
+          <div className="zuno-depth-card relative overflow-hidden rounded-xl border border-[#20312A] bg-[#0D1713] shadow-2xl p-4 lg:p-6 min-h-[400px] flex flex-col justify-between">
             {/* Abas superiores da janela */}
             <div className="absolute top-0 left-0 w-full h-[3px] bg-[#12D98B]" />
             <div className="flex items-center gap-1.5 border-b border-[#20312A]/60 pb-3 mb-4 text-xs font-mono text-[#A9B8B1] uppercase tracking-wider">

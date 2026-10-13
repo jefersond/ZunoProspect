@@ -74,7 +74,7 @@ export function MockupHeroProspeccao({ onStart }: MockupHeroProspeccaoProps) {
                   setScenarioId(item.id);
                   trackEvent("landing_demo_niche_selected", { niche: item.id });
                 }}
-                className={"rounded-lg border px-2 py-2 text-center text-[11px] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#21E6A0] sm:text-xs " + (scenarioId === item.id
+                className={"rounded-lg border px-2 py-2 text-center text-[11px] font-bold transition-all hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#21E6A0] sm:text-xs " + (scenarioId === item.id
                   ? "border-[#12D98B] bg-[#12D98B]/15 text-[#F3F7F5] shadow-[inset_0_0_18px_rgba(18,217,139,0.12)]"
                   : "border-[#20312A] bg-[#07100D]/70 text-[#A9B8B1] hover:border-[#12D98B]/50 hover:text-[#F3F7F5]")}
               >
@@ -100,7 +100,7 @@ export function MockupHeroProspeccao({ onStart }: MockupHeroProspeccaoProps) {
           </select>
         </label>
 
-        <div className="zuno-demo-result rounded-2xl border border-[#12D98B]/25 bg-[#111D18] p-4 shadow-[0_0_35px_rgba(18,217,139,0.07)]" aria-live="polite">
+        <div key={`${scenarioId}-${city}-result`} className="zuno-demo-result zuno-demo-reveal rounded-2xl border border-[#12D98B]/25 bg-[#111D18] p-4 shadow-[0_0_35px_rgba(18,217,139,0.07)]" aria-live="polite">
           <div className="mb-3 flex flex-col items-start gap-1 min-[320px]:flex-row min-[320px]:items-center min-[320px]:justify-between">
             <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-[#12D98B]">Exemplo de resultado</span>
             <span className="text-[11px] text-[#A9B8B1]">Dados ilustrativos</span>
@@ -127,7 +127,7 @@ export function MockupHeroProspeccao({ onStart }: MockupHeroProspeccaoProps) {
           </div>
         </div>
 
-        <div className="zuno-demo-message relative rounded-xl border border-[#20312A] bg-[#07100D]/80 p-4">
+        <div key={`${scenarioId}-${city}-message`} className="zuno-demo-message zuno-demo-reveal relative rounded-xl border border-[#20312A] bg-[#07100D]/80 p-4">
           <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[#12D98B]">
             <MessageSquareText className="h-3.5 w-3.5" />
             Abordagem sugerida

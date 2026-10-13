@@ -47,7 +47,7 @@ export function AntesDepoisSection() {
         </div>
 
         <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-2">
-          <Card className="relative overflow-hidden rounded-xl border border-[#E55757]/30 bg-[#E55757]/[0.06] p-6 backdrop-blur md:p-8">
+          <Card className="zuno-depth-card relative overflow-hidden rounded-xl border border-[#E55757]/30 bg-[#E55757]/[0.06] p-6 md:p-8">
             <div className="absolute left-0 top-0 h-[3px] w-full bg-[#E55757]" />
             <h3 className="text-xl font-bold text-[#E55757]">Muitas etapas manuais</h3>
             <p className="mb-6 mt-2 text-sm leading-relaxed text-[#6F8179]">
@@ -66,7 +66,7 @@ export function AntesDepoisSection() {
             </div>
           </Card>
 
-          <Card className="relative overflow-hidden rounded-xl border border-[#12D98B]/30 bg-[#111D18]/70 p-6 shadow-[0_0_50px_rgba(18,217,139,0.05)] backdrop-blur md:p-8">
+          <Card className="zuno-depth-card relative overflow-hidden rounded-xl border border-[#12D98B]/30 bg-[#111D18]/70 p-6 shadow-[0_0_50px_rgba(18,217,139,0.05)] md:p-8">
             <div className="absolute left-0 top-0 h-[3px] w-full bg-[#12D98B]" />
             <h3 className="text-xl font-bold text-[#F3F7F5]">Um fluxo com a Zuno</h3>
             <p className="mb-6 mt-2 text-sm leading-relaxed text-[#A9B8B1]">

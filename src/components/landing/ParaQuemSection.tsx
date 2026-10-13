@@ -62,7 +62,7 @@ export function ParaQuemSection() {
           {categorias.map((cat) => (
             <Card
               key={cat.titulo}
-              className="group flex flex-col rounded-xl border border-[#20312A] bg-[#0D1713] p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#21E6A0]/40"
+              className="zuno-depth-card group flex flex-col rounded-xl border border-[#20312A] bg-[#0D1713] p-5"
             >
               <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg border border-[#20312A] bg-[#07100D] text-[#12D98B] transition-colors group-hover:bg-[#12D98B]/10">
                 <cat.icone className="h-5 w-5" />

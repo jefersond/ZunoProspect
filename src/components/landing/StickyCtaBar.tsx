@@ -49,11 +49,11 @@ export function StickyCtaBar({ heroRef }: StickyCtaBarProps) {
         </div>
         <Button
           size="sm"
-          className={`${LANDING_CTA_BASE} w-full bg-[#12D98B] text-[#07100D] shadow-[0_0_20px_rgba(18,217,139,0.3)] transition-all hover:scale-[1.02] hover:bg-[#21E6A0] sm:ml-auto sm:w-auto`}
+          className={`${LANDING_CTA_BASE} relative w-full bg-[#12D98B] px-10 text-center text-[#07100D] shadow-[0_0_20px_rgba(18,217,139,0.3)] transition-all hover:scale-[1.02] hover:bg-[#21E6A0] max-sm:h-auto max-sm:whitespace-normal max-sm:py-3 max-sm:leading-tight sm:ml-auto sm:w-auto`}
           onClick={handleClick}
         >
-          Começar minha primeira busca
-          <ArrowRight className={LANDING_CTA_ICON} />
+          <span>Começar minha primeira busca</span>
+          <ArrowRight className={`${LANDING_CTA_ICON} absolute right-4`} />
         </Button>
       </div>
     </div>

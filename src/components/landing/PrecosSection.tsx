@@ -14,6 +14,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { PLAN_LIST, getPlanPeriodLabel, getPlanPrice, resolveTrialDaysCopy, type BillingCycle, type PlanConfig } from "@/config/plans";
 import { cn } from "@/lib/utils";
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
+import { cardTrialCopy, trialDurationLabel } from "./trialCopy";
 import { appendReferralToPath } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
 import { getFunnelContext } from "@/lib/funnelContext";
@@ -25,6 +26,7 @@ const formatBRL = (value: number) =>
 export function PrecosSection() {
   const navigate = useNavigate();
   const { trialDurationDays, defaultNewBillingProvider, introOffer } = useBillingOfferConfig();
+  const trialDuration = trialDurationLabel(trialDurationDays);
   const { hasUsaAddon, isAdmin, subscription, loading: subscriptionLoading } = useSubscription();
   const subscriptionStatus = String(subscription?.subscription_status ?? subscription?.status ?? "").toLowerCase();
   const hasExistingSubscription = Boolean(
@@ -145,7 +147,7 @@ export function PrecosSection() {
       plan_name: plan.name,
       billing_cycle: billingCycle,
       location: "pricing",
-      cta_text: conversionPath === "trial" ? plan.cta : "Prefiro assinar agora",
+      cta_text: conversionPath === "trial" ? plan.cta : "Assinar agora",
       conversion_path: conversionPath,
       ...introAnalytics,
     };
@@ -246,7 +248,7 @@ export function PrecosSection() {
             {trialDurationDays ? `Teste o Zuno por ${trialDurationDays} dias no plano escolhido` : "Teste o Zuno no plano escolhido"}
           </h2>
           <p className="text-base text-[#A9B8B1] md:text-lg leading-relaxed max-w-2xl mx-auto font-medium mb-8">
-            <span className="text-[#12D98B] font-bold">Hoje R$0.</span> Cartão necessário. {trialDurationDays ? `Teste de ${trialDurationDays} dias.` : "A duração vigente será confirmada antes do checkout."} A primeira cobrança acontece depois do teste, na data confirmada no checkout. <span className="text-[#F3F7F5] font-bold">Cancele antes e não será cobrado.</span>
+            <span className="text-[#12D98B] font-bold">Hoje R$0.</span> {cardTrialCopy(trialDurationDays)} A primeira cobrança acontece depois do teste, na data confirmada no checkout. <span className="text-[#F3F7F5] font-bold">Cancele antes e não será cobrado.</span>
           </p>
 
           <div className="flex flex-col items-center gap-2">
@@ -274,12 +276,19 @@ export function PrecosSection() {
             const price = getPlanPrice(plan.id, billingCycle);
             const isCurrentProcessing = isProcessing === plan.id;
             const cardIntroOffer = introOffer.plans[plan.id];
+            const showIntroOffer = Boolean(
+              billingCycle === "monthly"
+                && introOffer.enabled
+                && introOffer.eligible
+                && cardIntroOffer?.introPrice
+                && cardIntroOffer?.regularPrice,
+            );
 
             return (
               <Card
                 key={plan.id}
                 className={cn(
-                  "relative flex h-full min-h-[540px] flex-col overflow-hidden rounded-xl border p-6 text-[#F3F7F5] shadow-lg bg-[#0D1713] transition-all duration-300",
+                  "zuno-depth-card relative flex h-full min-h-[540px] flex-col overflow-hidden rounded-xl border p-6 text-[#F3F7F5] shadow-lg bg-[#0D1713]",
                   plan.highlighted ? "border-[#12D98B] shadow-[0_0_35px_rgba(18,217,139,0.06)]" : "border-[#20312A]",
                 )}
               >
@@ -358,58 +367,54 @@ export function PrecosSection() {
                         )}
                       </Button>
                       <p className="text-center text-xs font-semibold leading-relaxed text-[#A9B8B1] mt-1">
-                        Hoje R$0. Cartão necessário. {trialDurationDays ? `Teste grátis por ${trialDurationDays} dias. ` : ""}Depois R$ {price.toLocaleString("pt-BR")}{getPlanPeriodLabel(billingCycle)}. Cancele antes e não será cobrado.
+                        Hoje R$0. {cardTrialCopy(trialDurationDays)} Depois R$ {price.toLocaleString("pt-BR")}{getPlanPeriodLabel(billingCycle)}. Cancele antes e não será cobrado.
                       </p>
 
-                      {billingCycle === "monthly"
-                        && introOffer.enabled
-                        && introOffer.eligible
-                        && cardIntroOffer?.introPrice
-                        && cardIntroOffer?.regularPrice ? (
-                        <div className="mt-3 rounded-lg border border-[#12D98B]/25 bg-[#07100D] p-3 text-center">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6F8179]">Assinar</p>
-                          <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[#12D98B]">
-                            Economize no primeiro mês
-                          </p>
-                          <p className="mt-1 text-sm font-bold text-[#F3F7F5]">
-                            R$ {formatBRL(cardIntroOffer.introPrice)} hoje
-                          </p>
-                          <p className="text-xs text-[#A9B8B1]">
-                            Depois R$ {formatBRL(cardIntroOffer.regularPrice)}/mês
-                          </p>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className={cn(
-                              LANDING_CTA_BASE,
-                              "mt-3 w-full border-[#12D98B]/40 bg-transparent text-[#F3F7F5] hover:border-[#21E6A0] hover:bg-[#12D98B]/5",
-                            )}
-                            onClick={() => handleSelectPlano(plan, "direct_purchase")}
-                            disabled={Boolean(isProcessing) || subscriptionLoading}
-                          >
-                            {isCurrentProcessing ? (
-                              <Loader2 className="h-5 w-5 animate-spin" />
-                            ) : (
-                              "Assinar agora"
-                            )}
-                          </Button>
-                          <p className="mt-2 text-[11px] text-[#A9B8B1]">Cancele quando quiser.</p>
-                        </div>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            className="mx-auto mt-2 text-xs font-semibold text-[#A9B8B1] underline decoration-[#20312A] underline-offset-4 transition-colors hover:text-[#F3F7F5] disabled:cursor-not-allowed disabled:opacity-50"
-                            onClick={() => handleSelectPlano(plan, "direct_purchase")}
-                            disabled={Boolean(isProcessing) || subscriptionLoading}
-                          >
-                            Prefiro assinar agora
-                          </button>
-                          <p className="text-center text-xs leading-relaxed text-[#A9B8B1]">
-                            Cobrança de R$ {price.toLocaleString("pt-BR")} hoje.
-                          </p>
-                        </>
-                      )}
+                      <div className="mt-3 rounded-lg border border-[#12D98B]/25 bg-[#07100D] p-3 text-center">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6F8179]">Assinar</p>
+                        {showIntroOffer ? (
+                          <>
+                            <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[#12D98B]">
+                              Economize no primeiro mês
+                            </p>
+                            <p className="mt-1 text-sm font-bold text-[#F3F7F5]">
+                              R$ {formatBRL(cardIntroOffer.introPrice!)} hoje
+                            </p>
+                            <p className="text-xs text-[#A9B8B1]">
+                              Depois R$ {formatBRL(cardIntroOffer.regularPrice!)}/mês
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[#12D98B]">
+                              Assinatura sem teste
+                            </p>
+                            <p className="mt-1 text-sm font-bold text-[#F3F7F5]">
+                              R$ {price.toLocaleString("pt-BR")} hoje
+                            </p>
+                            <p className="text-xs text-[#A9B8B1]">
+                              Depois R$ {price.toLocaleString("pt-BR")}{getPlanPeriodLabel(billingCycle)}
+                            </p>
+                          </>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className={cn(
+                            LANDING_CTA_BASE,
+                            "mt-3 w-full border-[#12D98B]/40 bg-transparent text-[#F3F7F5] hover:border-[#21E6A0] hover:bg-[#12D98B]/5",
+                          )}
+                          onClick={() => handleSelectPlano(plan, "direct_purchase")}
+                          disabled={Boolean(isProcessing) || subscriptionLoading}
+                        >
+                          {isCurrentProcessing ? (
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                          ) : (
+                            "Assinar agora"
+                          )}
+                        </Button>
+                        <p className="mt-2 text-[11px] text-[#A9B8B1]">Cancele quando quiser.</p>
+                      </div>
                     </>
                   )}
                 </div>
@@ -428,6 +433,7 @@ export function PrecosSection() {
             <div className="p-3 bg-[#0D1713]/40 rounded-lg border border-[#20312A]/40">
               <p className="text-[#F3F7F5] font-bold">Obrigatório</p>
               <p className="mt-0.5 text-[9px] uppercase">Cartão</p>
+              <p className="mt-1 text-[10px]">{trialDuration ? `Teste de ${trialDuration}` : "Duração no checkout"}</p>
             </div>
             <div className="p-3 bg-[#0D1713]/40 rounded-lg border border-[#20312A]/40">
               <p className="text-[#12D98B] font-bold">1 Clique</p>
@@ -439,7 +445,7 @@ export function PrecosSection() {
             </div>
           </div>
           <p className="text-xs text-[#A9B8B1] leading-relaxed">
-            <strong>Transparência:</strong> o cartão é necessário para ativar o teste. Você pode cancelar pela área de perfil {trialDurationDays ? `antes do fim dos ${trialDurationDays} dias` : "antes do fim do período de teste"} para evitar a primeira cobrança. O Zuno ajuda a encontrar, priorizar e abordar oportunidades. Não garante fechamento de clientes.
+            <strong>Transparência:</strong> {cardTrialCopy(trialDurationDays)} Você pode cancelar pela área de perfil {trialDurationDays ? `antes do fim dos ${trialDurationDays} dias` : "antes do fim do período de teste"} para evitar a primeira cobrança. O Zuno ajuda a encontrar, priorizar e abordar oportunidades. Não garante fechamento de clientes.
           </p>
         </div>
 

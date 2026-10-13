@@ -354,7 +354,7 @@ All colors MUST be HSL.
   [data-zuno-wrap-cta] {
     height: auto;
     min-height: 3rem;
-    padding: 0.75rem;
+    padding: 0.75rem 2.5rem;
     white-space: normal;
     text-align: center;
     line-height: 1.25;

@@ -36,7 +36,7 @@ export function ProductProofSection() {
 
         <div className="zuno-proof-grid mx-auto mt-10 grid max-w-6xl gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {flow.map((item) => (
-            <div key={item.label} className="zuno-proof-card rounded-xl border border-[#20312A] bg-[#0D1713]/70 p-4">
+            <div key={item.label} className="zuno-proof-card flex flex-col items-center rounded-xl border border-[#20312A] bg-[#0D1713]/70 p-4 text-center">
               <item.icon className="h-5 w-5 text-[#12D98B]" />
               <p className="mt-3 text-sm font-bold text-[#F3F7F5]">{item.label}</p>
               <p className="mt-1 text-xs leading-relaxed text-[#A9B8B1]">{item.detail}</p>
@@ -89,15 +89,17 @@ export function ProductProofSection() {
                 A mensagem é uma sugestão. Você revisa, adapta e decide quando enviar.
               </p>
 
-              <Button
-                data-zuno-wrap-cta
-                size="lg"
-                className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} mt-6 bg-[#12D98B] text-[#07100D] hover:bg-[#21E6A0]`}
-                onClick={goToPricing}
-              >
-                Ver oportunidades para meu negócio
-                <ArrowRight className={LANDING_CTA_ICON} />
-              </Button>
+              <div className="mt-6 flex justify-center">
+                <Button
+                  data-zuno-wrap-cta
+                  size="lg"
+                  className={`${LANDING_CTA_BASE} ${LANDING_CTA_RESPONSIVE} relative bg-[#12D98B] px-10 text-center text-[#07100D] hover:bg-[#21E6A0] max-sm:h-auto max-sm:whitespace-normal max-sm:py-3 max-sm:leading-tight`}
+                  onClick={goToPricing}
+                >
+                  <span>Ver oportunidades para meu negócio</span>
+                  <ArrowRight className={`${LANDING_CTA_ICON} absolute right-4`} />
+                </Button>
+              </div>
             </div>
           </div>
         </div>

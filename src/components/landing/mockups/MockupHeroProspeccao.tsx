@@ -139,10 +139,10 @@ export function MockupHeroProspeccao({ onStart }: MockupHeroProspeccaoProps) {
         <button
           type="button"
           onClick={onStart}
-          className="group flex w-full items-center justify-between rounded-xl bg-[#12D98B] px-4 py-3 text-left text-sm font-extrabold text-[#07100D] shadow-[0_12px_28px_rgba(18,217,139,0.17)] transition-colors hover:bg-[#21E6A0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#21E6A0]"
+          className="group relative flex w-full items-center justify-center rounded-xl bg-[#12D98B] px-10 py-3 text-center text-sm font-extrabold text-[#07100D] shadow-[0_12px_28px_rgba(18,217,139,0.17)] transition-colors hover:bg-[#21E6A0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#21E6A0]"
         >
-          Ver planos e começar
-          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+          <span>Ver planos e começar</span>
+          <ArrowRight className="absolute right-4 h-4 w-4 transition-transform group-hover:translate-x-1" />
         </button>
         <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-[#A9B8B1]">
           <Sparkles className="mt-0.5 h-3 w-3 shrink-0" />

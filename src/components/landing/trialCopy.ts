@@ -6,6 +6,6 @@ export function trialDurationLabel(days: number | null): string | null {
 export function cardTrialCopy(days: number | null): string {
   const duration = trialDurationLabel(days);
   return duration
-    ? `Cartão necessário para ativar o teste grátis de ${duration}.`
-    : "Cartão necessário para ativar o teste grátis. A duração será confirmada no checkout.";
+    ? `Após cadastrar o cartão, você testa a Zuno grátis por ${duration}.`
+    : "Após cadastrar o cartão, você inicia o teste grátis. A duração será confirmada no checkout.";
 }

@@ -4,8 +4,8 @@ import { cardTrialCopy, trialDurationLabel } from "./trialCopy";
 
 describe("landing trial copy", () => {
   it("uses the current offer duration in card notices", () => {
-    expect(cardTrialCopy(4)).toContain("4 dias");
-    expect(cardTrialCopy(7)).toContain("7 dias");
+    expect(cardTrialCopy(4)).toBe("Após cadastrar o cartão, você testa a Zuno grátis por 4 dias.");
+    expect(cardTrialCopy(7)).toBe("Após cadastrar o cartão, você testa a Zuno grátis por 7 dias.");
     expect(trialDurationLabel(1)).toBe("1 dia");
   });
 

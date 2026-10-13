@@ -82,9 +82,10 @@ describe("Stripe optional direct purchase", () => {
   });
 
   it("offers an explicit optional immediate-charge path in pricing and checkout", () => {
-    expect(pricing).toContain("Prefiro assinar agora");
+    expect(pricing).toContain("Assinatura sem teste");
+    expect(pricing).toContain("Assinar agora");
     expect(pricing).toContain('handleSelectPlano(plan, "direct_purchase")');
-    expect(pricing).toContain('Cobrança de R$ {price.toLocaleString("pt-BR")} hoje.');
+    expect(pricing).toContain('R$ {price.toLocaleString("pt-BR")} hoje');
     expect(checkout).toContain('"Assinatura imediata"');
     expect(checkout).toContain("Não há período de teste neste caminho.");
     expect(checkout).toContain("conversionPath");

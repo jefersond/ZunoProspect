@@ -147,7 +147,7 @@ export function PrecosSection() {
       plan_name: plan.name,
       billing_cycle: billingCycle,
       location: "pricing",
-      cta_text: conversionPath === "trial" ? plan.cta : "Prefiro assinar agora",
+      cta_text: conversionPath === "trial" ? plan.cta : "Assinar agora",
       conversion_path: conversionPath,
       ...introAnalytics,
     };
@@ -276,6 +276,13 @@ export function PrecosSection() {
             const price = getPlanPrice(plan.id, billingCycle);
             const isCurrentProcessing = isProcessing === plan.id;
             const cardIntroOffer = introOffer.plans[plan.id];
+            const showIntroOffer = Boolean(
+              billingCycle === "monthly"
+                && introOffer.enabled
+                && introOffer.eligible
+                && cardIntroOffer?.introPrice
+                && cardIntroOffer?.regularPrice,
+            );
 
             return (
               <Card
@@ -363,55 +370,51 @@ export function PrecosSection() {
                         Hoje R$0. {cardTrialCopy(trialDurationDays)} Depois R$ {price.toLocaleString("pt-BR")}{getPlanPeriodLabel(billingCycle)}. Cancele antes e não será cobrado.
                       </p>
 
-                      {billingCycle === "monthly"
-                        && introOffer.enabled
-                        && introOffer.eligible
-                        && cardIntroOffer?.introPrice
-                        && cardIntroOffer?.regularPrice ? (
-                        <div className="mt-3 rounded-lg border border-[#12D98B]/25 bg-[#07100D] p-3 text-center">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6F8179]">Assinar</p>
-                          <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[#12D98B]">
-                            Economize no primeiro mês
-                          </p>
-                          <p className="mt-1 text-sm font-bold text-[#F3F7F5]">
-                            R$ {formatBRL(cardIntroOffer.introPrice)} hoje
-                          </p>
-                          <p className="text-xs text-[#A9B8B1]">
-                            Depois R$ {formatBRL(cardIntroOffer.regularPrice)}/mês
-                          </p>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className={cn(
-                              LANDING_CTA_BASE,
-                              "mt-3 w-full border-[#12D98B]/40 bg-transparent text-[#F3F7F5] hover:border-[#21E6A0] hover:bg-[#12D98B]/5",
-                            )}
-                            onClick={() => handleSelectPlano(plan, "direct_purchase")}
-                            disabled={Boolean(isProcessing) || subscriptionLoading}
-                          >
-                            {isCurrentProcessing ? (
-                              <Loader2 className="h-5 w-5 animate-spin" />
-                            ) : (
-                              "Assinar agora"
-                            )}
-                          </Button>
-                          <p className="mt-2 text-[11px] text-[#A9B8B1]">Cancele quando quiser.</p>
-                        </div>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            className="mx-auto mt-2 text-xs font-semibold text-[#A9B8B1] underline decoration-[#20312A] underline-offset-4 transition-colors hover:text-[#F3F7F5] disabled:cursor-not-allowed disabled:opacity-50"
-                            onClick={() => handleSelectPlano(plan, "direct_purchase")}
-                            disabled={Boolean(isProcessing) || subscriptionLoading}
-                          >
-                            Prefiro assinar agora
-                          </button>
-                          <p className="text-center text-xs leading-relaxed text-[#A9B8B1]">
-                            Cobrança de R$ {price.toLocaleString("pt-BR")} hoje.
-                          </p>
-                        </>
-                      )}
+                      <div className="mt-3 rounded-lg border border-[#12D98B]/25 bg-[#07100D] p-3 text-center">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6F8179]">Assinar</p>
+                        {showIntroOffer ? (
+                          <>
+                            <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[#12D98B]">
+                              Economize no primeiro mês
+                            </p>
+                            <p className="mt-1 text-sm font-bold text-[#F3F7F5]">
+                              R$ {formatBRL(cardIntroOffer.introPrice!)} hoje
+                            </p>
+                            <p className="text-xs text-[#A9B8B1]">
+                              Depois R$ {formatBRL(cardIntroOffer.regularPrice!)}/mês
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[#12D98B]">
+                              Assinatura sem teste
+                            </p>
+                            <p className="mt-1 text-sm font-bold text-[#F3F7F5]">
+                              R$ {price.toLocaleString("pt-BR")} hoje
+                            </p>
+                            <p className="text-xs text-[#A9B8B1]">
+                              Depois R$ {price.toLocaleString("pt-BR")}{getPlanPeriodLabel(billingCycle)}
+                            </p>
+                          </>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className={cn(
+                            LANDING_CTA_BASE,
+                            "mt-3 w-full border-[#12D98B]/40 bg-transparent text-[#F3F7F5] hover:border-[#21E6A0] hover:bg-[#12D98B]/5",
+                          )}
+                          onClick={() => handleSelectPlano(plan, "direct_purchase")}
+                          disabled={Boolean(isProcessing) || subscriptionLoading}
+                        >
+                          {isCurrentProcessing ? (
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                          ) : (
+                            "Assinar agora"
+                          )}
+                        </Button>
+                        <p className="mt-2 text-[11px] text-[#A9B8B1]">Cancele quando quiser.</p>
+                      </div>
                     </>
                   )}
                 </div>

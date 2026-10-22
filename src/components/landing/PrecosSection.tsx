@@ -19,6 +19,7 @@ import { appendReferralToPath } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
 import { getFunnelContext } from "@/lib/funnelContext";
 import { LANDING_CTA_BASE, LANDING_CTA_RESPONSIVE, LANDING_PRICING_CTA_AREA } from "./ctaStyles";
+import { WhatsAppSupportLink } from "./WhatsAppSupportLink";
 
 const formatBRL = (value: number) =>
   value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -447,6 +448,10 @@ export function PrecosSection() {
           <p className="text-xs text-[#A9B8B1] leading-relaxed">
             <strong>Transparência:</strong> {cardTrialCopy(trialDurationDays)} Você pode cancelar pela área de perfil {trialDurationDays ? `antes do fim dos ${trialDurationDays} dias` : "antes do fim do período de teste"} para evitar a primeira cobrança. O Zuno ajuda a encontrar, priorizar e abordar oportunidades. Não garante fechamento de clientes.
           </p>
+        </div>
+
+        <div className="mt-8">
+          <WhatsAppSupportLink sourceLocation="pricing_section" />
         </div>
 
         <div className="mx-auto mt-14 max-w-6xl border-t border-[#20312A] pt-10">

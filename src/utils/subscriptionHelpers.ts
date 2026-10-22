@@ -9,7 +9,7 @@ export interface ProfileInfo {
   current_plan?: string | null;
 }
 
-export const ZUNO_SUPPORT_WHATSAPP = "553298511685";
+export const ZUNO_SUPPORT_WHATSAPP = "5527999697246";
 
 export function isPaymentRecoveryRequired(
   subscription: SubscriptionInfo | UsageInfo | null | undefined,

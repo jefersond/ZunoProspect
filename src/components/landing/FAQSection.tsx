@@ -4,6 +4,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { FAQ_ITEMS } from "./data";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
+import { WhatsAppSupportLink } from "./WhatsAppSupportLink";
 
 export function FAQSection() {
   const { trialDurationDays } = useBillingOfferConfig();
@@ -53,6 +54,10 @@ export function FAQSection() {
               </AccordionItem>
             ))}
           </Accordion>
+
+          <div className="mt-10">
+            <WhatsAppSupportLink sourceLocation="faq_section" />
+          </div>
         </div>
       </div>
     </section>

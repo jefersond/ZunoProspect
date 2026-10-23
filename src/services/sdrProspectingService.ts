@@ -1,5 +1,10 @@
-import { supabase } from "@/integrations/supabase/client";
 import type { LeadProspeccao } from "@/types/lead";
+
+// Carregamento dinâmico para evitar falhas em ambientes de teste sem variáveis do Supabase
+async function getSupabaseClient() {
+  const { supabase } = await import("@/integrations/supabase/client");
+  return supabase;
+}
 
 export type SdrApproachStyle = "consultivo" | "direto" | "exemplo_pratico";
 
@@ -209,6 +214,7 @@ export async function updateSdrProspectingStatus({
   approachMessage?: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
+    const supabase = await getSupabaseClient();
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     if (sessionError || !sessionData.session?.user) {
       return { success: false, error: "Usuário não autenticado ou sessão expirada." };

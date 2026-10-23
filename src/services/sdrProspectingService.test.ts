@@ -1,3 +1,10 @@
+if (!process.env.VITE_SUPABASE_URL) {
+  process.env.VITE_SUPABASE_URL = "https://mock.supabase.co";
+}
+if (!process.env.VITE_SUPABASE_PUBLISHABLE_KEY) {
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY = "mock-anon-key";
+}
+
 import { describe, it, expect } from "vitest";
 import {
   sanitizeBrazilianPhoneNumber,

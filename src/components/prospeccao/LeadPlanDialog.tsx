@@ -9,6 +9,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { LeadAnalysis } from "./LeadAnalysis";
+import { SdrWhatsAppModal } from "./SdrWhatsAppModal";
 import { RefineErrorPanel } from "./RefineErrorPanel";
 import { CopyableField } from "./CopyableField";
 import { TemplateSelector } from "@/components/templates/TemplateSelector";
@@ -114,6 +115,7 @@ export const LeadPlanDialog = ({
   const recentlyTrackedLimitBlockRef = useRef<Record<string, number>>({});
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [currentLead, setCurrentLead] = useState(lead);
+  const [isSdrModalOpen, setIsSdrModalOpen] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [notes, setNotes] = useState(lead?.notas || "");
   const [isSavingNotes, setIsSavingNotes] = useState(false);
@@ -725,6 +727,27 @@ export const LeadPlanDialog = ({
           )}
         </div>
 
+        {/* Prospecção Assistida SDR WhatsApp */}
+        <div className="mt-2 p-3.5 bg-emerald-500/10 rounded-lg border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-sm">
+              <MessageSquare className="h-4 w-4" />
+              Prospecção Assistida SDR (Primeira Abordagem)
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Abra a conversa direto no WhatsApp do seu próprio número com mensagem personalizada pronta para aprovação.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setIsSdrModalOpen(true)}
+            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shrink-0 shadow-sm flex items-center justify-center gap-1.5"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            Abordar no WhatsApp
+          </Button>
+        </div>
+
         {/* Status Selector */}
         <div className="mt-2 mb-4 p-4 bg-muted/30 rounded-lg border border-border/50">
           <div className="flex items-center gap-2 mb-3">
@@ -875,6 +898,15 @@ export const LeadPlanDialog = ({
           </TabsContent>
         </Tabs>
       </DialogContent>
+      <SdrWhatsAppModal
+        lead={displayLead}
+        open={isSdrModalOpen}
+        onOpenChange={setIsSdrModalOpen}
+        onStatusUpdated={(leadId, newStatus) => {
+          handleStatusChange(newStatus);
+          onLeadUpdate?.();
+        }}
+      />
       <UpgradePlanDialog
         open={showUpgradeDialog}
         onOpenChange={setShowUpgradeDialog}

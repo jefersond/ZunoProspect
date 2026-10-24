@@ -20,7 +20,7 @@ const beneficios = [
   {
     icone: Target,
     titulo: "Prioridade mais clara",
-    descricao: "Veja sinais digitais e score para decidir quem abordar primeiro.",
+    descricao: "Veja sinais digitais e índice de compatibilidade para decidir quem abordar primeiro.",
   },
   {
     icone: Shield,

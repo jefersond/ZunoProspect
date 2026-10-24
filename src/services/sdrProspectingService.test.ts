@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import {
   sanitizeBrazilianPhoneNumber,
   generateSdrFirstApproachMessage,
+  checkSdrDuplicateApproach,
 } from "./sdrProspectingService";
 
 describe("sdrProspectingService - Regras Comerciais e Sanitização", () => {
@@ -97,7 +98,6 @@ describe("sdrProspectingService - Regras Comerciais e Sanitização", () => {
       style: "consultivo",
     });
 
-    // Não deve inventar avaliações inexistentes
     expect(result.text).not.toContain("estrelas em");
     expect(result.text).not.toContain("Encontrei o site");
     expect(result.text).toContain("Oi, Boutique Bella!");
@@ -121,6 +121,44 @@ describe("sdrProspectingService - Regras Comerciais e Sanitização", () => {
 
     expect(result.text).toContain("Oi, Advocacia Silva! Tudo bem?");
     expect(result.text).toContain("Quem é a pessoa responsável pelo comercial ou marketing");
-    expect(result.text).toContain("demonstração rápida de 1 minuto");
+    expect(result.text).toContain("demonstração rápida de aproximadamente um minuto");
+  });
+
+  it("deve detectar abordagem duplicada se o lead já possui status de contato", () => {
+    const leadContacted = {
+      id: "lead-dup-1",
+      nome: "Auto Peças Central",
+      status: "em_contato",
+    };
+
+    const check = checkSdrDuplicateApproach(leadContacted);
+    expect(check.isDuplicate).toBe(true);
+    expect(check.previousStatus).toBe("em_contato");
+  });
+
+  it("deve detectar abordagem duplicada se houver registro prévio no histórico de notas", () => {
+    const leadWithHistory = {
+      id: "lead-dup-2",
+      nome: "Restaurante Sabor",
+      status: "novo",
+      notas: "[SDR WhatsApp - 2026-10-20] Status: abertura_iniciada",
+    };
+
+    const check = checkSdrDuplicateApproach(leadWithHistory);
+    expect(check.isDuplicate).toBe(true);
+    expect(check.previousStatus).toBe("abertura_iniciada");
+    expect(check.previousDate).toBe("2026-10-20");
+  });
+
+  it("deve retornar isDuplicate = false para lead virgem sem histórico", () => {
+    const freshLead = {
+      id: "lead-fresh",
+      nome: "Nova Padaria",
+      status: "novo",
+      notas: null,
+    };
+
+    const check = checkSdrDuplicateApproach(freshLead);
+    expect(check.isDuplicate).toBe(false);
   });
 });

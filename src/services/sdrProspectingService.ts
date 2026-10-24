@@ -42,6 +42,13 @@ export interface GeneratedSdrMessage {
   };
 }
 
+export interface SdrDuplicateCheckResult {
+  isDuplicate: boolean;
+  previousStatus?: string;
+  previousDate?: string;
+  reason?: string;
+}
+
 /**
  * Sanitiza números de telefone do Brasil para o padrão E.164 sem o sinal de +
  * Retorna apenas dígitos. Ex: 5527999998888 ou 27999998888 -> 5527999998888
@@ -87,6 +94,45 @@ export function sanitizeBrazilianPhoneNumber(rawPhone?: string | null): {
 }
 
 /**
+ * Verifica se um lead já possui histórico de abordagem SDR prévia,
+ * impedindo abordagens duplicadas não autorizadas.
+ */
+export function checkSdrDuplicateApproach(lead: Partial<LeadProspeccao>): SdrDuplicateCheckResult {
+  const status = String(lead.status || "").toLowerCase();
+  const notes = String(lead.notas || "");
+
+  const alreadyApproachedStatuses = [
+    "abertura_iniciada",
+    "em_contato",
+    "contato_realizado",
+    "respondeu",
+    "qualificacao",
+    "negociacao",
+    "ganho",
+  ];
+
+  if (alreadyApproachedStatuses.includes(status)) {
+    return {
+      isDuplicate: true,
+      previousStatus: status,
+      reason: `Este lead já possui abordagem registrada com status '${status}'.`,
+    };
+  }
+
+  if (notes.includes("[SDR WhatsApp")) {
+    const match = notes.match(/\[SDR WhatsApp - (\d{4}-\d{2}-\d{2})\] Status: ([a-z_]+)/i);
+    return {
+      isDuplicate: true,
+      previousStatus: match ? match[2] : "registrado_anteriormente",
+      previousDate: match ? match[1] : undefined,
+      reason: "Abordagem prévia encontrada no histórico deste lead.",
+    };
+  }
+
+  return { isDuplicate: false };
+}
+
+/**
  * Gera a mensagem contextual de primeira abordagem do SDR (Zuno Propect).
  * NUNCA inventa problemas não observáveis, dados falsos ou promessas exageradas.
  * Ancorada 100% nos fatos reais da empresa (cidade, nicho, presença web, avaliações).
@@ -117,10 +163,10 @@ export function generateSdrFirstApproachMessage({
   let body = "";
 
   if (style === "direto") {
-    // Estilo Direto: Curto, respeitoso, objetivo (ideal para secretárias/atendimento comercial)
+    // Estilo Direto: Curto, respeitoso, objetivo (ideal para triagem/contato comercial)
     let signalLine = "";
     if (hasWebsite) {
-      signalLine = `Vi o site e a presença de vocês${cityPhrase}.`;
+      signalLine = `Vi o site e os canais de atendimento de vocês${cityPhrase}.`;
     } else if (hasReviews) {
       signalLine = `Vi a boa reputação de vocês no Google${cityPhrase} (${reviewsCount} avaliações).`;
     } else {
@@ -129,18 +175,18 @@ export function generateSdrFirstApproachMessage({
 
     body = `Oi, ${companyName}! Tudo bem?
 
-${signalLine} Atuo com ${service} para ${niche}.
+${signalLine} Atuo com ${service} para negócios de ${niche}.
 
-Quem é a pessoa responsável pelo comercial ou marketing aí na empresa? Gostaria de compartilhar uma demonstração rápida de 1 minuto sobre como captar mais clientes da região.
+Quem é a pessoa responsável pelo comercial ou marketing aí na empresa? Gostaria de compartilhar uma demonstração rápida de aproximadamente um minuto sobre como captar novas oportunidades na região.
 
-Se preferirem não receber contato, sem problemas.`;
+Se preferirem não receber contato, basta me avisar.`;
   } else if (style === "exemplo_pratico") {
     // Estilo Exemplo Prático: Focado em demonstrar trabalho sem pitch agressivo
     let contextLine = "";
     if (hasWebsite && hasPixel) {
-      contextLine = `Vi que vocês já têm site com estrutura digital${cityPhrase}.`;
+      contextLine = `Vi que vocês já contam com presença digital estruturada${cityPhrase}.`;
     } else if (hasWebsite) {
-      contextLine = `Vi que vocês têm site ativo${cityPhrase}, mas parece haver espaço para atrair mais clientes buscando por ${niche} no Google.`;
+      contextLine = `Vi que vocês têm site ativo${cityPhrase} no segmento de ${niche}.`;
     } else {
       contextLine = `Mapeei a atuação de vocês${cityPhrase} no segmento de ${niche}.`;
     }
@@ -149,7 +195,7 @@ Se preferirem não receber contato, sem problemas.`;
 
 ${contextLine}
 
-Trabalho com ${service} e montei um exemplo prático de 1 minuto mostrando como negócios locais do seu segmento podem gerar novas conversas comerciais toda semana.
+Trabalho com ${service} e montei um exemplo prático de aproximadamente 1 minuto mostrando como empresas do seu nicho podem estruturar uma rotina consistente de novos contatos comerciais.
 
 Faz sentido eu compartilhar essa demonstração curta por aqui com vocês?`;
   } else {
@@ -167,7 +213,7 @@ Faz sentido eu compartilhar essa demonstração curta por aqui com vocês?`;
 
 ${observation}
 
-Ajudo negócios locais com ${service} a estruturar uma rotina previsível de atração de clientes da própria cidade.
+Ajudo empresas locais com ${service} a estruturar uma rotina previsível de atração de clientes da própria cidade.
 
 Se fizer sentido para o momento de vocês, posso te mandar um vídeo de aproximadamente um minuto mostrando como funciona na prática?
 
@@ -264,7 +310,8 @@ export async function updateSdrProspectingStatus({
     }
 
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Erro desconhecido ao atualizar status." };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Erro desconhecido ao atualizar status.";
+    return { success: false, error: errorMsg };
   }
 }

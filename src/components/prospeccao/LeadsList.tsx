@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck, Sparkles, Plus, Search, Check, X, Pencil } from "lucide-react";
+import { Loader2, ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare, Instagram, Download, Save, Archive, Mail, Lock, Zap, RefreshCw, UserCheck, Sparkles, Plus, Search, Check, X, Pencil, Target, Info, AlertTriangle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
@@ -20,6 +20,9 @@ import { SdrWhatsAppModal } from "./SdrWhatsAppModal";
 import { RefineErrorPanel } from "./RefineErrorPanel";
 import { LeadEditDialog } from "./LeadEditDialog";
 import { Progress } from "@/components/ui/progress";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { calculateLeadCompatibilityScore } from "@/services/leadCompatibilityScore";
+import { checkSdrDuplicateApproach } from "@/services/sdrProspectingService";
 import { exportLeadsToExcel } from "@/utils/exportToExcel";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { UpsellCard } from "./UpsellCard";
@@ -134,6 +137,19 @@ export const LeadsList = () => {
   const recentlyTrackedLimitBlockRef = useRef<Record<string, number>>({});
   const [currentSearchRunId, setCurrentSearchRunId] = useState<string | null>(null);
   const [hasSavedSearch, setHasSavedSearch] = useState(false);
+  const [minCompatibilityFilter, setMinCompatibilityFilter] = useState<number>(70);
+  const [filterByMinScore, setFilterByMinScore] = useState<boolean>(false);
+
+  const displayedLeads = useMemo(() => {
+    if (!filterByMinScore) return leads;
+    return leads.filter((lead) => {
+      const comp = calculateLeadCompatibilityScore(lead, {
+        minScoreThreshold: minCompatibilityFilter,
+        userServiceName: lead.foco,
+      });
+      return comp.score >= minCompatibilityFilter;
+    });
+  }, [leads, filterByMinScore, minCompatibilityFilter]);
   
   const normalizedPlanName = String(subscription?.plan_name || usage.plan_name || "free").toLowerCase();
   const firstAnalyzableLead = useMemo(
@@ -1349,7 +1365,7 @@ export const LeadsList = () => {
       <Card id="leads-table-container" className="w-full overflow-hidden shadow-lg">
         <CardHeader className="border-b bg-muted/20">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-xl">Leads Encontrados ({leads.length})</CardTitle>
+            <CardTitle className="text-xl">Leads Encontrados ({filterByMinScore ? `${displayedLeads.length} de ${leads.length}` : leads.length})</CardTitle>
             {leads.length > 0 && (
               <div className="flex flex-wrap gap-2 sm:justify-end">
                 {hasSavedSearch && (
@@ -1381,6 +1397,54 @@ export const LeadsList = () => {
           </div>
         </CardHeader>
         
+        
+        {/* Barra de Filtro de Compatibilidade Comercial */}
+        {leads.length > 0 && (
+          <div className="mx-4 mt-3 mb-2 flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-border/60 bg-muted/20">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-emerald-500" />
+              <span className="text-xs font-semibold text-foreground">
+                Filtro de Compatibilidade Comercial
+              </span>
+              <span className="text-[11px] text-muted-foreground hidden sm:inline">
+                (baseado em canais de contato, presença web e nicho)
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <span>Mostrar oportunidades a partir de:</span>
+                <span className="font-bold text-foreground text-xs bg-background px-2 py-0.5 rounded border border-border">
+                  {minCompatibilityFilter}/100
+                </span>
+              </label>
+
+              <input
+                type="range"
+                min="30"
+                max="90"
+                step="5"
+                value={minCompatibilityFilter}
+                onChange={(e) => setMinCompatibilityFilter(Number(e.target.value))}
+                className="w-24 sm:w-32 h-1.5 bg-muted rounded appearance-none cursor-pointer accent-emerald-500"
+                title={`Compatibilidade mínima: ${minCompatibilityFilter}/100`}
+              />
+
+              <Button
+                type="button"
+                variant={filterByMinScore ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterByMinScore(!filterByMinScore)}
+                className="h-7 text-xs"
+              >
+                {filterByMinScore
+                  ? `Filtrando >= ${minCompatibilityFilter} (${displayedLeads.length})`
+                  : "Filtrar por nota mínima"}
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Banner de Onboarding e Limites de IA - 4 Estados Discretos */}
         {isEstado1Onboarding && firstAnalyzableLead && (
           <div className="mx-4 mb-4 mt-4 rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/15 via-teal-500/5 to-transparent p-5 shadow-sm transition-all duration-300">
@@ -1584,7 +1648,7 @@ export const LeadsList = () => {
                   <TableHead className="px-3 text-xs font-semibold uppercase tracking-wide">Empresa</TableHead>
                   <TableHead className="px-3 text-xs font-semibold uppercase tracking-wide">Contato</TableHead>
                   <TableHead className="px-3 text-xs font-semibold uppercase tracking-wide">Sinais Digitais</TableHead>
-                  <TableHead className="px-3 text-center text-xs font-semibold uppercase tracking-wide">Prob. Conversão</TableHead>
+                  <TableHead className="px-3 text-center text-xs font-semibold uppercase tracking-wide">Compatibilidade</TableHead>
                   <TableHead className="px-3 text-xs font-semibold uppercase tracking-wide">Preview Plano</TableHead>
                   <TableHead className="px-3 text-center text-xs font-semibold uppercase tracking-wide">Ações</TableHead>
                 </TableRow>
@@ -1757,59 +1821,74 @@ export const LeadsList = () => {
                     </TableCell>
                     
                     <TableCell className="px-3 py-3 align-top">
-                      <div className="flex min-w-0 flex-col items-center gap-2">
-                        {lead.probabilidade_conversao > 0 ? (
-                          <>
-                            <div className={`text-xl font-bold ${getProbabilidadeColor(lead.probabilidade_conversao)}`}>
-                              {lead.probabilidade_conversao}%
+                      {(() => {
+                        const compat = calculateLeadCompatibilityScore(lead, {
+                          minScoreThreshold: minCompatibilityFilter,
+                          userServiceName: lead.foco,
+                        });
+                        return (
+                          <div className="flex min-w-0 flex-col items-center gap-1.5 text-center">
+                            <div className={`text-lg font-extrabold ${compat.score >= 70 ? "text-emerald-500" : compat.score >= 40 ? "text-amber-500" : "text-zinc-400"}`}>
+                              {compat.score}<span className="text-xs text-muted-foreground font-normal">/100</span>
                             </div>
-                            <Progress 
-                              value={lead.probabilidade_conversao} 
-                              className="h-2 w-24"
-                            />
-                          </>
-                        ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex flex-col items-center gap-1">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => reanalyzeLead(lead, "leads_list")}
-                                    disabled={reanalyzingLeads.has(getLeadKey(lead))}
-                                    className={`h-8 whitespace-nowrap text-xs ${
-                                      !canAnalyzeAI
-                                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 font-semibold shadow-sm transition-all duration-200"
-                                        : (isFree && aiUsed === 0 && lead.id === firstAnalyzableLead?.id
-                                            ? "border-emerald-500 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 animate-pulse font-semibold"
-                                            : "")
-                                    }`}
-                                  >
-                                    {reanalyzingLeads.has(getLeadKey(lead)) ? (
-                                      <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                                    ) : (
-                                      <Zap className="h-3 w-3 mr-1" />
-                                    )}
-                                    {reanalyzingLeads.has(getLeadKey(lead)) ? "Refinando com IA..." : (canAnalyzeAI ? "Refinar com IA" : "Liberar mais análises")}
-                                  </Button>
-                                  {isFree && aiUsed === 0 && lead.id === firstAnalyzableLead?.id && (
-                                    <span className="text-[10px] text-emerald-600 font-medium whitespace-nowrap bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 animate-pulse">
-                                      Use 1 das suas 3 análises grátis
-                                    </span>
-                                  )}
-                                </div>
-                              </TooltipTrigger>
-                              {!canAnalyzeAI && (
-                                <TooltipContent>
-                                  <p>Você usou todas as análises IA grátis. Escolha um plano para continuar gerando abordagens.</p>
-                                </TooltipContent>
+                            <div className="flex items-center gap-1 flex-wrap justify-center">
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] px-1.5 py-0 ${
+                                  compat.score >= 70
+                                    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                                    : compat.score >= 40
+                                    ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                    : "bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                {compat.ratingLevel === "alta" ? "Alta" : compat.ratingLevel === "media" ? "Média" : "Básica"}
+                              </Badge>
+                              {compat.isPrioritySDR && (
+                                <Badge className="text-[9px] bg-emerald-600 text-white font-semibold px-1 py-0">
+                                  Prioridade SDR
+                                </Badge>
                               )}
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </div>
+                            </div>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground">
+                                  <Info className="h-3 w-3 mr-0.5" /> Ver motivos
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 p-3 text-xs space-y-2" side="left">
+                                <div className="font-semibold text-foreground flex items-center justify-between">
+                                  <span>Compatibilidade: {compat.score}/100</span>
+                                  <Badge variant="outline" className="text-[10px]">{compat.ratingLevel}</Badge>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground leading-relaxed">{compat.resumoExplicativo}</p>
+                                <div className="space-y-1 pt-1 border-t border-border/50">
+                                  <span className="font-semibold text-[11px] text-foreground">Principais motivos:</span>
+                                  <ul className="text-[11px] text-muted-foreground space-y-0.5">
+                                    {compat.motivos.slice(0, 3).map((m, i) => (
+                                      <li key={i} className="flex items-start gap-1">
+                                        <span className="text-emerald-500">•</span>
+                                        <span>{m}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                                <div className="space-y-1 pt-1 border-t border-border/50">
+                                  <span className="font-semibold text-[11px] text-foreground">Não verificado:</span>
+                                  <ul className="text-[11px] text-muted-foreground space-y-0.5">
+                                    {compat.dadosNaoVerificados.slice(0, 2).map((nv, i) => (
+                                      <li key={i} className="flex items-start gap-1">
+                                        <span className="text-amber-500">•</span>
+                                        <span>{nv}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     
                     <TableCell className="px-3 py-3 align-top">
@@ -1846,15 +1925,35 @@ export const LeadsList = () => {
                     
                     <TableCell className="px-3 py-3 align-top">
                       <div className="flex flex-col gap-1.5">
-                        <Button
-                          size="sm"
-                          onClick={() => setSdrLead(lead)}
-                          className="h-8 w-full whitespace-nowrap px-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-sm flex items-center justify-center gap-1 transition-all active:scale-95"
-                          title="Iniciar primeira abordagem assistida pelo WhatsApp"
-                        >
-                          <MessageSquare className="h-3.5 w-3.5" />
-                          Abordar WhatsApp
-                        </Button>
+                        {(() => {
+                          const compat = calculateLeadCompatibilityScore(lead, {
+                            minScoreThreshold: minCompatibilityFilter,
+                            userServiceName: lead.foco,
+                          });
+                          const dup = checkSdrDuplicateApproach(lead);
+                          return (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={() => setSdrLead(lead)}
+                                className={`h-8 w-full whitespace-nowrap px-2 font-semibold text-xs shadow-sm flex items-center justify-center gap-1 transition-all active:scale-95 ${
+                                  compat.isPrioritySDR
+                                    ? "bg-emerald-600 hover:bg-emerald-500 text-white ring-1 ring-emerald-400/40"
+                                    : "bg-muted text-foreground hover:bg-muted/80 border border-border"
+                                }`}
+                                title={dup.isDuplicate ? "Atenção: abordagem prévia já registrada" : "Iniciar primeira abordagem assistida pelo WhatsApp"}
+                              >
+                                <MessageSquare className="h-3.5 w-3.5" />
+                                {compat.isPrioritySDR ? "Prioridade SDR" : "Abordar WhatsApp"}
+                              </Button>
+                              {dup.isDuplicate && (
+                                <span className="text-[10px] text-amber-500 text-center font-medium">
+                                  Abordagem prévia ({dup.previousStatus})
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
                         <Button
                           variant="outline"
                           size="sm"

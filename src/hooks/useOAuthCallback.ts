@@ -110,14 +110,19 @@ export const useOAuthCallback = () => {
           } else if (localStorage.getItem("checkout_pending")) {
             try {
               const pendingData = JSON.parse(localStorage.getItem("checkout_pending") || "{}");
-              const plano = pendingData.plano?.toLowerCase() || "pro";
+              localStorage.removeItem("checkout_pending");
+              const pendingPlanId = normalizePlanId(pendingData.plano || pendingData.plan || pendingData.planKey);
               const isAnual = pendingData.isAnual || false;
               const leadsQty = pendingData.leadsQty || pendingData.selectedLeads || "";
-              navigate(appendReferralToPath(`/checkout?plano=${plano}&anual=${isAnual}&google_auth=true${leadsQty ? `&leadsQty=${encodeURIComponent(String(leadsQty))}` : ""}`, pendingData.referralCode || getCurrentReferralCode()), { replace: true });
+              if (pendingPlanId) {
+                navigate(appendReferralToPath(`/checkout?plano=${pendingPlanId}&anual=${isAnual}&google_auth=true${leadsQty ? `&leadsQty=${encodeURIComponent(String(leadsQty))}` : ""}`, pendingData.referralCode || getCurrentReferralCode()), { replace: true });
+              } else {
+                navigate("/precos", { replace: true });
+              }
             } catch (parseError) {
               console.warn("Checkout pendente inválido no localStorage:", parseError);
               localStorage.removeItem("checkout_pending");
-              navigate("/prospeccao", { replace: true });
+              navigate("/precos", { replace: true });
             }
             return;
           }

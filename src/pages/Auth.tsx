@@ -16,6 +16,7 @@ import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { Logo } from "@/components/Logo";
 import { appendReferralToPath, getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
+import { resolveCheckoutPlan, normalizePlanId } from "@/config/plans";
 
 const authInputClass =
   "h-11 rounded-lg border-border bg-background shadow-sm transition-colors placeholder:text-muted-foreground/50 hover:border-muted-foreground/50 focus-visible:border-emerald-500/60 focus-visible:ring-2 focus-visible:ring-emerald-500/25 focus-visible:ring-offset-0";
@@ -86,8 +87,9 @@ const Auth = () => {
     hasLowercase: false,
     hasNumber: false
   });
-  const selectedPlan = searchParams.get("plan") || searchParams.get("plano");
-  const selectedLeads = searchParams.get("leadsQty") || searchParams.get("leads") || "100";
+  const resolvedPlan = resolveCheckoutPlan(searchParams);
+  const selectedPlan = resolvedPlan.status === "valid" ? resolvedPlan.planId : null;
+  const selectedLeads = searchParams.get("leadsQty") || searchParams.get("leads") || (resolvedPlan.status === "valid" ? String(resolvedPlan.plan.leadsLimit) : "100");
   const isAnualParam = searchParams.get("anual") || searchParams.get("isAnual") || "false";
   const conversionPathParam = searchParams.get("conversion_path") === "direct_purchase" ? "direct_purchase" : "trial";
   const referralCode = getCurrentReferralCode(searchParams);
@@ -113,8 +115,11 @@ const Auth = () => {
       try {
         const pending = JSON.parse(pendingCheckout);
         localStorage.removeItem("checkout_pending");
-        navigate(appendReferralToPath(`/checkout?plano=${encodeURIComponent(pending.plano || "pro")}&anual=${encodeURIComponent(String(!!pending.isAnual))}&leadsQty=${encodeURIComponent(String(pending.leadsQty || selectedLeads))}&conversion_path=${pending.conversionPath === "direct_purchase" ? "direct_purchase" : "trial"}`, pending.referralCode || referralCode), { replace: true });
-        return;
+        const pendingPlanId = normalizePlanId(pending.plano || pending.plan || pending.planKey);
+        if (pendingPlanId) {
+          navigate(appendReferralToPath(`/checkout?plano=${encodeURIComponent(pendingPlanId)}&anual=${encodeURIComponent(String(!!pending.isAnual))}&leadsQty=${encodeURIComponent(String(pending.leadsQty || selectedLeads))}&conversion_path=${pending.conversionPath === "direct_purchase" ? "direct_purchase" : "trial"}`, pending.referralCode || referralCode), { replace: true });
+          return;
+        }
       } catch {
         localStorage.removeItem("checkout_pending");
       }

@@ -12,7 +12,7 @@ import { getAttributionParams, trackCompleteRegistration, trackInitiateCheckout,
 import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
 import { createBillingCheckout, billingRedirectAdapter } from "@/services/billingCheckout";
 import { getFunnelContext } from "@/lib/funnelContext";
-import { PLANS, normalizePlanId } from "@/config/plans";
+import { PLANS, normalizePlanId, resolveCheckoutPlan } from "@/config/plans";
 import { useAuth } from "@/hooks/useAuth";
 import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
@@ -107,19 +107,34 @@ export default function Checkout() {
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const { trialDurationDays, defaultNewBillingProvider, introOffer } = useBillingOfferConfig();
   
-  // Get params from URL
-  const normalizedPlanParam = normalizePlanId(searchParams.get("plano"));
-  const planoParam = (normalizedPlanParam === "agency" ? "agencia" : normalizedPlanParam) as PlanoKey | null;
+  // Resolve plan from URL (supports both 'plano' and 'plan' without silent fallback to 'pro')
+  const resolvedPlan = resolveCheckoutPlan(searchParams);
   const anualParam = searchParams.get("anual") || "false";
   const leadsQtyParam = Number(searchParams.get("leadsQty") || "0");
   const googleAuth = searchParams.get("google_auth");
   const conversionPath = searchParams.get("conversion_path") === "direct_purchase" ? "direct_purchase" : "trial";
   const referralCode = getCurrentReferralCode(searchParams);
   
-  // State for selected plan - default to URL param or "pro"
+  // State for selected plan
   const [selectedPlano, setSelectedPlano] = useState<PlanoKey>(
-    planoParam && PLANOS[planoParam] ? planoParam : "pro"
+    resolvedPlan.status === "valid" ? resolvedPlan.planoKey : "starter"
   );
+
+  // If no valid plan was provided or parameters are conflicting/invalid, redirect immediately to plans selection
+  useEffect(() => {
+    if (resolvedPlan.status !== "valid") {
+      if (resolvedPlan.status === "invalid") {
+        toast.error("Plano inválido ou conflitante. Escolha seu plano para continuar.");
+      }
+      navigate("/precos", { replace: true });
+    }
+  }, [resolvedPlan.status, navigate]);
+
+  useEffect(() => {
+    if (resolvedPlan.status === "valid" && resolvedPlan.planoKey !== selectedPlano) {
+      setSelectedPlano(resolvedPlan.planoKey);
+    }
+  }, [resolvedPlan]);
   
   const plano = PLANOS[selectedPlano];
   
@@ -142,6 +157,15 @@ export default function Checkout() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGoogleProcessing, setIsGoogleProcessing] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+
+  if (resolvedPlan.status !== "valid") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <span className="ml-2 text-muted-foreground">Redirecionando para seleção de planos...</span>
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (subscriptionLoading || !subscription) return;
@@ -451,7 +475,13 @@ export default function Checkout() {
           <button
             key={key}
             type="button"
-            onClick={() => setSelectedPlano(key)}
+            onClick={() => {
+              setSelectedPlano(key);
+              const nextParams = new URLSearchParams(searchParams);
+              nextParams.set("plano", key);
+              nextParams.delete("plan");
+              navigate(`/checkout?${nextParams.toString()}`, { replace: true });
+            }}
             disabled={isAnyProcessing}
             className={`relative flex flex-col items-center p-4 rounded-xl border-2 transition-all ${
               isSelected 

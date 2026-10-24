@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
+import { resolveCheckoutPlan } from "@/config/plans";
 import { Loader2, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -36,12 +37,15 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
     if (location.pathname === "/checkout") {
       const currentParams = new URLSearchParams(location.search);
-      const plano = currentParams.get("plano") || currentParams.get("plan");
+      const planRes = resolveCheckoutPlan(currentParams);
+      if (planRes.status === "valid") {
+        authParams.set("plan", planRes.planId);
+        authParams.set("plano", planRes.planId);
+      }
       const anual = currentParams.get("anual") || currentParams.get("isAnual");
       const leadsQty = currentParams.get("leadsQty") || currentParams.get("leads");
       const ref = currentParams.get("ref");
 
-      if (plano) authParams.set("plan", plano);
       if (anual) authParams.set("anual", anual);
       if (leadsQty) authParams.set("leadsQty", leadsQty);
       if (ref) authParams.set("ref", ref);

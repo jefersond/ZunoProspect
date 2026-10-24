@@ -8,9 +8,11 @@ describe("landing conversion copy", () => {
   it("makes the first screen answer what Zuno is, what it does and what to do next", () => {
     const hero = source("src/components/landing/HeroSection.tsx");
     expect(hero).toContain("Plataforma de prospecção B2B");
-    expect(hero).toContain("Encontre empresas.");
-    expect(hero).toContain("Saiba como abordar.");
-    expect(hero).toContain("Começar minha primeira busca");
+    expect(hero).toContain("Pare de procurar empresas no escuro.");
+    expect(hero).toContain("Comece a prospectar com direção.");
+    expect(hero).toContain("Pesquise negócios por cidade e segmento");
+    expect(hero).toContain("Ver o Zuno funcionando");
+    expect(hero).toContain("Tirar dúvidas no WhatsApp");
     expect(hero).toContain("hero_cta_clicked");
     expect(hero).toContain("trial_cta_clicked");
     expect(hero).toContain("trialDurationDays");

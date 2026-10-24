@@ -1,0 +1,569 @@
+import React, { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import {
+  MessageSquare,
+  ExternalLink,
+  Phone,
+  Copy,
+  Check,
+  Building2,
+  MapPin,
+  Sparkles,
+  Star,
+  Globe,
+  Loader2,
+  CalendarCheck,
+  ThumbsUp,
+  MessageCircle,
+  XCircle,
+  HelpCircle,
+  Pencil,
+} from "lucide-react";
+import type { LeadProspeccao } from "@/types/lead";
+import {
+  generateSdrFirstApproachMessage,
+  sanitizeBrazilianPhoneNumber,
+  updateSdrProspectingStatus,
+  type SdrApproachStyle,
+  type SdrProspectingStatus,
+} from "@/services/sdrProspectingService";
+
+interface SdrWhatsAppModalProps {
+  lead: LeadProspeccao | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onStatusUpdated?: (leadId: string, newStatus: string) => void;
+}
+
+export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
+  lead,
+  open,
+  onOpenChange,
+  onStatusUpdated,
+}) => {
+  const { toast } = useToast();
+
+  // Estados do formulário de abordagem
+  const [userService, setUserService] = useState<string>("gestão de tráfego e presença digital");
+  const [style, setStyle] = useState<SdrApproachStyle>("consultivo");
+  const [customPhone, setCustomPhone] = useState<string>("");
+  const [isEditingPhone, setIsEditingPhone] = useState<boolean>(false);
+  const [editedMessage, setEditedMessage] = useState<string>("");
+  const [copied, setCopied] = useState<boolean>(false);
+  const [hasOpenedWhatsApp, setHasOpenedWhatsApp] = useState<boolean>(false);
+  const [currentStepStatus, setCurrentStepStatus] = useState<SdrProspectingStatus>("preparado");
+  const [isSavingStatus, setIsSavingStatus] = useState<boolean>(false);
+  const [notes, setNotes] = useState<string>("");
+
+  // Inicializa o serviço e o telefone a partir do lead selecionado
+  useEffect(() => {
+    if (lead) {
+      // Tenta recuperar o foco salvo no localStorage ou usa o foco do lead
+      try {
+        const savedCtx = localStorage.getItem("zuno_last_search_context");
+        if (savedCtx) {
+          const parsed = JSON.parse(savedCtx);
+          if (parsed.focus && parsed.focus !== "zuno_internal_prospecting") {
+            setUserService(parsed.focus);
+          } else if (lead.foco && lead.foco !== "zuno_internal_prospecting") {
+            setUserService(lead.foco);
+          }
+        } else if (lead.foco && lead.foco !== "zuno_internal_prospecting") {
+          setUserService(lead.foco);
+        }
+      } catch {
+        if (lead.foco && lead.foco !== "zuno_internal_prospecting") {
+          setUserService(lead.foco);
+        }
+      }
+
+      const initialPhone = lead.whatsapp_number || lead.telefone || "";
+      setCustomPhone(initialPhone);
+      setHasOpenedWhatsApp(lead.status === "abertura_iniciada");
+      setCurrentStepStatus(
+        lead.status === "em_contato"
+          ? "contato_realizado"
+          : lead.status === "abertura_iniciada"
+          ? "abertura_iniciada"
+          : "preparado"
+      );
+      setNotes("");
+      setIsEditingPhone(false);
+    }
+  }, [lead]);
+
+  // Regenera a mensagem quando o estilo, serviço ou telefone mudam
+  useEffect(() => {
+    if (lead) {
+      const generated = generateSdrFirstApproachMessage({
+        lead: {
+          ...lead,
+          whatsapp_number: customPhone,
+          telefone: customPhone,
+        },
+        userServiceName: userService,
+        style,
+      });
+      setEditedMessage(generated.text);
+    }
+  }, [lead, userService, style, customPhone]);
+
+  if (!lead) return null;
+
+  const phoneSanitized = sanitizeBrazilianPhoneNumber(customPhone);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(editedMessage);
+      setCopied(true);
+      toast({
+        title: "Mensagem copiada!",
+        description: "Você pode colar diretamente no WhatsApp ou em outro canal.",
+      });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Erro ao copiar",
+        description: "Não foi possível copiar para a área de transferência.",
+      });
+    }
+  };
+
+  const handleOpenWhatsApp = async () => {
+    if (!phoneSanitized.isValid) {
+      toast({
+        variant: "destructive",
+        title: "Telefone inválido para WhatsApp",
+        description: "Insira um número válido com DDD (ex: 27999998888) para abrir a conversa.",
+      });
+      setIsEditingPhone(true);
+      return;
+    }
+
+    const encoded = encodeURIComponent(editedMessage);
+    const waUrl = `https://wa.me/${phoneSanitized.cleanNumber}?text=${encoded}`;
+
+    // Abre a conversa no WhatsApp do próprio assinante
+    window.open(waUrl, "_blank", "noopener,noreferrer");
+
+    // Registra imediatamente a abertura iniciada (NUNCA marca 'enviado' sem confirmação)
+    setHasOpenedWhatsApp(true);
+    setCurrentStepStatus("abertura_iniciada");
+
+    try {
+      await updateSdrProspectingStatus({
+        leadId: lead.id,
+        status: "abertura_iniciada",
+        notes: `Abertura de WhatsApp iniciada para ${phoneSanitized.formattedDisplay}`,
+        approachMessage: editedMessage,
+      });
+      onStatusUpdated?.(lead.id, "abertura_iniciada");
+    } catch (err) {
+      console.warn("Erro ao registrar abertura iniciada no banco:", err);
+    }
+
+    toast({
+      title: "Conversa aberta no seu WhatsApp!",
+      description: "Envie a mensagem por lá e confirme o resultado abaixo.",
+    });
+  };
+
+  const handleConfirmResult = async (newResult: SdrProspectingStatus) => {
+    setIsSavingStatus(true);
+    try {
+      const res = await updateSdrProspectingStatus({
+        leadId: lead.id,
+        status: newResult,
+        notes: notes.trim() || undefined,
+        approachMessage: editedMessage,
+      });
+
+      if (!res.success) {
+        throw new Error(res.error || "Falha ao registrar resultado.");
+      }
+
+      setCurrentStepStatus(newResult);
+      let mappedDbStatus = "em_contato";
+      if (newResult === "respondeu") mappedDbStatus = "respondeu";
+      else if (newResult === "interessado") mappedDbStatus = "qualificacao";
+      else if (newResult === "reuniao_marcada") mappedDbStatus = "negociacao";
+      else if (newResult === "sem_resposta" || newResult === "descartado") mappedDbStatus = "perdido";
+
+      onStatusUpdated?.(lead.id, mappedDbStatus);
+
+      toast({
+        title: "Resultado registrado com sucesso!",
+        description: `Status atualizado para: ${getResultLabel(newResult)}`,
+      });
+
+      // Se for resultado finalizado, pode fechar após breve delay
+      if (newResult !== "abertura_iniciada") {
+        setTimeout(() => {
+          onOpenChange(false);
+        }, 1200);
+      }
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao salvar resultado",
+        description: err.message || "Tente novamente.",
+      });
+    } finally {
+      setIsSavingStatus(false);
+    }
+  };
+
+  const getResultLabel = (status: SdrProspectingStatus): string => {
+    switch (status) {
+      case "preparado":
+        return "Rascunho preparado";
+      case "abertura_iniciada":
+        return "Abertura iniciada no WhatsApp";
+      case "contato_realizado":
+        return "Contato realizado (mensagem enviada)";
+      case "respondeu":
+        return "Empresa respondeu";
+      case "interessado":
+        return "Interessado no serviço";
+      case "reuniao_marcada":
+        return "Reunião agendada";
+      case "sem_resposta":
+        return "Sem resposta";
+      case "descartado":
+        return "Sem interesse / descartado";
+      default:
+        return status;
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto scrollbar-zuno">
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-500">
+              <MessageSquare className="h-5 w-5" />
+            </span>
+            <div>
+              <DialogTitle className="text-xl font-bold text-foreground">
+                Prospecção Assistida SDR
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Primeira abordagem no WhatsApp do seu próprio número • Sem robôs • Você assume e fecha
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-4 pt-1">
+          {/* Card da Empresa Selecionada com Dados Auditados */}
+          <div className="p-3.5 rounded-lg border border-border/60 bg-muted/20 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h4 className="font-semibold text-base text-foreground flex items-center gap-1.5">
+                  <Building2 className="h-4 w-4 text-emerald-500" />
+                  {lead.nome}
+                </h4>
+                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                  <MapPin className="h-3 w-3" />
+                  {lead.cidade} • {lead.nicho}
+                </p>
+              </div>
+
+              <div className="text-right">
+                <Badge variant="outline" className="text-[11px] bg-background/80">
+                  {lead.situacao_cadastral === "ATIVA" ? "Empresa Ativa" : "Dados Verificados"}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Sinais Observáveis Reais */}
+            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+              {lead.rating && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 font-medium">
+                  <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                  {lead.rating}★ ({lead.total_reviews} avaliações)
+                </span>
+              )}
+
+              {lead.website && (
+                <a
+                  href={lead.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:underline"
+                >
+                  <Globe className="h-3 w-3" />
+                  Site Ativo
+                  <ExternalLink className="h-2.5 w-2.5 ml-0.5" />
+                </a>
+              )}
+
+              {lead.sinais?.has_meta_pixel && (
+                <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                  Pixel de Anúncios
+                </span>
+              )}
+
+              {lead.sinais?.has_whatsapp_on_site && (
+                <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  WhatsApp no site
+                </span>
+              )}
+            </div>
+
+            {/* Telefone / WhatsApp com Edição Rápida se Necessário */}
+            <div className="pt-2 border-t border-border/40 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-muted-foreground">Telefone/WhatsApp:</span>
+                {isEditingPhone ? (
+                  <Input
+                    value={customPhone}
+                    onChange={(e) => setCustomPhone(e.target.value)}
+                    placeholder="(DDD) 99999-9999"
+                    className="h-7 w-44 text-xs font-mono"
+                  />
+                ) : (
+                  <span className="font-mono font-medium text-foreground">
+                    {phoneSanitized.formattedDisplay || "Não informado na busca"}
+                  </span>
+                )}
+                {phoneSanitized.isValid && !phoneSanitized.isCellPhone && (
+                  <Badge variant="secondary" className="text-[10px] bg-amber-500/10 text-amber-500 border-amber-500/20">
+                    Telefone fixo
+                  </Badge>
+                )}
+              </div>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditingPhone(!isEditingPhone)}
+                className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                <Pencil className="h-3 w-3 mr-1" />
+                {isEditingPhone ? "Confirmar" : "Corrigir número"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Configuração da Primeira Abordagem */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Seu serviço oferecido</Label>
+              <Input
+                value={userService}
+                onChange={(e) => setUserService(e.target.value)}
+                placeholder="Ex: Gestão de tráfego, Criação de Sites..."
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Tom da abordagem</Label>
+              <div className="grid grid-cols-3 gap-1">
+                <Button
+                  type="button"
+                  variant={style === "consultivo" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setStyle("consultivo")}
+                  className="h-9 text-[11px] px-1"
+                >
+                  Consultivo
+                </Button>
+                <Button
+                  type="button"
+                  variant={style === "direto" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setStyle("direto")}
+                  className="h-9 text-[11px] px-1"
+                >
+                  Direto
+                </Button>
+                <Button
+                  type="button"
+                  variant={style === "exemplo_pratico" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setStyle("exemplo_pratico")}
+                  className="h-9 text-[11px] px-1"
+                >
+                  Exemplo
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Área de Edição e Aprovação da Mensagem */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+                Mensagem inicial preparada pelo SDR (edite livremente)
+              </Label>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">
+                  {editedMessage.length} caracteres
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopy}
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {copied ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-500 mr-1" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  {copied ? "Copiado" : "Copiar"}
+                </Button>
+              </div>
+            </div>
+
+            <Textarea
+              value={editedMessage}
+              onChange={(e) => setEditedMessage(e.target.value)}
+              rows={6}
+              className="font-sans text-xs sm:text-sm leading-relaxed resize-y bg-background border-border/80 focus-visible:ring-emerald-500/30"
+              placeholder="Mensagem contextual gerada..."
+            />
+
+            <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <HelpCircle className="h-3 w-3 shrink-0" />
+              Você revisa e aprova o texto aqui. Ao clicar no botão abaixo, a conversa abre no seu WhatsApp com o texto já digitado para envio manual.
+            </p>
+          </div>
+
+          {/* Botão de Disparo Humano (Abre no WhatsApp do Assinante) */}
+          <div className="pt-2">
+            <Button
+              type="button"
+              onClick={handleOpenWhatsApp}
+              disabled={!phoneSanitized.isValid}
+              className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md transition-all active:scale-[0.99] flex items-center justify-center gap-2"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Abrir no meu WhatsApp ({phoneSanitized.formattedDisplay || "número pendente"})
+            </Button>
+          </div>
+
+          {/* Painel de Registro do Resultado (Item 8) */}
+          <div className="mt-4 pt-4 border-t border-border/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-foreground">
+                Registrar Resultado da Conversa
+              </Label>
+              <span className="text-[11px] text-muted-foreground">
+                Status atual: <strong className="text-foreground">{getResultLabel(currentStepStatus)}</strong>
+              </span>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Como o envio é feito manualmente pelo seu WhatsApp, selecione o que aconteceu para atualizar o CRM:
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <Button
+                type="button"
+                variant={currentStepStatus === "contato_realizado" ? "default" : "outline"}
+                size="sm"
+                disabled={isSavingStatus}
+                onClick={() => handleConfirmResult("contato_realizado")}
+                className="h-8 text-xs justify-start px-2 font-medium"
+              >
+                <ThumbsUp className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
+                Contato Realizado
+              </Button>
+
+              <Button
+                type="button"
+                variant={currentStepStatus === "respondeu" ? "default" : "outline"}
+                size="sm"
+                disabled={isSavingStatus}
+                onClick={() => handleConfirmResult("respondeu")}
+                className="h-8 text-xs justify-start px-2 font-medium"
+              >
+                <MessageCircle className="h-3.5 w-3.5 mr-1.5 text-emerald-500" />
+                Respondeu
+              </Button>
+
+              <Button
+                type="button"
+                variant={currentStepStatus === "interessado" ? "default" : "outline"}
+                size="sm"
+                disabled={isSavingStatus}
+                onClick={() => handleConfirmResult("interessado")}
+                className="h-8 text-xs justify-start px-2 font-medium"
+              >
+                <Star className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
+                Interessado
+              </Button>
+
+              <Button
+                type="button"
+                variant={currentStepStatus === "reuniao_marcada" ? "default" : "outline"}
+                size="sm"
+                disabled={isSavingStatus}
+                onClick={() => handleConfirmResult("reuniao_marcada")}
+                className="h-8 text-xs justify-start px-2 font-medium"
+              >
+                <CalendarCheck className="h-3.5 w-3.5 mr-1.5 text-purple-500" />
+                Reunião Marcada
+              </Button>
+
+              <Button
+                type="button"
+                variant={currentStepStatus === "sem_resposta" ? "default" : "outline"}
+                size="sm"
+                disabled={isSavingStatus}
+                onClick={() => handleConfirmResult("sem_resposta")}
+                className="h-8 text-xs justify-start px-2 font-medium"
+              >
+                <XCircle className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                Sem Resposta
+              </Button>
+
+              <Button
+                type="button"
+                variant={currentStepStatus === "descartado" ? "default" : "outline"}
+                size="sm"
+                disabled={isSavingStatus}
+                onClick={() => handleConfirmResult("descartado")}
+                className="h-8 text-xs justify-start px-2 font-medium"
+              >
+                <XCircle className="h-3.5 w-3.5 mr-1.5 text-red-500" />
+                Não Interessado
+              </Button>
+            </div>
+
+            {/* Anotação rápida opcional */}
+            <div className="space-y-1 pt-1">
+              <Input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Anotação rápida (opcional): ex: falar com Pedro amanhã às 14h..."
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};

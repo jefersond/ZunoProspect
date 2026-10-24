@@ -16,6 +16,7 @@ import { Loader2, ExternalLink, MapPin, Phone, Star, Trash2, Eye, MessageSquare,
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
+import { SdrWhatsAppModal } from "./SdrWhatsAppModal";
 import { RefineErrorPanel } from "./RefineErrorPanel";
 import { LeadEditDialog } from "./LeadEditDialog";
 import { Progress } from "@/components/ui/progress";
@@ -122,6 +123,7 @@ export const LeadsList = () => {
   const [searchCompleted, setSearchCompleted] = useState(false);
   const [searchErrorState, setSearchErrorState] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
+  const [sdrLead, setSdrLead] = useState<LeadProspeccao | null>(null);
   const [leadBeingEdited, setLeadBeingEdited] = useState<LeadProspeccao | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
@@ -1845,6 +1847,15 @@ export const LeadsList = () => {
                     <TableCell className="px-3 py-3 align-top">
                       <div className="flex flex-col gap-1.5">
                         <Button
+                          size="sm"
+                          onClick={() => setSdrLead(lead)}
+                          className="h-8 w-full whitespace-nowrap px-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-sm flex items-center justify-center gap-1 transition-all active:scale-95"
+                          title="Iniciar primeira abordagem assistida pelo WhatsApp"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          Abordar WhatsApp
+                        </Button>
+                        <Button
                           variant="outline"
                           size="sm"
                           onClick={() => openPlanDialog(lead)}
@@ -2033,6 +2044,18 @@ export const LeadsList = () => {
           }} 
         />
       )}
+
+      <SdrWhatsAppModal
+        lead={sdrLead}
+        open={!!sdrLead}
+        onOpenChange={(open) => !open && setSdrLead(null)}
+        onStatusUpdated={(leadId, newStatus) => {
+          if (sdrLead && sdrLead.id === leadId) {
+            updateLeadLocally({ ...sdrLead, status: newStatus });
+          }
+          refreshSingleLead(leadId);
+        }}
+      />
 
       <LeadPlanDialog
         lead={selectedLead}

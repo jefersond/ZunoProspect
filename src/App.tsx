@@ -30,6 +30,7 @@ const Pipeline = lazy(() => import("./pages/Pipeline"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const AdminCommandCenter = lazy(() => import("./pages/AdminCommandCenter"));
+const AdminZunoNextLab = lazy(() => import("./pages/AdminZunoNextLab"));
 const ApiDocs = lazy(() => import("./pages/ApiDocs"));
 const Relatorios = lazy(() => import("./pages/Relatorios"));
 const AdminEmail = lazy(() => import("./pages/AdminEmail"));
@@ -84,6 +85,7 @@ const AppContent = () => {
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/admin/central" element={<AdminRoute><AdminErrorBoundary><AdminCommandCenter /></AdminErrorBoundary></AdminRoute>} />
+          <Route path="/admin/laboratorio-zuno" element={<AdminRoute><AdminErrorBoundary><AdminZunoNextLab /></AdminErrorBoundary></AdminRoute>} />
           <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
           <Route path="/historico" element={<ProtectedRoute><Historico /></ProtectedRoute>} />
           <Route path="/leads-salvos" element={<ProtectedRoute><LeadsSalvos /></ProtectedRoute>} />

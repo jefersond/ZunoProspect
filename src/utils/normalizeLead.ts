@@ -138,71 +138,117 @@ function generateFallback7Days(lead?: any): any[] {
   const nicho = lead?.nicho || "seu segmento";
   const cidade = lead?.cidade || "sua região";
   const focoRaw = lead?.foco || "Full Service";
-  const foco = focoRaw === "zuno_internal_prospecting" ? "Oportunidade comercial" : focoRaw;
+  const foco = focoRaw === "zuno_internal_prospecting" ? "aquisição de clientes" : focoRaw;
+  const hasWebsite = Boolean(lead?.website && String(lead.website).trim().length > 4);
+  const observationLine = hasWebsite
+    ? `Vi o site e os canais de atendimento da ${nome} em ${cidade}`
+    : `Vi a atuação da ${nome} em ${cidade} no segmento de ${nicho}`;
 
   return [
     {
       dia: 1,
       canal: "whatsapp",
-      acao_sugerida: "Envio de áudio ou mensagem curta no WhatsApp comercial",
-      mensagem: `Olá, tudo bem? Vi o perfil da ${nome} aqui em ${cidade} no segmento de ${nicho}. Analisei a presença de vocês e notei uma oportunidade excelente para acelerar novos clientes com foco em ${foco}. Posso te enviar um diagnóstico de 2 minutos sem compromisso?`,
+      titulo_dia: "Qualificação do Dossiê e Primeira Abordagem",
+      objetivo: "Validar os canais verificados da empresa e realizar o primeiro contato consultivo sem pressão",
+      acao_sugerida: "Conferir os sinais da empresa e iniciar conversa curta no WhatsApp comercial",
+      explicacao_tarefa: "Revise os dados verificados (site, telefone e avaliações) e envie a mensagem inicial adaptada ao seu serviço.",
+      informacoes_necessarias: ["Telefone/WhatsApp comercial", "Cidade e nicho verificados", "Serviço oferecido definido"],
+      criterio_conclusao: "Primeira mensagem aberta no WhatsApp e status atualizado para Abertura Iniciada ou Contato Realizado.",
+      proxima_acao_sugerida: "Aguardar retorno por 24h; se responder, avançar para triagem; se não, avaliar canal complementar no Dia 2.",
+      mensagem: `Oi, ${nome}! Tudo bem?\n\n${observationLine}. Trabalho com ${foco} para negócios de ${nicho} e estruturei uma ideia prática sobre como organizar a captação local de clientes em ${cidade}.\n\nFaz sentido trocarmos uma ideia rápida sobre como isso funciona na prática?`,
       objecao_provavel: "Quem é você e onde conseguiu meu contato?",
-      resposta_sugerida: "Sou especialista em aquisição para empresas de " + nicho + ". Encontrei seu contato na busca comercial pública.",
-      cta: "Posso mandar por aqui?"
+      resposta_sugerida: `Atuo com ${foco} para empresas de ${nicho} e localizei o contato comercial público de vocês nas buscas de ${cidade}.`,
+      cta: "Faz sentido trocarmos uma ideia rápida sobre isso por aqui?"
     },
     {
       dia: 2,
       canal: "instagram",
-      acao_sugerida: "Interação com publicação recente e envio de Direct",
-      mensagem: `Olá equipe da ${nome}! Acompanho o perfil de vocês em ${cidade}. Gostei muito do posicionamento, mas reparei que há um grande potencial para transformar visualizações em contatos diários no WhatsApp. Como está a demanda de vocês atualmente?`,
+      titulo_dia: "Mapeamento de Posicionamento e Ponto de Contato Leve",
+      objetivo: "Verificar presença ativa nas redes sociais ou reforçar contexto sem fingir intimidade",
+      acao_sugerida: "Observar canais públicos da empresa e enviar nota contextual breve",
+      explicacao_tarefa: "Se o lead ainda não respondeu ao Dia 1, observe como a empresa apresenta seus serviços e envie uma mensagem curta focada em contexto local.",
+      informacoes_necessarias: ["Canal secundário ou perfil público", "Status da abordagem do Dia 1"],
+      criterio_conclusao: "Verificação de posicionamento concluída e observação registrada nas notas do lead.",
+      proxima_acao_sugerida: "Se houver retorno, responder dúvida específica; caso contrário, preparar abordagem estruturada do Dia 3.",
+      mensagem: `Olá, pessoal da ${nome}! Vi a atuação de vocês no segmento de ${nicho} em ${cidade}. Trabalho com ${foco} e estruturei uma ideia prática para facilitar que clientes da região encontrem o atendimento de vocês. Quem cuida dessa parte comercial por aí?`,
       objecao_provavel: "Não temos interesse no momento",
-      resposta_sugerida: "Tranquilo! Nós atuamos como parceiros estratégicos focado em performance de receita.",
-      cta: "Vale 3 minutos para dar uma olhada?"
+      resposta_sugerida: "Perfeito, agradeço a transparência! Deixo meu contato à disposição caso retomem esse tema mais adiante.",
+      cta: "Quem seria a pessoa ideal para avaliar essa ideia rápida?"
     },
     {
       dia: 3,
       canal: "email",
-      acao_sugerida: "Envio de e-mail consultivo curto com diagnóstico",
-      mensagem: `Assunto: Oportunidade de aquisição comercial - ${nome}\n\nOlá,\n\nAnalisei o posicionamento digital da ${nome} em ${cidade} e mapeamos um gap comercial importante no segmento de ${nicho}.\n\nFormatamos uma proposta estratégica em ${foco} focada em previsibilidade de vendas.\n\nQual o melhor dia esta semana para apresentarmos em 5 minutos?`,
+      titulo_dia: "Apresentação Estruturada de Valor Comercial",
+      objetivo: "Formalizar uma hipótese comercial clara para o responsável sem jargões técnicos",
+      acao_sugerida: "Enviar resumo consultivo por e-mail ou mensagem estruturada",
+      explicacao_tarefa: "Apresente de forma objetiva qual problema prático o seu serviço resolve para empresas desse segmento na cidade.",
+      informacoes_necessarias: ["E-mail comercial ou canal principal", "Ângulo comercial do dossiê"],
+      criterio_conclusao: "Resumo consultivo enviado ou registrado para o decisor.",
+      proxima_acao_sugerida: "Acompanhar resposta; se demonstrar interesse, preparar roteiro de conversa curta.",
+      mensagem: `Assunto: Ideia prática de ${foco} para a ${nome} em ${cidade}\n\nOlá, equipe da ${nome},\n\nObservei a presença comercial de vocês em ${cidade} no setor de ${nicho}.\n\nTrabalho com ${foco} ajudando empresas locais a estruturarem uma rotina consistente de novos pedidos de orçamento.\n\nFaz sentido eu enviar um resumo prático mostrando como aplicamos isso?`,
       objecao_provavel: "Qual o custo envolvido?",
-      resposta_sugerida: "Nosso investimento é flexível e condicionado ao retorno das metas acordadas.",
-      cta: "Consegue falar quinta-feira às 14h?"
+      resposta_sugerida: "O escopo varia conforme a meta e a estrutura atual da empresa. Posso te mandar os pontos principais para você ver se faz sentido antes de falarmos de valores.",
+      cta: "Posso encaminhar o resumo prático por aqui?"
     },
     {
       dia: 4,
       canal: "whatsapp",
-      acao_sugerida: "Follow-up objetivo com pergunta direta",
-      mensagem: `Passando só para saber se conseguiu dar uma olhada na mensagem anterior sobre a ${nome}. Sei que a rotina aí em ${cidade} é corrida!`,
-      objecao_provavel: "Estava muito corrido aqui",
-      resposta_sugerida: "Sem problemas! Quando a rotina aliviar um pouco me avisa por aqui.",
-      cta: "Podemos agendar 3 minutos na próxima semana?"
+      titulo_dia: "Acompanhamento Consultivo com Novo Ângulo (Sem Cobrança)",
+      objetivo: "Retomar contato agregando uma pergunta útil do segmento, sem cobrar leitura anterior",
+      acao_sugerida: "Enviar pergunta consultiva curta baseada na rotina do nicho",
+      explicacao_tarefa: "Nunca envie 'passando para saber se viu minha mensagem'. Traga uma pergunta rápida e útil sobre a demanda atual da empresa.",
+      informacoes_necessarias: ["Histórico de sem resposta no Dia 1", "Hipótese comercial do serviço"],
+      criterio_conclusao: "Follow-up de valor realizado ou adaptado conforme resposta prévia.",
+      proxima_acao_sugerida: "Se o lead responder, iniciar qualificação; se não responder, aguardar até a etapa de exemplo prático.",
+      mensagem: `Oi, pessoal da ${nome}! Tudo bem por aí?\n\nDeixando uma pergunta rápida sobre a operação de vocês em ${cidade}: hoje a maior parte dos novos clientes de ${nicho} chega por indicação ou pelas buscas digitais da região?\n\nPergunto porque tenho ideias práticas sobre ${foco} bem alinhadas a esse cenário.`,
+      objecao_provavel: "Estava muito corrido aqui na empresa",
+      resposta_sugerida: "Imagino! Por isso mesmo resumi em pontos objetivos que você pode ver no seu tempo, sem precisar de reunião.",
+      cta: "Quer que eu deixe o resumo em 3 pontos por aqui?"
     },
     {
       dia: 5,
       canal: "email",
-      acao_sugerida: "Compartilhamento de estudo de caso do mesmo nicho",
-      mensagem: `Assunto: Estudo de caso - Crescimento em ${nicho}\n\nOlá!\n\nAjudamos uma empresa parecida com a ${nome} a estruturar um funil comercial que gerou +40% de contatos qualificados no primeiro mês.\n\nConsegue ver 5 minutos amanhã para um bate-papo rápido?`,
-      objecao_provavel: "Já fazemos isso internamente",
-      resposta_sugerida: "Excelente! Nosso trabalho entra para potencializar a equipe interna com novas frentes de tráfego e conversão.",
-      cta: "Posso enviar a apresentação?"
+      titulo_dia: "Compartilhamento de Exemplo Prático Aplicado ao Nicho",
+      objetivo: "Tangibilizar como o serviço funciona no dia a dia sem inventar números ou casos falsos",
+      acao_sugerida: "Compartilhar explicação prática de aplicação para o segmento",
+      explicacao_tarefa: "Mostre os 3 passos práticos de como você organiza o serviço para empresas do mesmo segmento na região.",
+      informacoes_necessarias: ["Serviço oferecido", "Segmento e cidade da empresa"],
+      criterio_conclusao: "Exemplo prático enviado ou conversa de qualificação avançada.",
+      proxima_acao_sugerida: "Identificar sinais de interesse para sugerir alinhamento rápido.",
+      mensagem: `Assunto: Exemplo prático de ${foco} para ${nicho} em ${cidade}\n\nOlá, pessoal da ${nome}!\n\nOrganizei um passo a passo objetivo mostrando como negócios de ${nicho} em ${cidade} estruturam ${foco} para receber contatos mais qualificados no atendimento.\n\nSe quiserem dar uma olhada sem compromisso, me avisem por aqui que envio o resumo prático.`,
+      objecao_provavel: "Já fazemos isso internamente ou com parceiro",
+      resposta_sugerida: "Excelente que já tenham essa frente ativa! Se quiserem apenas comparar a estrutura atual com esse modelo prático, envio sem compromisso.",
+      cta: "Faz sentido receber esse comparativo rápido?"
     },
     {
       dia: 6,
       canal: "instagram",
-      acao_sugerida: "Reação a story ou post recente da empresa",
-      mensagem: `Muito bom esse post recente de vocês! É exatamente esse diferencial da ${nome} em ${cidade} que pode ser amplificado para gerar clientes todos os dias.`,
-      objecao_provavel: "Obrigado pelo feedback!",
-      resposta_sugerida: "Por nada! Se quiser entender como escalar esse resultado, fico à disposição.",
-      cta: "Bora marcar um papo rápido?"
+      titulo_dia: "Validação de Prioridade Comercial",
+      objetivo: "Entender se a aquisição de novos clientes é prioridade para a empresa neste mês",
+      acao_sugerida: "Fazer pergunta leve de validação de momento comercial",
+      explicacao_tarefa: "Verifique se a empresa tem interesse em avaliar o tema agora ou se prefere deixar para um próximo trimestre.",
+      informacoes_necessarias: ["Status atualizado do lead no pipeline"],
+      criterio_conclusao: "Momento comercial validado (prioridade atual vs. futuro).",
+      proxima_acao_sugerida: "Preparar encerramento elegante do ciclo no Dia 7 caso continue sem retorno.",
+      mensagem: `Olá, equipe da ${nome}! Para eu não ser insistente por aqui: organizar novas frentes de ${foco} em ${cidade} é algo que faz sentido avaliar neste mês ou hoje o foco de vocês está em outra prioridade?`,
+      objecao_provavel: "Agora estamos focados em outra prioridade",
+      resposta_sugerida: "Perfeito, faz todo sentido manter o foco! Agradeço o retorno sincero.",
+      cta: "É uma prioridade para agora ou melhor deixarmos para mais adiante?"
     },
     {
       dia: 7,
       canal: "whatsapp",
-      acao_sugerida: "Último contato com ultimato sutil e convite aberto",
-      mensagem: `Último contato por aqui para não tomar seu tempo! Vou deixar o canal aberto se em algum momento a ${nome} quiser estruturar um canal forte de aquisição de clientes em ${cidade}. Grande abraço e sucesso!`,
+      titulo_dia: "Encerramento Elegante do Ciclo e Organização do Pipeline",
+      objetivo: "Encerrar a cadência com respeito, deixando a porta aberta e limpando a fila ativa",
+      acao_sugerida: "Enviar mensagem final cordial e atualizar status do lead no CRM",
+      explicacao_tarefa: "Finalize o ciclo de 7 dias sem pressão. Atualize o status do lead para manter seu pipeline organizado.",
+      informacoes_necessarias: ["Histórico consolidado dos 6 dias anteriores"],
+      criterio_conclusao: "Ciclo de 7 dias concluído e status final registrado no Zuno.",
+      proxima_acao_sugerida: "Arquivar com respeito ou agendar revisão futura caso o cliente tenha pedido retorno.",
+      mensagem: `Oi, pessoal da ${nome}! Passando apenas para encerrar meus contatos por aqui e não tomar o tempo de vocês na rotina.\n\nCaso em algum momento queiram avaliar ideias práticas de ${foco} para o segmento de ${nicho} em ${cidade}, fico à disposição neste número.\n\nDesejo excelentes negócios para vocês!`,
       objecao_provavel: "Obrigado pelo contato!",
-      resposta_sugerida: "Disponha! Bom trabalho para vocês aí.",
-      cta: "Ficamos em contato!"
+      resposta_sugerida: "Por nada! Sucesso para toda a equipe da " + nome + ".",
+      cta: "Fico à disposição quando precisarem. Bom trabalho!"
     }
   ];
 }
@@ -232,11 +278,11 @@ export function normalizePlanoProspeccao(plano: any, lead?: any): any[] {
           planoArray.push({
             dia: i,
             canal: canais[(i - 1) % canais.length],
-            acao_sugerida: i === 1 ? "Envio de mensagem inicial no WhatsApp" : `Follow-up do dia ${i}`,
+            acao_sugerida: i === 1 ? "Envio de mensagem inicial no WhatsApp" : `Acompanhamento consultivo do dia ${i}`,
             mensagem: msg,
             objecao_provavel: "Sem tempo para conversar agora",
-            resposta_sugerida: "Compreendo perfeitamente. Qual o melhor horário para um contato rápido de 3 minutos?",
-            cta: "Podemos agendar para amanhã?",
+            resposta_sugerida: "Compreendo perfeitamente. Posso te enviar um resumo prático por texto para ver quando puder?",
+            cta: "Faz sentido enviar por aqui?",
           });
         }
       }
@@ -264,8 +310,8 @@ export function normalizePlanoProspeccao(plano: any, lead?: any): any[] {
           acao_sugerida: "Interação e mensagem no Instagram",
           mensagem: plano.abordagens_por_canal.instagram,
           objecao_provavel: "Já temos agência responsável",
-          resposta_sugerida: "Ótimo! Podemos atuar como parceiros em demandas específicas ou auditoria sem custo.",
-          cta: "Posso te mandar nosso portfólio?",
+          resposta_sugerida: "Ótimo! Podemos compartilhar apenas um exemplo específico para avaliarem sem compromisso.",
+          cta: "Posso te mandar um resumo curto?",
         });
       }
       if (plano.abordagens_por_canal.email) {
@@ -275,8 +321,8 @@ export function normalizePlanoProspeccao(plano: any, lead?: any): any[] {
           acao_sugerida: "Envio de proposta/diagnóstico por E-mail",
           mensagem: plano.abordagens_por_canal.email,
           objecao_provavel: "Qual o valor do investimento?",
-          resposta_sugerida: "Nosso modelo é totalmente personalizado após entender seu objetivo atual.",
-          cta: "Consegue falar 5 minutos esta semana?",
+          resposta_sugerida: "Nosso modelo é dimensionado após entender seu objetivo atual na cidade.",
+          cta: "Posso compartilhar um resumo objetivo de como funciona?",
         });
       }
       if (planoArray.length > 0) return planoArray;
@@ -323,10 +369,10 @@ export function normalizeDiagnosticoBullets(bullets: any, lead?: any): string[] 
   if (list.length === 0 && lead && lead.plano_prospeccao && typeof lead.plano_prospeccao === 'object') {
     const diag = lead.plano_prospeccao.diagnostico;
     if (diag) {
-      if (diag.justificativa) list.push(`Oportunidade: ${diag.justificativa}`);
-      if (diag.dor_provavel) list.push(`Ponto de dor principal: ${diag.dor_provavel}`);
+      if (diag.justificativa) list.push(`Fato observado: ${diag.justificativa}`);
+      if (diag.dor_provavel) list.push(`Hipótese comercial para investigar: ${diag.dor_provavel}`);
       if (diag.oportunidade) list.push(`Ângulo comercial recomendado: ${diag.oportunidade}`);
-      if (diag.urgencia) list.push(`Urgência estimada para contato: ${diag.urgencia}`);
+      if (diag.urgencia) list.push(`Prioridade sugerida de abordagem: ${diag.urgencia}`);
     }
   }
 
@@ -338,10 +384,10 @@ export function normalizeDiagnosticoBullets(bullets: any, lead?: any): string[] 
     const foco = focoRaw === "zuno_internal_prospecting" ? "Oportunidade comercial" : focoRaw;
 
     list = [
-      `Análise estratégica identificada para ${nome} no segmento de ${nicho} em ${cidade}.`,
-      `Abordagem consultiva focada no modelo de serviço ${foco}.`,
-      `Presença digital e canais de contato verificados para máxima taxa de resposta.`,
-      `Sequência de prospecção em 7 dias personalizada para conversão direta.`
+      `Fato verificado: ${nome} localizada no segmento de ${nicho} em ${cidade}.`,
+      `Ângulo comercial sugerido: abordagem consultiva adaptada ao serviço de ${foco}.`,
+      `Canais públicos verificados para abertura de conversa sem promessas irreais.`,
+      `Plano de prospecção em 7 dias com continuidade orientada conforme resposta do lead.`
     ];
   }
 

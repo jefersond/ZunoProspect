@@ -25,6 +25,7 @@ import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { LeadPlanDialog } from "@/components/prospeccao/LeadPlanDialog";
 import type { LeadProspeccao } from "@/types/lead";
 import { normalizeLeadForAI, normalizePlanoProspeccao } from "@/utils/normalizeLead";
+import { calculateLeadCompatibilityScore } from "@/services/leadCompatibilityScore";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -600,23 +601,27 @@ const LeadsSalvos = () => {
                     </div>
                   )}
 
-                  {/* Probabilidade */}
-                  {lead.probabilidade_conversao > 0 && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Probabilidade:</span>
-                      <Badge
-                        variant={
-                          lead.probabilidade_conversao >= 70
-                            ? "default"
-                            : lead.probabilidade_conversao >= 40
-                            ? "secondary"
-                            : "outline"
-                        }
-                      >
-                        {lead.probabilidade_conversao}%
-                      </Badge>
-                    </div>
-                  )}
+                  {/* Compatibilidade Comercial */}
+                  {(() => {
+                    const compat = calculateLeadCompatibilityScore(lead, { userServiceName: lead.foco });
+                    return (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Compatibilidade:</span>
+                        <Badge
+                          variant={
+                            compat.score >= 70
+                              ? "default"
+                              : compat.score >= 40
+                              ? "secondary"
+                              : "outline"
+                          }
+                          className={compat.score >= 70 ? "bg-emerald-600 text-white" : ""}
+                        >
+                          {compat.score}/100
+                        </Badge>
+                      </div>
+                    );
+                  })()}
 
                   {/* Ações */}
                   <div className="flex gap-2 pt-2 border-t">

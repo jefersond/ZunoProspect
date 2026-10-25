@@ -30,21 +30,26 @@ import {
   XCircle,
   HelpCircle,
   Pencil,
+  AlertTriangle,
+  Target,
 } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 import {
   generateSdrFirstApproachMessage,
   sanitizeBrazilianPhoneNumber,
   updateSdrProspectingStatus,
+  checkSdrDuplicateApproach,
   type SdrApproachStyle,
   type SdrProspectingStatus,
 } from "@/services/sdrProspectingService";
+import { calculateLeadCompatibilityScore } from "@/services/leadCompatibilityScore";
 
 interface SdrWhatsAppModalProps {
   lead: LeadProspeccao | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStatusUpdated?: (leadId: string, newStatus: string) => void;
+  isSimulatedDemo?: boolean;
 }
 
 export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
@@ -52,8 +57,10 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
   open,
   onOpenChange,
   onStatusUpdated,
+  isSimulatedDemo = false,
 }) => {
   const { toast } = useToast();
+  const isSimulated = Boolean(isSimulatedDemo || lead?.custom_fields?.is_simulated === "true");
 
   // Estados do formulário de abordagem
   const [userService, setUserService] = useState<string>("gestão de tráfego e presença digital");
@@ -70,7 +77,6 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
   // Inicializa o serviço e o telefone a partir do lead selecionado
   useEffect(() => {
     if (lead) {
-      // Tenta recuperar o foco salvo no localStorage ou usa o foco do lead
       try {
         const savedCtx = localStorage.getItem("zuno_last_search_context");
         if (savedCtx) {
@@ -123,6 +129,10 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
   if (!lead) return null;
 
   const phoneSanitized = sanitizeBrazilianPhoneNumber(customPhone);
+  const duplicateCheck = checkSdrDuplicateApproach(lead);
+  const compatibility = calculateLeadCompatibilityScore(lead, {
+    userServiceName: userService,
+  });
 
   const handleCopy = async () => {
     try {
@@ -143,6 +153,15 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
   };
 
   const handleOpenWhatsApp = async () => {
+    if (isSimulated) {
+      toast({
+        variant: "destructive",
+        title: "Modo Demonstração",
+        description: "Abertura no WhatsApp bloqueada para dados de teste.",
+      });
+      return;
+    }
+
     if (!phoneSanitized.isValid) {
       toast({
         variant: "destructive",
@@ -184,6 +203,28 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
   const handleConfirmResult = async (newResult: SdrProspectingStatus) => {
     setIsSavingStatus(true);
     try {
+      // Se for modo demonstração, não escreve no banco
+      if (isSimulated) {
+        setCurrentStepStatus(newResult);
+        let mappedStatus = "em_contato";
+        if (newResult === "respondeu") mappedStatus = "respondeu";
+        else if (newResult === "interessado") mappedStatus = "qualificacao";
+        else if (newResult === "reuniao_marcada") mappedStatus = "negociacao";
+        else if (newResult === "sem_resposta") mappedStatus = "em_contato";
+        else if (newResult === "descartado" || newResult === "recusou_optout") mappedStatus = "perdido";
+
+        onStatusUpdated?.(lead.id, mappedStatus);
+        toast({
+          title: "Resultado simulado no Laboratório",
+          description: `Status atualizado para: ${getResultLabel(newResult)} (sem gravação remota)`,
+        });
+
+        if (newResult !== "abertura_iniciada") {
+          setTimeout(() => onOpenChange(false), 1200);
+        }
+        return;
+      }
+
       const res = await updateSdrProspectingStatus({
         leadId: lead.id,
         status: newResult,
@@ -200,7 +241,8 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
       if (newResult === "respondeu") mappedDbStatus = "respondeu";
       else if (newResult === "interessado") mappedDbStatus = "qualificacao";
       else if (newResult === "reuniao_marcada") mappedDbStatus = "negociacao";
-      else if (newResult === "sem_resposta" || newResult === "descartado") mappedDbStatus = "perdido";
+      else if (newResult === "sem_resposta") mappedDbStatus = "em_contato"; // sem_resposta não é perdido nem opt-out!
+      else if (newResult === "descartado" || newResult === "recusou_optout") mappedDbStatus = "perdido";
 
       onStatusUpdated?.(lead.id, mappedDbStatus);
 
@@ -209,17 +251,17 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
         description: `Status atualizado para: ${getResultLabel(newResult)}`,
       });
 
-      // Se for resultado finalizado, pode fechar após breve delay
       if (newResult !== "abertura_iniciada") {
         setTimeout(() => {
           onOpenChange(false);
         }, 1200);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Tente novamente.";
       toast({
         variant: "destructive",
         title: "Erro ao salvar resultado",
-        description: err.message || "Tente novamente.",
+        description: message,
       });
     } finally {
       setIsSavingStatus(false);
@@ -241,9 +283,11 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
       case "reuniao_marcada":
         return "Reunião agendada";
       case "sem_resposta":
-        return "Sem resposta";
+        return "Sem resposta (Aguardando)";
       case "descartado":
-        return "Sem interesse / descartado";
+        return "Descartado (Fora de perfil)";
+      case "recusou_optout":
+        return "Recusa / Opt-out (Contatos interrompidos)";
       default:
         return status;
     }
@@ -262,13 +306,35 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
                 Prospecção Assistida SDR
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Primeira abordagem no WhatsApp do seu próprio número • Sem robôs • Você assume e fecha
+                Primeira abordagem contextual no seu WhatsApp • Sem robôs • Você revisa e fecha
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
         <div className="space-y-4 pt-1">
+          {/* Alerta de Modo Demonstração (Dados Fictícios) */}
+          {isSimulated && (
+            <div className="p-3 rounded-lg border border-amber-500/50 bg-amber-500/15 text-amber-300 text-xs font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+              <span>SIMULAÇÃO — DADOS FICTÍCIOS, NÃO UTILIZAR PARA CONTATO.</span>
+            </div>
+          )}
+
+          {/* Alerta de Abordagem Duplicada se Houver */}
+          {duplicateCheck.isDuplicate && (
+            <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-500 text-xs flex items-start gap-2.5">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
+              <div className="space-y-0.5">
+                <p className="font-semibold text-foreground">Atenção: Abordagem prévia identificada</p>
+                <p className="text-muted-foreground">{duplicateCheck.reason}</p>
+                <p className="text-[11px] text-muted-foreground/80">
+                  Para evitar duplicidades comerciais, certifique-se de que um novo contato faz sentido para o lead.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Card da Empresa Selecionada com Dados Auditados */}
           <div className="p-3.5 rounded-lg border border-border/60 bg-muted/20 space-y-2">
             <div className="flex items-start justify-between gap-2">
@@ -283,10 +349,23 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
                 </p>
               </div>
 
-              <div className="text-right">
-                <Badge variant="outline" className="text-[11px] bg-background/80">
-                  {lead.situacao_cadastral === "ATIVA" ? "Empresa Ativa" : "Dados Verificados"}
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={`text-[11px] ${
+                    compatibility.score >= 70
+                      ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <Target className="h-3 w-3 mr-1 text-emerald-500" />
+                  Compatibilidade: {compatibility.score}/100
                 </Badge>
+                {compatibility.isPrioritySDR && (
+                  <Badge className="text-[10px] bg-emerald-600 text-white font-semibold">
+                    Prioridade SDR
+                  </Badge>
+                )}
               </div>
             </div>
 
@@ -329,22 +408,22 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
             <div className="pt-2 border-t border-border/40 flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
                 <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-muted-foreground">Telefone/WhatsApp:</span>
                 {isEditingPhone ? (
                   <Input
+                    type="text"
                     value={customPhone}
                     onChange={(e) => setCustomPhone(e.target.value)}
-                    placeholder="(DDD) 99999-9999"
-                    className="h-7 w-44 text-xs font-mono"
+                    placeholder="DDD + Número (ex: 27999998888)"
+                    className="h-7 text-xs w-48"
                   />
                 ) : (
-                  <span className="font-mono font-medium text-foreground">
-                    {phoneSanitized.formattedDisplay || "Não informado na busca"}
+                  <span className="font-mono text-foreground font-medium">
+                    {phoneSanitized.formattedDisplay || "Telefone não informado"}
                   </span>
                 )}
-                {phoneSanitized.isValid && !phoneSanitized.isCellPhone && (
-                  <Badge variant="secondary" className="text-[10px] bg-amber-500/10 text-amber-500 border-amber-500/20">
-                    Telefone fixo
+                {phoneSanitized.isValid && (
+                  <Badge variant="outline" className="text-[10px] text-emerald-500 border-emerald-500/30">
+                    {phoneSanitized.isCellPhone ? "Celular/WhatsApp" : "Fixo Comercial"}
                   </Badge>
                 )}
               </div>
@@ -413,7 +492,7 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
             <div className="flex items-center justify-between">
               <Label className="text-xs font-medium text-foreground flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-                Mensagem inicial preparada pelo SDR (edite livremente)
+                Mensagem inicial preparada pelo SDR (você pode editar livremente)
               </Label>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] text-muted-foreground">
@@ -455,15 +534,21 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
             <Button
               type="button"
               onClick={handleOpenWhatsApp}
-              disabled={!phoneSanitized.isValid}
-              className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md transition-all active:scale-[0.99] flex items-center justify-center gap-2"
+              disabled={isSimulated || !phoneSanitized.isValid}
+              className={`w-full h-11 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
+                isSimulated
+                  ? "bg-muted text-muted-foreground cursor-not-allowed border border-border"
+                  : "bg-emerald-600 hover:bg-emerald-500 text-white active:scale-[0.99]"
+              }`}
             >
               <MessageSquare className="h-4 w-4" />
-              Abrir no meu WhatsApp ({phoneSanitized.formattedDisplay || "número pendente"})
+              {isSimulated
+                ? "Abertura no WhatsApp Bloqueada (Dados Fictícios da Simulação)"
+                : `Abrir no meu WhatsApp (${phoneSanitized.formattedDisplay || "número pendente"})`}
             </Button>
           </div>
 
-          {/* Painel de Registro do Resultado (Item 8) */}
+          {/* Painel de Registro do Resultado */}
           <div className="mt-4 pt-4 border-t border-border/60 space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold text-foreground">
@@ -478,7 +563,7 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
               Como o envio é feito manualmente pelo seu WhatsApp, selecione o que aconteceu para atualizar o CRM:
             </p>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <Button
                 type="button"
                 variant={currentStepStatus === "contato_realizado" ? "default" : "outline"}
@@ -545,19 +630,31 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
                 size="sm"
                 disabled={isSavingStatus}
                 onClick={() => handleConfirmResult("descartado")}
-                className="h-8 text-xs justify-start px-2 font-medium"
+                className="h-8 text-xs justify-start px-2 font-medium text-muted-foreground hover:text-foreground"
               >
-                <XCircle className="h-3.5 w-3.5 mr-1.5 text-red-500" />
-                Não Interessado
+                <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                Descartado
+              </Button>
+
+              <Button
+                type="button"
+                variant={currentStepStatus === "recusou_optout" ? "destructive" : "outline"}
+                size="sm"
+                disabled={isSavingStatus}
+                onClick={() => handleConfirmResult("recusou_optout")}
+                className="h-8 text-xs justify-start px-2 font-medium col-span-2 text-destructive border-destructive/40 hover:bg-destructive/10"
+              >
+                <AlertTriangle className="h-3.5 w-3.5 mr-1.5 text-destructive" />
+                Recusa / Opt-out
               </Button>
             </div>
 
-            {/* Anotação rápida opcional */}
-            <div className="space-y-1 pt-1">
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-xs text-muted-foreground">Observação rápida (opcional)</Label>
               <Input
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Anotação rápida (opcional): ex: falar com Pedro amanhã às 14h..."
+                placeholder="Ex: Pediu para ligar na terça às 14h..."
                 className="h-8 text-xs"
               />
             </div>

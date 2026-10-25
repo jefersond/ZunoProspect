@@ -20,12 +20,20 @@ export interface SinaisDigitais {
 export interface PlanoProspeccaoDia {
   dia: number;
   canal: "whatsapp" | "email" | "instagram";
+  titulo_dia?: string;
   objetivo?: string;
   goal?: string;
   personalization_basis?: string[];
   angle?: string;
   signal_used?: string;
   acao_sugerida: string;
+  explicacao_tarefa?: string;
+  informacoes_necessarias?: string[];
+  criterio_conclusao?: string;
+  proxima_acao_sugerida?: string;
+  condicao_aplicacao?: string;
+  status_dia?: "concluido" | "disponivel" | "pendente" | "adaptado" | "bloqueado_optout";
+  adaptation_reason?: string;
   mensagem: string;
   objecao_provavel: string;
   resposta_sugerida: string;
@@ -34,6 +42,9 @@ export interface PlanoProspeccaoDia {
     direct?: string;
     consultative?: string;
     light_provocation?: string;
+    consultivo?: string;
+    direto?: string;
+    exemplo_pratico?: string;
   };
 }
 

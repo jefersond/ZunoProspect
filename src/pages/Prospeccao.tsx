@@ -16,13 +16,17 @@ import { getFunnelContext } from "@/lib/funnelContext";
 import { AppHeader } from "@/components/AppHeader";
 import { PaymentRecoveryBanner } from "@/components/subscription/PaymentRecoveryBanner";
 import { TrialActivationPanel } from "@/components/subscription/TrialActivationPanel";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { FlaskConical, ArrowRight } from "lucide-react";
+import { canAccessZunoNextLab } from "@/services/zunoNextLab";
 
 const Prospeccao = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const { subscription, loading: subscriptionLoading, error: subscriptionError, isAdmin } = useSubscription();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   // Handle checkout success/cancel and Google OAuth checkout
   useEffect(() => {
@@ -160,6 +164,8 @@ const Prospeccao = () => {
   }, [user]);
   
   if (!user) return null;
+
+  const showAdminLabBanner = isAdmin && canAccessZunoNextLab(user, profile);
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/10 to-primary/5">
@@ -173,6 +179,30 @@ const Prospeccao = () => {
       <main className="container mx-auto px-4 py-8 space-y-8">
         <PaymentRecoveryBanner />
         <TrialActivationPanel subscription={subscription} loading={subscriptionLoading} error={subscriptionError} />
+
+        {/* Acesso discreto exclusivo para Admin ao Laboratório Zuno Next V2 */}
+        {showAdminLabBanner && (
+          <div className="p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="bg-amber-500 text-slate-950 font-extrabold uppercase tracking-wider text-[10px]">
+                <FlaskConical className="h-3 w-3 mr-1" />
+                LABORATÓRIO ZUNO — Funcionalidades em teste
+              </Badge>
+              <span className="text-xs text-foreground font-medium">
+                Zuno Missões + Plano Inteligente de 7 Dias + Dossiê Comercial + SDR Personalizado (Exclusivo Admin)
+              </span>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => navigate("/admin/laboratorio-zuno")}
+              className="h-8 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs gap-1.5 shrink-0"
+            >
+              Abrir Laboratório Zuno
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+
         <div id="primeira-busca">
           <ProspeccaoForm />
         </div>

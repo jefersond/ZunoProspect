@@ -155,10 +155,10 @@ function generateFallback7Days(lead?: any): any[] {
       informacoes_necessarias: ["Telefone/WhatsApp comercial", "Cidade e nicho verificados", "Serviço oferecido definido"],
       criterio_conclusao: "Primeira mensagem aberta no WhatsApp e status atualizado para Abertura Iniciada ou Contato Realizado.",
       proxima_acao_sugerida: "Aguardar retorno por 24h; se responder, avançar para triagem; se não, avaliar canal complementar no Dia 2.",
-      mensagem: `Oi, ${nome}! Tudo bem?\n\n${observationLine}. Trabalho com ${foco} para negócios de ${nicho} e preparei uma demonstração prática de aproximadamente um minuto sobre como organizar a captação local de clientes em ${cidade}.\n\nFaz sentido eu compartilhar esse resumo rápido por aqui?`,
+      mensagem: `Oi, ${nome}! Tudo bem?\n\n${observationLine}. Trabalho com ${foco} para negócios de ${nicho} e estruturei uma ideia prática sobre como organizar a captação local de clientes em ${cidade}.\n\nFaz sentido trocarmos uma ideia rápida sobre como isso funciona na prática?`,
       objecao_provavel: "Quem é você e onde conseguiu meu contato?",
       resposta_sugerida: `Atuo com ${foco} para empresas de ${nicho} e localizei o contato comercial público de vocês nas buscas de ${cidade}.`,
-      cta: "Posso te enviar esse vídeo de 1 minuto por aqui?"
+      cta: "Faz sentido trocarmos uma ideia rápida sobre isso por aqui?"
     },
     {
       dia: 2,
@@ -185,10 +185,10 @@ function generateFallback7Days(lead?: any): any[] {
       informacoes_necessarias: ["E-mail comercial ou canal principal", "Ângulo comercial do dossiê"],
       criterio_conclusao: "Resumo consultivo enviado ou registrado para o decisor.",
       proxima_acao_sugerida: "Acompanhar resposta; se demonstrar interesse, preparar roteiro de conversa curta.",
-      mensagem: `Assunto: Ideia prática de ${foco} para a ${nome} em ${cidade}\n\nOlá, equipe da ${nome},\n\nObservei a presença comercial de vocês em ${cidade} no setor de ${nicho}.\n\nTrabalho com ${foco} ajudando empresas locais a estruturarem uma rotina consistente de novos pedidos de orçamento.\n\nFaz sentido eu enviar uma demonstração curta de aproximadamente um minuto mostrando como aplicamos isso na prática?`,
+      mensagem: `Assunto: Ideia prática de ${foco} para a ${nome} em ${cidade}\n\nOlá, equipe da ${nome},\n\nObservei a presença comercial de vocês em ${cidade} no setor de ${nicho}.\n\nTrabalho com ${foco} ajudando empresas locais a estruturarem uma rotina consistente de novos pedidos de orçamento.\n\nFaz sentido eu enviar um resumo prático mostrando como aplicamos isso?`,
       objecao_provavel: "Qual o custo envolvido?",
-      resposta_sugerida: "O escopo varia conforme a meta e a estrutura atual da empresa. Posso te mandar um resumo de 1 minuto para você ver se faz sentido antes de falarmos de valores.",
-      cta: "Posso encaminhar a demonstração curta por aqui?"
+      resposta_sugerida: "O escopo varia conforme a meta e a estrutura atual da empresa. Posso te mandar os pontos principais para você ver se faz sentido antes de falarmos de valores.",
+      cta: "Posso encaminhar o resumo prático por aqui?"
     },
     {
       dia: 4,
@@ -200,10 +200,10 @@ function generateFallback7Days(lead?: any): any[] {
       informacoes_necessarias: ["Histórico de sem resposta no Dia 1", "Hipótese comercial do serviço"],
       criterio_conclusao: "Follow-up de valor realizado ou adaptado conforme resposta prévia.",
       proxima_acao_sugerida: "Se o lead responder, iniciar qualificação; se não responder, aguardar até a etapa de exemplo prático.",
-      mensagem: `Oi, pessoal da ${nome}! Tudo bem por aí?\n\nDeixando uma pergunta rápida sobre a operação de vocês em ${cidade}: hoje a maior parte dos novos clientes de ${nicho} chega por indicação ou pelas buscas digitais da região?\n\nPergunto porque tenho um exemplo prático de 1 minuto de ${foco} bem alinhado a esse cenário.`,
+      mensagem: `Oi, pessoal da ${nome}! Tudo bem por aí?\n\nDeixando uma pergunta rápida sobre a operação de vocês em ${cidade}: hoje a maior parte dos novos clientes de ${nicho} chega por indicação ou pelas buscas digitais da região?\n\nPergunto porque tenho ideias práticas sobre ${foco} bem alinhadas a esse cenário.`,
       objecao_provavel: "Estava muito corrido aqui na empresa",
-      resposta_sugerida: "Imagino! Por isso mesmo resumi em um exemplo de 1 minuto que você pode ver no seu tempo, sem precisar de reunião.",
-      cta: "Quer que eu deixe o link do exemplo por aqui?"
+      resposta_sugerida: "Imagino! Por isso mesmo resumi em pontos objetivos que você pode ver no seu tempo, sem precisar de reunião.",
+      cta: "Quer que eu deixe o resumo em 3 pontos por aqui?"
     },
     {
       dia: 5,
@@ -215,7 +215,7 @@ function generateFallback7Days(lead?: any): any[] {
       informacoes_necessarias: ["Serviço oferecido", "Segmento e cidade da empresa"],
       criterio_conclusao: "Exemplo prático enviado ou conversa de qualificação avançada.",
       proxima_acao_sugerida: "Identificar sinais de interesse para sugerir alinhamento rápido.",
-      mensagem: `Assunto: Exemplo prático de ${foco} para ${nicho} em ${cidade}\n\nOlá, pessoal da ${nome}!\n\nOrganizei um passo a passo objetivo mostrando como negócios de ${nicho} em ${cidade} estruturam ${foco} para receber contatos mais qualificados no atendimento.\n\nSe quiserem dar uma olhada sem compromisso, me avisem por aqui que envio o material de 1 minuto.`,
+      mensagem: `Assunto: Exemplo prático de ${foco} para ${nicho} em ${cidade}\n\nOlá, pessoal da ${nome}!\n\nOrganizei um passo a passo objetivo mostrando como negócios de ${nicho} em ${cidade} estruturam ${foco} para receber contatos mais qualificados no atendimento.\n\nSe quiserem dar uma olhada sem compromisso, me avisem por aqui que envio o resumo prático.`,
       objecao_provavel: "Já fazemos isso internamente ou com parceiro",
       resposta_sugerida: "Excelente que já tenham essa frente ativa! Se quiserem apenas comparar a estrutura atual com esse modelo prático, envio sem compromisso.",
       cta: "Faz sentido receber esse comparativo rápido?"
@@ -281,7 +281,7 @@ export function normalizePlanoProspeccao(plano: any, lead?: any): any[] {
             acao_sugerida: i === 1 ? "Envio de mensagem inicial no WhatsApp" : `Acompanhamento consultivo do dia ${i}`,
             mensagem: msg,
             objecao_provavel: "Sem tempo para conversar agora",
-            resposta_sugerida: "Compreendo perfeitamente. Posso te enviar um resumo prático de 1 minuto para ver quando puder?",
+            resposta_sugerida: "Compreendo perfeitamente. Posso te enviar um resumo prático por texto para ver quando puder?",
             cta: "Faz sentido enviar por aqui?",
           });
         }
@@ -322,7 +322,7 @@ export function normalizePlanoProspeccao(plano: any, lead?: any): any[] {
           mensagem: plano.abordagens_por_canal.email,
           objecao_provavel: "Qual o valor do investimento?",
           resposta_sugerida: "Nosso modelo é dimensionado após entender seu objetivo atual na cidade.",
-          cta: "Posso compartilhar uma demonstração de 1 minuto?",
+          cta: "Posso compartilhar um resumo objetivo de como funciona?",
         });
       }
       if (planoArray.length > 0) return planoArray;

@@ -389,4 +389,169 @@ describe("ZUNO NEXT V2 — Suite Completa dos 20 Cenários Obrigatórios", () =>
     expect(ZUNO_NEXT_ROADMAP_20).toHaveLength(20);
     expect(ZUNO_COPY_REVIEW_COMPARISON.length).toBeGreaterThanOrEqual(8);
   });
+
+  // 21. Bloqueio por permissões forjadas em perfil
+  it("21. deve bloquear acesso ao Laboratório se o usuário forjar perfil com role: 'admin' ou is_admin: true mas não tiver e-mail autorizado", () => {
+    const forgedUser = { id: "attacker-1", email: "attacker@externaldomain.com" };
+    const forgedProfile = {
+      id: "attacker-1",
+      email: "attacker@externaldomain.com",
+      role: "admin",
+      is_admin: true,
+    };
+
+    expect(canAccessZunoNextLab(forgedUser, forgedProfile)).toBe(false);
+    expect(isZunoNextLabActiveForUser(forgedUser, forgedProfile)).toBe(false);
+
+    const audit = validateLabAccessSecurity({ user: forgedUser, profile: forgedProfile });
+    expect(audit.allowed).toBe(false);
+    expect(audit.isAdminVerified).toBe(false);
+    expect(audit.reason).toContain("Acesso restrito");
+  });
+
+  // 22. Impossibilidade de reversão de opt-out por cache ou simulação
+  it("22. deve garantir impossibilidade absoluta de reversão de opt-out por estado salvo em navegador ou simulação", () => {
+    const optOutLead = {
+      id: "lead-optout-lock",
+      nome: "Empresa com Recusa",
+      status: "novo",
+      notas: "Status: descartado - Pediu para não receber novos contatos",
+    };
+
+    // Mesmo que o cache local do navegador diga que o lead concluiu etapas e estava interessado:
+    const staleState = {
+      userId: "admin-test",
+      leadId: optOutLead.id,
+      completedDays: [1, 2],
+      currentHistoryStage: "empresa_interessada" as const,
+      lastUpdatedIso: new Date().toISOString(),
+      customDayNotes: {},
+    };
+
+    const plan = buildIntelligentSevenDayPlan({
+      lead: optOutLead,
+      userServiceName: "Gestão de Tráfego",
+      executionState: staleState,
+    });
+
+    expect(plan.isOptedOutOrRefused).toBe(true);
+    expect(plan.historyStage).toBe("recusa_ou_optout");
+    expect(plan.currentRecommendedDay).toBeNull();
+    expect(plan.proximaAcaoGlobal).toContain("respeitar opt-out");
+    expect(plan.days.every((d) => d.status_dia === "bloqueado_optout")).toBe(true);
+  });
+
+  // 23. Diferenciação entre sem_resposta, descartado e opt-out
+  it("23. deve diferenciar rigorosamente 'sem resposta' (ativo no funil) de 'descartado' e de 'opt-out' (bloqueado)", () => {
+    const semRespostaLead = {
+      id: "lead-no-reply",
+      nome: "Empresa Sem Resposta",
+      status: "sem_resposta",
+      notas: "[SDR WhatsApp] Status: sem_resposta - aguardando retorno",
+    };
+    const descartadoLead = {
+      id: "lead-discarded",
+      nome: "Empresa Fora de Perfil",
+      status: "descartado",
+      notas: "Empresa fechou as portas",
+    };
+    const optOutLead = {
+      id: "lead-optout-real",
+      nome: "Empresa Solicitou Descadasatro",
+      status: "novo",
+      notas: "Não quero contato por favor",
+    };
+
+    const planSemResposta = buildIntelligentSevenDayPlan({ lead: semRespostaLead });
+    const planDescartado = buildIntelligentSevenDayPlan({ lead: descartadoLead });
+    const planOptOut = buildIntelligentSevenDayPlan({ lead: optOutLead });
+
+    // Sem resposta: estágio de continuidade, pode fazer follow-up sem pressão
+    expect(planSemResposta.historyStage).toBe("contato_iniciado_sem_resposta");
+    expect(planSemResposta.isOptedOutOrRefused).toBe(false);
+    expect(planSemResposta.currentRecommendedDay).toBe(2);
+
+    // Descartado sem opt-out: arquivado sem mensagem de recusa pessoal
+    expect(planDescartado.historyStage).toBe("descartado_sem_optout");
+    expect(planDescartado.isOptedOutOrRefused).toBe(false);
+    expect(planDescartado.currentRecommendedDay).toBeNull();
+
+    // Opt-out: bloqueado com prioridade máxima
+    expect(planOptOut.historyStage).toBe("recusa_ou_optout");
+    expect(planOptOut.isOptedOutOrRefused).toBe(true);
+    expect(planOptOut.currentRecommendedDay).toBeNull();
+  });
+
+  // 24. Score contextual comparativo
+  it("24. deve garantir que o score de compatibilidade compara dados reais com a missão, sem pontuar apenas por formulário preenchido", () => {
+    const leadMismatched = {
+      id: "lead-mismatch",
+      nome: "Restaurante Sabor Mineiro",
+      cidade: "Belo Horizonte",
+      nicho: "Restaurante",
+      telefone: "3133334444",
+    };
+    const leadMatched = {
+      id: "lead-match",
+      nome: "Clínica Odonto Praia",
+      cidade: "Vila Velha",
+      nicho: "Clínica Odontológica",
+      telefone: "27998887766",
+      website: "https://odontopraia.com.br",
+      endereco: "Av. Champagnat, 500 - Praia da Costa",
+      total_reviews: 25,
+      rating: 4.9,
+    };
+
+    const scoreMismatch = calculateLeadCompatibilityScore(leadMismatched, {
+      userServiceName: "Gestão de Tráfego para Clínicas",
+      targetCity: "Vila Velha",
+      targetNiche: "Clínicas Odontológicas",
+    });
+
+    const scoreMatch = calculateLeadCompatibilityScore(leadMatched, {
+      userServiceName: "Gestão de Tráfego para Clínicas",
+      targetCity: "Vila Velha",
+      targetNiche: "Clínicas Odontológicas",
+    });
+
+    expect(scoreMismatch.score).toBeLessThan(40);
+    expect(scoreMatch.score).toBeGreaterThanOrEqual(70);
+    expect(scoreMismatch.motivos.some((m) => m.includes("diferente da cidade-alvo"))).toBe(true);
+    expect(scoreMatch.motivos.some((m) => m.includes("coincide com a praça-alvo"))).toBe(true);
+  });
+
+  // 25. Modo demonstração seguro
+  it("25. deve garantir que todos os leads de demonstração possuem is_simulated e aviso de simulação", () => {
+    const demoLeads = getVilaVelhaDentalMissionDemoLeads();
+    expect(demoLeads.length).toBe(4);
+    for (const lead of demoLeads) {
+      expect(lead.custom_fields?.is_simulated).toBe("true");
+      expect(lead.custom_fields?.simulation_warning).toContain("SIMULAÇÃO — DADOS FICTÍCIOS");
+    }
+  });
+
+  // 26. Copys sem promessa automática de vídeo
+  it("26. deve gerar mensagens consultivas naturais sem promessa automática de vídeo ou demonstração de 1 minuto por padrão", () => {
+    const lead = getVilaVelhaDentalMissionDemoLeads()[0];
+    const sdrDefault = generateAllSdrStyleVariations({
+      lead,
+      userServiceName: "Gestão de Tráfego para Clínicas",
+    });
+
+    // Sem material confirmado, não promete vídeo de 1 minuto
+    expect(sdrDefault.consultivo.text).not.toContain("vídeo de aproximadamente um minuto");
+    expect(sdrDefault.direto.text).not.toContain("vídeo de aproximadamente um minuto");
+    expect(sdrDefault.exemplo_pratico.text).not.toContain("vídeo de aproximadamente um minuto");
+
+    const planDefault = buildIntelligentSevenDayPlan({
+      lead,
+      userServiceName: "Gestão de Tráfego para Clínicas",
+    });
+
+    for (const day of planDefault.days) {
+      expect(day.mensagem).not.toContain("vídeo de 1 minuto");
+      expect(day.mensagem).not.toContain("demonstração curta de aproximadamente um minuto");
+    }
+  });
 });

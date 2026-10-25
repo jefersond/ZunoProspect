@@ -112,7 +112,7 @@ export function createDefaultVilaVelhaMission(userId = "admin_default"): ZunoCom
     targetState: "ES",
     targetSegment: "Clínicas Odontológicas",
     commercialObjective:
-      "Encontrar clínicas com canais verificados, iniciar abordagem consultiva pelo WhatsApp e apresentar demonstração prática de 1 minuto.",
+      "Encontrar clínicas com canais verificados, iniciar abordagem consultiva pelo WhatsApp e qualificar a demanda com transparência.",
     minCompatibilityScore: 70,
     preferredStyle: "consultivo",
     createdAt: now,
@@ -359,7 +359,10 @@ export function getVilaVelhaDentalMissionDemoLeads(): LeadProspeccao[] {
       situacao_cadastral: "ATIVA",
       porte_empresa: null,
       cnae_principal: null,
-      custom_fields: { is_simulated: "true" },
+      custom_fields: {
+        is_simulated: "true",
+        simulation_warning: "SIMULAÇÃO — DADOS FICTÍCIOS, NÃO UTILIZAR PARA CONTATO.",
+      },
     },
     {
       id: "demo-vv-odonto-2",
@@ -402,7 +405,10 @@ export function getVilaVelhaDentalMissionDemoLeads(): LeadProspeccao[] {
       situacao_cadastral: "ATIVA",
       porte_empresa: null,
       cnae_principal: null,
-      custom_fields: { is_simulated: "true" },
+      custom_fields: {
+        is_simulated: "true",
+        simulation_warning: "SIMULAÇÃO — DADOS FICTÍCIOS, NÃO UTILIZAR PARA CONTATO.",
+      },
     },
     {
       id: "demo-vv-odonto-3",
@@ -445,7 +451,10 @@ export function getVilaVelhaDentalMissionDemoLeads(): LeadProspeccao[] {
       situacao_cadastral: "ATIVA",
       porte_empresa: null,
       cnae_principal: null,
-      custom_fields: { is_simulated: "true" },
+      custom_fields: {
+        is_simulated: "true",
+        simulation_warning: "SIMULAÇÃO — DADOS FICTÍCIOS, NÃO UTILIZAR PARA CONTATO.",
+      },
     },
     {
       id: "demo-vv-odonto-4",
@@ -488,7 +497,10 @@ export function getVilaVelhaDentalMissionDemoLeads(): LeadProspeccao[] {
       situacao_cadastral: "ATIVA",
       porte_empresa: null,
       cnae_principal: null,
-      custom_fields: { is_simulated: "true" },
+      custom_fields: {
+        is_simulated: "true",
+        simulation_warning: "SIMULAÇÃO — DADOS FICTÍCIOS, NÃO UTILIZAR PARA CONTATO.",
+      },
     },
   ];
 }

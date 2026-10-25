@@ -1,4 +1,4 @@
-import { isAdminUser } from "@/config/admin";
+import { isAdminEmail } from "@/config/admin";
 
 export interface LabUserIdentity {
   id?: string | null;
@@ -75,7 +75,12 @@ function getSafeStorage(): Pick<Storage, "getItem" | "setItem" | "clear"> {
 
 /**
  * Verifica se o usuário autenticado possui permissão real de Admin.
- * NUNCA confia em parâmetros de URL (?admin=true, ?lab=true) nem em flags de cliente para elevar privilégio.
+ *
+ * REGRAS DE SEGURANÇA INVIOLÁVEIS:
+ * 1. NUNCA confia em parâmetros de URL (?admin=true, ?lab=true).
+ * 2. NUNCA permite elevação de privilégios por campos de perfil modificáveis pelo próprio usuário
+ *    (ex: role: 'admin' ou is_admin: true em contas de e-mail comuns).
+ * 3. Exige estritamente que o e-mail autenticado no Supabase Auth pertença à allowlist oficial.
  */
 export function canAccessZunoNextLab(
   user?: LabUserIdentity | null,
@@ -84,7 +89,8 @@ export function canAccessZunoNextLab(
   if (!user || (!user.id && !user.email)) {
     return false;
   }
-  return isAdminUser(user, profile);
+  const email = user.email || profile?.email;
+  return isAdminEmail(email);
 }
 
 /**
@@ -117,7 +123,7 @@ export function validateLabAccessSecurity({
       attemptedUrlBypassDetected: hasUrlBypassAttempt,
       reason: hasUrlBypassAttempt
         ? "Acesso negado: parâmetros de URL (?admin=true) não concedem acesso ao Laboratório Zuno."
-        : "Acesso restrito exclusivamente a administradores autenticados.",
+        : "Acesso restrito exclusivamente ao e-mail de administrador autenticado.",
     };
   }
 
@@ -130,48 +136,50 @@ export function validateLabAccessSecurity({
     attemptedUrlBypassDetected: false,
     reason: labFlagEnabled
       ? "Acesso autorizado ao Laboratório Zuno (Admin verificado + Feature Flag ativa)."
-      : "Laboratório Zuno pausado pelo Kill-Switch do administrador.",
+      : "Laboratório Zuno pausado pelo Kill-Switch local do administrador.",
   };
 }
 
 /**
  * Consulta o estado da feature flag do Laboratório Zuno isolado por user_id.
- * Por padrão fica ativo (true) para o Admin inspecionar, podendo ser desligado a qualquer instante.
+ * ESCOPO: Opera no armazenamento deste navegador/dispositivo específico.
  */
 export function isZunoNextLabEnabled(userId?: string | null): boolean {
   const safeId = (userId || "admin_default").trim();
   const storage = getSafeStorage();
-  if (!storage) return true;
-
   const raw = storage.getItem(`${LAB_FLAG_STORAGE_PREFIX}${safeId}`);
   if (raw === null) return true;
   return raw === "true";
 }
 
 /**
- * Ativa ou desativa a feature flag do Laboratório Zuno para o Admin atual.
+ * Ativa ou desativa a feature flag do Laboratório Zuno para o Admin atual neste navegador.
  */
 export function setZunoNextLabEnabled(userId: string | null | undefined, enabled: boolean): boolean {
   const safeId = (userId || "admin_default").trim();
   const storage = getSafeStorage();
-  if (storage) {
-    storage.setItem(`${LAB_FLAG_STORAGE_PREFIX}${safeId}`, enabled ? "true" : "false");
-  }
+  storage.setItem(`${LAB_FLAG_STORAGE_PREFIX}${safeId}`, enabled ? "true" : "false");
   return enabled;
 }
 
 /**
- * Kill-Switch imediato: desativa as funcionalidades experimentais do Laboratório Zuno
- * sem afetar o fluxo publicado dos assinantes comuns.
+ * Kill-Switch Local do Navegador: desativa imediatamente as funcionalidades experimentais
+ * nesta sessão/dispositivo sem afetar assinantes nem alterar banco de dados.
+ *
+ * ARQUITETURA DE DESLIGAMENTO CENTRALIZADO (Para produção futura, se autorizado):
+ * - Leitura de flag remota em tabela de controle ou Edge Function check-feature-flags
+ *   com cache curto e kill-switch no backend.
  */
 export function triggerLabKillSwitch(userId?: string | null): {
   disabled: boolean;
   timestamp: string;
+  scope: "local_browser";
 } {
   setZunoNextLabEnabled(userId, false);
   return {
     disabled: true,
     timestamp: new Date().toISOString(),
+    scope: "local_browser",
   };
 }
 
@@ -404,8 +412,8 @@ export const ZUNO_COPY_REVIEW_COMPARISON: CopyReviewComparisonItem[] = [
     sectionLabel: "B. Mensagens Preparadas pelo SDR (3 Estilos)",
     contextLabel: "Estilo Consultivo (Gestão de Tráfego para Clínicas)",
     beforeText: "Olá! Identificamos oportunidades de melhoria na sua presença digital para alavancar suas vendas exponencialmente. Posso mandar um diagnóstico de 2 minutos?",
-    afterText: "Oi, pessoal da Clínica! Vi que vocês atuam com odontologia em Vila Velha e contam com site ativo e boa reputação no Google. Trabalho com gestão de tráfego local para clínicas e estruturei uma ideia rápida para atrair pacientes procurando avaliação na região. Faz sentido eu compartilhar um resumo de 1 minuto por aqui?",
-    whyImproved: "Substitui jargões robóticos ('alavancar exponencialmente') por observação real da cidade, nicho e serviço específico do assinante.",
+    afterText: "Oi, pessoal da Clínica! Vi que vocês atuam com odontologia em Vila Velha e contam com site cadastrado e boa reputação no Google. Trabalho com gestão de tráfego local para clínicas e estruturei uma ideia rápida para atrair pacientes procurando avaliação na região. Faz sentido trocarmos uma ideia rápida por aqui sobre como funciona na prática?",
+    whyImproved: "Substitui jargões robóticos e promessa automática de vídeo por observação real da cidade, nicho e convite para conversa consultiva natural.",
   },
   {
     id: "copy-sdr-2",
@@ -413,7 +421,7 @@ export const ZUNO_COPY_REVIEW_COMPARISON: CopyReviewComparisonItem[] = [
     sectionLabel: "B. Mensagens Preparadas pelo SDR (3 Estilos)",
     contextLabel: "Estilo Direto",
     beforeText: "Olá! Queremos potencializar seus resultados comerciais com nossa metodologia exclusiva. Quem é o decisor?",
-    afterText: "Oi, tudo bem? Localizei o contato comercial de vocês em Vila Velha. Atuo com campanhas de anúncios para clínicas odontológicas da região e gostaria de saber quem cuida da agenda e captação de pacientes aí na clínica para enviar uma ideia objetiva. Se preferirem não receber contato, é só me avisar.",
+    afterText: "Oi, tudo bem? Localizei o contato comercial de vocês em Vila Velha. Atuo com campanhas de anúncios para clínicas odontológicas da região e gostaria de saber quem cuida da agenda e captação de pacientes aí na clínica para eu compartilhar uma ideia objetiva. Se preferirem não receber contato, é só me avisar.",
     whyImproved: "Direto ao ponto, respeitoso, sem adjetivos vazios e com saída honesta de opt-out.",
   },
   {
@@ -422,8 +430,8 @@ export const ZUNO_COPY_REVIEW_COMPARISON: CopyReviewComparisonItem[] = [
     sectionLabel: "B. Mensagens Preparadas pelo SDR (3 Estilos)",
     contextLabel: "Estilo Exemplo Prático",
     beforeText: "Ajudamos uma empresa igual à sua a gerar +40% de vendas no primeiro mês. Vamos agendar uma call hoje?",
-    afterText: "Olá, equipe! Vi o canal de atendimento de vocês em Vila Velha. Preparei um exemplo prático de aproximadamente 1 minuto mostrando como clínicas odontológicas da cidade organizam campanhas locais para preencher horários de avaliação pelo WhatsApp. Posso te enviar esse exemplo por aqui?",
-    whyImproved: "Remove prova social inventada ('+40%') e pedido precoce de reunião, oferecendo um exemplo tangível de baixo atrito.",
+    afterText: "Olá, equipe! Vi a atuação de vocês em Vila Velha. Organizei um passo a passo prático mostrando como clínicas odontológicas da cidade estruturam campanhas locais para gerar pedidos de avaliação pelo WhatsApp. Posso te enviar esse resumo em 3 pontos por aqui?",
+    whyImproved: "Remove prova social inventada ('+40%') e promessa automática de vídeo, entregando um resumo prático de baixo atrito diretamente no texto.",
   },
   {
     id: "copy-7dias-1",

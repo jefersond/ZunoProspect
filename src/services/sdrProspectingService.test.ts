@@ -121,7 +121,16 @@ describe("sdrProspectingService - Regras Comerciais e Sanitização", () => {
 
     expect(result.text).toContain("Oi, Advocacia Silva! Tudo bem?");
     expect(result.text).toContain("Quem é a pessoa responsável pelo comercial ou marketing");
-    expect(result.text).toContain("demonstração rápida de aproximadamente um minuto");
+    expect(result.text).toContain("trocar uma ideia rápida");
+
+    // Quando o usuário confirma que possui material pronto, inclui a demonstração
+    const withMaterial = generateSdrFirstApproachMessage({
+      lead,
+      userServiceName: "captação de clientes locais",
+      style: "direto",
+      hasReadyMaterial: true,
+    });
+    expect(withMaterial.text).toContain("demonstração prática");
   });
 
   it("deve detectar abordagem duplicada se o lead já possui status de contato", () => {

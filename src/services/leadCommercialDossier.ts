@@ -109,7 +109,7 @@ export function buildLeadCommercialDossier(
 
   if (hasWebsite && lead.website) {
     oQueSabemos.push({
-      label: "Website verificado",
+      label: "URL cadastrada nos registros públicos",
       value: lead.website.trim(),
       sourceType: "sinal_digital",
       verified: true,
@@ -125,7 +125,9 @@ export function buildLeadCommercialDossier(
 
   if (phoneInfo.isValid) {
     oQueSabemos.push({
-      label: phoneInfo.isCellPhone ? "WhatsApp / Celular público" : "Telefone fixo comercial",
+      label: phoneInfo.isCellPhone
+        ? "Telefone em formato compatível com celular/WhatsApp"
+        : "Telefone fixo comercial",
       value: phoneInfo.formattedDisplay,
       sourceType: "cadastro_publico",
       verified: true,
@@ -183,10 +185,10 @@ export function buildLeadCommercialDossier(
       id: "angulo-demanda-ativa",
       title: "Hipótese de Captação de Demanda Ativa em " + city,
       hypothesis: hasWebsite
-        ? `Como a ${companyName} já possui site ativo em ${city}, vale investigar se o tráfego atual está direcionado para os procedimentos/serviços de maior margem ou apenas institucional.`
+        ? `Como a ${companyName} possui URL cadastrada em ${city}, vale investigar se a estrutura atual está direcionada para os procedimentos/serviços de maior margem ou apenas institucional.`
         : `Como a ${companyName} atua em ${niche} em ${city} e tem contato telefônico público, vale investigar como hoje captam clientes que pesquisam ativamente no Google da região.`,
       investigativeQuestion: `Hoje a maior parte dos novos clientes/pacientes da ${companyName} em ${city} chega por indicação ou por campanhas locais de busca e redes sociais?`,
-      basisFact: hasWebsite ? "Site ativo e localização confirmada" : "Atuação local confirmada em " + city,
+      basisFact: hasWebsite ? "URL cadastrada e localização confirmada" : "Atuação local confirmada em " + city,
     });
   }
 
@@ -194,15 +196,15 @@ export function buildLeadCommercialDossier(
     possiveisAngulosComerciais.push({
       id: "angulo-conversao-web",
       title: hasWebsite
-        ? "Hipótese de Clareza e Conversão Rápida na Página Atual"
+        ? "Hipótese de Clareza e Conversão Rápida na Página Cadastrada"
         : "Hipótese de Autoridade Local com Página de Conversão Própria",
       hypothesis: hasWebsite
-        ? `A empresa já conta com domínio ativo (${lead.website}). O ângulo consultivo é avaliar se o visitante mobile encontra o botão de WhatsApp e os diferenciais logo na primeira dobra.`
+        ? `A empresa conta com domínio cadastrado (${lead.website}). O ângulo consultivo é avaliar se o visitante mobile encontra o botão de WhatsApp e os diferenciais logo na primeira dobra.`
         : `Não localizamos site próprio no cadastro público. Vale perguntar se a empresa utiliza apenas redes sociais/indicação e se faz sentido ter uma página enxuta para buscas locais em ${city}.`,
       investigativeQuestion: hasWebsite
         ? `Vocês costumam medir quantos visitantes do site atual clicam para falar com o atendimento no WhatsApp?`
         : `Quando um cliente pesquisa por ${niche} em ${city} no Google, para qual página vocês costumam direcionar o atendimento hoje?`,
-      basisFact: hasWebsite ? `Website verificado: ${lead.website}` : "Website próprio não localizado no cadastro público",
+      basisFact: hasWebsite ? `URL cadastrada: ${lead.website}` : "Website próprio não localizado no cadastro público",
     });
   }
 

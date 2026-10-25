@@ -188,7 +188,7 @@ export default function AdminZunoNextLab() {
   };
 
   const activeLeads = useMemo(() => {
-    if (dataSourceMode === "supabase_real" && realLeads.length > 0) {
+    if (dataSourceMode === "supabase_real") {
       return realLeads;
     }
     return getVilaVelhaDentalMissionDemoLeads();
@@ -329,7 +329,7 @@ export default function AdminZunoNextLab() {
               Zuno Next V2 — Missões Comerciais, Plano Inteligente de 7 Dias & SDR Personalizado
             </h1>
             <p className="text-xs text-muted-foreground max-w-3xl">
-              Ambiente isolado de homologação do proprietário ({user?.email}). Assinantes comuns não possuem acesso a esta rota nem visualizam recursos experimentais até sua aprovação explícita.
+              Ambiente isolado de homologação do proprietário ({user?.email}). O Kill-Switch atua no navegador atual; assinantes comuns não possuem acesso ao Laboratório nem a recursos em teste.
             </p>
           </div>
 
@@ -352,7 +352,7 @@ export default function AdminZunoNextLab() {
               className="gap-1.5 text-xs font-semibold"
             >
               <Power className="h-3.5 w-3.5" />
-              {labEnabled ? "Kill-Switch: Pausar Lab" : "Ativar Laboratório"}
+              {labEnabled ? "Kill-Switch (Navegador): Pausar Lab" : "Ativar Laboratório (Navegador)"}
             </Button>
           </div>
         </div>
@@ -607,6 +607,19 @@ export default function AdminZunoNextLab() {
                   </CardContent>
                 </Card>
 
+                {/* Banner de Identificação da Fonte */}
+                {dataSourceMode === "demo_vila_velha" && (
+                  <div className="p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-300 text-xs font-semibold flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+                      MODO DEMONSTRAÇÃO (Vila Velha/ES): Empresas fictícias com identificador is_simulated. Abertura no WhatsApp e gravação remota bloqueadas.
+                    </span>
+                    <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-300">
+                      Dados Simulados
+                    </Badge>
+                  </div>
+                )}
+
                 {/* Lista de Oportunidades Prioritárias e Secundárias */}
                 <Card>
                   <CardHeader className="pb-2">
@@ -618,9 +631,20 @@ export default function AdminZunoNextLab() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2.5">
-                    {evaluation.allEvaluated.map((item) => {
-                      const isSelected = selectedEvaluatedLead?.lead.id === item.lead.id;
-                      const isOptOut = item.intelligentPlan.isOptedOutOrRefused;
+                    {dataSourceMode === "supabase_real" && realLeads.length === 0 ? (
+                      <div className="p-8 text-center border border-dashed rounded-lg bg-muted/10 space-y-2">
+                        <Building2 className="h-8 w-8 mx-auto text-muted-foreground/60" />
+                        <p className="text-sm font-semibold text-foreground">
+                          Nenhum lead salvo encontrado na sua conta
+                        </p>
+                        <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                          Busque empresas na ferramenta de prospecção do Zuno e salve-as para avaliar sua lista real aqui. Você também pode voltar para a "Demo Vila Velha/ES" acima.
+                        </p>
+                      </div>
+                    ) : (
+                      evaluation.allEvaluated.map((item) => {
+                        const isSelected = selectedEvaluatedLead?.lead.id === item.lead.id;
+                        const isOptOut = item.intelligentPlan.isOptedOutOrRefused;
 
                       return (
                         <div
@@ -690,7 +714,7 @@ export default function AdminZunoNextLab() {
                           </div>
                         </div>
                       );
-                    })}
+                    }))}
                   </CardContent>
                 </Card>
               </div>
@@ -1127,6 +1151,10 @@ export default function AdminZunoNextLab() {
       <SdrWhatsAppModal
         lead={sdrModalLead}
         open={Boolean(sdrModalLead)}
+        isSimulatedDemo={
+          dataSourceMode === "demo_vila_velha" ||
+          sdrModalLead?.custom_fields?.is_simulated === "true"
+        }
         onOpenChange={(open) => {
           if (!open) setSdrModalLead(null);
         }}

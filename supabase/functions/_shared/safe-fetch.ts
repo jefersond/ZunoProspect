@@ -1,6 +1,11 @@
 // Fetch seguro para URLs controladas por terceiros (ex.: site informado no Google Places).
 // Protege contra SSRF: so HTTP/HTTPS publico, DNS e cada redirecionamento validados,
 // com limites de tempo, redirecionamentos e tamanho da resposta.
+//
+// Limite residual (DNS rebinding): o DNS e validado antes do fetch, mas o fetch faz sua propria
+// resolucao e o runtime nao permite fixar o IP validado. Um DNS hostil com TTL baixo pode responder
+// IP publico na validacao e IP interno na conexao. Defesa definitiva: proxy/egress que bloqueie
+// destinos internos na camada de rede. Ver descricao do PR #54.
 
 export type SafeFetchResult =
   | { ok: true; text: string; finalUrl: string }
@@ -12,6 +17,11 @@ export interface SafeFetchOptions {
   maxBytes?: number;
   headers?: Record<string, string>;
   fetchImpl?: typeof fetch;
+  /**
+   * Retorna os IPs do tipo pedido. Ausencia legitima de registro = `[]` ou rejeicao com
+   * `error.name === "NotFound"` (como Deno.resolveDns). Qualquer outra falha (timeout, SERVFAIL,
+   * rede) e incerteza e faz a URL ser recusada.
+   */
   resolveDns?: (hostname: string, type: "A" | "AAAA") => Promise<string[]>;
 }
 
@@ -162,23 +172,31 @@ export async function assertPublicUrl(
     return url;
   }
 
-  const [a, aaaa] = await Promise.allSettled([resolveDns(host, "A"), resolveDns(host, "AAAA")]);
-  const ips: string[] = [];
-  for (const r of [a, aaaa]) if (r.status === "fulfilled") ips.push(...r.value);
-  if (ips.length === 0) {
-    const unavailable = [a, aaaa].some((r) => r.status === "rejected" && String(r.reason).includes("dns_unavailable"));
-    throw new Error(unavailable ? "dns_unavailable" : "dns_sem_resultado");
-  }
+  // Os dois tipos precisam ser conclusivos: ausencia legitima (NotFound/vazio) ou lista de IPs.
+  // Erro ou timeout em qualquer um deles deixa um possivel destino sem validar, entao recusa.
+  const lookup = async (type: "A" | "AAAA"): Promise<string[]> => {
+    try {
+      return await resolveDns(host, type);
+    } catch (error) {
+      if (error instanceof Error && error.message === "dns_unavailable") throw error;
+      if (error instanceof Error && error.name === "NotFound") return [];
+      throw new Error("dns_erro");
+    }
+  };
+  const [v4, v6] = await Promise.all([lookup("A"), lookup("AAAA")]);
+  const ips = [...v4, ...v6];
+  if (ips.length === 0) throw new Error("dns_sem_resultado");
   if (ips.some(isBlockedIp)) throw new Error("ip_bloqueado");
   return url;
 }
 
-async function readCapped(response: Response, maxBytes: number): Promise<string> {
+async function readCapped(response: Response, maxBytes: number, signal: AbortSignal): Promise<string> {
   if (!response.body) return "";
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
   while (total < maxBytes) {
+    if (signal.aborted) throw new Error("timeout");
     const { done, value } = await reader.read();
     if (done || !value) break;
     const room = maxBytes - total;
@@ -195,7 +213,12 @@ async function readCapped(response: Response, maxBytes: number): Promise<string>
   return new TextDecoder().decode(merged);
 }
 
-/** GET com validacao de cada salto, limites de tempo/redirecionamentos/tamanho. Nunca lanca. */
+/**
+ * GET com validacao de cada salto, limites de redirecionamentos e tamanho, e UM prazo total
+ * (`timeoutMs`) que cobre DNS, validacao, redirecionamentos e leitura do corpo. Nunca lanca.
+ * A resolucao DNS nao e cancelavel: ao estourar o prazo a chamada retorna na hora e a consulta
+ * pendente e descartada; nenhum fetch novo e iniciado depois do prazo.
+ */
 export async function safeFetchText(rawUrl: string, options: SafeFetchOptions = {}): Promise<SafeFetchResult> {
   const {
     timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -207,11 +230,19 @@ export async function safeFetchText(rawUrl: string, options: SafeFetchOptions = 
   } = options;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error("timeout"));
+    }, timeoutMs);
+  });
+
+  const run = async (): Promise<SafeFetchResult> => {
     let current = rawUrl;
     for (let hop = 0; hop <= maxRedirects; hop++) {
       const url = await assertPublicUrl(current, resolveDns);
+      if (controller.signal.aborted) throw new Error("timeout");
       const response = await fetchImpl(url.toString(), {
         headers,
         redirect: "manual",
@@ -230,14 +261,19 @@ export async function safeFetchText(rawUrl: string, options: SafeFetchOptions = 
         await response.body?.cancel().catch(() => {});
         return { ok: false, reason: `http_${response.status}` };
       }
-      const text = await readCapped(response, maxBytes);
+      const text = await readCapped(response, maxBytes, controller.signal);
       return { ok: true, text, finalUrl: url.toString() };
     }
     return { ok: false, reason: "redirects_excedidos" };
+  };
+
+  try {
+    return await Promise.race([run(), deadline]);
   } catch (error) {
     if (controller.signal.aborted) return { ok: false, reason: "timeout" };
     return { ok: false, reason: error instanceof Error ? error.message : "erro_desconhecido" };
   } finally {
     clearTimeout(timer);
+    deadline.catch(() => {});
   }
 }

@@ -49,6 +49,71 @@ describe("assertPublicUrl", () => {
     await expect(assertPublicUrl("https://evil.example/", dns)).rejects.toThrow("ip_bloqueado");
   });
 
+  describe("partial DNS failures", () => {
+    const notFound = () => Object.assign(new Error("no records found"), { name: "NotFound" });
+
+    it("fails closed when AAAA errors but A returns a public IP", async () => {
+      const dns = vi.fn(async (_h: string, type: "A" | "AAAA") => {
+        if (type === "AAAA") throw new Error("SERVFAIL");
+        return [PUBLIC_IP];
+      });
+      await expect(assertPublicUrl("https://example.com/", dns)).rejects.toThrow("dns_erro");
+    });
+
+    it("fails closed when A errors but AAAA returns a public IP", async () => {
+      const dns = vi.fn(async (_h: string, type: "A" | "AAAA") => {
+        if (type === "A") throw new Error("timed out");
+        return ["2606:4700:4700::1111"];
+      });
+      await expect(assertPublicUrl("https://example.com/", dns)).rejects.toThrow("dns_erro");
+    });
+
+    it("fails closed when both queries error", async () => {
+      const dns = vi.fn(async () => {
+        throw new Error("network");
+      });
+      await expect(assertPublicUrl("https://example.com/", dns)).rejects.toThrow("dns_erro");
+    });
+
+    it("accepts a legitimate absence of AAAA (NotFound) with a public A", async () => {
+      const dns = vi.fn(async (_h: string, type: "A" | "AAAA") => {
+        if (type === "AAAA") throw notFound();
+        return [PUBLIC_IP];
+      });
+      await expect(assertPublicUrl("https://example.com/", dns)).resolves.toBeInstanceOf(URL);
+    });
+
+    it("accepts a legitimate absence of A (NotFound) with a public AAAA only", async () => {
+      const dns = vi.fn(async (_h: string, type: "A" | "AAAA") => {
+        if (type === "A") throw notFound();
+        return ["2606:4700:4700::1111"];
+      });
+      await expect(assertPublicUrl("https://example.com/", dns)).resolves.toBeInstanceOf(URL);
+    });
+
+    it("rejects when NotFound on both (no address at all)", async () => {
+      const dns = vi.fn(async () => {
+        throw notFound();
+      });
+      await expect(assertPublicUrl("https://example.com/", dns)).rejects.toThrow("dns_sem_resultado");
+    });
+
+    it("rejects a private AAAA even when A is public and NotFound was returned for nothing else", async () => {
+      const dns = vi.fn(async (_h: string, type: "A" | "AAAA") => (type === "A" ? [PUBLIC_IP] : ["fd00::1"]));
+      await expect(assertPublicUrl("https://example.com/", dns)).rejects.toThrow("ip_bloqueado");
+    });
+
+    it("never calls fetch when DNS is unavailable in the runtime", async () => {
+      const dns = vi.fn(async () => {
+        throw new Error("dns_unavailable");
+      });
+      const fetchImpl = vi.fn();
+      const result = await safeFetchText("https://example.com", { fetchImpl, resolveDns: dns });
+      expect(result).toEqual({ ok: false, reason: "dns_unavailable" });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+  });
+
   it("fails closed when DNS yields nothing", async () => {
     const dns = vi.fn(async () => []);
     await expect(assertPublicUrl("https://nx.example/", dns)).rejects.toThrow("dns_sem_resultado");
@@ -136,6 +201,57 @@ describe("safeFetchText", () => {
     expect(await safeFetchText("https://example.com", { fetchImpl: boom, resolveDns: dnsPublic })).toEqual({
       ok: false,
       reason: "network down",
+    });
+  });
+
+  describe("single total deadline", () => {
+    it("returns on time when DNS never answers and never starts fetch", async () => {
+      const dns = vi.fn(() => new Promise<string[]>(() => {}));
+      const fetchImpl = vi.fn();
+      const started = Date.now();
+      const result = await safeFetchText("https://example.com", { fetchImpl, resolveDns: dns, timeoutMs: 50 });
+      expect(result).toEqual({ ok: false, reason: "timeout" });
+      expect(Date.now() - started).toBeLessThan(500);
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it("does not start a new hop after the deadline when DNS answers late", async () => {
+      let release: (v: string[]) => void = () => {};
+      const dns = vi.fn((_h: string, type: "A" | "AAAA") =>
+        type === "A" ? new Promise<string[]>((r) => (release = r)) : Promise.resolve([]));
+      const fetchImpl = vi.fn(async () => html("late"));
+      const result = await safeFetchText("https://example.com", { fetchImpl, resolveDns: dns, timeoutMs: 30 });
+      expect(result).toEqual({ ok: false, reason: "timeout" });
+      release([PUBLIC_IP]);
+      await new Promise((r) => setTimeout(r, 20));
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it("returns on time when the body stalls after headers", async () => {
+      const stalled = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("<html>"));
+        },
+      });
+      const fetchImpl = vi.fn(async () => new Response(stalled, { status: 200 }));
+      const started = Date.now();
+      const result = await safeFetchText("https://example.com", { fetchImpl, resolveDns: dnsPublic, timeoutMs: 50 });
+      expect(result).toEqual({ ok: false, reason: "timeout" });
+      expect(Date.now() - started).toBeLessThan(500);
+    });
+
+    it("shares one budget across redirects", async () => {
+      const fetchImpl = vi.fn(async (_u: string, init?: RequestInit) => {
+        await new Promise((r) => setTimeout(r, 40));
+        if (init?.signal?.aborted) throw new Error("aborted");
+        return new Response(null, { status: 302, headers: { location: "https://example.com/next" } });
+      });
+      const started = Date.now();
+      const result = await safeFetchText("https://example.com", {
+        fetchImpl, resolveDns: dnsPublic, timeoutMs: 100, maxRedirects: 10,
+      });
+      expect(result).toEqual({ ok: false, reason: "timeout" });
+      expect(Date.now() - started).toBeLessThan(400);
     });
   });
 });

@@ -1,0 +1,88 @@
+name: Deploy buscar-leads (manual)
+
+# Publica SOMENTE a Edge Function buscar-leads (com suas dependencias locais) no Supabase.
+# Acionamento manual; so executa a partir da main. Sem migrations, sem outras funcoes.
+# Segredo necessario: SUPABASE_ACCESS_TOKEN (Settings > Secrets and variables > Actions).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-buscar-leads
+  cancel-in-progress: false
+
+env:
+  SUPABASE_PROJECT_REF: ihtltqxxlvbsxbiacbpr
+  FUNCTION_NAME: buscar-leads
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (main)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Verificar que a inspecao de HTML esta desativada no codigo a publicar
+        run: |
+          set -euo pipefail
+          file=supabase/functions/_shared/site-inspection.ts
+          grep -Eq '^export const SITE_HTML_INSPECTION_ENABLED = false;$' "$file" \
+            || { echo "::error::SITE_HTML_INSPECTION_ENABLED nao esta 'false' em $file. Deploy abortado."; exit 1; }
+          if grep -Rnq 'SITE_HTML_INSPECTION_ENABLED = true' supabase/functions; then
+            echo "::error::Encontrado SITE_HTML_INSPECTION_ENABLED = true. Deploy abortado."; exit 1
+          fi
+          grep -q 'SITE_HTML_INSPECTION_ENABLED && details.website' supabase/functions/buscar-leads/index.ts \
+            || { echo "::error::Guarda da flag ausente em buscar-leads/index.ts. Deploy abortado."; exit 1; }
+          echo "OK: flag desativada e guarda presente (commit $(git rev-parse --short HEAD))."
+
+      - name: Verificar segredo (sem imprimi-lo)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          [ -n "$SUPABASE_ACCESS_TOKEN" ] \
+            || { echo "::error::Secret SUPABASE_ACCESS_TOKEN nao configurado em Actions."; exit 1; }
+
+      - name: Instalar Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.0
+
+      - name: Publicar somente buscar-leads
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase functions deploy "$FUNCTION_NAME" \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api
+
+      - name: Registrar versao publicada
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase functions list --project-ref "$SUPABASE_PROJECT_REF" | grep -E "ID|$FUNCTION_NAME" || true
+
+      - name: Verificar a flag no codigo efetivamente hospedado
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          hosted="$RUNNER_TEMP/hosted"
+          mkdir -p "$hosted"
+          supabase init --workdir "$hosted" --yes >/dev/null
+          supabase functions download "$FUNCTION_NAME" \
+            --project-ref "$SUPABASE_PROJECT_REF" --use-api --workdir "$hosted"
+          grep -Rhn 'SITE_HTML_INSPECTION_ENABLED' "$hosted/supabase/functions" || true
+          grep -Rq 'SITE_HTML_INSPECTION_ENABLED = false' "$hosted/supabase/functions" \
+            || { echo "::error::Flag 'false' NAO encontrada no codigo hospedado. Deploy NAO verificado."; exit 1; }
+          if grep -Rq 'SITE_HTML_INSPECTION_ENABLED = true' "$hosted/supabase/functions"; then
+            echo "::error::Codigo hospedado com a flag 'true'."; exit 1
+          fi
+          echo "OK: codigo hospedado contem SITE_HTML_INSPECTION_ENABLED = false."

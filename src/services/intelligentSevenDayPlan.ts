@@ -27,6 +27,22 @@ export interface ServiceArgumentProfile {
   lowFrictionQuestion: string;
 }
 
+export type CompatibilityLevel = "alta" | "media" | "basica" | "nao_determinada";
+
+export interface ExplorableCompatibilityCriterion {
+  label: string;
+  status: "atendido" | "parcial" | "nao_atendido" | "nao_verificado";
+  detail: string;
+}
+
+export interface ExplorableCompatibility {
+  level: CompatibilityLevel;
+  label: string;
+  description: string;
+  criteria: ExplorableCompatibilityCriterion[];
+  score: number | null; // Nullable; zero probabilidade inventada
+}
+
 export interface IntelligentSevenDayPlanResult {
   leadId: string;
   companyName: string;
@@ -39,7 +55,8 @@ export interface IntelligentSevenDayPlanResult {
   resumoContinuidade: string;
   days: PlanoProspeccaoDia[];
   diagnostico: string[];
-  probabilidade: number;
+  compatibilidade: ExplorableCompatibility;
+  probabilidade: number | null;
 }
 
 export interface BuildIntelligentPlanOptions {
@@ -47,6 +64,7 @@ export interface BuildIntelligentPlanOptions {
   userServiceName?: string;
   existingPlan?: PlanoProspeccaoDia[] | null;
   overrideHistoryStage?: LeadHistoryStage;
+  forceUpdateOldCopies?: boolean;
 }
 
 export interface MessageNaturalnessAudit {
@@ -151,58 +169,62 @@ export function resolveServiceArgumentProfile(
     };
   }
 
-  if (s.includes("tráfego") || s.includes("trafego") || s.includes("anúncio") || s.includes("anuncio") || s.includes("ads") || s.includes("google ads") || s.includes("meta ads")) {
+  if (s.includes("trafego") || s.includes("tráfego") || s.includes("anúncio") || s.includes("anuncio") || s.includes("google ads") || s.includes("meta ads")) {
     return {
       category: "gestao_trafego",
-      categoryLabel: "Gestão de Tráfego Pago e Captação Local",
-      coreAngle: "estratégias práticas de captação de clientes da própria cidade que já pesquisam pelo serviço",
-      consultativeValueLine: `Ajudo empresas de ${niche} em ${cityLabel} a estruturarem uma captação ativa de novos clientes, direcionando pessoas da região diretamente para o WhatsApp comercial.`,
-      directObjectiveLine: `Atuo com anúncios e captação local de clientes para ${niche} em ${cityLabel}. Quem responde pela parte comercial ou de marketing?`,
-      practicalExampleLine: `Mapeei como clientes de ${cityLabel} pesquisam por ${niche} e estruturei uma forma direta de captar essa demanda sem desperdício de verba.`,
-      lowFrictionQuestion: "Posso te mandar uma ideia objetiva sobre como estruturar essa captação local por aqui?",
+      categoryLabel: "Gestão de Tráfego Pago e Atração Local",
+      coreAngle: "captação ativa de clientes que já pesquisam pelos serviços da empresa na região",
+      consultativeValueLine: `Trabalho com anúncios locais para ${niche} em ${cityLabel}, ajudando a posicionar a empresa diretamente para quem busca pelo serviço no momento da decisão.`,
+      directObjectiveLine: `Trabalho com captação de clientes locais via anúncios em ${cityLabel}. Vocês têm interesse em atrair novas demandas além das indicações?`,
+      practicalExampleLine: `Mapeei os termos e regiões mais buscados em ${cityLabel} para o segmento de vocês e preparei um resumo objetivo.`,
+      lowFrictionQuestion: "Posso te mandar os termos de busca mais pesquisados da sua região por aqui?",
     };
   }
 
+  // Padrão Geral B2B
   return {
     category: "geral_b2b",
-    categoryLabel: "Serviços Comerciais B2B",
-    coreAngle: "geração previsível de novas oportunidades e fortalecimento da presença comercial na região",
-    consultativeValueLine: `Atuo com ${userServiceName} em ${cityLabel} apoiando empresas de ${niche} a ampliarem suas oportunidades comerciais com previsibilidade.`,
-    directObjectiveLine: `Trabalho com ${userServiceName} para ${niche} em ${cityLabel}. Quem seria o contato responsável pelo comercial ou parcerias?`,
-    practicalExampleLine: `Organizei uma proposta prática de como o nosso modelo de trabalho se conecta às necessidades comerciais de empresas como a ${niche}.`,
-    lowFrictionQuestion: "Faz sentido conversarmos 5 minutos sobre esse formato para vocês?",
+    categoryLabel: "Prospecção B2B e Parcerias Comerciais",
+    coreAngle: "estruturação de um canal ativo e previsível de novos contatos comerciais",
+    consultativeValueLine: `Auxilio negócios de ${niche} em ${cityLabel} a estruturarem uma rotina de prospecção direta com empresas e clientes qualificados.`,
+    directObjectiveLine: `Atuo com prospecção e novos negócios em ${cityLabel}. Quem responde pela área comercial aí na empresa?`,
+    practicalExampleLine: `Organizei um panorama de 3 etapas que ajuda empresas locais a gerarem conversas comerciais todas as semanas de forma organizada.`,
+    lowFrictionQuestion: "Faz sentido batermos um papo rápido de 5 minutos sobre como vocês captam clientes hoje?",
   };
 }
 
 /**
- * Verifica se o lead possui recusa ou opt-out registrado de forma explícita.
+ * Valida se o lead possui opt-out explícito registrado no status ou nas anotações.
  */
 export function hasExplicitOptOut(lead: Partial<LeadProspeccao>): boolean {
   if (!lead) return false;
-  if ((lead as unknown as { opt_out?: boolean; optOut?: boolean }).opt_out === true) return true;
-  if ((lead as unknown as { opt_out?: boolean; optOut?: boolean }).optOut === true) return true;
 
   const rawStatus = String(lead.status || "").toLowerCase().trim();
+  if (
+    rawStatus === "recusou_optout" ||
+    rawStatus === "opt_out" ||
+    rawStatus === "optout" ||
+    rawStatus === "recusa" ||
+    rawStatus === "bloqueado_optout"
+  ) {
+    return true;
+  }
+
   const rawNotes = String(lead.notas || "").toLowerCase();
-
-  if (rawStatus === "opt_out" || rawStatus === "recusou_optout") return true;
-
   const optOutPhrases = [
-    "não quero contato",
-    "nao quero contato",
-    "pediu para não",
-    "pediu para nao",
-    "recusou contato",
-    "recusa registrada",
-    "status: recusou_optout",
-    "status: opt_out",
+    "não tenho interesse",
+    "nao tenho interesse",
+    "não mandar mensagem",
+    "nao mandar mensagem",
+    "remover da lista",
+    "pare de mandar",
+    "opt-out",
+    "optout",
     "solicitou descadastro",
-    "remova meu contato",
-    "tire meu número",
-    "tire meu numero",
-    "não autorizou",
-    "nao autorizou",
-    "bloqueio de contato",
+    "pediu para nao contatar",
+    "pediu para não contatar",
+    "número errado",
+    "numero errado",
   ];
 
   return optOutPhrases.some((phrase) => rawNotes.includes(phrase));
@@ -276,19 +298,23 @@ export function getHistoryStageLabel(stage: LeadHistoryStage): string {
   }
 }
 
-
 /**
- * Constrói o diagnóstico comercial estruturado em 4 pontos objetivos respondendo às 6 perguntas centrais.
+ * Constrói o diagnóstico comercial estruturado em 4 pontos objetivos respondendo às 6 perguntas centrais,
+ * com cálculo de compatibilidade explicável e ausência de percentuais estatísticos fictícios.
  */
 export function buildStructuredDiagnosis(
   lead: Partial<LeadProspeccao>,
   userServiceName = "gestão de tráfego e presença digital"
-): { diagnostico: string[]; probabilidade: number } {
+): {
+  diagnostico: string[];
+  compatibilidade: ExplorableCompatibility;
+  probabilidade: number | null;
+} {
   const companyName = lead.nome ? String(lead.nome).trim() : "Empresa";
   const city = lead.cidade && !String(lead.cidade).toLowerCase().includes("não inform") ? String(lead.cidade).trim() : "região de atuação";
   const niche = lead.nicho ? String(lead.nicho).trim() : "mercado local";
   const hasWebsite = Boolean(lead.website && String(lead.website).trim().length > 4);
-  const reviewsCount = typeof lead.total_reviews === "number" ? lead.total_reviews : null;
+  const reviewsCount = typeof lead.total_reviews === "number" ? lead.total_reviews : (typeof (lead as any).reviews === "number" ? (lead as any).reviews : null);
   const rating = typeof lead.rating === "number" ? lead.rating : null;
   const hasReviews = Boolean(reviewsCount && reviewsCount > 0);
   const hasPixel = Boolean(lead.sinais?.has_meta_pixel || lead.sinais?.has_gtag);
@@ -296,53 +322,125 @@ export function buildStructuredDiagnosis(
 
   const bullets: string[] = [];
 
-  // Ponto 1: O que sabemos de fato (dados verificados)
-  if (hasReviews && reviewsCount && rating) {
-    bullets.push(`Empresa ativa em ${city} com ${reviewsCount} avaliações públicas (nota ${rating}) e reputação estabelecida no Google.`);
-  } else if (hasWebsite) {
-    bullets.push(`Empresa ativa em ${city} no segmento de ${niche}, com site institucional ativo.`);
+  // Ponto 1: Dados públicos cadastrais identificados (sem presumir funcionamento nem inventar dados)
+  if (hasWebsite) {
+    const reviewNote = hasReviews && reviewsCount ? ` e ${reviewsCount} avaliações no Google (nota ${rating || '—'})` : "";
+    bullets.push(`Registro público localizado em ${city} no segmento de ${niche}${reviewNote}, com URL cadastrada no perfil (${lead.website}); requer conferência manual de funcionamento.`);
+  } else if (hasReviews && reviewsCount && rating) {
+    bullets.push(`Registro público localizado em ${city} com ${reviewsCount} avaliações no Google (nota ${rating}), indicando presença observável de clientes na região.`);
   } else {
-    bullets.push(`Empresa ativa em ${city} com dados comerciais públicos localizados na pesquisa local de ${niche}.`);
+    bullets.push(`Registro comercial público localizado na busca de ${niche} em ${city} com dados cadastrais básicos.`);
   }
 
-  // Ponto 2: Sinais observáveis de presença digital
+  // Ponto 2: Sinais digitais observáveis (sem tratar ausência de tag como auditoria completa nem telefone como WhatsApp confirmado)
   if (hasWebsite && hasPixel) {
-    bullets.push(`Presença digital com tags de rastreamento ativas (Meta Pixel/Google Tag) no site institucional.`);
+    bullets.push(`Tags públicas de rastreamento (Pixel/Tag) identificadas no código inicial da URL cadastrada, sugerindo testes prévios com tráfego.`);
   } else if (hasWebsite && !hasPixel) {
-    bullets.push(`Possui site ativo, mas sem tags de tráfego avançado identificadas na página inicial.`);
+    bullets.push(`Varredura inicial sem tags públicas de rastreamento detectadas na URL cadastrada (amostragem simples; não substitui auditoria completa do domínio).`);
   } else {
-    bullets.push(`Sem site próprio indexado no perfil público; contato direto concentrado no canal telefônico/WhatsApp.`);
+    bullets.push(`Nenhuma página institucional cadastrada no perfil público; contato direto registrado pelo telefone (${phoneInfo.formattedDisplay || 'informado'}), cuja disponibilidade no WhatsApp depende da primeira mensagem.`);
   }
 
-  // Ponto 3: Hipótese comercial ligada ao serviço do assinante
+  // Ponto 3: Hipótese comercial apresentada como POSSIBILIDADE (não diagnóstico definitivo)
   const serviceLower = userServiceName.toLowerCase();
   if (serviceLower.includes("trafego") || serviceLower.includes("tráfego") || serviceLower.includes("anúncio") || serviceLower.includes("anuncio")) {
-    bullets.push(`Oportunidade para anúncios locais de busca e mapa em ${city}, captando pessoas que já procuram por ${niche}.`);
+    bullets.push(`Possibilidade comercial: avaliar se a empresa tem interesse em anúncios locais de busca e mapa em ${city}, caso queira atrair demanda ativa por ${niche} além de indicações.`);
   } else if (serviceLower.includes("social") || serviceLower.includes("instagram") || serviceLower.includes("conteudo") || serviceLower.includes("conteúdo")) {
-    bullets.push(`Oportunidade para fortalecer presença visual e ritmo de postagens demonstrando serviços e diferenciais em ${city}.`);
+    bullets.push(`Possibilidade comercial: avaliar se o negócio tem interesse em fortalecer a vitrine visual e o ritmo de postagens em ${city}, apresentando serviços e diferenciais para quem busca por ${niche}.`);
   } else if (serviceLower.includes("site") || serviceLower.includes("landing")) {
     if (!hasWebsite) {
-      bullets.push(`Oportunidade clara para desenvolvimento de landing page ou site profissional para captar demandas de ${city}.`);
+      bullets.push(`Possibilidade comercial: propor a criação de uma página de apresentação objetiva ou landing page voltada para facilitar o contato de interessados de ${city}.`);
     } else {
-      bullets.push(`Oportunidade para modernização de página de conversão e foco em velocidade e chamadas no WhatsApp.`);
+      bullets.push(`Possibilidade comercial: propor melhorias de conversão na página existente, avaliando clareza de proposta e velocidade de chamada para contato direto.`);
     }
   } else if (serviceLower.includes("automacao") || serviceLower.includes("automação") || serviceLower.includes("crm")) {
-    bullets.push(`Oportunidade para reduzir tempo de resposta comercial no WhatsApp e garantir acompanhamento dos contatos.`);
+    bullets.push(`Possibilidade comercial: verificar se há interesse em organizar o fluxo de atendimento e agilidade de resposta a novos contatos no WhatsApp em ${city}.`);
   } else {
-    bullets.push(`Oportunidade para estruturar rotina de captação ativa com abordagem consultiva e respeito ao decisor.`);
+    bullets.push(`Possibilidade comercial: propor uma rotina estruturada de prospecção ativa e abordagem consultiva para ${niche} em ${city}.`);
   }
 
   // Ponto 4: Próxima ação recomendada
-  bullets.push(`Iniciar contato pelo canal disponível com abertura curta e pergunta de baixo atrito sobre a rotina de novos clientes.`);
+  bullets.push(`Próxima ação recomendada: iniciar contato pelo canal com maior probabilidade de resposta, com abertura curta e pergunta de baixo atrito para confirmar o responsável.`);
 
-  let probabilidade = 50;
-  if (phoneInfo.isValid) probabilidade += 15;
-  if (hasReviews && reviewsCount && reviewsCount >= 10) probabilidade += 15;
-  if (hasWebsite) probabilidade += 10;
-  if (phoneInfo.isCellPhone) probabilidade += 5;
-  if (probabilidade > 95) probabilidade = 95;
+  // Avaliação de Critérios Explicáveis para Abordagem
+  const criteria: ExplorableCompatibilityCriterion[] = [
+    {
+      label: "Telefone comercial",
+      status: phoneInfo.isValid ? "atendido" : "nao_atendido",
+      detail: phoneInfo.isValid
+        ? `Formato brasileiro válido identificado (${phoneInfo.formattedDisplay}); confirmação de WhatsApp ocorre na primeira abertura.`
+        : "Telefone ausente ou fora do padrão brasileiro.",
+    },
+    {
+      label: "Avaliações no Google",
+      status: hasReviews && reviewsCount && reviewsCount >= 5
+        ? "atendido"
+        : hasReviews
+        ? "parcial"
+        : "nao_verificado",
+      detail: hasReviews && reviewsCount
+        ? `${reviewsCount} avaliações públicas registradas (nota ${rating || '—'}).`
+        : "Sem histórico relevante de avaliações públicas no perfil.",
+    },
+    {
+      label: "Endereço web cadastrado",
+      status: hasWebsite ? "atendido" : "nao_atendido",
+      detail: hasWebsite
+        ? `URL cadastrada no perfil (${lead.website}); requer validação manual de abertura.`
+        : "Nenhuma página institucional ou link cadastrado.",
+    },
+    {
+      label: "Mapeamento local e nicho",
+      status: lead.cidade && lead.nicho ? "atendido" : "parcial",
+      detail: lead.cidade && lead.nicho
+        ? `Segmento (${niche}) e praça (${city}) identificados no cadastro público.`
+        : "Dados incompletos de praça ou segmento.",
+    },
+  ];
 
-  return { diagnostico: bullets, probabilidade };
+  // Cálculo da Compatibilidade com critério explicável
+  let level: CompatibilityLevel = "nao_determinada";
+  let label = "Compatibilidade não determinada";
+  let description = "Dados públicos insuficientes para estimar a prontidão da abordagem cadastral.";
+
+  const hasPhone = phoneInfo.isValid;
+  const hasSubstantialReviews = hasReviews && reviewsCount !== null && reviewsCount >= 5;
+
+  if (!hasPhone && !hasWebsite && !hasReviews) {
+    level = "nao_determinada";
+    label = "Compatibilidade não determinada";
+    description = "Dados públicos insuficientes para estimar a prontidão da abordagem cadastral. Recomenda-se pesquisar canais de contato antes de iniciar.";
+  } else if (hasPhone && hasWebsite && hasSubstantialReviews && reviewsCount! >= 10) {
+    level = "alta";
+    label = "Compatibilidade Alta";
+    description = "Múltiplos sinais cadastrais disponíveis (telefone válido, URL informada e avaliações no Google) para contextualizar a abordagem.";
+  } else if (hasPhone && (hasWebsite || hasSubstantialReviews)) {
+    level = "media";
+    label = "Compatibilidade Média";
+    description = "Sinais cadastrais básicos identificados para fundamentar um primeiro contato objetivo e respeitoso.";
+  } else if (hasPhone) {
+    level = "basica";
+    label = "Compatibilidade Básica";
+    description = "Apenas contato telefônico localizado; outros sinais digitais públicos ausentes no cadastro.";
+  } else {
+    level = "nao_determinada";
+    label = "Compatibilidade não determinada";
+    description = "Dados públicos insuficientes para determinar o alinhamento da abordagem cadastral.";
+  }
+
+  const compatibilidade: ExplorableCompatibility = {
+    level,
+    label,
+    description,
+    criteria,
+    score: null, // Zero percentual matemático inventado
+  };
+
+  return {
+    diagnostico: bullets,
+    compatibilidade,
+    probabilidade: null, // NUNCA fallback artificial de 85%
+  };
 }
 
 /**
@@ -350,13 +448,14 @@ export function buildStructuredDiagnosis(
  * 1. Sequência coerente de 7 etapas.
  * 2. Zero clichês robóticos.
  * 3. Adaptação a opt-out, respostas e reuniões.
- * 4. Preservação de edições manuais existentes.
+ * 4. Preservação de edições manuais existentes do assinante.
  */
 export function buildIntelligentPlan({
   lead,
   userServiceName = "gestão de tráfego e captação local",
   existingPlan = null,
   overrideHistoryStage,
+  forceUpdateOldCopies = false,
 }: BuildIntelligentPlanOptions): IntelligentSevenDayPlanResult {
   const companyName = lead.nome ? String(lead.nome).trim() : "Empresa";
   const city = lead.cidade && !String(lead.cidade).toLowerCase().includes("não inform") ? String(lead.cidade).trim() : "sua região";
@@ -447,7 +546,7 @@ export function buildIntelligentPlan({
       acao_sugerida: "Enviar e-mail curto explicando a lógica de trabalho para o segmento",
       explicacao_tarefa: "Separe assunto e corpo. Não use palavras como 'alavancar', 'potencializar' ou promessas de resultado milagroso.",
       assunto_email: `Pergunta rápida sobre captação de clientes - ${companyName}`,
-      defaultMessage: `Assunto: Pergunta rápida sobre captação de clientes - ${companyName}\n\nOlá, equipe da ${companyName}!\n\nEntrei em contato recentemente porque trabalho com ${service} voltado para ${niche} em ${city}.\n\nA ideia é bem direta: em vez de depender apenas de indicações ocasionais, estruturar uma rotina clara para que pessoas da cidade encontrem a empresa no momento em que precisam dos seus serviços.\n\nFaz sentido conversarmos 5 minutos sobre isso esta semana?`,
+      defaultMessage: `Olá, equipe da ${companyName}!\n\nEntrei em contato recentemente porque trabalho com ${service} voltado para ${niche} em ${city}.\n\nA ideia é bem direta: em vez de depender apenas de indicações ocasionais, estruturar uma rotina clara para que pessoas da cidade encontrem a empresa no momento em que precisam dos seus serviços.\n\nFaz sentido conversarmos 5 minutos sobre isso esta semana?`,
       objecao_provavel: "Qual é o valor do investimento?",
       resposta_sugerida: "O investimento varia conforme o objetivo de captação da empresa. Minha ideia inicial é só entender o cenário de vocês para ver se faz sentido.",
       cta: "Consegue falar 5 minutos esta semana?",
@@ -467,35 +566,35 @@ export function buildIntelligentPlan({
     {
       dia: 5,
       canal: "email",
-      titulo_dia: "Dia 5 — Ideia Prática Tangível do Segmento sem Cases Falsos",
-      objetivo: "Apresentar em 3 pontos objetivos como a solução funciona, sem inventar estudos de caso com percentuais falsos",
-      acao_sugerida: "Descrever os 3 passos práticos do serviço para empresas do nicho",
-      explicacao_tarefa: "Apresente 3 etapas claras de trabalho. Nunca use percentuais inventados como '+40% de conversão'.",
-      assunto_email: `3 pontos práticos para captação local - ${companyName}`,
-      defaultMessage: `Assunto: 3 pontos práticos para captação local - ${companyName}\n\nOlá!\n\nPara ser bem direto e prático sobre como trabalho com ${service} para ${niche}:\n\n1. Mapeamos os termos e serviços que os clientes mais procuram em ${city}.\n2. Organizamos o canal de contato para que a pessoa fale diretamente com vocês com o mínimo de atrito.\n3. Acompanhamos semanalmente quais canais trazem contatos reais de orçamento.\n\nPosso te mostrar como isso se aplicaria no cenário da ${companyName}?`,
+      titulo_dia: "Dia 5 — Ideia Prática em 3 Passos",
+      objetivo: "Compartilhar uma estrutura simples de captação que a empresa possa entender imediatamente",
+      acao_sugerida: "Apresentar a lógica do serviço em 3 pontos curtos e objetivos",
+      explicacao_tarefa: "Não invente estudos de caso nem métricas de outros clientes. Seja transparente sobre o método de trabalho.",
+      assunto_email: `3 pontos práticos sobre captação local - ${companyName}`,
+      defaultMessage: `Olá!\n\nPara ser bem direto e transparente sobre como atuo com ${service} para ${niche} em ${city}:\n\n1. Mapeamos os termos e serviços que os clientes mais procuram na região.\n2. Organizamos o canal de contato para que a pessoa fale diretamente com vocês com o mínimo de atrito.\n3. Acompanhamos semanalmente quais canais trazem contatos reais de orçamento.\n\nPosso te mostrar como isso se aplicaria no cenário da ${companyName}?`,
       objecao_provavel: "Já temos alguém que cuida disso.",
-      resposta_sugerida: "Excelente! Nesse caso, nosso foco seria apenas complementar o trabalho atual ou fornecer dados adicionais de mercado.",
+      resposta_sugerida: "Excelente! Nesse caso, nossa proposta é somar ao trabalho atual ou trazer dados de demanda que vocês ainda não estejam explorando.",
       cta: "Quer que eu envie esse resumo por aqui?",
     },
     {
       dia: 6,
-      canal: "instagram",
-      titulo_dia: "Dia 6 — Validação Respeitosa de Momento e Prioridade",
-      objetivo: "Confirmar se o tema é prioridade no momento ou se deve ficar para uma etapa futura",
-      acao_sugerida: "Enviar pergunta curta validando o timing comercial da empresa",
-      explicacao_tarefa: "Pergunte com transparência se faz sentido avaliar o tema neste mês ou se a empresa está focada em outra prioridade.",
+      canal: "whatsapp",
+      titulo_dia: "Dia 6 — Pergunta de Timing Comercial",
+      objetivo: "Validar se a empresa está no momento certo para contratação sem pressionar",
+      acao_sugerida: "Fazer pergunta sincera sobre a prioridade do negócio no mês",
+      explicacao_tarefa: "Dê saída honrosa caso o momento não seja propício. Respeite a decisão do empresário.",
       defaultMessage: `Oi, pessoal da ${companyName}! Só uma pergunta sincera sobre timing: vocês estão buscando novas frentes de captação de clientes neste mês ou a prioridade do negócio agora é outra?\n\nPergunto apenas para não tomar o tempo de vocês caso o momento não seja esse.`,
       objecao_provavel: "O momento agora não é esse.",
-      resposta_sugerida: "Perfeito! Obrigado pela transparência. Fico à disposição para quando surgir a necessidade.",
+      resposta_sugerida: "Perfeito! Agradeço a transparência. Fico à disposição para quando fizer sentido para vocês.",
       cta: "Podemos manter o contato para o futuro?",
     },
     {
       dia: 7,
       canal: "whatsapp",
-      titulo_dia: "Dia 7 — Encerramento Elegante e Portas Abertas",
-      objetivo: "Encerrar a sequência com profissionalismo e respeito, sem pressão e mantendo o canal aberto",
-      acao_sugerida: "Enviar mensagem cordial de encerramento e atualizar o status no CRM",
-      explicacao_tarefa: "Encerre o ciclo cordialmente. Não faça apelos emocionais nem demonstre frustração.",
+      titulo_dia: "Dia 7 — Encerramento Educado e Respeitoso",
+      objetivo: "Finalizar o ciclo de tentativas de forma profissional, mantendo portas abertas para contato futuro",
+      acao_sugerida: "Agradecer a atenção e avisar que não haverá novas mensagens no momento",
+      explicacao_tarefa: "Deixe seu contato disponível e encerre o ciclo sem ressentimento ou pressão.",
       defaultMessage: `Olá, ${companyName}! Vou encerrar meus contatos por aqui para não insistir na sua rotina.\n\nSe em algum momento fizer sentido conversar sobre ${service} para ${niche}, meu contato fica à disposição.\n\nDesejo muito sucesso aos negócios de vocês em ${city}!`,
       objecao_provavel: "Obrigado pelo contato!",
       resposta_sugerida: "Disponha! Bom trabalho para vocês por aí.",
@@ -503,10 +602,11 @@ export function buildIntelligentPlan({
     },
   ];
 
+  // Adaptação dos dias conforme o estágio real do lead
   const adaptedDays: PlanoProspeccaoDia[] = blueprints.map((blueprint) => {
-    const existingDay = basePlanRaw.find((item) => Number(item.dia) === blueprint.dia);
+    const existingDay = basePlanRaw.find((d) => d.dia === blueprint.dia);
     const isCompleted = completedSet.has(blueprint.dia);
-    const isCurrentActiveDay = blueprint.dia === firstUncompletedDay;
+    const isCurrentActiveDay = firstUncompletedDay === blueprint.dia;
 
     // Caso de Opt-out / Recusa: bloqueio imediato
     if (isOptedOutOrRefused) {
@@ -533,6 +633,7 @@ export function buildIntelligentPlan({
         ...existingDay,
         dia: blueprint.dia,
         canal: blueprint.canal,
+        titulo: `${blueprint.titulo_dia} (Arquivado — Fora de Perfil)`,
         titulo_dia: `${blueprint.titulo_dia} (Arquivado — Fora de Perfil)`,
         objetivo: "Lead arquivado por falta de aderência comercial.",
         acao_sugerida: "NÃO ENVIAR MENSAGEM — Lead descartado da fila prioritária.",
@@ -612,15 +713,30 @@ export function buildIntelligentPlan({
       ? "disponivel"
       : "pendente";
 
-    // Preserva mensagem existente salva pelo usuário, se houver
-    const finalMessage = existingDay?.mensagem && existingDay.mensagem.trim().length > 10
-      ? existingDay.mensagem
-      : blueprint.defaultMessage;
+    // Preservação de edições manuais do usuário (Inviolabilidade)
+    const hasCustomEdit = Boolean(existingDay?.is_custom_edited);
+    const existingMsg = existingDay?.mensagem?.trim() || "";
+
+    let finalMessage = blueprint.defaultMessage;
+    let isCustomPreserved = false;
+
+    if (hasCustomEdit && existingMsg.length > 5) {
+      // PRESERVAÇÃO TOTAL: edições manuais do usuário são invioláveis
+      finalMessage = existingDay!.mensagem;
+      isCustomPreserved = true;
+    } else if (!forceUpdateOldCopies && existingMsg.length > 10) {
+      // Se não for forçada a atualização e não houver clichês proibidos antigos, mantém
+      const audit = auditMessageNaturalness(existingMsg);
+      if (!audit.hasBannedPhrases) {
+        finalMessage = existingDay!.mensagem;
+      }
+    }
 
     return {
       ...existingDay,
       dia: blueprint.dia,
       canal: blueprint.canal,
+      titulo: blueprint.titulo_dia,
       titulo_dia: blueprint.titulo_dia,
       objetivo: blueprint.objetivo,
       acao_sugerida: blueprint.acao_sugerida,
@@ -631,6 +747,8 @@ export function buildIntelligentPlan({
       objecao_provavel: blueprint.objecao_provavel,
       resposta_sugerida: blueprint.resposta_sugerida,
       cta: blueprint.cta,
+      is_custom_edited: isCustomPreserved || existingDay?.is_custom_edited,
+      edited_at: existingDay?.edited_at,
     };
   });
 
@@ -664,6 +782,7 @@ export function buildIntelligentPlan({
   }
 
   const isBlocked = isOptedOutOrRefused || isDiscardedWithoutOptOut;
+  const structuredDiag = buildStructuredDiagnosis(lead, service);
 
   return {
     leadId: lead.id || companyName,
@@ -676,8 +795,9 @@ export function buildIntelligentPlan({
     proximaAcaoGlobal,
     resumoContinuidade,
     days: adaptedDays,
-    diagnostico: buildStructuredDiagnosis(lead, service).diagnostico,
-    probabilidade: buildStructuredDiagnosis(lead, service).probabilidade,
+    diagnostico: structuredDiag.diagnostico,
+    compatibilidade: structuredDiag.compatibilidade,
+    probabilidade: structuredDiag.probabilidade,
   };
 }
 
@@ -691,6 +811,7 @@ export function getSdrMessageFromPlan(
   userServiceName = "gestão de tráfego e presença digital"
 ): {
   message: string;
+  text: string;
   canal: "whatsapp" | "email" | "instagram";
   assuntoEmail: string;
   acaoSugerida: string;
@@ -698,6 +819,7 @@ export function getSdrMessageFromPlan(
   isOptedOut: boolean;
   dayNumber: number;
   totalDays: number;
+  isCustomEdited: boolean;
 } {
   const planResult = buildIntelligentPlan({
     lead,
@@ -711,7 +833,7 @@ export function getSdrMessageFromPlan(
   let assuntoEmail = targetDay?.assunto_email || "";
   let message = targetDay?.mensagem || "";
 
-  // Se a mensagem contiver "Assunto: ...", extrai para o campo de assunto de forma limpa
+  // Se a mensagem contiver "Assunto: ...", extrai para o campo de assunto de forma limpa (compatibilidade com planos legados)
   if (message.startsWith("Assunto:")) {
     const parts = message.split(/\n\n|\r\n\r\n/);
     if (parts.length >= 2) {
@@ -734,6 +856,7 @@ export function getSdrMessageFromPlan(
     isOptedOut,
     dayNumber: targetDay?.dia || dayNumber,
     totalDays: planResult.days.length,
+    isCustomEdited: Boolean(targetDay?.is_custom_edited),
   };
 }
 

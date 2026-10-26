@@ -1,5 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  digitalSignalsForPersistence,
+  emptySiteSignals,
+  SITE_HTML_INSPECTION_ENABLED,
+  type SiteSignals,
+  unknownSiteSignals,
+} from "../_shared/site-inspection.ts";
 import { emitZanotelliProductEvent, type ZanotelliProductEventName } from "../_shared/zanotelli-inbound-bridge.ts";
 
 // ============= CORS HELPER =============
@@ -1423,23 +1430,16 @@ serve(async (req) => {
           }
           
           // Analisa o site se houver website (com timeout)
-          let siteSignals = {
-            whatsapp_on_site: false,
-            whatsapp_number: null as string | null,
-            has_meta_pixel: false,
-            has_gtag: false,
-            has_gtm: false,
-            instagram_url: null as string | null,
-            email: null as string | null,
-          };
+          // Inspecao de HTML suspensa (mitigacao SSRF): sinais ficam desconhecidos (null)
+          let siteSignals: SiteSignals = SITE_HTML_INSPECTION_ENABLED ? emptySiteSignals() : unknownSiteSignals();
 
-          if (details.website) {
+          if (SITE_HTML_INSPECTION_ENABLED && details.website) {
             try {
               const signalsPromise = analyzeSiteHTML(details.website);
               const timeoutPromise = new Promise((_, reject) => 
                 setTimeout(() => reject(new Error('Timeout')), 5000)
               );
-              siteSignals = await Promise.race([signalsPromise, timeoutPromise]) as typeof siteSignals;
+              siteSignals = await Promise.race([signalsPromise, timeoutPromise]) as SiteSignals;
             } catch (error) {
               console.log(`Timeout ou erro ao analisar site ${details.website}`);
             }
@@ -1457,7 +1457,7 @@ serve(async (req) => {
             p_encryption_key: encryptionKey,
             p_nome: details.name,
             p_cidade: body.cidade,
-            p_digital_signals: siteSignals,
+            p_digital_signals: digitalSignalsForPersistence(siteSignals, SITE_HTML_INSPECTION_ENABLED),
             p_email: siteSignals.email,
             p_endereco: details.formatted_address,
             p_foco: body.foco,

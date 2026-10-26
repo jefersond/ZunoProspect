@@ -26,6 +26,7 @@ import type { LeadProspeccao } from "@/types/lead";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { normalizeLeadForAI, normalizePlanoProspeccao, normalizeDiagnosticoBullets } from "@/utils/normalizeLead";
+import { buildIntelligentPlan } from "@/services/intelligentSevenDayPlan";
 import { refineWithAI } from "@/services/refineWithAI";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
@@ -110,6 +111,59 @@ export const LeadPlanDialog = ({
   onStatusChange 
 }: LeadPlanDialogProps) => {
   const [isReanalyzing, setIsReanalyzing] = useState(false);
+  const [isUpdatingCopiesLocally, setIsUpdatingCopiesLocally] = useState(false);
+
+  const handleUpdateCopiesLocally = async () => {
+    if (!displayLead) return;
+    setIsUpdatingCopiesLocally(true);
+
+    try {
+      const updatedPlanResult = buildIntelligentPlan({
+        lead: displayLead,
+        userServiceName: displayLead.foco,
+        existingPlan: displayLead.plano_prospecao_7dias,
+        forceUpdateOldCopies: true,
+      });
+
+      const newDays = updatedPlanResult.days;
+      const newDiagnostico = updatedPlanResult.diagnostico;
+
+      if (displayLead.id) {
+        await supabase
+          .from("leads")
+          .update({
+            plano_prospeccao: newDays,
+            diagnostico_bullets: newDiagnostico,
+          })
+          .eq("id", displayLead.id);
+      }
+
+      const updatedLeadData: LeadProspeccao = {
+        ...displayLead,
+        plano_prospecao_7dias: newDays,
+        diagnostico_bullets: newDiagnostico,
+      };
+
+      setCurrentLead(updatedLeadData);
+      onLeadRefined?.(updatedLeadData);
+      onLeadUpdate?.();
+
+      toast({
+        title: "Cópias do plano atualizadas!",
+        description: "Plano atualizado para o novo padrão de copy humana sem consumir saldo de IA. Edições personalizadas foram preservadas.",
+      });
+    } catch (err) {
+      console.error("Erro ao atualizar cópias localmente:", err);
+      toast({
+        title: "Erro ao atualizar cópias",
+        description: "Não foi possível atualizar as cópias localmente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingCopiesLocally(false);
+    }
+  };
+
   const [refineError, setRefineError] = useState<RefineErrorPayload | null>(null);
   const activeRequestRef = useRef(false);
   const recentlyTrackedLimitBlockRef = useRef<Record<string, number>>({});
@@ -577,7 +631,7 @@ export const LeadPlanDialog = ({
 
         transformedLead = {
           ...lead,
-          probabilidade_conversao: probVal > 0 ? probVal : 85,
+          probabilidade_conversao: probVal > 0 ? probVal : null,
           plano_prospecao_7dias: planoDias,
           diagnostico_bullets: bullets,
           status: "analisado",
@@ -889,7 +943,7 @@ export const LeadPlanDialog = ({
                 lead={displayLead}
                 onExecuteInSdr={handleOpenSdrWithDay}
                 diagnostico={normalizeDiagnosticoBullets(displayLead.diagnostico_bullets, displayLead)}
-                probabilidade={displayLead.probabilidade_conversao || 85}
+                probabilidade={displayLead.probabilidade_conversao ?? null}
                 plano={normalizePlanoProspeccao(displayLead.plano_prospecao_7dias && displayLead.plano_prospecao_7dias.length > 0 ? displayLead.plano_prospecao_7dias : (displayLead as any).plano_prospeccao)}
                 geradoEm={displayLead.ai_analise_gerada_em}
                 onReanalyze={refineError ? undefined : handleReanalyze}

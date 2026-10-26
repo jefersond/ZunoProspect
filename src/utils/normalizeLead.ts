@@ -281,9 +281,9 @@ export function normalizeDiagnosticoBullets(bullets: any, lead?: any): string[] 
     list = [
       `${nome} atua no segmento de ${nicho} em ${cidade}.`,
       hasWeb || revCount
-        ? `Presença observada: ${hasWeb ? "website ativo" : "sem site informado"} e ${revCount ? `${revCount} avaliações no Google (${ratVal || 5} estrelas)` : "sem avaliações identificadas"}.`
+        ? `Presença observada: ${hasWeb ? "URL informada no perfil público (requer conferência manual de atividade)" : "sem site cadastrado"} e ${revCount ? `${revCount} avaliações no Google (${ratVal || 5} estrelas)` : "sem avaliações identificadas"}.`
         : "Poucos ativos digitais públicos disponíveis; a abordagem inicial deve validar canais e responsável antes de aprofundar.",
-      `Ângulo para ${foco}: validar se a entrada de novos clientes hoje acontece de forma previsível ou se oscila ao longo do mês.`,
+      `Possibilidade de abordagem para ${foco}: avaliar se a entrada de novos clientes hoje acontece de forma previsível ou se oscila ao longo do mês.`,
       "Próxima ação recomendada: enviar abertura curta e consultiva no canal comercial principal, sem promessas agressivas."
     ];
   }

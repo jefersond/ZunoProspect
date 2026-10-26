@@ -106,17 +106,17 @@ function fallbackAnalysis(lead: any) {
   const diag = [
     `${lead.nome} atua no segmento de ${niche}${cityPhrase}.`,
     hasWeb || hasReviews
-      ? `Sinais observados: ${hasWeb ? "website ativo informado" : "sem website cadastrado nos dados públicos"} e ${hasReviews ? `${revCount} avaliações no Google (${rating || 5} estrelas)` : "sem avaliações identificadas publicamente"}.`
+      ? `Sinais observados: ${hasWeb ? "URL informada no perfil público (requer conferência manual de funcionamento)" : "sem website cadastrado nos dados públicos"} e ${hasReviews ? `${revCount} avaliações no Google (${rating || 5} estrelas)` : "sem avaliações identificadas publicamente"}.`
       : "Poucos ativos digitais públicos mapeados; a abordagem inicial deve validar o responsável comercial antes de aprofundar.",
     s.includes("site") || s.includes("landing") || s.includes("web")
       ? hasWeb
-        ? "Hipótese comercial: validar se a página atual facilita o contato imediato no WhatsApp de quem pesquisa pelo serviço no celular."
-        : "Hipótese comercial: oportunidade de estruturar uma página simples no Google para receber contatos comerciais diretos da cidade."
+        ? "Possibilidade comercial: avaliar se a página cadastrada facilita o contato imediato no WhatsApp de quem pesquisa pelo serviço no celular."
+        : "Possibilidade comercial: avaliar oportunidade de estruturar uma página simples no Google para receber contatos comerciais diretos da cidade."
       : s.includes("social") || s.includes("instagram") || s.includes("conteúdo")
-      ? "Hipótese comercial: oportunidade de alinhar a comunicação digital para transformar interesse local em conversas comerciais diretas."
+      ? "Possibilidade comercial: avaliar oportunidade de alinhar a comunicação digital para transformar interesse local em conversas comerciais diretas."
       : s.includes("crm") || s.includes("automação") || s.includes("atendimento")
-      ? "Hipótese comercial: validar como a empresa organiza o fluxo de mensagens no WhatsApp para evitar atrasos no atendimento a novos orçamentos."
-      : `Hipótese comercial para ${foco}: validar se a entrada de novos clientes hoje acontece com previsibilidade ou se oscila bastante ao longo do mês.`,
+      ? "Possibilidade comercial: avaliar como a empresa organiza o fluxo de mensagens no WhatsApp para evitar atrasos no atendimento a novos orçamentos."
+      : `Possibilidade comercial para ${foco}: avaliar se a entrada de novos clientes hoje acontece com previsibilidade ou se oscila bastante ao longo do mês.`,
     "Próximo passo útil: enviar abertura curta e consultiva focada na rotina comercial da empresa, sem promessas agressivas nem alegações não verificadas.",
   ];
 

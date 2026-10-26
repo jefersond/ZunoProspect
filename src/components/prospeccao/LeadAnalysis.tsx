@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Brain, Check, Copy, Instagram, Mail, MessageSquare, RefreshCw, TrendingUp } from "lucide-react";
+import { Brain, Check, CheckCircle2, Copy, Info, Instagram, Mail, MessageSquare, RefreshCw, Sparkles } from "lucide-react";
+import { buildStructuredDiagnosis, type ExplorableCompatibility } from "@/services/intelligentSevenDayPlan";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,7 +84,7 @@ export const LeadAnalysis = ({
     );
   };
 
-  if (!diagnostico || !probabilidade || !plano) {
+  if (!diagnostico || !plano || plano.length === 0) {
     return (
       <div className="space-y-4 mt-4">
         <Card>
@@ -95,6 +96,15 @@ export const LeadAnalysis = ({
       </div>
     );
   }
+
+  const getCompatibilityBadgeClass = (level?: string) => {
+    if (level === "alta") return "text-emerald-400 bg-emerald-500/10 border-emerald-500/30 font-medium";
+    if (level === "media") return "text-blue-400 bg-blue-500/10 border-blue-500/30 font-medium";
+    if (level === "basica") return "text-amber-400 bg-amber-500/10 border-amber-500/30 font-medium";
+    return "text-muted-foreground bg-muted/40 border-border/50 font-medium";
+  };
+
+  const effectiveCompat = compatibilidade || (lead ? buildStructuredDiagnosis(lead, lead.foco).compatibilidade : null);
 
   const getProbabilidadeColor = (prob: number) => {
     if (prob >= 70) return "text-green-600 bg-green-50 border-green-200";
@@ -119,6 +129,19 @@ export const LeadAnalysis = ({
                   </CardDescription>
                 )}
               </div>
+                            {onUpdateCopiesLocally && (
+                <Button
+                  onClick={onUpdateCopiesLocally}
+                  disabled={isUpdatingCopiesLocally}
+                  variant="outline"
+                  size="sm"
+                  className="border-primary/20 text-xs hover:bg-primary/10 gap-1.5"
+                  title="Atualiza todas as cópias do plano para o novo padrão humano sem consumir créditos de IA. Mensagens já editadas por você são mantidas."
+                >
+                  <Sparkles className={`h-3.5 w-3.5 text-primary ${isUpdatingCopiesLocally ? "animate-spin" : ""}`} />
+                  {isUpdatingCopiesLocally ? "Atualizando..." : "Atualizar Cópias (R$ 0,00)"}
+                </Button>
+              )}
               {onReanalyze && (
                 <TooltipProvider>
                   <Tooltip>
@@ -155,20 +178,43 @@ export const LeadAnalysis = ({
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Probabilidade de Conversao
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-center py-8">
-            <div className="text-center">
-              <div className={`text-6xl font-bold ${getProbabilidadeColor(probabilidade).split(" ")[0]}`}>
-                {probabilidade}%
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                  <CheckCircle2 className="h-4 w-4 text-primary" />
+                  Alinhamento Cadastral para Abordagem
+                </CardTitle>
+                <CardDescription className="text-xs mt-0.5">
+                  Critérios observáveis em dados públicos (não constitui percentual estatístico de fechamento)
+                </CardDescription>
               </div>
-              <Badge className={`mt-3 ${getProbabilidadeColor(probabilidade)}`} variant="outline">
-                {probabilidade >= 70 ? "Alta Probabilidade" : probabilidade >= 40 ? "Probabilidade Media" : "Baixa Probabilidade"}
+              <Badge variant="outline" className={getCompatibilityBadgeClass(effectiveCompat?.level)}>
+                {effectiveCompat?.label || "Compatibilidade não determinada"}
               </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-0">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {effectiveCompat?.description || "Dados públicos insuficientes para estimar a prontidão da abordagem cadastral."}
+            </p>
+
+            <div className="space-y-2 pt-1 border-t border-border/40">
+              {effectiveCompat?.criteria.map((c, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  {c.status === "atendido" ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                  ) : c.status === "parcial" ? (
+                    <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                  ) : (
+                    <span className="text-muted-foreground/60 shrink-0 font-bold mt-0.5">•</span>
+                  )}
+                  <div className="leading-snug">
+                    <span className="font-medium text-foreground">{c.label}: </span>
+                    <span className="text-muted-foreground">{c.detail}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -238,6 +284,13 @@ export const LeadAnalysis = ({
                       <p className="text-sm text-purple-900 dark:text-purple-300 font-medium">
                         {dia.acao_sugerida}
                       </p>
+                    </div>
+                  )}
+
+                  {dia.assunto_email && (
+                    <div className="bg-slate-100 dark:bg-slate-900 px-3 py-2 rounded-md border border-slate-200 dark:border-slate-800 text-xs">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">Assunto sugerido: </span>
+                      <span className="text-slate-900 dark:text-slate-200 font-medium">{dia.assunto_email}</span>
                     </div>
                   )}
 

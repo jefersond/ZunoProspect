@@ -271,6 +271,32 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
     });
   };
 
+  const handleResetDayToStandard = () => {
+    if (!lead) return;
+    const standardPlan = buildIntelligentPlan({
+      lead,
+      userServiceName: lead.foco,
+      forceUpdateOldCopies: true,
+    });
+    const standardDay = standardPlan.days.find((d) => d.dia === selectedDay);
+    if (standardDay) {
+      setEditedDaysMessage((prev) => ({
+        ...prev,
+        [selectedDay]: standardDay.mensagem,
+      }));
+      if (standardDay.assunto_email) {
+        setEditedDaysSubject((prev) => ({
+          ...prev,
+          [selectedDay]: standardDay.assunto_email!,
+        }));
+      }
+      toast({
+        title: "Padrão restaurado",
+        description: `Mensagem do Dia ${selectedDay} redefinida para a copy padrão humana.`,
+      });
+    }
+  };
+
   const handleSavePlanEdits = async () => {
     if (!lead) return;
     setIsSavingPlan(true);

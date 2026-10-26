@@ -116,6 +116,12 @@ export const LeadPlanDialog = ({
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [currentLead, setCurrentLead] = useState(lead);
   const [isSdrModalOpen, setIsSdrModalOpen] = useState(false);
+  const [sdrInitialDay, setSdrInitialDay] = useState<number>(1);
+
+  const handleOpenSdrWithDay = (day: number) => {
+    setSdrInitialDay(day);
+    setIsSdrModalOpen(true);
+  };
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [notes, setNotes] = useState(lead?.notas || "");
   const [isSavingNotes, setIsSavingNotes] = useState(false);
@@ -861,6 +867,7 @@ export const LeadPlanDialog = ({
                 </div>
                 <LeadAnalysis
                   lead={displayLead}
+                  onExecuteInSdr={handleOpenSdrWithDay}
                   diagnostico={[
                     pendingAnalysis.opportunity_summary,
                     pendingAnalysis.possible_pain,
@@ -880,6 +887,7 @@ export const LeadPlanDialog = ({
             ) : (
               <LeadAnalysis
                 lead={displayLead}
+                onExecuteInSdr={handleOpenSdrWithDay}
                 diagnostico={normalizeDiagnosticoBullets(displayLead.diagnostico_bullets, displayLead)}
                 probabilidade={displayLead.probabilidade_conversao || 85}
                 plano={normalizePlanoProspeccao(displayLead.plano_prospecao_7dias && displayLead.plano_prospecao_7dias.length > 0 ? displayLead.plano_prospecao_7dias : (displayLead as any).plano_prospeccao)}
@@ -902,6 +910,8 @@ export const LeadPlanDialog = ({
         lead={displayLead}
         open={isSdrModalOpen}
         onOpenChange={setIsSdrModalOpen}
+        initialDay={sdrInitialDay}
+        onRequestRefine={refineError ? undefined : handleReanalyze}
         onStatusUpdated={(leadId, newStatus) => {
           handleStatusChange(newStatus);
           onLeadUpdate?.();

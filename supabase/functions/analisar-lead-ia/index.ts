@@ -88,82 +88,101 @@ function signals(lead: any) {
 }
 
 function fallbackAnalysis(lead: any) {
-  const city = lead.cidade && !lead.cidade.includes("não inform") ? ` em ${lead.cidade}` : "";
+  const city = lead.cidade && !lead.cidade.includes("não inform") ? lead.cidade : "sua região";
+  const cityPhrase = lead.cidade && !lead.cidade.includes("não inform") ? ` em ${lead.cidade}` : "";
+  const niche = lead.nicho || "seu segmento";
+  const foco = (lead.foco || "Full Service").replace(/zuno_internal_prospecting/g, "Oportunidade comercial");
+  const s = foco.toLowerCase();
+
   const channels = availableChannels(lead);
   const channelAt = (i: number) => channels[i % channels.length] || "whatsapp";
   const score = Math.min(86, 35 + (lead.website ? 12 : 0) + (lead.instagram ? 10 : 0) + (lead.phone ? 12 : 0) + (lead.email ? 8 : 0) + (lead.rating !== null ? 6 : 0));
-  const hasTracking = lead.has_meta_pixel || lead.has_gtag || lead.has_gtm;
+
+  const hasWeb = Boolean(lead.website && String(lead.website).trim().length > 4);
+  const revCount = typeof lead.reviews === "number" ? lead.reviews : null;
+  const rating = typeof lead.rating === "number" ? lead.rating : null;
+  const hasReviews = Boolean(revCount && revCount > 0);
 
   const diag = [
-    `${lead.nome} atua em ${lead.nicho}${city} e apresenta sinais suficientes para uma abordagem comercial contextualizada.`,
-    lead.website || lead.instagram ? "A presença digital disponível cria pontos concretos para iniciar conversa sem depender de uma mensagem genérica." : "Como há poucos ativos digitais informados, a abordagem deve começar por uma pergunta de diagnóstico e não por uma afirmação sobre o negócio.",
-    hasTracking ? "Os sinais de mensuração detectados sugerem alguma maturidade digital e abrem espaço para conversar sobre aquisição, conversão e acompanhamento." : "Nos dados disponíveis, não há sinais claros de mensuração; vale validar como a empresa acompanha a origem e a qualidade dos contatos.",
-    "O melhor próximo passo é abrir uma conversa curta, validar o processo atual e só depois apresentar uma solução específica para o foco escolhido.",
+    `${lead.nome} atua no segmento de ${niche}${cityPhrase}.`,
+    hasWeb || hasReviews
+      ? `Sinais observados: ${hasWeb ? "website ativo informado" : "sem website cadastrado nos dados públicos"} e ${hasReviews ? `${revCount} avaliações no Google (${rating || 5} estrelas)` : "sem avaliações identificadas publicamente"}.`
+      : "Poucos ativos digitais públicos mapeados; a abordagem inicial deve validar o responsável comercial antes de aprofundar.",
+    s.includes("site") || s.includes("landing") || s.includes("web")
+      ? hasWeb
+        ? "Hipótese comercial: validar se a página atual facilita o contato imediato no WhatsApp de quem pesquisa pelo serviço no celular."
+        : "Hipótese comercial: oportunidade de estruturar uma página simples no Google para receber contatos comerciais diretos da cidade."
+      : s.includes("social") || s.includes("instagram") || s.includes("conteúdo")
+      ? "Hipótese comercial: oportunidade de alinhar a comunicação digital para transformar interesse local em conversas comerciais diretas."
+      : s.includes("crm") || s.includes("automação") || s.includes("atendimento")
+      ? "Hipótese comercial: validar como a empresa organiza o fluxo de mensagens no WhatsApp para evitar atrasos no atendimento a novos orçamentos."
+      : `Hipótese comercial para ${foco}: validar se a entrada de novos clientes hoje acontece com previsibilidade ou se oscila bastante ao longo do mês.`,
+    "Próximo passo útil: enviar abertura curta e consultiva focada na rotina comercial da empresa, sem promessas agressivas nem alegações não verificadas.",
   ];
 
   const days = [
     {
       dia: 1,
       canal: channelAt(0),
-      acao_sugerida: "Enviar uma abertura curta e contextualizada.",
-      mensagem: `Olá, ${lead.nome}, tudo bem? Vi que vocês atuam com ${lead.nicho}${city} e fiquei com uma dúvida rápida: hoje a entrada de novos contatos comerciais acontece de forma previsível ou depende mais de indicação e procura espontânea?`,
-      objecao_provavel: "Agora não é prioridade.",
-      resposta_sugerida: "Sem problema. Minha ideia é só entender o cenário antes de sugerir qualquer coisa.",
-      cta: "Posso te mandar uma observação objetiva?",
+      acao_sugerida: "Enviar abertura curta no WhatsApp focada na rotina comercial.",
+      mensagem: `Oi, ${lead.nome}! Tudo bem?\n\nEncontrei o contato público de vocês pesquisando empresas de ${niche}${cityPhrase}.\n\nAtuo com ${foco} e queria te fazer uma pergunta rápida: hoje a entrada de novos clientes aí acontece de forma constante ou oscila bastante ao longo do mês?\n\nSe preferirem não receber contato, sem problemas.`,
+      objecao_provavel: "Quem é você e como conseguiu nosso número?",
+      resposta_sugerida: `Atuo com ${foco} para negócios de ${niche} e localizei o contato público da ${lead.nome} na pesquisa local de ${city}.`,
+      cta: "Hoje a demanda de novos clientes oscila muito ao longo do mês?",
     },
     {
       dia: 2,
       canal: channelAt(1),
-      acao_sugerida: "Retomar com uma pergunta sobre o processo atual.",
-      mensagem: `Oi, ${lead.nome}. Complementando minha mensagem: quando chega uma nova oportunidade, vocês já têm um processo definido para transformar esse interesse em conversa comercial?`,
-      objecao_provavel: "Já temos um processo.",
-      resposta_sugerida: "Ótimo. Nesse caso, vale comparar apenas um ponto específico para ver se existe espaço de melhoria.",
-      cta: "Faz sentido eu te mostrar esse ponto?",
+      acao_sugerida: "Compartilhar observação real sobre o segmento local sem intimidade falsa.",
+      mensagem: `Oi, equipe da ${lead.nome}! Tudo bem?\n\nEstava analisando o mercado de ${niche}${cityPhrase}. Em ${foco}, costumo notar que muitas empresas têm boa reputação na região, mas poderiam receber mais contatos diretos de quem já pesquisa ativamente pelo serviço na internet.\n\nVocês têm interesse em avaliar como estruturar essa captação local?`,
+      objecao_provavel: "Não temos interesse no momento.",
+      resposta_sugerida: "Compreendo perfeitamente! Fico à disposição se em outro momento isso for prioridade.",
+      cta: "Faz sentido avaliarmos isso em 5 minutos?",
     },
     {
       dia: 3,
       canal: channelAt(2),
-      acao_sugerida: "Compartilhar uma ideia prática ligada ao foco selecionado.",
-      mensagem: `Pensei em uma ideia simples para ${lead.nicho}: usar os sinais que vocês já têm online para priorizar melhor quem abordar e qual argumento usar na primeira conversa.`,
-      objecao_provavel: "Como isso funcionaria?",
-      resposta_sugerida: "A lógica é partir de dados reais da empresa e transformar isso em uma abordagem curta, específica e fácil de validar.",
-      cta: "Quer que eu te dê um exemplo aplicado ao seu caso?",
+      acao_sugerida: "Enviar e-mail ou mensagem curta com hipótese comercial clara, sem jargões.",
+      mensagem: `Assunto: Pergunta rápida sobre captação de clientes - ${lead.nome}\n\nOlá, equipe da ${lead.nome}!\n\nEntrei em contato recentemente porque trabalho com ${foco} voltado para ${niche}${cityPhrase}.\n\nA ideia é bem direta: em vez de depender apenas de indicações ocasionais, estruturar uma rotina clara para que pessoas da cidade encontrem a empresa no momento em que precisam dos seus serviços.\n\nFaz sentido conversarmos 5 minutos sobre isso esta semana?`,
+      objecao_provavel: "Qual é o valor do investimento?",
+      resposta_sugerida: "O investimento varia conforme o objetivo de captação da empresa. Minha ideia inicial é só entender o cenário de vocês para ver se faz sentido.",
+      cta: "Consegue falar 5 minutos esta semana?",
     },
     {
       dia: 4,
-      canal: "email",
-      acao_sugerida: "Enviar e-mail curto com contexto, impacto e pergunta.",
-      mensagem: `Assunto: Uma observação sobre ${lead.nome}\n\nOlá! Olhando os dados públicos de ${lead.nome}, vi uma oportunidade de tornar a entrada de novas conversas mais previsível sem começar por uma mudança grande. A ideia é identificar onde existe interesse, priorizar melhor as oportunidades e abrir contato com mais contexto.\n\nFaz sentido eu te enviar um exemplo prático?`,
-      objecao_provavel: "Pode mandar mais informações.",
-      resposta_sugerida: "Claro. Vou manter objetivo e mostrar apenas o ponto principal para você avaliar rápido.",
-      cta: "Posso enviar por aqui?",
+      canal: "whatsapp",
+      acao_sugerida: "Acompanhamento leve com pergunta prática, sem cobrança passiva.",
+      mensagem: `Oi, ${lead.nome}! Tudo bem?\n\nImagino que a rotina aí${cityPhrase} seja corrida. Só retomando de forma bem prática: hoje o maior desafio de vocês está em atrair novas oportunidades ou em converter os contatos que já chegam?\n\nSe não fizer sentido falar sobre isso agora, é só me avisar.`,
+      objecao_provavel: "Estamos sem tempo para ver isso agora.",
+      resposta_sugerida: "Sem problemas! Quando a rotina estiver mais tranquila, me avise por aqui.",
+      cta: "Prefere que eu retome contato no próximo mês?",
     },
     {
       dia: 5,
-      canal: channelAt(4),
-      acao_sugerida: "Fazer uma pergunta de qualificação.",
-      mensagem: `Uma pergunta direta, ${lead.nome}: hoje o maior gargalo está em encontrar novas oportunidades, iniciar a conversa ou acompanhar quem já demonstrou interesse?`,
-      objecao_provavel: "Não sei dizer.",
-      resposta_sugerida: "Tudo certo. Dá para descobrir olhando onde o processo mais perde tempo ou contatos.",
-      cta: "Quer que eu te mande um checklist rápido?",
+      canal: "email",
+      acao_sugerida: "Apresentar os 3 passos práticos da solução sem inventar estudos de caso.",
+      mensagem: `Assunto: 3 pontos práticos para captação local - ${lead.nome}\n\nOlá!\n\nPara ser bem direto e prático sobre como trabalho com ${foco} para ${niche}:\n\n1. Mapeamos os termos e serviços que os clientes mais procuram em ${city}.\n2. Organizamos o canal de contato para que a pessoa fale diretamente com vocês com o mínimo de atrito.\n3. Acompanhamos semanalmente quais canais trazem contatos reais de orçamento.\n\nPosso te mostrar como isso se aplicaria no cenário da ${lead.nome}?`,
+      objecao_provavel: "Já temos alguém que cuida disso internamente.",
+      resposta_sugerida: "Excelente! Nesse caso, nosso foco seria apenas complementar o trabalho atual ou fornecer dados adicionais de mercado.",
+      cta: "Quer que eu envie esse resumo por aqui?",
     },
     {
       dia: 6,
       canal: channelAt(5),
-      acao_sugerida: "Tratar a objeção sem pressionar.",
-      mensagem: `Se a preocupação for adicionar mais uma ferramenta ou processo, faz sentido. A proposta só vale se reduzir trabalho manual e deixar a rotina comercial mais simples, não o contrário.`,
-      objecao_provavel: "Não quero mais uma ferramenta.",
-      resposta_sugerida: "Concordo. Só faz sentido se economizar tempo e encaixar no que vocês já fazem hoje.",
-      cta: "Quer ver um exemplo antes de decidir?",
+      acao_sugerida: "Validar respeitosamente o timing comercial da empresa.",
+      mensagem: `Oi, pessoal da ${lead.nome}! Só uma pergunta sincera sobre timing: vocês estão buscando novas frentes de captação de clientes neste mês ou a prioridade do negócio agora é outra?\n\nPergunto apenas para não tomar o tempo de vocês caso o momento não seja esse.`,
+      objecao_provavel: "O momento agora não é esse.",
+      resposta_sugerida: "Perfeito! Obrigado pela transparência. Fico à disposição para quando surgir a necessidade.",
+      cta: "Podemos manter o contato para o futuro?",
     },
     {
       dia: 7,
-      canal: channelAt(6),
-      acao_sugerida: "Encerrar a cadência de forma respeitosa.",
-      mensagem: `Olá, ${lead.nome}. Vou encerrar meus contatos por aqui para não insistir. Se em outro momento fizer sentido revisar como vocês geram e acompanham novas conversas comerciais, fico à disposição.`,
-      objecao_provavel: "Talvez mais para frente.",
-      resposta_sugerida: "Combinado. Quando fizer sentido, retomamos sem problema.",
-      cta: "Posso deixar o contato aberto para depois?",
+      canal: "whatsapp",
+      acao_sugerida: "Encerrar o ciclo de forma cordial, sem pressão e mantendo portas abertas.",
+      mensagem: `Olá, ${lead.nome}! Vou encerrar meus contatos por aqui para não insistir na sua rotina.\n\nSe em algum momento fizer sentido conversar sobre ${foco} para ${niche}, meu contato fica à disposição.\n\nDesejo muito sucesso aos negócios de vocês${cityPhrase}!`,
+      objecao_provavel: "Obrigado pelo contato!",
+      resposta_sugerida: "Disponha! Bom trabalho para vocês por aí.",
+      cta: "Grande abraço e até a próxima!",
     },
   ];
 
@@ -171,13 +190,13 @@ function fallbackAnalysis(lead: any) {
     diagnostico_bullets: diag,
     probabilidade_conversao: score,
     fit_level: score >= 70 ? "alto" : score >= 45 ? "medio" : "baixo",
-    commercial_opportunity: "Organizar melhor a geração e o aproveitamento de novas conversas comerciais.",
-    probable_pain: "Falta de previsibilidade ou excesso de trabalho manual para gerar e acompanhar oportunidades.",
+    commercial_opportunity: `Estruturar captação ativa e presença local para ${lead.nome} em ${niche}.`,
+    probable_pain: "Oscilação no volume de novos clientes e dependência passiva de indicações.",
     why_good_lead: diag.join(" "),
     messages: {
-      whatsapp_primary: days.find((d) => d.canal === "whatsapp")?.mensagem || days[0].mensagem,
-      instagram: days.find((d) => d.canal === "instagram")?.mensagem || days[1].mensagem,
-      email_body: days[3].mensagem,
+      whatsapp_primary: days[0].mensagem,
+      instagram: days[1].mensagem,
+      email_body: days[2].mensagem,
     },
     plano_prospeccao_7dias: days,
   };
@@ -230,8 +249,59 @@ function promptFor(lead: any, requestData: any) {
   const publico = text(requestData?.publico_alvo || requestData?.context?.publico_alvo, "");
   const dor = text(requestData?.dor_principal || requestData?.context?.dor_principal, "");
   const objetivo = text(requestData?.objetivo || requestData?.context?.objetivo, "");
+  const foco = (lead.foco || "Full Service").replace(/zuno_internal_prospecting/g, "Oportunidade comercial");
 
-  return `Você é um estrategista de vendas B2B brasileiro. Gere uma análise comercial útil e um plano de prospecção de exatamente 7 dias.\n\nDADOS REAIS DO LEAD\n- ${sigs}\n- Foco selecionado: ${lead.foco}\n- Canais permitidos: ${chans}\n${oferta ? `- Oferta do usuário: ${oferta}` : ""}\n${publico ? `- Público-alvo do usuário: ${publico}` : ""}\n${dor ? `- Dor que o usuário quer explorar: ${dor}` : ""}\n${objetivo ? `- Objetivo comercial: ${objetivo}` : ""}\n\nREGRAS\n- Não invente nome de responsável, campanha ativa, concorrente, resultado, faturamento, auditoria ou qualquer dado ausente.\n- Diferencie fato observado de hipótese a validar.\n- Diagnóstico: exatamente 3 ou 4 conclusões curtas e comerciais.\n- Plano: exatamente 7 dias numerados de 1 a 7.\n- Dia 1 abre conversa; dia 2 aprofunda a dor como pergunta; dia 3 entrega ideia prática; dia 4 deve ser um e-mail curto com assunto e corpo; dia 5 qualifica; dia 6 trata objeção; dia 7 encerra com respeito.\n- Cada dia precisa ter todos os campos exigidos no schema, sem campo vazio.\n- Mensagens humanas, curtas, específicas e sem promessa garantida.\n- Use apenas whatsapp, email e instagram.\n- Se um canal não estiver realmente disponível, ainda pode criar a copy como sugestão, mas não afirme que o contato existe.\n- Se o foco for zuno_internal_prospecting, trate como oportunidade comercial e nunca mencione esse nome técnico nem diga que o lead foi encontrado pela Zuno.\n- A mensagem deve vender a próxima conversa, não o serviço inteiro.\n\nRetorne somente o JSON compatível com o schema.`;
+  return `Você é um estrategista de prospecção B2B brasileiro sênior. Sua missão é gerar uma análise comercial altamente personalizada e um plano de prospecção de exatamente 7 dias progressivos e coerentes.
+
+DADOS REAIS VERIFICADOS DO LEAD:
+- ${sigs}
+- Serviço/Foco oferecido pelo assinante: ${foco}
+- Canais de contato permitidos: ${chans}
+${oferta ? `- Oferta específica do usuário: ${oferta}` : ""}
+${publico ? `- Público-alvo prioritário: ${publico}` : ""}
+${dor ? `- Dor que o usuário deseja explorar: ${dor}` : ""}
+${objetivo ? `- Objetivo da abordagem: ${objetivo}` : ""}
+
+REGRAS INVIOLÁVEIS DE QUALIDADE (DIRETRIZ ANTI-ROBÔ):
+1. PROIBIÇÃO TOTAL DE CLICHÊS DE IA:
+   - NUNCA use as frases:
+     * "identificamos oportunidades de melhoria"
+     * "potencializar sua presença digital / vendas"
+     * "alavancar seus resultados / vendas"
+     * "transformar seu negócio"
+     * "aumentar exponencialmente"
+     * "está perdendo clientes"
+     * "diagnóstico exclusivo"
+     * "acompanho o perfil / trabalho de vocês há algum tempo" (intimidade falsa)
+     * "preparei um vídeo de um minuto" / "vídeo de aproximadamente um minuto" (nunca prometa vídeo que não existe)
+     * "já analisei todo o seu marketing"
+     * "gap comercial importante"
+     * "passando só para saber se viu minha mensagem" (follow-up passivo-agressivo proibido)
+     * "+40% de conversão" (provas sociais e percentuais falsos proibidos)
+
+2. ADAPTAÇÃO RIGOROSA AO SERVIÇO OFERECIDO:
+   - Se Tráfego Pago: focar em captação local de clientes que buscam ativamente o serviço na cidade, sem acusar falhas em campanhas atuais.
+   - Se Social Media: focar em comunicação, apresentação clara dos diferenciais e conversão de seguidores em orçamentos, sem fingir que auditou o Instagram da empresa.
+   - Se Criação de Sites: focar em clareza de contato no celular e presença nas buscas do Google, ancorado em se o lead tem ou não site.
+   - Se CRM/Automação: focar na velocidade e organização do atendimento no WhatsApp, sem acusar perda de mensagens.
+   - Outros serviços: conectar com respeito à demanda comercial da empresa.
+
+3. DIAGNÓSTICO COMERCIAL (3 ou 4 bullets curtos):
+   - Bullet 1: O que sabemos sobre a empresa (fatos observados: cidade, nicho, se tem site ou avaliações).
+   - Bullet 2: Sinais realmente observáveis na presença pública.
+   - Bullet 3: Hipótese comercial honesta conectada ao serviço vendido pelo assinante.
+   - Bullet 4: Próxima ação recomendada: iniciar abordagem consultiva focada na rotina atual de captação de clientes.
+
+4. SEQUÊNCIA DE 7 DIAS COERENTES E PROGRESSIVOS:
+   - Dia 1: Abertura humana curta e educada, perguntando sobre a rotina de captação ou confirmando o responsável comercial.
+   - Dia 2: Observação real sobre o segmento local sem falsa intimidade.
+   - Dia 3: Ângulo consultivo com hipótese comercial clara, sem jargões.
+   - Dia 4: Acompanhamento leve com pergunta prática, sem cobrança passiva.
+   - Dia 5: Ideia prática tangível do segmento em 3 passos, sem estudos de caso inventados.
+   - Dia 6: Validação de timing comercial ("faz sentido avaliar agora ou o foco é outro?").
+   - Dia 7: Encerramento elegante e cordial, deixando portas abertas e CRM limpo.
+
+Retorne estritamente o JSON compatível com o schema.`;
 }
 
 function normalizeAIResult(ai: any, lead: any) {
@@ -335,7 +405,7 @@ function buildResponse(leadId: string, requestId: string, lead: any, analysis: a
   return {
     lead_id: leadId,
     generated_at: new Date().toISOString(),
-    prompt_version: "v3_structured_resilient",
+    prompt_version: "v4_human_commercial_plan",
     model,
     input_context: {
       empresa: lead.nome,

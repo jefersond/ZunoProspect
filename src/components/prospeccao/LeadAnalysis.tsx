@@ -19,6 +19,7 @@ interface LeadAnalysisProps {
   isReanalyzing?: boolean;
   canAnalyzeAI?: boolean;
   lead?: LeadProspeccao | null;
+  onExecuteInSdr?: (dayNumber: number) => void;
 }
 
 export const LeadAnalysis = ({
@@ -30,6 +31,7 @@ export const LeadAnalysis = ({
   isReanalyzing,
   canAnalyzeAI = true,
   lead,
+  onExecuteInSdr,
 }: LeadAnalysisProps) => {
   const [copiedDia, setCopiedDia] = useState<number | null>(null);
   const { toast } = useToast();
@@ -203,6 +205,17 @@ export const LeadAnalysis = ({
                     )}
                     {dia.canal === "whatsapp" ? "WhatsApp" : dia.canal === "instagram" ? "Instagram" : "Email"}
                   </Badge>
+                  {onExecuteInSdr && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onExecuteInSdr(dia.dia)}
+                      className="ml-auto h-7 text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                    >
+                      <MessageSquare className="h-3 w-3 mr-1" />
+                      Executar no SDR
+                    </Button>
+                  )}
                 </div>
 
                 <div className="pl-4 space-y-2 text-sm">

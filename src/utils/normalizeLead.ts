@@ -1,3 +1,5 @@
+import { buildIntelligentPlan } from "@/services/intelligentSevenDayPlan";
+
 export interface NormalizedLead {
   nome: string;
   nicho: string;
@@ -134,77 +136,12 @@ export function normalizeLeadForAI(lead: any, searchContext: any = {}): Normaliz
 }
 
 function generateFallback7Days(lead?: any): any[] {
-  const nome = lead?.nome || "Empresa";
-  const nicho = lead?.nicho || "seu segmento";
-  const cidade = lead?.cidade || "sua região";
   const focoRaw = lead?.foco || "Full Service";
   const foco = focoRaw === "zuno_internal_prospecting" ? "Oportunidade comercial" : focoRaw;
-
-  return [
-    {
-      dia: 1,
-      canal: "whatsapp",
-      acao_sugerida: "Envio de áudio ou mensagem curta no WhatsApp comercial",
-      mensagem: `Olá, tudo bem? Vi o perfil da ${nome} aqui em ${cidade} no segmento de ${nicho}. Analisei a presença de vocês e notei uma oportunidade excelente para acelerar novos clientes com foco em ${foco}. Posso te enviar um diagnóstico de 2 minutos sem compromisso?`,
-      objecao_provavel: "Quem é você e onde conseguiu meu contato?",
-      resposta_sugerida: "Sou especialista em aquisição para empresas de " + nicho + ". Encontrei seu contato na busca comercial pública.",
-      cta: "Posso mandar por aqui?"
-    },
-    {
-      dia: 2,
-      canal: "instagram",
-      acao_sugerida: "Interação com publicação recente e envio de Direct",
-      mensagem: `Olá equipe da ${nome}! Acompanho o perfil de vocês em ${cidade}. Gostei muito do posicionamento, mas reparei que há um grande potencial para transformar visualizações em contatos diários no WhatsApp. Como está a demanda de vocês atualmente?`,
-      objecao_provavel: "Não temos interesse no momento",
-      resposta_sugerida: "Tranquilo! Nós atuamos como parceiros estratégicos focado em performance de receita.",
-      cta: "Vale 3 minutos para dar uma olhada?"
-    },
-    {
-      dia: 3,
-      canal: "email",
-      acao_sugerida: "Envio de e-mail consultivo curto com diagnóstico",
-      mensagem: `Assunto: Oportunidade de aquisição comercial - ${nome}\n\nOlá,\n\nAnalisei o posicionamento digital da ${nome} em ${cidade} e mapeamos um gap comercial importante no segmento de ${nicho}.\n\nFormatamos uma proposta estratégica em ${foco} focada em previsibilidade de vendas.\n\nQual o melhor dia esta semana para apresentarmos em 5 minutos?`,
-      objecao_provavel: "Qual o custo envolvido?",
-      resposta_sugerida: "Nosso investimento é flexível e condicionado ao retorno das metas acordadas.",
-      cta: "Consegue falar quinta-feira às 14h?"
-    },
-    {
-      dia: 4,
-      canal: "whatsapp",
-      acao_sugerida: "Follow-up objetivo com pergunta direta",
-      mensagem: `Passando só para saber se conseguiu dar uma olhada na mensagem anterior sobre a ${nome}. Sei que a rotina aí em ${cidade} é corrida!`,
-      objecao_provavel: "Estava muito corrido aqui",
-      resposta_sugerida: "Sem problemas! Quando a rotina aliviar um pouco me avisa por aqui.",
-      cta: "Podemos agendar 3 minutos na próxima semana?"
-    },
-    {
-      dia: 5,
-      canal: "email",
-      acao_sugerida: "Compartilhamento de estudo de caso do mesmo nicho",
-      mensagem: `Assunto: Estudo de caso - Crescimento em ${nicho}\n\nOlá!\n\nAjudamos uma empresa parecida com a ${nome} a estruturar um funil comercial que gerou +40% de contatos qualificados no primeiro mês.\n\nConsegue ver 5 minutos amanhã para um bate-papo rápido?`,
-      objecao_provavel: "Já fazemos isso internamente",
-      resposta_sugerida: "Excelente! Nosso trabalho entra para potencializar a equipe interna com novas frentes de tráfego e conversão.",
-      cta: "Posso enviar a apresentação?"
-    },
-    {
-      dia: 6,
-      canal: "instagram",
-      acao_sugerida: "Reação a story ou post recente da empresa",
-      mensagem: `Muito bom esse post recente de vocês! É exatamente esse diferencial da ${nome} em ${cidade} que pode ser amplificado para gerar clientes todos os dias.`,
-      objecao_provavel: "Obrigado pelo feedback!",
-      resposta_sugerida: "Por nada! Se quiser entender como escalar esse resultado, fico à disposição.",
-      cta: "Bora marcar um papo rápido?"
-    },
-    {
-      dia: 7,
-      canal: "whatsapp",
-      acao_sugerida: "Último contato com ultimato sutil e convite aberto",
-      mensagem: `Último contato por aqui para não tomar seu tempo! Vou deixar o canal aberto se em algum momento a ${nome} quiser estruturar um canal forte de aquisição de clientes em ${cidade}. Grande abraço e sucesso!`,
-      objecao_provavel: "Obrigado pelo contato!",
-      resposta_sugerida: "Disponha! Bom trabalho para vocês aí.",
-      cta: "Ficamos em contato!"
-    }
-  ];
+  return buildIntelligentPlan({
+    lead: lead || {},
+    userServiceName: foco,
+  }).days;
 }
 
 export function normalizePlanoProspeccao(plano: any, lead?: any): any[] {
@@ -337,11 +274,17 @@ export function normalizeDiagnosticoBullets(bullets: any, lead?: any): string[] 
     const focoRaw = lead?.foco || "Full Service";
     const foco = focoRaw === "zuno_internal_prospecting" ? "Oportunidade comercial" : focoRaw;
 
+    const hasWeb = Boolean(lead?.website && String(lead.website).trim().length > 4);
+    const revCount = typeof lead?.total_reviews === "number" ? lead.total_reviews : (typeof lead?.reviews === "number" ? lead.reviews : null);
+    const ratVal = typeof lead?.rating === "number" ? lead.rating : null;
+
     list = [
-      `Análise estratégica identificada para ${nome} no segmento de ${nicho} em ${cidade}.`,
-      `Abordagem consultiva focada no modelo de serviço ${foco}.`,
-      `Presença digital e canais de contato verificados para máxima taxa de resposta.`,
-      `Sequência de prospecção em 7 dias personalizada para conversão direta.`
+      `${nome} atua no segmento de ${nicho} em ${cidade}.`,
+      hasWeb || revCount
+        ? `Presença observada: ${hasWeb ? "website ativo" : "sem site informado"} e ${revCount ? `${revCount} avaliações no Google (${ratVal || 5} estrelas)` : "sem avaliações identificadas"}.`
+        : "Poucos ativos digitais públicos disponíveis; a abordagem inicial deve validar canais e responsável antes de aprofundar.",
+      `Ângulo para ${foco}: validar se a entrada de novos clientes hoje acontece de forma previsível ou se oscila ao longo do mês.`,
+      "Próxima ação recomendada: enviar abertura curta e consultiva no canal comercial principal, sem promessas agressivas."
     ];
   }
 

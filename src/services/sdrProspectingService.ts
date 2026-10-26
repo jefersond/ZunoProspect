@@ -1,4 +1,12 @@
 import type { LeadProspeccao } from "@/types/lead";
+import {
+  buildIntelligentPlan,
+  getSdrMessageFromPlan,
+  hasExplicitOptOut,
+  resolveLeadHistoryStage,
+  type LeadHistoryStage,
+  type ServiceArgumentCategory,
+} from "./intelligentSevenDayPlan";
 
 // Carregamento dinâmico para evitar falhas em ambientes de teste sem variáveis do Supabase
 async function getSupabaseClient() {
@@ -16,21 +24,26 @@ export type SdrProspectingStatus =
   | "interessado"
   | "reuniao_marcada"
   | "sem_resposta"
-  | "descartado";
+  | "descartado"
+  | "recusou_optout";
 
 export interface SdrProspectingConfig {
   lead: Partial<LeadProspeccao>;
   userServiceName?: string;
   style?: SdrApproachStyle;
   customNotes?: string;
+  dayNumber?: number;
 }
 
 export interface GeneratedSdrMessage {
   text: string;
   style: SdrApproachStyle;
+  serviceCategory?: ServiceArgumentCategory;
   targetPhone: string | null;
   whatsappUrl: string | null;
   isValidMobile: boolean;
+  isFromPlan: boolean;
+  dayNumber: number;
   usedSignals: {
     hasWebsite: boolean;
     hasReviews: boolean;
@@ -87,14 +100,15 @@ export function sanitizeBrazilianPhoneNumber(rawPhone?: string | null): {
 }
 
 /**
- * Gera a mensagem contextual de primeira abordagem do SDR (Zuno Propect).
- * NUNCA inventa problemas não observáveis, dados falsos ou promessas exageradas.
- * Ancorada 100% nos fatos reais da empresa (cidade, nicho, presença web, avaliações).
+ * Gera a mensagem contextual do SDR (Zuno Propect).
+ * REGRA CENTRAL: Se o lead já possui um plano de prospecção de 7 dias válido,
+ * a mensagem do Dia X DEVE vir diretamente do plano, garantindo uma única fonte de verdade.
  */
 export function generateSdrFirstApproachMessage({
   lead,
   userServiceName = "gestão de tráfego e presença digital",
   style = "consultivo",
+  dayNumber = 1,
 }: SdrProspectingConfig): GeneratedSdrMessage {
   const companyName = lead.nome ? lead.nome.trim() : "Olá";
   const city = lead.cidade ? lead.cidade.trim() : "";
@@ -114,64 +128,79 @@ export function generateSdrFirstApproachMessage({
 
   const cityPhrase = city ? ` em ${city}` : "";
 
+  // 1. Se o lead possui um plano de prospecção de 7 dias associado, usamos a mensagem do plano como FONTE ÚNICA
+  const existingPlan = Array.isArray(lead.plano_prospecao_7dias) && lead.plano_prospecao_7dias.length > 0
+    ? lead.plano_prospecao_7dias
+    : null;
+
   let body = "";
+  let isFromPlan = false;
 
-  if (style === "direto") {
-    // Estilo Direto: Curto, respeitoso, objetivo (ideal para secretárias/atendimento comercial)
-    let signalLine = "";
-    if (hasWebsite) {
-      signalLine = `Vi o site e a presença de vocês${cityPhrase}.`;
-    } else if (hasReviews) {
-      signalLine = `Vi a boa reputação de vocês no Google${cityPhrase} (${reviewsCount} avaliações).`;
-    } else {
-      signalLine = `Localizei a empresa de vocês aqui${cityPhrase}.`;
+  if (existingPlan) {
+    const sdrData = getSdrMessageFromPlan(lead, dayNumber, userServiceName);
+    if (sdrData && sdrData.message) {
+      body = sdrData.message;
+      isFromPlan = true;
     }
+  }
 
-    body = `Oi, ${companyName}! Tudo bem?
+  // 2. Se o lead não possui plano prévio salvo, gera a abordagem usando a lógica humana e sem clichês
+  if (!body) {
+    if (style === "direto") {
+      let signalLine = "";
+      if (hasWebsite) {
+        signalLine = `Vi o site e a presença de vocês${cityPhrase}.`;
+      } else if (hasReviews) {
+        signalLine = `Vi a boa reputação de vocês no Google${cityPhrase} (${reviewsCount} avaliações).`;
+      } else {
+        signalLine = `Localizei a empresa de vocês aqui${cityPhrase}.`;
+      }
+
+      body = `Oi, ${companyName}! Tudo bem?
 
 ${signalLine} Atuo com ${service} para ${niche}.
 
-Quem é a pessoa responsável pelo comercial ou marketing aí na empresa? Gostaria de compartilhar uma demonstração rápida de 1 minuto sobre como captar mais clientes da região.
+Quem é a pessoa responsável pelo comercial ou marketing aí na empresa? Gostaria de compartilhar uma observação rápida sobre como captar mais clientes da região.
 
 Se preferirem não receber contato, sem problemas.`;
-  } else if (style === "exemplo_pratico") {
-    // Estilo Exemplo Prático: Focado em demonstrar trabalho sem pitch agressivo
-    let contextLine = "";
-    if (hasWebsite && hasPixel) {
-      contextLine = `Vi que vocês já têm site com estrutura digital${cityPhrase}.`;
-    } else if (hasWebsite) {
-      contextLine = `Vi que vocês têm site ativo${cityPhrase}, mas parece haver espaço para atrair mais clientes buscando por ${niche} no Google.`;
-    } else {
-      contextLine = `Mapeei a atuação de vocês${cityPhrase} no segmento de ${niche}.`;
-    }
+    } else if (style === "exemplo_pratico") {
+      let contextLine = "";
+      if (hasWebsite && hasPixel) {
+        contextLine = `Vi que vocês já têm site com estrutura digital${cityPhrase}.`;
+      } else if (hasWebsite) {
+        contextLine = `Vi que vocês têm site ativo${cityPhrase}, mas parece haver espaço para atrair mais clientes buscando por ${niche} no Google.`;
+      } else {
+        contextLine = `Mapeei a atuação de vocês${cityPhrase} no segmento de ${niche}.`;
+      }
 
-    body = `Olá, pessoal da ${companyName}!
+      body = `Olá, pessoal da ${companyName}!
 
 ${contextLine}
 
-Trabalho com ${service} e montei um exemplo prático de 1 minuto mostrando como negócios locais do seu segmento podem gerar novas conversas comerciais toda semana.
+Trabalho com ${service} e organizei 3 pontos práticos mostrando como negócios locais do seu segmento podem gerar novas conversas comerciais toda semana.
 
-Faz sentido eu compartilhar essa demonstração curta por aqui com vocês?`;
-  } else {
-    // Estilo Consultivo (Padrão): Abordagem natural, consultiva e de alto valor
-    let observation = "";
-    if (hasReviews && reviewsCount && reviewsCount >= 10 && rating) {
-      observation = `Vi que vocês têm uma ótima reputação no Google (${rating} estrelas em ${reviewsCount} avaliações)${cityPhrase}.`;
-    } else if (hasWebsite) {
-      observation = `Encontrei o site e os canais de atendimento de vocês${cityPhrase}.`;
+Faz sentido eu compartilhar esses pontos por aqui com vocês?`;
     } else {
-      observation = `Vi a atuação de vocês no mercado de ${niche}${cityPhrase}.`;
-    }
+      // Estilo Consultivo (Padrão)
+      let observation = "";
+      if (hasReviews && reviewsCount && reviewsCount >= 10 && rating) {
+        observation = `Vi que vocês têm uma ótima reputação no Google (${rating} estrelas em ${reviewsCount} avaliações)${cityPhrase}.`;
+      } else if (hasWebsite) {
+        observation = `Encontrei o site e os canais de atendimento de vocês${cityPhrase}.`;
+      } else {
+        observation = `Vi a atuação de vocês no mercado de ${niche}${cityPhrase}.`;
+      }
 
-    body = `Oi, ${companyName}! Tudo bem?
+      body = `Oi, ${companyName}! Tudo bem?
 
 ${observation}
 
 Ajudo negócios locais com ${service} a estruturar uma rotina previsível de atração de clientes da própria cidade.
 
-Se fizer sentido para o momento de vocês, posso te mandar um vídeo de aproximadamente um minuto mostrando como funciona na prática?
+Se fizer sentido para o momento de vocês, posso te mandar uma ideia objetiva sobre como estruturar essa captação por aqui?
 
 Se não tiverem interesse agora, sem problema nenhum.`;
+    }
   }
 
   // Gera URL codificada do WhatsApp do próprio assinante
@@ -185,6 +214,8 @@ Se não tiverem interesse agora, sem problema nenhum.`;
     targetPhone: cleanNumber || null,
     whatsappUrl,
     isValidMobile: isCellPhone,
+    isFromPlan,
+    dayNumber,
     usedSignals: {
       hasWebsite,
       hasReviews,
@@ -199,14 +230,16 @@ Se não tiverem interesse agora, sem problema nenhum.`;
 
 /**
  * Atualiza o status do lead no Supabase mantendo o isolamento de user_id do assinante.
- * Nunca marca "enviado" de forma automática; registra "abertura_iniciada" no clique
- * e status finais somente após a confirmação manual do assinante.
+ *
+ * REGRAS DE INTEGRIDADE COMERCIAL:
+ * 1. 'sem_resposta' NÃO é opt-out nem perdido: mantém status 'em_contato'.
+ * 2. 'descartado' representa falta de fit/interesse, sem ser opt-out legal.
+ * 3. 'recusou_optout' registra opt-out explícito e definitivo no histórico do lead.
  */
 export async function updateSdrProspectingStatus({
   leadId,
   status,
   notes,
-  approachMessage,
 }: {
   leadId: string;
   status: SdrProspectingStatus;
@@ -223,16 +256,32 @@ export async function updateSdrProspectingStatus({
     const userId = sessionData.session.user.id;
     const nowIso = new Date().toISOString();
 
-    // Mapeamento semântico para a coluna 'status' da tabela leads
     let dbStatus = "novo";
-    if (status === "abertura_iniciada") dbStatus = "abertura_iniciada";
-    else if (status === "contato_realizado") dbStatus = "em_contato";
-    else if (status === "respondeu") dbStatus = "respondeu";
-    else if (status === "interessado") dbStatus = "qualificacao";
-    else if (status === "reuniao_marcada") dbStatus = "negociacao";
-    else if (status === "sem_resposta" || status === "descartado") dbStatus = "perdido";
+    let statusDescription = status as string;
 
-    // Busca notas existentes para anexar histórico se aplicável
+    if (status === "abertura_iniciada") {
+      dbStatus = "abertura_iniciada";
+    } else if (status === "contato_realizado") {
+      dbStatus = "em_contato";
+    } else if (status === "respondeu") {
+      dbStatus = "respondeu";
+    } else if (status === "interessado") {
+      dbStatus = "qualificacao";
+    } else if (status === "reuniao_marcada") {
+      dbStatus = "negociacao";
+    } else if (status === "sem_resposta") {
+      // sem_resposta NÃO é perdido nem opt-out. O lead permanece em contato/aguardando follow-up
+      dbStatus = "em_contato";
+      statusDescription = "sem_resposta (aguardando retorno)";
+    } else if (status === "descartado") {
+      dbStatus = "perdido";
+      statusDescription = "descartado (sem fit comercial)";
+    } else if (status === "recusou_optout") {
+      dbStatus = "perdido";
+      statusDescription = "opt_out (recusa de contato registrada - bloqueio permanente)";
+    }
+
+    // Busca notas existentes para anexar histórico
     const { data: existingLead, error: fetchErr } = await supabase
       .from("leads")
       .select("notas")
@@ -245,10 +294,9 @@ export async function updateSdrProspectingStatus({
     }
 
     const currentNotes = existingLead?.notas || "";
-    const logEntry = `\n[SDR WhatsApp - ${nowIso.slice(0, 10)}] Status: ${status}${notes ? ` - ${notes}` : ""}`;
+    const logEntry = `\n[SDR WhatsApp - ${nowIso.slice(0, 10)}] Status: ${statusDescription}${notes ? ` - ${notes}` : ""}`;
     const newNotes = currentNotes ? `${currentNotes}${logEntry}` : logEntry.trim();
 
-    // Atualização com escopo estrito de user_id (RLS enforced)
     const { error: updateError } = await supabase
       .from("leads")
       .update({
@@ -264,7 +312,15 @@ export async function updateSdrProspectingStatus({
     }
 
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Erro desconhecido ao atualizar status." };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Erro desconhecido ao atualizar status.";
+    return { success: false, error: errorMsg };
   }
 }
+
+export {
+  buildIntelligentPlan,
+  getSdrMessageFromPlan,
+  hasExplicitOptOut,
+  resolveLeadHistoryStage,
+};

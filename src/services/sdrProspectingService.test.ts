@@ -121,6 +121,56 @@ describe("sdrProspectingService - Regras Comerciais e Sanitização", () => {
 
     expect(result.text).toContain("Oi, Advocacia Silva! Tudo bem?");
     expect(result.text).toContain("Quem é a pessoa responsável pelo comercial ou marketing");
-    expect(result.text).toContain("demonstração rápida de 1 minuto");
+    expect(result.text).toContain("compartilhar uma observação rápida");
+    expect(result.text).not.toContain("1 minuto");
+  });
+
+  it("deve usar o plano de 7 dias como fonte única de verdade quando existente", () => {
+    const lead = {
+      nome: "Clínica Sorriso",
+      cidade: "Vitória",
+      nicho: "odontologia",
+      telefone: "27999887766",
+      plano_prospecao_7dias: [
+        {
+          dia: 1,
+          canal: "whatsapp",
+          titulo: "Abordagem Inicial",
+          mensagem: "Olá Dr. Roberto! Vi a Clínica Sorriso em Vitória e preparei este contato específico.",
+          objetivo: "Abertura",
+          acao_sugerida: "Enviar no WhatsApp",
+          objecao_provavel: "Sem tempo",
+          resposta_sugerida: "Compreendo a rotina",
+          cta: "Podemos conversar amanhã?"
+        },
+        {
+          dia: 3,
+          canal: "email",
+          titulo: "Follow-up Educativo",
+          mensagem: "Assunto: Observação sobre captação em Vitória\n\nOi equipe da Clínica Sorriso, complementando nossa mensagem anterior...",
+          objetivo: "Follow-up",
+          acao_sugerida: "Enviar por e-mail",
+          objecao_provavel: "Já temos agência",
+          resposta_sugerida: "Ótimo ponto",
+          cta: "Qual o melhor e-mail?"
+        }
+      ]
+    };
+
+    const sdrDia1 = generateSdrFirstApproachMessage({
+      lead,
+      dayNumber: 1
+    });
+
+    expect(sdrDia1.isFromPlan).toBe(true);
+    expect(sdrDia1.text).toBe("Olá Dr. Roberto! Vi a Clínica Sorriso em Vitória e preparei este contato específico.");
+
+    const sdrDia3 = generateSdrFirstApproachMessage({
+      lead,
+      dayNumber: 3
+    });
+
+    expect(sdrDia3.isFromPlan).toBe(true);
+    expect(sdrDia3.text).toBe("Oi equipe da Clínica Sorriso, complementando nossa mensagem anterior...");
   });
 });

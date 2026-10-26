@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { safeFetchText } from "../_shared/safe-fetch.ts";
 import { emitZanotelliProductEvent, type ZanotelliProductEventName } from "../_shared/zanotelli-inbound-bridge.ts";
 
 // ============= CORS HELPER =============
@@ -1190,23 +1191,25 @@ serve(async (req) => {
         has_gtm: false,
         instagram_url: null as string | null,
         email: null as string | null,
+        site_unverifiable: false,
       };
 
       try {
         console.log(`Analisando site: ${websiteUrl}`);
-        const siteResponse = await fetch(websiteUrl, {
+        // SSRF: so destinos publicos; DNS e cada redirecionamento validados, com limites
+        const siteResult = await safeFetchText(websiteUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; LeadBot/1.0)',
           },
-          redirect: 'follow',
         });
 
-        if (!siteResponse.ok) {
-          console.log(`Erro ao acessar site: ${siteResponse.status}`);
+        if (!siteResult.ok) {
+          console.log(`Site nao verificavel (${siteResult.reason})`);
+          signals.site_unverifiable = true;
           return signals;
         }
 
-        const html = await siteResponse.text();
+        const html = siteResult.text;
         
         // =============================================
         // DETECÇÃO APRIMORADA DE WHATSAPP/TELEFONE
@@ -1431,6 +1434,7 @@ serve(async (req) => {
             has_gtm: false,
             instagram_url: null as string | null,
             email: null as string | null,
+            site_unverifiable: false,
           };
 
           if (details.website) {
@@ -1442,6 +1446,7 @@ serve(async (req) => {
               siteSignals = await Promise.race([signalsPromise, timeoutPromise]) as typeof siteSignals;
             } catch (error) {
               console.log(`Timeout ou erro ao analisar site ${details.website}`);
+              siteSignals.site_unverifiable = true;
             }
           }
           

@@ -455,6 +455,16 @@ export const LeadAnalysis = ({
                     )}
                     {dia.canal === "whatsapp" ? "WhatsApp" : dia.canal === "instagram" ? "Instagram" : "Email"}
                   </Badge>
+                  {dia.is_custom_edited && (
+                    <Badge variant="outline" className="border-primary/40 text-primary" data-testid={`dia-${dia.dia}-edited`}>
+                      Editada por você · mantida em novas análises
+                    </Badge>
+                  )}
+                  {dia.status_dia === "concluido" && (
+                    <Badge variant="outline" className="border-emerald-500/40 text-emerald-700 dark:text-emerald-400">
+                      Concluída · mantida
+                    </Badge>
+                  )}
                   {contactBlocked && (
                     <Badge variant="outline" className="gap-1 border-destructive/40 text-destructive">
                       <Ban className="h-3 w-3" />
@@ -594,8 +604,12 @@ export const LeadAnalysis = ({
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 <p>
-                  Esta análise já foi gerada pelo Gemini. Uma nova geração <strong>consome 1 análise de IA</strong> do seu plano e substitui
-                  o diagnóstico e as mensagens do plano de 7 dias, inclusive as que você editou.
+                  Esta análise já foi gerada pelo Gemini. Uma nova geração <strong>consome 1 análise de IA</strong> do seu plano e
+                  atualiza o diagnóstico e as mensagens do plano de 7 dias.
+                </p>
+                <p>
+                  <strong>Seu trabalho é mantido:</strong> mensagens que você editou, etapas já concluídas e dias bloqueados
+                  continuam exatamente como estão; só os demais dias recebem texto novo.
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Atualizar a página não consome créditos. Se a IA falhar, a análise atual é mantida e nada é cobrado.

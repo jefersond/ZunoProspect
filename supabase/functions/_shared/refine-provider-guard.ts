@@ -230,3 +230,185 @@ export async function runRefine(deps: RefineDeps): Promise<RefineRun> {
   }
   return { status: "saved", model: provider.model, analysis: validation.value, charged, creditWarning };
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Preservação do trabalho do assinante
+// ---------------------------------------------------------------------------------------------------------------------
+
+type PlanDay = Record<string, unknown> & { dia?: unknown };
+
+export type PreservedReason = "edited" | "completed" | "optout_blocked";
+export interface PreservedDay { dia: number; reason: PreservedReason }
+
+const asObj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+
+/** Os 7 dias salvos, tanto no formato objeto (`plano_prospeccao_7dias`) quanto no formato lista. */
+export function extractPlanDays(plan: unknown): PlanDay[] {
+  const days = Array.isArray(plan) ? plan : asObj(plan).plano_prospeccao_7dias;
+  return Array.isArray(days) ? (days.filter((d) => d && typeof d === "object") as PlanDay[]) : [];
+}
+
+export function preservedReasonOf(day: PlanDay | undefined): PreservedReason | null {
+  if (!day) return null;
+  if (day.is_custom_edited === true) return "edited";
+  if (day.status_dia === "concluido") return "completed";
+  if (day.status_dia === "bloqueado_optout") return "optout_blocked";
+  return null;
+}
+
+/**
+ * Une o plano antigo ao novo SEM sobrescrever o trabalho do assinante: dia editado manualmente, concluído ou
+ * bloqueado por recusa fica exatamente como estava; os demais dias recebem o texto novo.
+ */
+export function mergePlanPreservingUser<T extends PlanDay>(previousPlan: unknown, nextDays: T[]): { days: Array<T | PlanDay>; preserved: PreservedDay[] } {
+  const previous = new Map<number, PlanDay>();
+  for (const d of extractPlanDays(previousPlan)) {
+    const n = Math.trunc(Number(d.dia));
+    if (n >= 1 && n <= 7 && !previous.has(n)) previous.set(n, d);
+  }
+  const preserved: PreservedDay[] = [];
+  const days = nextDays.map((day) => {
+    const n = Math.trunc(Number(day.dia));
+    const old = previous.get(n);
+    const reason = preservedReasonOf(old);
+    if (old && reason) {
+      preserved.push({ dia: n, reason });
+      return old;
+    }
+    return day;
+  });
+  return { days, preserved };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Exclusão mútua por lead (sem migration)
+// ---------------------------------------------------------------------------------------------------------------------
+//
+// Cada geração "reserva" o lead com um UPDATE condicional atômico (compare-and-set) na coluna já existente
+// `ai_fallback_reason`, que guarda um marcador `refine_lock_<requestId>` enquanto a geração roda. Só uma das
+// requisições simultâneas consegue o UPDATE; as demais recebem "em andamento" sem chamar o Gemini nem cobrar.
+// A reserva expira sozinha (REFINE_LOCK_TTL_MS) caso a função morra no meio, e é liberada em toda saída.
+
+export const REFINE_LOCK_PREFIX = "refine_lock_";
+export const REFINE_LOCK_TTL_MS = 90_000;
+
+export interface LeadRefineRow {
+  reason: string | null;
+  updatedAt: string | null;
+  generatedAt: string | null;
+  usedFallback: boolean | null;
+  plan: unknown;
+}
+
+export interface RefineStore {
+  read(): Promise<LeadRefineRow | null>;
+  /** UPDATE ... WHERE ai_fallback_reason IS NOT DISTINCT FROM prevReason. true somente se UMA linha foi alterada. */
+  claim(prevReason: string | null, lockValue: string, nowIso: string): Promise<boolean>;
+  /** Devolve o valor anterior da coluna, somente se a reserva ainda for desta requisição. */
+  release(lockValue: string, restoreReason: string | null): Promise<void>;
+}
+
+export const isRefineLock = (reason: string | null | undefined) => typeof reason === "string" && reason.startsWith(REFINE_LOCK_PREFIX);
+
+export type AcquireResult =
+  | { acquired: true; lockValue: string; restoreReason: string | null; row: LeadRefineRow }
+  | { acquired: false; reason: "in_progress" | "lead_not_found" };
+
+export async function acquireRefineLock(store: RefineStore, requestId: string, now = Date.now()): Promise<AcquireResult> {
+  const first = await store.read();
+  if (!first) return { acquired: false, reason: "lead_not_found" };
+
+  let restoreReason: string | null = first.reason;
+  if (isRefineLock(first.reason)) {
+    const at = first.updatedAt ? Date.parse(first.updatedAt) : NaN;
+    const fresh = Number.isFinite(at) && now - at < REFINE_LOCK_TTL_MS;
+    if (fresh) return { acquired: false, reason: "in_progress" };
+    restoreReason = null; // reserva abandonada (a função morreu): não restaura o marcador
+  }
+
+  const lockValue = `${REFINE_LOCK_PREFIX}${requestId}`;
+  const won = await store.claim(first.reason, lockValue, new Date(now).toISOString());
+  if (!won) return { acquired: false, reason: "in_progress" };
+
+  // Relê já com a reserva: a leitura anterior pode estar velha (outra requisição pode ter terminado no intervalo).
+  const row = await store.read();
+  if (!row) {
+    await store.release(lockValue, restoreReason);
+    return { acquired: false, reason: "lead_not_found" };
+  }
+  return { acquired: true, lockValue, restoreReason, row };
+}
+
+export interface GuardedRefineDeps extends Omit<RefineDeps, "persist"> {
+  store: RefineStore;
+  now?: () => number;
+  /** Grava com a reserva ainda ativa; deve limpar a reserva na mesma gravação e devolver true só se o banco confirmou. */
+  persist: (analysis: ValidAnalysis, model: string, ctx: { lockValue: string; preserved: PreservedDay[]; previousPlan: unknown }) => Promise<boolean>;
+}
+
+export type GuardedRefineRun =
+  | { status: "in_progress" }
+  | { status: "lead_not_found" }
+  | { status: "already_current"; generatedAt: string | null }
+  | (Extract<RefineRun, { status: "provider_failed" | "save_failed" }>)
+  | (Extract<RefineRun, { status: "saved" }> & { preserved: PreservedDay[] });
+
+/**
+ * Operação completa e idempotente por lead: reserva → (duplicata recente?) → provedor → mescla preservando o trabalho
+ * do assinante → gravação confirmada → cobrança → liberação. A cobrança acontece no máximo uma vez por reserva.
+ */
+export async function runGuardedRefine(deps: GuardedRefineDeps): Promise<GuardedRefineRun> {
+  const now = deps.now ?? Date.now;
+  const lock = await acquireRefineLock(deps.store, deps.requestId, now());
+  if (!lock.acquired) return { status: lock.reason === "lead_not_found" ? "lead_not_found" : "in_progress" };
+
+  let released = false;
+  const release = async () => {
+    if (released) return;
+    released = true;
+    try { await deps.store.release(lock.lockValue, lock.restoreReason); } catch { /* a reserva expira sozinha */ }
+  };
+
+  try {
+    // Dentro da reserva: uma análise válida gravada há pouco (outra requisição acabou de terminar) é reaproveitada.
+    if (isDuplicateRefine({ generatedAt: lock.row.generatedAt, usedFallback: lock.row.usedFallback }, now())) {
+      await release();
+      return { status: "already_current", generatedAt: lock.row.generatedAt };
+    }
+
+    let preserved: PreservedDay[] = [];
+    const run = await runRefine({
+      requestId: deps.requestId,
+      isAdmin: deps.isAdmin,
+      callProvider: deps.callProvider,
+      charge: deps.charge,
+      persist: async (analysis, model) => {
+        const merged = mergePlanPreservingUser(lock.row.plan, analysis.plano_prospeccao_7dias);
+        preserved = merged.preserved;
+        const finalAnalysis = { ...analysis, plano_prospeccao_7dias: merged.days as ValidAnalysis["plano_prospeccao_7dias"] };
+        const ok = await deps.persist(finalAnalysis, model, { lockValue: lock.lockValue, preserved, previousPlan: lock.row.plan });
+        if (ok) released = true; // a gravação confirmada já limpou a reserva
+        return ok;
+      },
+    });
+
+    if (run.status === "saved") return { ...run, preserved };
+    await release();
+    return run;
+  } catch (error) {
+    await release();
+    throw error;
+  }
+}
+
+export const IN_PROGRESS_BODY = (requestId: string) => ({
+  success: false as const,
+  request_id: requestId,
+  error_code: "REFINE_IN_PROGRESS",
+  category: "validation_error" as const,
+  retryable: true,
+  safe_message: "Já existe uma análise deste lead em andamento. Aguarde alguns segundos e atualize a página para ver o resultado. Nenhum crédito extra foi cobrado.",
+  error_message: "Já existe uma análise deste lead em andamento. Aguarde alguns segundos e atualize a página para ver o resultado. Nenhum crédito extra foi cobrado.",
+  credit_consumed: false as const,
+  saved: false as const,
+});

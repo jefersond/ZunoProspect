@@ -5,6 +5,12 @@ import {
   buildProviderFailure,
   isDuplicateRefine,
   runRefine,
+  runGuardedRefine,
+  mergePlanPreservingUser,
+  acquireRefineLock,
+  REFINE_LOCK_TTL_MS,
+  type LeadRefineRow,
+  type RefineStore,
   shouldChargeCredit,
   shouldPersistAnalysis,
   summarizeProviderError,
@@ -223,5 +229,187 @@ describe("runRefine: ordem provedor → gravação confirmada → cobrança", ()
     await runRefine(d);
     expect(calls.filter((c) => c === "provider")).toHaveLength(1);
     expect(calls.filter((c) => c === "charge")).toHaveLength(1);
+  });
+});
+
+describe("mergePlanPreservingUser: o trabalho do assinante nunca é sobrescrito", () => {
+  const fresh = (dia: number) => ({ dia, canal: "whatsapp", acao_sugerida: `nova ${dia}`, mensagem: `Mensagem NOVA do dia ${dia}`, objecao_provavel: "", resposta_sugerida: "", cta: "" });
+  const nextDays = [1, 2, 3, 4, 5, 6, 7].map(fresh);
+  const old = (dia: number, extra: Record<string, unknown> = {}) => ({ dia, canal: "email", acao_sugerida: "antiga", mensagem: `Mensagem ANTIGA ${dia}`, objecao_provavel: "x", resposta_sugerida: "y", cta: "z", ...extra });
+
+  it("mensagem editada manualmente (is_custom_edited) é mantida integralmente", () => {
+    const previous = { plano_prospeccao_7dias: [old(2, { is_custom_edited: true, edited_at: "2026-10-20T10:00:00Z" })] };
+    const { days, preserved } = mergePlanPreservingUser(previous, nextDays);
+    expect(days[1]).toMatchObject({ mensagem: "Mensagem ANTIGA 2", is_custom_edited: true, edited_at: "2026-10-20T10:00:00Z" });
+    expect(days[0].mensagem).toBe("Mensagem NOVA do dia 1");
+    expect(preserved).toEqual([{ dia: 2, reason: "edited" }]);
+  });
+
+  it("etapa concluída e dia bloqueado por recusa são mantidos", () => {
+    const previous = [old(1, { status_dia: "concluido" }), old(3, { status_dia: "bloqueado_optout" })];
+    const { days, preserved } = mergePlanPreservingUser(previous, nextDays);
+    expect(days[0].mensagem).toBe("Mensagem ANTIGA 1");
+    expect(days[2].mensagem).toBe("Mensagem ANTIGA 3");
+    expect(preserved).toEqual([{ dia: 1, reason: "completed" }, { dia: 3, reason: "optout_blocked" }]);
+  });
+
+  it("dias sem edição nem conclusão recebem o texto novo; sem plano anterior, tudo é novo", () => {
+    expect(mergePlanPreservingUser([old(4)], nextDays).days[3].mensagem).toBe("Mensagem NOVA do dia 4");
+    const none = mergePlanPreservingUser(null, nextDays);
+    expect(none.preserved).toEqual([]);
+    expect(none.days).toEqual(nextDays);
+  });
+
+  it("lead antigo com plano em lista (sem marcações) continua compatível", () => {
+    const legacy = [1, 2, 3, 4, 5, 6, 7].map((d) => old(d));
+    expect(mergePlanPreservingUser(legacy, nextDays).preserved).toEqual([]);
+  });
+});
+
+// Banco em memória com UPDATE condicional atômico (o mesmo contrato do UPDATE ... WHERE ... do Postgres).
+const makeDb = (initial: Partial<LeadRefineRow> = {}) => {
+  const row: LeadRefineRow = { reason: null, updatedAt: null, generatedAt: null, usedFallback: null, plan: null, ...initial };
+  const log: string[] = [];
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  const store: RefineStore = {
+    read: async () => { await tick(); return { ...row }; },
+    claim: async (prev, lockValue, nowIso) => {
+      await tick();
+      if (row.reason !== prev) return false; // atômico: só uma requisição vence
+      row.reason = lockValue; row.updatedAt = nowIso; log.push("claim");
+      return true;
+    },
+    release: async (lockValue, restore) => {
+      await tick();
+      if (row.reason === lockValue) { row.reason = restore; log.push("release"); }
+    },
+  };
+  return { row, log, store };
+};
+
+describe("exclusão mútua por lead: duas requisições simultâneas", () => {
+  const analysisOk = () => {
+    const r = validateAnalysis(valid());
+    if (!r.ok) throw new Error("fixture");
+    return r.value;
+  };
+  const makeRun = (db: ReturnType<typeof makeDb>, counters: { provider: number; persist: number; charge: number }, requestId: string, over: Partial<Parameters<typeof runGuardedRefine>[0]> = {}) =>
+    runGuardedRefine({
+      requestId,
+      isAdmin: false,
+      store: db.store,
+      callProvider: async () => { counters.provider++; await new Promise((r) => setTimeout(r, 5)); return { ok: true as const, analysis: analysisOk(), model: "gemini-3.6-flash" }; },
+      persist: async (_a, _m, ctx) => {
+        counters.persist++;
+        if (db.row.reason !== ctx.lockValue) return false;
+        db.row.reason = null; db.row.generatedAt = new Date().toISOString(); db.row.usedFallback = false;
+        return true;
+      },
+      charge: async () => { counters.charge++; return true; },
+      ...over,
+    });
+
+  it("duas abas ao mesmo tempo: uma gera e cobra, a outra recebe 'em andamento' sem Gemini e sem cobrança", async () => {
+    const db = makeDb();
+    const c = { provider: 0, persist: 0, charge: 0 };
+    const [a, b] = await Promise.all([makeRun(db, c, "tab-a"), makeRun(db, c, "tab-b")]);
+    const statuses = [a.status, b.status].sort();
+    expect(statuses).toEqual(["in_progress", "saved"]);
+    expect(c).toEqual({ provider: 1, persist: 1, charge: 1 });
+    expect(db.row.reason).toBeNull();
+  });
+
+  it("dez requisições simultâneas: exatamente uma cobrança", async () => {
+    const db = makeDb();
+    const c = { provider: 0, persist: 0, charge: 0 };
+    const runs = await Promise.all(Array.from({ length: 10 }, (_, i) => makeRun(db, c, `r${i}`)));
+    expect(runs.filter((r) => r.status === "saved")).toHaveLength(1);
+    expect(runs.filter((r) => r.status === "in_progress")).toHaveLength(9);
+    expect(c.charge).toBe(1);
+    expect(c.provider).toBe(1);
+  });
+
+  it("ABA: a outra requisição termina entre a leitura e a reserva e a análise recém-gravada é reaproveitada (sem 2ª geração)", async () => {
+    const db = makeDb();
+    const c = { provider: 0, persist: 0, charge: 0 };
+    const first = await makeRun(db, c, "first");
+    expect(first.status).toBe("saved");
+    // segunda requisição chega logo depois, com a análise de 'first' gravada há instantes
+    const second = await makeRun(db, c, "second");
+    expect(second.status).toBe("already_current");
+    expect(c).toEqual({ provider: 1, persist: 1, charge: 1 });
+  });
+
+  it("falha do Gemini libera a reserva e restaura o valor anterior, sem gravar nem cobrar", async () => {
+    const db = makeDb({ reason: "gemini-3.1-flash-lite:400" });
+    const c = { provider: 0, persist: 0, charge: 0 };
+    const run = await makeRun(db, c, "x", { callProvider: async () => { c.provider++; return { ok: false as const, error: "gemini:400" }; } });
+    expect(run.status).toBe("provider_failed");
+    expect(db.row.reason).toBe("gemini-3.1-flash-lite:400");
+    expect(c).toEqual({ provider: 1, persist: 0, charge: 0 });
+  });
+
+  it("falha de gravação libera a reserva e não cobra; uma nova tentativa depois consegue", async () => {
+    const db = makeDb();
+    const c = { provider: 0, persist: 0, charge: 0 };
+    const failed = await makeRun(db, c, "w1", { persist: async () => { c.persist++; return false; } });
+    expect(failed.status).toBe("save_failed");
+    expect(db.row.reason).toBeNull();
+    expect(c.charge).toBe(0);
+    const retry = await makeRun(db, c, "w2");
+    expect(retry.status).toBe("saved");
+    expect(c.charge).toBe(1);
+  });
+
+  it("exceção no meio também libera a reserva", async () => {
+    const db = makeDb();
+    const c = { provider: 0, persist: 0, charge: 0 };
+    await expect(makeRun(db, c, "boom", { callProvider: async () => { throw new Error("rede"); } })).rejects.toThrow("rede");
+    expect(db.row.reason).toBeNull();
+  });
+
+  it("reserva abandonada (função morreu) expira e deixa de bloquear; reserva recente bloqueia", async () => {
+    const now = Date.parse("2026-10-27T12:00:00Z");
+    const stale = makeDb({ reason: "refine_lock_old", updatedAt: new Date(now - REFINE_LOCK_TTL_MS - 1000).toISOString() });
+    expect((await acquireRefineLock(stale.store, "new", now)).acquired).toBe(true);
+    const fresh = makeDb({ reason: "refine_lock_old", updatedAt: new Date(now - 10_000).toISOString() });
+    expect(await acquireRefineLock(fresh.store, "new", now)).toEqual({ acquired: false, reason: "in_progress" });
+  });
+
+  it("administrador não é cobrado mesmo com a reserva", async () => {
+    const db = makeDb();
+    const c = { provider: 0, persist: 0, charge: 0 };
+    const run = await makeRun(db, c, "adm", { isAdmin: true });
+    expect(run.status).toBe("saved");
+    expect(c.charge).toBe(0);
+  });
+
+  it("mensagem editada e etapa concluída chegam intactas ao banco; a resposta informa os dias mantidos", async () => {
+    const plan = { historico: ["contato 1"], plano_prospeccao_7dias: [
+      { dia: 2, canal: "whatsapp", mensagem: "MINHA EDIÇÃO", is_custom_edited: true },
+      { dia: 4, canal: "email", mensagem: "enviada ontem", status_dia: "concluido" },
+    ] };
+    const db = makeDb({ plan });
+    const c = { provider: 0, persist: 0, charge: 0 };
+    let saved: unknown = null;
+    const run = await makeRun(db, c, "m", { persist: async (analysis, _m, ctx) => { saved = analysis.plano_prospeccao_7dias; db.row.reason = null; db.row.generatedAt = new Date().toISOString(); return db.row.reason === null && ctx.lockValue.length > 0; } });
+    expect(run.status).toBe("saved");
+    const days = saved as Array<{ dia: number; mensagem: string }>;
+    expect(days.find((d) => d.dia === 2)?.mensagem).toBe("MINHA EDIÇÃO");
+    expect(days.find((d) => d.dia === 4)?.mensagem).toBe("enviada ontem");
+    expect(days.find((d) => d.dia === 1)?.mensagem).toBe("Mensagem específica do dia 1");
+    expect(run.status === "saved" && run.preserved).toEqual([{ dia: 2, reason: "edited" }, { dia: 4, reason: "completed" }]);
+    expect(c.charge).toBe(1);
+  });
+
+  it("erro 400 do Gemini com dados anteriores: nada muda e nada é cobrado", async () => {
+    const db = makeDb({ generatedAt: "2026-07-01T10:00:00Z", usedFallback: false, plan: { plano_prospeccao_7dias: [] } });
+    const before = JSON.stringify(db.row);
+    const c = { provider: 0, persist: 0, charge: 0 };
+    const run = await makeRun(db, c, "e400", { callProvider: async () => ({ ok: false as const, error: "gemini-3.6-flash:400" }) });
+    expect(run.status).toBe("provider_failed");
+    expect(c.persist).toBe(0);
+    expect(c.charge).toBe(0);
+    expect({ ...db.row, updatedAt: null }).toEqual({ ...JSON.parse(before), updatedAt: null });
   });
 });

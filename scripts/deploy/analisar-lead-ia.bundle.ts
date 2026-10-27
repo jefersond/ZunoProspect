@@ -237,6 +237,188 @@ async function runRefine(deps: RefineDeps): Promise<RefineRun> {
   return { status: "saved", model: provider.model, analysis: validation.value, charged, creditWarning };
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Preservação do trabalho do assinante
+// ---------------------------------------------------------------------------------------------------------------------
+
+type PlanDay = Record<string, unknown> & { dia?: unknown };
+
+type PreservedReason = "edited" | "completed" | "optout_blocked";
+interface PreservedDay { dia: number; reason: PreservedReason }
+
+const asObj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+
+/** Os 7 dias salvos, tanto no formato objeto (`plano_prospeccao_7dias`) quanto no formato lista. */
+function extractPlanDays(plan: unknown): PlanDay[] {
+  const days = Array.isArray(plan) ? plan : asObj(plan).plano_prospeccao_7dias;
+  return Array.isArray(days) ? (days.filter((d) => d && typeof d === "object") as PlanDay[]) : [];
+}
+
+function preservedReasonOf(day: PlanDay | undefined): PreservedReason | null {
+  if (!day) return null;
+  if (day.is_custom_edited === true) return "edited";
+  if (day.status_dia === "concluido") return "completed";
+  if (day.status_dia === "bloqueado_optout") return "optout_blocked";
+  return null;
+}
+
+/**
+ * Une o plano antigo ao novo SEM sobrescrever o trabalho do assinante: dia editado manualmente, concluído ou
+ * bloqueado por recusa fica exatamente como estava; os demais dias recebem o texto novo.
+ */
+function mergePlanPreservingUser<T extends PlanDay>(previousPlan: unknown, nextDays: T[]): { days: Array<T | PlanDay>; preserved: PreservedDay[] } {
+  const previous = new Map<number, PlanDay>();
+  for (const d of extractPlanDays(previousPlan)) {
+    const n = Math.trunc(Number(d.dia));
+    if (n >= 1 && n <= 7 && !previous.has(n)) previous.set(n, d);
+  }
+  const preserved: PreservedDay[] = [];
+  const days = nextDays.map((day) => {
+    const n = Math.trunc(Number(day.dia));
+    const old = previous.get(n);
+    const reason = preservedReasonOf(old);
+    if (old && reason) {
+      preserved.push({ dia: n, reason });
+      return old;
+    }
+    return day;
+  });
+  return { days, preserved };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Exclusão mútua por lead (sem migration)
+// ---------------------------------------------------------------------------------------------------------------------
+//
+// Cada geração "reserva" o lead com um UPDATE condicional atômico (compare-and-set) na coluna já existente
+// `ai_fallback_reason`, que guarda um marcador `refine_lock_<requestId>` enquanto a geração roda. Só uma das
+// requisições simultâneas consegue o UPDATE; as demais recebem "em andamento" sem chamar o Gemini nem cobrar.
+// A reserva expira sozinha (REFINE_LOCK_TTL_MS) caso a função morra no meio, e é liberada em toda saída.
+
+const REFINE_LOCK_PREFIX = "refine_lock_";
+const REFINE_LOCK_TTL_MS = 90_000;
+
+interface LeadRefineRow {
+  reason: string | null;
+  updatedAt: string | null;
+  generatedAt: string | null;
+  usedFallback: boolean | null;
+  plan: unknown;
+}
+
+interface RefineStore {
+  read(): Promise<LeadRefineRow | null>;
+  /** UPDATE ... WHERE ai_fallback_reason IS NOT DISTINCT FROM prevReason. true somente se UMA linha foi alterada. */
+  claim(prevReason: string | null, lockValue: string, nowIso: string): Promise<boolean>;
+  /** Devolve o valor anterior da coluna, somente se a reserva ainda for desta requisição. */
+  release(lockValue: string, restoreReason: string | null): Promise<void>;
+}
+
+const isRefineLock = (reason: string | null | undefined) => typeof reason === "string" && reason.startsWith(REFINE_LOCK_PREFIX);
+
+type AcquireResult =
+  | { acquired: true; lockValue: string; restoreReason: string | null; row: LeadRefineRow }
+  | { acquired: false; reason: "in_progress" | "lead_not_found" };
+
+async function acquireRefineLock(store: RefineStore, requestId: string, now = Date.now()): Promise<AcquireResult> {
+  const first = await store.read();
+  if (!first) return { acquired: false, reason: "lead_not_found" };
+
+  let restoreReason: string | null = first.reason;
+  if (isRefineLock(first.reason)) {
+    const at = first.updatedAt ? Date.parse(first.updatedAt) : NaN;
+    const fresh = Number.isFinite(at) && now - at < REFINE_LOCK_TTL_MS;
+    if (fresh) return { acquired: false, reason: "in_progress" };
+    restoreReason = null; // reserva abandonada (a função morreu): não restaura o marcador
+  }
+
+  const lockValue = `${REFINE_LOCK_PREFIX}${requestId}`;
+  const won = await store.claim(first.reason, lockValue, new Date(now).toISOString());
+  if (!won) return { acquired: false, reason: "in_progress" };
+
+  // Relê já com a reserva: a leitura anterior pode estar velha (outra requisição pode ter terminado no intervalo).
+  const row = await store.read();
+  if (!row) {
+    await store.release(lockValue, restoreReason);
+    return { acquired: false, reason: "lead_not_found" };
+  }
+  return { acquired: true, lockValue, restoreReason, row };
+}
+
+interface GuardedRefineDeps extends Omit<RefineDeps, "persist"> {
+  store: RefineStore;
+  now?: () => number;
+  /** Grava com a reserva ainda ativa; deve limpar a reserva na mesma gravação e devolver true só se o banco confirmou. */
+  persist: (analysis: ValidAnalysis, model: string, ctx: { lockValue: string; preserved: PreservedDay[]; previousPlan: unknown }) => Promise<boolean>;
+}
+
+type GuardedRefineRun =
+  | { status: "in_progress" }
+  | { status: "lead_not_found" }
+  | { status: "already_current"; generatedAt: string | null }
+  | (Extract<RefineRun, { status: "provider_failed" | "save_failed" }>)
+  | (Extract<RefineRun, { status: "saved" }> & { preserved: PreservedDay[] });
+
+/**
+ * Operação completa e idempotente por lead: reserva → (duplicata recente?) → provedor → mescla preservando o trabalho
+ * do assinante → gravação confirmada → cobrança → liberação. A cobrança acontece no máximo uma vez por reserva.
+ */
+async function runGuardedRefine(deps: GuardedRefineDeps): Promise<GuardedRefineRun> {
+  const now = deps.now ?? Date.now;
+  const lock = await acquireRefineLock(deps.store, deps.requestId, now());
+  if (!lock.acquired) return { status: lock.reason === "lead_not_found" ? "lead_not_found" : "in_progress" };
+
+  let released = false;
+  const release = async () => {
+    if (released) return;
+    released = true;
+    try { await deps.store.release(lock.lockValue, lock.restoreReason); } catch { /* a reserva expira sozinha */ }
+  };
+
+  try {
+    // Dentro da reserva: uma análise válida gravada há pouco (outra requisição acabou de terminar) é reaproveitada.
+    if (isDuplicateRefine({ generatedAt: lock.row.generatedAt, usedFallback: lock.row.usedFallback }, now())) {
+      await release();
+      return { status: "already_current", generatedAt: lock.row.generatedAt };
+    }
+
+    let preserved: PreservedDay[] = [];
+    const run = await runRefine({
+      requestId: deps.requestId,
+      isAdmin: deps.isAdmin,
+      callProvider: deps.callProvider,
+      charge: deps.charge,
+      persist: async (analysis, model) => {
+        const merged = mergePlanPreservingUser(lock.row.plan, analysis.plano_prospeccao_7dias);
+        preserved = merged.preserved;
+        const finalAnalysis = { ...analysis, plano_prospeccao_7dias: merged.days as ValidAnalysis["plano_prospeccao_7dias"] };
+        const ok = await deps.persist(finalAnalysis, model, { lockValue: lock.lockValue, preserved, previousPlan: lock.row.plan });
+        if (ok) released = true; // a gravação confirmada já limpou a reserva
+        return ok;
+      },
+    });
+
+    if (run.status === "saved") return { ...run, preserved };
+    await release();
+    return run;
+  } catch (error) {
+    await release();
+    throw error;
+  }
+}
+
+const IN_PROGRESS_BODY = (requestId: string) => ({
+  success: false as const,
+  request_id: requestId,
+  error_code: "REFINE_IN_PROGRESS",
+  category: "validation_error" as const,
+  retryable: true,
+  safe_message: "Já existe uma análise deste lead em andamento. Aguarde alguns segundos e atualize a página para ver o resultado. Nenhum crédito extra foi cobrado.",
+  error_message: "Já existe uma análise deste lead em andamento. Aguarde alguns segundos e atualize a página para ver o resultado. Nenhum crédito extra foi cobrado.",
+  credit_consumed: false as const,
+  saved: false as const,
+});
+
 // ===== analisar-lead-ia =====
 
 const cors = {
@@ -628,36 +810,49 @@ serve(async (req) => {
       return json({ success: false, request_id: requestId, error_code: "REFINE_PERMISSION_DENIED", error_message: "Este tipo de análise não está disponível para sua conta." }, 403);
     }
 
-    // Duplicata (clique duplo ou duas abas): devolve a análise já salva, sem chamar o Gemini e sem novo crédito.
-    const { data: lastRun } = await admin
-      .from("leads")
-      .select("ai_analise_gerada_em, ai_used_fallback")
-      .eq("id", leadId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (isDuplicateRefine({ generatedAt: lastRun?.ai_analise_gerada_em, usedFallback: lastRun?.ai_used_fallback })) {
-      await logEvent(admin, user.id, "ai_analysis_duplicate_ignored", { request_id: requestId, leadId, deducted_credit: false });
-      return json({
-        success: true,
-        request_id: requestId,
-        already_current: true,
-        saved: true,
-        used_fallback: false,
-        credit_consumed: false,
-        generated_at: lastRun?.ai_analise_gerada_em,
-      });
-    }
-
     let responsePayload: ReturnType<typeof buildResponse> | null = null;
 
-    const run = await runRefine({
+    // Exclusão mútua por lead: duas requisições simultâneas (duas abas, clique duplo) não geram nem cobram duas vezes.
+    const store: RefineStore = {
+      read: async () => {
+        const { data } = await admin
+          .from("leads")
+          .select("ai_fallback_reason, updated_at, ai_analise_gerada_em, ai_used_fallback, plano_prospeccao")
+          .eq("id", leadId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        return data
+          ? { reason: data.ai_fallback_reason ?? null, updatedAt: data.updated_at ?? null, generatedAt: data.ai_analise_gerada_em ?? null, usedFallback: data.ai_used_fallback ?? null, plan: data.plano_prospeccao ?? null }
+          : null;
+      },
+      claim: async (prevReason, lockValue, nowIso) => {
+        let query = admin.from("leads").update({ ai_fallback_reason: lockValue, updated_at: nowIso }).eq("id", leadId).eq("user_id", user.id);
+        query = prevReason === null ? query.is("ai_fallback_reason", null) : query.eq("ai_fallback_reason", prevReason);
+        const { data, error } = await query.select("id");
+        return !error && data?.length === 1;
+      },
+      release: async (lockValue, restoreReason) => {
+        await admin
+          .from("leads")
+          .update({ ai_fallback_reason: restoreReason, updated_at: new Date().toISOString() })
+          .eq("id", leadId)
+          .eq("user_id", user.id)
+          .eq("ai_fallback_reason", lockValue);
+      },
+    };
+
+    const run = await runGuardedRefine({
       requestId,
       isAdmin,
+      store,
       callProvider: async () => GEMINI_KEY
         ? await callGemini(GEMINI_KEY, lead, requestData, requestId)
         : { ok: false, error: "gemini_key_missing" },
-      persist: async (analysis, model) => {
-        responsePayload = buildResponse(leadId, requestId, lead, analysis, requestData, model, false);
+      persist: async (analysis, model, ctx) => {
+        const built = buildResponse(leadId, requestId, lead, analysis, requestData, model, false);
+        // Mantém qualquer outro dado já guardado no plano (histórico) e sobrepõe só o que a nova análise define.
+        const previousObject = ctx.previousPlan && typeof ctx.previousPlan === "object" && !Array.isArray(ctx.previousPlan) ? ctx.previousPlan as Record<string, unknown> : {};
+        responsePayload = { ...previousObject, ...built } as ReturnType<typeof buildResponse>;
         const { data: saved, error: saveError } = await admin
           .from("leads")
           .update({
@@ -666,10 +861,11 @@ serve(async (req) => {
             plano_prospeccao: responsePayload,
             ai_analise_gerada_em: new Date().toISOString(),
             ai_used_fallback: false,
-            ai_fallback_reason: null,
+            ai_fallback_reason: null, // limpa a reserva na mesma gravação
           })
           .eq("id", leadId)
           .eq("user_id", user.id)
+          .eq("ai_fallback_reason", ctx.lockValue) // só grava se a reserva ainda for desta requisição
           .select("id, ai_analise_gerada_em");
         return !saveError && Boolean(saved?.length);
       },
@@ -678,6 +874,28 @@ serve(async (req) => {
         return !error && ok === true;
       },
     });
+
+    if (run.status === "in_progress") {
+      await logEvent(admin, user.id, "ai_analysis_duplicate_ignored", { request_id: requestId, leadId, reason: "in_progress", deducted_credit: false });
+      return json(IN_PROGRESS_BODY(requestId), 409);
+    }
+
+    if (run.status === "lead_not_found") {
+      return json({ success: false, request_id: requestId, error_code: "REFINE_LEAD_NOT_FOUND", error_message: "O lead não foi encontrado na sua conta. Atualize a lista e tente novamente." }, 409);
+    }
+
+    if (run.status === "already_current") {
+      await logEvent(admin, user.id, "ai_analysis_duplicate_ignored", { request_id: requestId, leadId, reason: "recent_saved", deducted_credit: false });
+      return json({
+        success: true,
+        request_id: requestId,
+        already_current: true,
+        saved: true,
+        used_fallback: false,
+        credit_consumed: false,
+        generated_at: run.generatedAt,
+      });
+    }
 
     // Sem análise válida do Gemini: nada é gravado (a análise anterior permanece), nenhum crédito é cobrado e o
     // usuário recebe um erro claro. Antes, um texto genérico de reserva era gravado e anunciado como sucesso.
@@ -715,6 +933,7 @@ serve(async (req) => {
       used_fallback: false,
       fallback_reason: null,
       credit_consumed: run.charged,
+      preserved_days: run.preserved,
       timing: { total_ms: Date.now() - started },
       ...(run.creditWarning ? { credit_warning: run.creditWarning } : {}),
     });

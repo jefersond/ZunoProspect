@@ -137,3 +137,39 @@ export function buildPersistenceUnconfirmedError(requestId: string): RefineClien
     error_message: safeMessage,
   }, 200, false);
 }
+
+export interface PreservedDay { dia: number; reason: "edited" | "completed" | "optout_blocked" }
+
+/** Dias que o backend manteve como o assinante deixou (edição manual, etapa concluída, bloqueio por recusa). */
+export function readPreservedDays(data: unknown): PreservedDay[] {
+  const raw = asRecord(data).preserved_days;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => asRecord(item))
+    .filter((item) => Number.isInteger(item.dia) && ["edited", "completed", "optout_blocked"].includes(String(item.reason)))
+    .map((item) => ({ dia: Number(item.dia), reason: item.reason as PreservedDay["reason"] }));
+}
+
+/** Frase para o aviso de sucesso explicando o que NÃO foi sobrescrito; vazia quando nada foi preservado. */
+export function describePreservedDays(preserved: PreservedDay[]): string {
+  if (!preserved.length) return "";
+  const days = preserved.map((p) => p.dia).sort((a, b) => a - b);
+  const list = days.length === 1 ? `o dia ${days[0]}` : `os dias ${days.slice(0, -1).join(", ")} e ${days[days.length - 1]}`;
+  const edited = preserved.some((p) => p.reason === "edited");
+  const done = preserved.some((p) => p.reason === "completed" || p.reason === "optout_blocked");
+  const what = edited && done ? "editados por você, concluídos ou bloqueados" : edited ? "editados por você" : "concluídos ou bloqueados";
+  return `Mantivemos ${list} exatamente como estavam (${what}); a nova análise não os sobrescreveu.`;
+}
+
+/** Erros cuja mensagem do servidor já é clara e deve ser exibida ao usuário no lugar do texto genérico. */
+export function shouldShowServerMessage(payload: { category?: string; error_code?: string }): boolean {
+  return (
+    payload.category === "rate_limit_error" ||
+    payload.category === "provider_error" ||
+    payload.category === "database_error" ||
+    payload.error_code === "REFINE_IN_PROGRESS" ||
+    payload.error_code === "REFINE_SAVE_FAILED"
+  );
+}
+
+export const REFINE_PERSISTENCE_UNCONFIRMED = "REFINE_PERSISTENCE_UNCONFIRMED";

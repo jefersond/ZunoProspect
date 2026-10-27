@@ -17,9 +17,9 @@ describe("analisar-lead-ia: sem análise genérica disfarçada de IA", () => {
   });
 
   it("gravação e cobrança acontecem somente dentro de runRefine (provedor → gravação → cobrança)", () => {
-    expect(source).toContain("await runRefine({");
-    const runAt = source.indexOf("await runRefine({");
-    expect(source.indexOf('.update({')).toBeGreaterThan(runAt);
+    expect(source).toContain("await runGuardedRefine({");
+    const runAt = source.indexOf("await runGuardedRefine({");
+    expect(source.indexOf("diagnostico_bullets: analysis.diagnostico_bullets")).toBeGreaterThan(runAt);
     expect(source.indexOf("increment_ai_usage")).toBeGreaterThan(runAt);
     expect(source.match(/increment_ai_usage/g)).toHaveLength(1);
   });
@@ -38,13 +38,17 @@ describe("analisar-lead-ia: sem análise genérica disfarçada de IA", () => {
     expect(source).toContain("inspeção automática do HTML do site está suspensa");
   });
 
-  it("duplicata é resolvida antes de chamar o Gemini e antes de cobrar", () => {
-    const dupAt = source.indexOf("isDuplicateRefine(");
-    const geminiAt = source.indexOf("await callGemini(GEMINI_KEY");
-    const chargeAt = source.indexOf("increment_ai_usage");
-    expect(dupAt).toBeGreaterThan(0);
-    expect(dupAt).toBeLessThan(geminiAt);
-    expect(dupAt).toBeLessThan(chargeAt);
+  it("a reserva do lead é um UPDATE condicional (compare-and-set) e a gravação só vale com a reserva ainda ativa", () => {
+    expect(source).toContain('query.is("ai_fallback_reason", null)');
+    expect(source).toContain('query.eq("ai_fallback_reason", prevReason)');
+    expect(source).toContain('.eq("ai_fallback_reason", ctx.lockValue)');
+    expect(source).toContain("return json(IN_PROGRESS_BODY(requestId), 409)");
+  });
+
+  it("nenhuma migration é necessária: usa só colunas que já existem em leads", () => {
+    for (const column of ["ai_fallback_reason", "updated_at", "ai_analise_gerada_em", "ai_used_fallback", "plano_prospeccao"]) {
+      expect(source).toContain(column);
+    }
   });
 
   it("só cobra depois de confirmar a gravação (saved) da análise", () => {

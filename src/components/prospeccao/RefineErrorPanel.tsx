@@ -24,9 +24,12 @@ interface RefineErrorPanelProps {
   error: RefineErrorPayload;
   onRetry?: () => void;
   retrying?: boolean;
+  /** Relê o que está salvo no banco, sem gerar outra análise (usado quando a gravação não pôde ser confirmada). */
+  onRecover?: () => void;
+  recovering?: boolean;
 }
 
-export function RefineErrorPanel({ error, onRetry, retrying = false }: RefineErrorPanelProps) {
+export function RefineErrorPanel({ error, onRetry, retrying = false, onRecover, recovering = false }: RefineErrorPanelProps) {
   const { toast } = useToast();
   const [reportOpen, setReportOpen] = useState(false);
   const [description, setDescription] = useState("");
@@ -68,6 +71,12 @@ export function RefineErrorPanel({ error, onRetry, retrying = false }: RefineErr
         <AlertDescription className="space-y-3">
           <p>{getRefineDisplayMessage(error)}</p>
           <div className="flex flex-wrap items-center gap-2">
+            {error.error_code === "REFINE_PERSISTENCE_UNCONFIRMED" && onRecover && (
+              <Button type="button" size="sm" variant="outline" disabled={recovering} onClick={onRecover} data-testid="recover-saved-analysis">
+                <RotateCcw className={`mr-1 h-3 w-3 ${recovering ? "animate-spin" : ""}`} />
+                {recovering ? "Verificando..." : "Verificar o que foi salvo"}
+              </Button>
+            )}
             {error.retryable && onRetry && (
               <Button type="button" size="sm" variant="outline" disabled={retrying || cooldownSeconds > 0} onClick={onRetry}>
                 <RotateCcw className={`mr-1 h-3 w-3 ${retrying ? "animate-spin" : ""}`} />

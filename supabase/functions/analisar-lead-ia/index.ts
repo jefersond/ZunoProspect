@@ -479,7 +479,7 @@ serve(async (req) => {
     });
 
     return json({
-      ...responsePayload,
+      ...(responsePayload ?? {}),
       success: true,
       request_id: requestId,
       saved: true,

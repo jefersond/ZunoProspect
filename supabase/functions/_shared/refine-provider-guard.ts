@@ -174,21 +174,31 @@ export type ProviderOutcome =
   | { ok: true; analysis: ValidAnalysis; model: string }
   | { ok: false; error: string };
 
-export interface RefineDeps {
+/** Qualquer análise que carregue a lista de dias em `plano_prospeccao_7dias` (formato legado ou o do prompt v6). */
+export type AnalysisWithDays = { plano_prospeccao_7dias: unknown[] };
+
+export type ProviderOutcomeOf<A> = { ok: true; analysis: A; model: string } | { ok: false; error: string };
+
+export interface RefineDeps<A extends AnalysisWithDays = ValidAnalysis> {
   requestId: string;
   isAdmin: boolean;
   /** Uma única rodada de chamadas ao provedor (cada modelo no máximo uma vez). */
-  callProvider: () => Promise<ProviderOutcome>;
+  callProvider: () => Promise<ProviderOutcomeOf<A>>;
+  /** Valida o que o provedor devolveu. Padrão: validador legado; o prompt v6 valida dentro de callProvider e passa `okAlready`. */
+  validate?: (analysis: A) => { ok: true; value: A } | { ok: false; reason: string };
   /** Grava a análise; deve devolver true somente quando o banco confirmou a linha gravada. */
-  persist: (analysis: ValidAnalysis, model: string) => Promise<boolean>;
+  persist: (analysis: A, model: string) => Promise<boolean>;
   /** Desconta 1 crédito interno; true somente se o desconto foi registrado. */
   charge: () => Promise<boolean>;
 }
 
-export type RefineRun =
+export type RefineRun<A extends AnalysisWithDays = ValidAnalysis> =
   | { status: "provider_failed"; reason: string; failure: ProviderFailure }
   | { status: "save_failed" }
-  | { status: "saved"; model: string; analysis: ValidAnalysis; charged: boolean; creditWarning: string | null };
+  | { status: "saved"; model: string; analysis: A; charged: boolean; creditWarning: string | null };
+
+/** Para análises já validadas dentro de callProvider (prompt v6). */
+export const okAlready = <A>(analysis: A): { ok: true; value: A } => ({ ok: true, value: analysis });
 
 export const SAVE_FAILED_BODY = (requestId: string) => ({
   success: false as const,
@@ -206,12 +216,13 @@ export const SAVE_FAILED_BODY = (requestId: string) => ({
  * Ordem obrigatória: provedor → gravação confirmada → cobrança. Falha do provedor ou da gravação nunca cobra;
  * cobrança só existe para análise válida já persistida, e administradores não são cobrados.
  */
-export async function runRefine(deps: RefineDeps): Promise<RefineRun> {
+export async function runRefine<A extends AnalysisWithDays = ValidAnalysis>(deps: RefineDeps<A>): Promise<RefineRun<A>> {
   const provider = await deps.callProvider();
   if (!provider.ok) {
     return { status: "provider_failed", reason: provider.error, failure: buildProviderFailure(deps.requestId, provider.error) };
   }
-  const validation = validateAnalysis(provider.analysis);
+  const validate = deps.validate ?? ((a: A) => validateAnalysis(a) as unknown as { ok: true; value: A } | { ok: false; reason: string });
+  const validation = validate(provider.analysis);
   if (!validation.ok) {
     return { status: "provider_failed", reason: `invalid_output:${validation.reason}`, failure: buildProviderFailure(deps.requestId, `invalid_output:${validation.reason}`) };
   }
@@ -220,7 +231,7 @@ export async function runRefine(deps: RefineDeps): Promise<RefineRun> {
 
   let charged = false;
   let creditWarning: string | null = null;
-  if (shouldChargeCredit(validation, deps.isAdmin)) {
+  if (shouldChargeCredit(validation as unknown as AnalysisValidation, deps.isAdmin)) {
     try {
       charged = await deps.charge();
     } catch {
@@ -397,23 +408,23 @@ export interface PersistContext {
   expected: { status: string | null; generatedAt: string | null };
 }
 
-export interface GuardedRefineDeps extends Omit<RefineDeps, "persist"> {
+export interface GuardedRefineDeps<A extends AnalysisWithDays = ValidAnalysis> extends Omit<RefineDeps<A>, "persist"> {
   store: RefineStore;
   now?: () => number;
   /** Grava com a reserva ainda ativa; deve limpar a reserva na mesma gravação e devolver true só se o banco confirmou. */
-  persist: (analysis: ValidAnalysis, model: string, ctx: PersistContext) => Promise<boolean>;
+  persist: (analysis: A, model: string, ctx: PersistContext) => Promise<boolean>;
 }
 
 export type ConflictReason = "lead_gone" | "lock_lost" | "analysis_changed" | "opt_out" | "plan_shape_unknown";
 
-export type GuardedRefineRun =
+export type GuardedRefineRun<A extends AnalysisWithDays = ValidAnalysis> =
   | { status: "in_progress" }
   | { status: "lead_not_found" }
   | { status: "already_current"; generatedAt: string | null }
   | { status: "expired" }
   | { status: "conflict"; reason: ConflictReason }
-  | (Extract<RefineRun, { status: "provider_failed" | "save_failed" }>)
-  | (Extract<RefineRun, { status: "saved" }> & { preserved: PreservedDay[] });
+  | (Extract<RefineRun<A>, { status: "provider_failed" | "save_failed" }>)
+  | (Extract<RefineRun<A>, { status: "saved" }> & { preserved: PreservedDay[] });
 
 /**
  * Operação completa e idempotente por lead: reserva → (duplicata recente?) → provedor → releitura do estado MAIS
@@ -421,7 +432,7 @@ export type GuardedRefineRun =
  * Qualquer conflito que não possa ser resolvido com segurança (edição/opt-out/mudança durante a geração, plano em
  * formato desconhecido, prazo da reserva vencido) recusa a atualização: nada é sobrescrito e nada é cobrado.
  */
-export async function runGuardedRefine(deps: GuardedRefineDeps): Promise<GuardedRefineRun> {
+export async function runGuardedRefine<A extends AnalysisWithDays = ValidAnalysis>(deps: GuardedRefineDeps<A>): Promise<GuardedRefineRun<A>> {
   const now = deps.now ?? Date.now;
   const acquiredAt = now();
   const lock = await acquireRefineLock(deps.store, deps.requestId, acquiredAt);
@@ -445,10 +456,11 @@ export async function runGuardedRefine(deps: GuardedRefineDeps): Promise<Guarded
     let refused: { status: "expired" } | { status: "conflict"; reason: ConflictReason } | null = null;
     const refuse = (r: NonNullable<typeof refused>) => { refused = r; return false; };
 
-    const run = await runRefine({
+    const run = await runRefine<A>({
       requestId: deps.requestId,
       isAdmin: deps.isAdmin,
       callProvider: deps.callProvider,
+      validate: deps.validate,
       charge: deps.charge,
       persist: async (analysis, model) => {
         // 1) prazo seguro: depois dele outra requisição pode ter assumido a reserva expirada.
@@ -462,9 +474,9 @@ export async function runGuardedRefine(deps: GuardedRefineDeps): Promise<Guarded
         if (isOptOutRow(fresh)) return refuse({ status: "conflict", reason: "opt_out" });
         if (classifyPlanShape(fresh.plan) === "unknown") return refuse({ status: "conflict", reason: "plan_shape_unknown" });
 
-        const merged = mergePlanPreservingUser(fresh.plan, analysis.plano_prospeccao_7dias);
+        const merged = mergePlanPreservingUser(fresh.plan, analysis.plano_prospeccao_7dias as PlanDay[]);
         preserved = merged.preserved;
-        const finalAnalysis = { ...analysis, plano_prospeccao_7dias: merged.days as ValidAnalysis["plano_prospeccao_7dias"] };
+        const finalAnalysis = { ...analysis, plano_prospeccao_7dias: merged.days } as A;
         const ok = await deps.persist(finalAnalysis, model, {
           lockValue: lock.lockValue,
           preserved,

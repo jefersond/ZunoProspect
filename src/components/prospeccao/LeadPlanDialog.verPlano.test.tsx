@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
+const testIsAdmin = vi.hoisted(() => ({ value: false }));
 const updateSpy = vi.fn();
 const invokeSpy = vi.fn();
 
@@ -29,10 +30,10 @@ vi.mock("@/integrations/supabase/client", () => {
   };
 });
 vi.mock("@/hooks/useSubscription", () => ({
-  useSubscription: () => ({ subscription: { plan_name: "pro" }, loading: false, isAdmin: false }),
+  useSubscription: () => ({ subscription: { plan_name: "pro" }, loading: false, isAdmin: testIsAdmin.value }),
 }));
 vi.mock("@/hooks/useUsage", () => ({
-  useUsage: () => ({ usage: { plan_name: "pro" }, canAnalyzeAI: true, refetch: vi.fn(), isAdmin: false }),
+  useUsage: () => ({ usage: { plan_name: "pro" }, canAnalyzeAI: true, refetch: vi.fn(), isAdmin: testIsAdmin.value }),
 }));
 vi.mock("@/components/templates/TemplateSelector", () => ({ TemplateSelector: () => null }));
 vi.mock("@/components/profile/UpgradePlanDialog", () => ({ UpgradePlanDialog: () => null }));
@@ -66,6 +67,7 @@ describe("Ver Plano → LeadPlanDialog", () => {
     updateSpy.mockClear();
     invokeSpy.mockClear();
     copyToClipboard.mockClear();
+    testIsAdmin.value = true; // o SDR é somente para administradores; os testes de não-admin trocam para false
   });
   afterEach(cleanup);
 
@@ -167,20 +169,24 @@ describe("Ver Plano → LeadPlanDialog", () => {
     expect(updateSpy).not.toHaveBeenCalled();
   });
 
-  it("Executar no SDR: não inventa mensagens para dias sem texto", async () => {
+  it("Executar no SDR: dia sem texto fica desativado e nunca abre o SDR nem inventa mensagem", async () => {
     const lead = makeNewLead();
     lead.plano_prospecao_7dias = lead.plano_prospecao_7dias.map((d) =>
-      d.dia === 3 ? { ...d, mensagem: "" } : d
+      d.dia === 3 ? { ...d, mensagem: "", tipo_dia: "tarefa" as const, canal: "nenhum" as const } : d
     );
     render(<Harness lead={lead} />);
     fireEvent.click(screen.getByText("Ver Plano"));
     const dialog = await screen.findByRole("dialog");
 
-    fireEvent.click(within(dialog).getAllByText("Executar no SDR")[2]); // Dia 3
+    const buttons = within(dialog).getAllByText("Executar no SDR").map((n) => n.closest("button") as HTMLButtonElement);
+    expect(buttons[2].disabled).toBe(true); // Dia 3 (tarefa)
+    expect(buttons.filter((b) => !b.disabled)).toHaveLength(6);
+    expect(within(dialog).getByTestId("dia-3-sem-mensagem")).toBeTruthy();
 
-    await waitFor(() => expect(screen.getAllByRole("dialog", { hidden: true }).length).toBeGreaterThan(1));
-    const textarea = document.querySelector("textarea") as HTMLTextAreaElement;
-    expect(textarea.value).toBe("");
+    // mesmo forçando o clique, o handler recusa
+    buttons[2].removeAttribute("disabled");
+    fireEvent.click(buttons[2]);
+    expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(1);
     expect(invokeSpy).not.toHaveBeenCalled();
   });
 
@@ -221,5 +227,28 @@ describe("Ver Plano → LeadPlanDialog", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getAllByText(lead.nome)).toHaveLength(1); // só o título do diálogo
     expect(within(within(dialog).getByTestId("analysis-header")).queryByText(/Atualizar C[óo]pias/)).toBeNull();
+  });
+
+  it("SDR somente para ADM: assinante comum não vê 'Executar no SDR', 'Abordar no WhatsApp' nem o modal", async () => {
+    testIsAdmin.value = false;
+    render(<Harness lead={makeNewLead()} />);
+    fireEvent.click(screen.getByText("Ver Plano"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryAllByText("Executar no SDR")).toHaveLength(0);
+    expect(within(dialog).queryByText(/Executar Dia \d+ no SDR/)).toBeNull();
+    expect(within(dialog).queryByText(/Prospecção Assistida SDR/)).toBeNull();
+    expect(within(dialog).queryByText("Abordar no WhatsApp")).toBeNull();
+    expect(screen.queryByText(/Abordagem assistida|SDR WhatsApp/i)).toBeNull();
+    // o plano continua visível para consulta e cópia manual
+    expect(within(dialog).getByTestId("dia-1")).toBeTruthy();
+  });
+
+  it("SDR para administrador continua disponível", async () => {
+    testIsAdmin.value = true;
+    render(<Harness lead={makeNewLead()} />);
+    fireEvent.click(screen.getByText("Ver Plano"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Abordar no WhatsApp")).toBeTruthy();
+    expect(within(dialog).getAllByText("Executar no SDR").length).toBeGreaterThan(0);
   });
 });

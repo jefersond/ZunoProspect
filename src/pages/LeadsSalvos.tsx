@@ -42,6 +42,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { trackEvent } from "@/lib/analytics";
 import { refineWithAI } from "@/services/refineWithAI";
+import { ensureSellerProfileOrPrompt, openSellerProfileDialog } from "@/lib/sellerProfile";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, resolveUsedFallback, describePreservedDays, readPreservedDays, shouldShowServerMessage } from "@/utils/refineOutcome";
 
@@ -247,7 +248,7 @@ const LeadsSalvos = () => {
           diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
           probabilidade_conversao: (lead.probabilidade_conversao && Number(lead.probabilidade_conversao) > 0)
             ? Number(lead.probabilidade_conversao)
-            : (lead.plano_prospeccao ? 85 : 0),
+            : 0,
           plano_prospecao_7dias: normalizePlanoProspeccao(lead.plano_prospeccao),          rating: lead.rating,
           total_reviews: lead.total_reviews,
           status: lead.status || "novo",
@@ -342,6 +343,12 @@ const LeadsSalvos = () => {
       return;
     }
 
+    // Sem perfil comercial completo (nome, serviço e oferta), o Zuno pede o preenchimento ANTES de qualquer chamada de IA.
+    if (!ensureSellerProfileOrPrompt()) {
+      toast({ title: "Complete seu perfil comercial", description: "Para escrever mensagens em seu nome, o Zuno precisa saber quem você é e o que você vende. Nenhuma análise foi gerada e nenhum crédito foi usado." });
+      return;
+    }
+
     let searchContext = {};
     try {
       const storedContext = localStorage.getItem("zuno_last_search_context");
@@ -413,6 +420,7 @@ const LeadsSalvos = () => {
       const errorPayload = normalizedError.payload;
       const errorMsg = errorPayload.safe_message;
       setRefineError({ leadId, error: errorPayload });
+      if (errorPayload.error_code === "REFINE_PROFILE_REQUIRED") openSellerProfileDialog();
 
       const isBalanceError = (errorPayload?.error_code === "AI_CREDITS_EXHAUSTED") ||
                              (errorPayload?.error_code === "AI_LIMIT_REACHED") ||

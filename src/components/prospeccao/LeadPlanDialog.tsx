@@ -28,6 +28,7 @@ import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { normalizeLeadForAI, normalizePlanoProspeccao, normalizeDiagnosticoBullets } from "@/utils/normalizeLead";
 import { buildIntelligentPlan, hasExplicitOptOut } from "@/services/intelligentSevenDayPlan";
 import { refineWithAI } from "@/services/refineWithAI";
+import { ensureSellerProfileOrPrompt, openSellerProfileDialog } from "@/lib/sellerProfile";
 import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, describePreservedDays, readPreservedDays, shouldShowServerMessage, sanitizeFallbackReason } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
@@ -186,8 +187,10 @@ export const LeadPlanDialog = ({
   const [sdrInitialDay, setSdrInitialDay] = useState<number>(1);
 
   // Recusa registrada: nenhuma entrada do diálogo abre o SDR para novas abordagens (o SDR também bloqueia por conta própria).
+  const sdrEnabled = () => isAdmin;
   const isContactBlocked = () => Boolean(currentLead || lead) && hasExplicitOptOut((currentLead || lead) as LeadProspeccao);
   const handleOpenSdrWithDay = (day: number) => {
+    if (!sdrEnabled()) return; // SDR é somente para administradores (ainda não aprovado para assinantes)
     if (isContactBlocked()) {
       toast({
         variant: "destructive",
@@ -196,8 +199,21 @@ export const LeadPlanDialog = ({
       });
       return;
     }
+    // Com plano salvo, só abre o SDR numa etapa que tenha mensagem (tarefas e dias sem envio não têm texto).
+    const savedPlan = (currentLead || lead)?.plano_prospecao_7dias ?? [];
+    if (savedPlan.length > 0 && !String(savedPlan.find((d) => d.dia === day)?.mensagem || "").trim()) {
+      toast({ title: "Esta etapa não tem mensagem para enviar", description: "Escolha uma etapa com mensagem ou conclua a tarefa antes." });
+      return;
+    }
     setSdrInitialDay(day);
     setIsSdrModalOpen(true);
+  };
+
+  /** Primeira etapa com mensagem do plano salvo (o botão "Abordar" não abre uma tarefa vazia). */
+  const firstMessageDay = (): number | null => {
+    const savedPlan = (currentLead || lead)?.plano_prospecao_7dias ?? [];
+    if (!savedPlan.length) return sdrInitialDay;
+    return savedPlan.find((d) => String(d.mensagem || "").trim())?.dia ?? null;
   };
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [notes, setNotes] = useState(lead?.notas || "");
@@ -533,6 +549,12 @@ export const LeadPlanDialog = ({
       });
       return;
     }
+
+    // Sem perfil comercial completo (nome, serviço e oferta), o Zuno pede o preenchimento ANTES de qualquer chamada de IA.
+    if (!ensureSellerProfileOrPrompt()) {
+      toast({ title: "Complete seu perfil comercial", description: "Para escrever mensagens em seu nome, o Zuno precisa saber quem você é e o que você vende. Nenhuma análise foi gerada e nenhum crédito foi usado." });
+      return;
+    }
     
     if (activeRequestRef.current || isReanalyzing) {
       console.log("Clique duplo detectado e prevenido para o lead no dialog:", leadKey);
@@ -737,6 +759,7 @@ export const LeadPlanDialog = ({
       const errorPayload = normalizedError.payload;
       const errorMsg = errorPayload.safe_message;
       setRefineError(errorPayload);
+      if (errorPayload.error_code === "REFINE_PROFILE_REQUIRED") openSellerProfileDialog();
 
       const isBalanceError = (errorPayload?.error_code === "AI_CREDITS_EXHAUSTED") ||
                              (errorPayload?.error_code === "AI_LIMIT_REACHED") ||
@@ -850,31 +873,33 @@ export const LeadPlanDialog = ({
           )}
         </div>
 
-        {/* Prospecção Assistida SDR WhatsApp */}
-        <div className={`mt-2 p-3.5 rounded-lg border ${isContactBlocked() ? "bg-destructive/10 border-destructive/30" : "bg-emerald-500/10 border-emerald-500/30"} flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3`}>
-          <div className="space-y-0.5">
-            <div className={`flex items-center gap-1.5 font-semibold text-sm ${isContactBlocked() ? "text-destructive" : "text-emerald-400"}`}>
-              <MessageSquare className="h-4 w-4" />
-              {isContactBlocked() ? "Prospecção bloqueada" : "Prospecção Assistida SDR (Primeira Abordagem)"}
+        {/* Prospecção Assistida SDR WhatsApp — somente administradores */}
+        {isAdmin && (
+          <div className={`mt-2 p-3.5 rounded-lg border ${isContactBlocked() ? "bg-destructive/10 border-destructive/30" : "bg-emerald-500/10 border-emerald-500/30"} flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3`}>
+            <div className="space-y-0.5">
+              <div className={`flex items-center gap-1.5 font-semibold text-sm ${isContactBlocked() ? "text-destructive" : "text-emerald-400"}`}>
+                <MessageSquare className="h-4 w-4" />
+                {isContactBlocked() ? "Prospecção bloqueada" : "Prospecção Assistida SDR (Primeira Abordagem)"}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isContactBlocked()
+                  ? "Esta empresa pediu para não ser contatada. Nenhuma abordagem pode ser iniciada por aqui."
+                  : "Abra a conversa direto no WhatsApp do seu próprio número com mensagem personalizada pronta para aprovação."}
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {isContactBlocked()
-                ? "Esta empresa pediu para não ser contatada. Nenhuma abordagem pode ser iniciada por aqui."
-                : "Abra a conversa direto no WhatsApp do seu próprio número com mensagem personalizada pronta para aprovação."}
-            </p>
+            <Button
+              size="sm"
+              onClick={() => { const d = firstMessageDay(); if (d !== null) handleOpenSdrWithDay(d); }}
+              disabled={isContactBlocked() || firstMessageDay() === null}
+              aria-disabled={isContactBlocked()}
+              title={isContactBlocked() ? "Contato bloqueado por recusa registrada" : undefined}
+              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold disabled:bg-muted disabled:text-muted-foreground text-xs shrink-0 shadow-sm flex items-center justify-center gap-1.5"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              {isContactBlocked() ? "Contato bloqueado (recusa registrada)" : "Abordar no WhatsApp"}
+            </Button>
           </div>
-          <Button
-            size="sm"
-            onClick={() => handleOpenSdrWithDay(sdrInitialDay)}
-            disabled={isContactBlocked()}
-            aria-disabled={isContactBlocked()}
-            title={isContactBlocked() ? "Contato bloqueado por recusa registrada" : undefined}
-            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold disabled:bg-muted disabled:text-muted-foreground text-xs shrink-0 shadow-sm flex items-center justify-center gap-1.5"
-          >
-            <MessageSquare className="h-3.5 w-3.5" />
-            {isContactBlocked() ? "Contato bloqueado (recusa registrada)" : "Abordar no WhatsApp"}
-          </Button>
-        </div>
+        )}
 
         {/* Status Selector */}
         <div className="mt-2 mb-4 p-4 bg-muted/30 rounded-lg border border-border/50">
@@ -997,7 +1022,7 @@ export const LeadPlanDialog = ({
                 <LeadAnalysis
                   lead={displayLead}
                   showCompanyName={false}
-                  onExecuteInSdr={handleOpenSdrWithDay}
+                  onExecuteInSdr={isAdmin ? handleOpenSdrWithDay : undefined}
                   diagnostico={[
                     pendingAnalysis.opportunity_summary,
                     pendingAnalysis.possible_pain,
@@ -1018,7 +1043,7 @@ export const LeadPlanDialog = ({
               <LeadAnalysis
                 lead={displayLead}
                 showCompanyName={false}
-                onExecuteInSdr={handleOpenSdrWithDay}
+                onExecuteInSdr={isAdmin ? handleOpenSdrWithDay : undefined}
                 diagnostico={normalizeDiagnosticoBullets(displayLead.diagnostico_bullets, displayLead)}
                 probabilidade={displayLead.probabilidade_conversao ?? null}
                 plano={normalizePlanoProspeccao(displayLead.plano_prospecao_7dias && displayLead.plano_prospecao_7dias.length > 0 ? displayLead.plano_prospecao_7dias : (displayLead as any).plano_prospeccao)}
@@ -1039,7 +1064,7 @@ export const LeadPlanDialog = ({
           </TabsContent>
         </Tabs>
       </DialogContent>
-      <SdrWhatsAppModal
+      {isAdmin && <SdrWhatsAppModal
         lead={displayLead}
         open={isSdrModalOpen}
         onOpenChange={setIsSdrModalOpen}
@@ -1049,7 +1074,7 @@ export const LeadPlanDialog = ({
           handleStatusChange(newStatus);
           onLeadUpdate?.();
         }}
-      />
+      />}
       <UpgradePlanDialog
         open={showUpgradeDialog}
         onOpenChange={setShowUpgradeDialog}

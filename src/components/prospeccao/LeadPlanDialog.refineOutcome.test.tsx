@@ -46,6 +46,21 @@ vi.mock("@/utils/subscriptionUtils", async (orig) => ({ ...(await orig<object>()
 import { LeadPlanDialog } from "./LeadPlanDialog";
 import { makeNewLead } from "@/test/leadFixtures";
 import { normalizeRefineError } from "@/lib/refineObservability";
+import { getSellerProfileState, loadSellerProfileForUser, resetSellerProfileStateForTests, saveSellerProfile } from "@/lib/sellerProfile";
+
+const SELLER = {
+  display_name: "Marina Costa",
+  company_name: "Costa Digital",
+  service_category: "sites" as const,
+  service_offered: "Criação de sites para negócios locais",
+  offer_description: "Faço sites de uma página com serviços, horário, mapa e botão de WhatsApp para oficinas e lojas.",
+  target_audience: "Oficinas e comércio local",
+};
+const withSellerProfile = async () => {
+  resetSellerProfileStateForTests();
+  await loadSellerProfileForUser("test-user");
+  await saveSellerProfile(SELLER);
+};
 import type { LeadProspeccao } from "@/types/lead";
 
 const GENERIC = "Atuo com Tráfego e queria te fazer uma pergunta rápida: hoje a entrada de novos clientes acontece de forma constante";
@@ -70,10 +85,12 @@ const geminiRow = (lead: LeadProspeccao) => ({
 });
 
 describe("Refinar com IA: só anuncia sucesso quando há análise válida e visível", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     toast.mockClear();
     refineWithAI.mockReset();
     dbRow = null;
+    localStorage.clear();
+    await withSellerProfile();
   });
   afterEach(cleanup);
 
@@ -356,5 +373,59 @@ describe("Refinar com IA: só anuncia sucesso quando há análise válida e vis�
 
     // nenhuma nova geração (nem cobrança) aconteceu durante a recuperação
     expect(refineWithAI).toHaveBeenCalledTimes(1);
+  });
+
+  it("o corpo da solicitação NÃO carrega o perfil: o servidor usa o perfil salvo do próprio usuário", async () => {
+    const lead = makeNewLead();
+    dbRow = geminiRow(lead);
+    refineWithAI.mockResolvedValue({ requestId: "r20", data: { success: true, model: "gemini-3.5-flash-lite", used_fallback: false } });
+    renderDialog(lead);
+    await clickRefine();
+    await waitFor(() => expect(refineWithAI).toHaveBeenCalledTimes(1));
+    expect(refineWithAI.mock.calls[0][0]).not.toHaveProperty("seller_profile");
+  });
+
+  it("sem perfil comercial: abre o formulário, não chama a IA e não consome crédito", async () => {
+    localStorage.clear();
+    resetSellerProfileStateForTests();
+    await loadSellerProfileForUser("test-user"); // perfil vazio
+    renderDialog(makeNewLead());
+    await clickRefine();
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Complete seu perfil comercial" })));
+    expect(refineWithAI).not.toHaveBeenCalled();
+    expect(getSellerProfileState().dialogOpen).toBe(true);
+  });
+
+  it("servidor devolve REFINE_PROFILE_REQUIRED (422): abre o formulário e não anuncia sucesso", async () => {
+    const body = { success: false, request_id: "r21", error_code: "REFINE_PROFILE_REQUIRED", category: "validation_error", retryable: false,
+      safe_message: "Para gerar mensagens comerciais, complete seu perfil: nome, serviço e oferta. Nenhum crédito foi consumido.", credit_consumed: false };
+    refineWithAI.mockRejectedValue(await normalizeRefineError(
+      { message: "non-2xx", context: new Response(JSON.stringify(body), { status: 422, headers: { "Content-Type": "application/json" } }) }, "r21"));
+    renderDialog(makeNewLead());
+    await clickRefine();
+    await waitFor(() => expect(getSellerProfileState().dialogOpen).toBe(true));
+    expect(toast.mock.calls.map((c) => c[0].title)).not.toContain("Análise atualizada");
+  });
+
+  it("análise do prompt v6 com tarefa e dia sem mensagem é confirmada e mostrada (dias sem envio não têm texto)", async () => {
+    const lead = makeNewLead();
+    const row = geminiRow(lead);
+    (row.plano_prospeccao as { plano_prospeccao_7dias: Array<Record<string, unknown>> }).plano_prospeccao_7dias = lead.plano_prospecao_7dias.map((d) =>
+      d.dia === 2
+        ? { ...d, mensagem: "", tipo_dia: "tarefa", canal: "nenhum", acao_sugerida: "Pesquise se a oficina tem site fora do perfil do Google.", condicao: "" }
+        : d.dia === 3
+          ? { ...d, mensagem: "", tipo_dia: "sem_mensagem", canal: "nenhum", acao_sugerida: "Aguardar resposta do dia 1." }
+          : { ...d, mensagem: `Mensagem Gemini dia ${d.dia}` },
+    );
+    dbRow = row;
+    refineWithAI.mockResolvedValue({ requestId: "r22", data: { success: true, model: "gemini-3.5-flash-lite", used_fallback: false } });
+    const onRefined = renderDialog(lead);
+    await clickRefine();
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Análise atualizada" })));
+    expect(onRefined).toHaveBeenCalled();
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(within(dialog).getByTestId("dia-2-sem-mensagem")).toBeTruthy());
+    expect(within(dialog).getByTestId("dia-3-sem-mensagem")).toBeTruthy();
+    expect(within(dialog).getByTestId("dia-2-tipo").textContent).toBe("Tarefa para você");
   });
 });

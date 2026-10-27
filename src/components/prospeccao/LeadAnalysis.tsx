@@ -11,8 +11,10 @@ import {
   Info,
   Instagram,
   Lightbulb,
+  ListChecks,
   Mail,
   MessageSquare,
+  Phone,
   RefreshCw,
   Target,
 } from "lucide-react";
@@ -108,6 +110,26 @@ const compatibilityBadgeClass = (level?: string) => {
   return "text-muted-foreground bg-muted/40 border-border/50";
 };
 
+const CHANNEL_LABEL: Record<string, string> = {
+  whatsapp: "WhatsApp",
+  instagram: "Instagram",
+  email: "Email",
+  telefone: "Ligação",
+  nenhum: "Sem envio",
+};
+const DAY_TYPE_LABEL: Record<string, string> = {
+  acompanhamento: "Acompanhamento",
+  tarefa: "Tarefa para você",
+  sem_mensagem: "Sem mensagem",
+};
+const ChannelIcon = ({ channel }: { channel: string }) => {
+  if (channel === "whatsapp") return <MessageSquare className="h-3 w-3" />;
+  if (channel === "instagram") return <Instagram className="h-3 w-3" />;
+  if (channel === "telefone") return <Phone className="h-3 w-3" />;
+  if (channel === "nenhum") return <ListChecks className="h-3 w-3" />;
+  return <Mail className="h-3 w-3" />;
+};
+
 export const LeadAnalysis = ({
   diagnostico,
   plano,
@@ -141,6 +163,8 @@ export const LeadAnalysis = ({
   /** Guarda na própria ação: mesmo que o botão seja reativado por fora, nada é executado para lead bloqueado. */
   const executeInSdr = (dayNumber: number) => {
     if (contactBlocked) return;
+    // Etapas de tarefa ou sem mensagem não têm texto: nada é aberto nem inventado.
+    if (!String(plano?.find((d) => d.dia === dayNumber)?.mensagem || "").trim()) return;
     onExecuteInSdr?.(dayNumber);
   };
 
@@ -442,19 +466,15 @@ export const LeadAnalysis = ({
                   <Badge variant="outline" className="font-semibold">
                     Dia {dia.dia}
                   </Badge>
-                  <Badge
-                    variant={dia.canal === "whatsapp" ? "default" : dia.canal === "instagram" ? "outline" : "secondary"}
-                    className="gap-1"
-                  >
-                    {dia.canal === "whatsapp" ? (
-                      <MessageSquare className="h-3 w-3" />
-                    ) : dia.canal === "instagram" ? (
-                      <Instagram className="h-3 w-3" />
-                    ) : (
-                      <Mail className="h-3 w-3" />
-                    )}
-                    {dia.canal === "whatsapp" ? "WhatsApp" : dia.canal === "instagram" ? "Instagram" : "Email"}
+                  <Badge variant={dia.canal === "whatsapp" ? "default" : dia.canal === "instagram" ? "outline" : "secondary"} className="gap-1">
+                    <ChannelIcon channel={dia.canal} />
+                    {CHANNEL_LABEL[dia.canal] ?? "Email"}
                   </Badge>
+                  {dia.tipo_dia && DAY_TYPE_LABEL[dia.tipo_dia] && (
+                    <Badge variant="outline" className="text-muted-foreground" data-testid={`dia-${dia.dia}-tipo`}>
+                      {DAY_TYPE_LABEL[dia.tipo_dia]}
+                    </Badge>
+                  )}
                   {dia.is_custom_edited && (
                     <Badge variant="outline" className="border-primary/40 text-primary" data-testid={`dia-${dia.dia}-edited`}>
                       Editada por você · mantida em novas análises
@@ -476,9 +496,9 @@ export const LeadAnalysis = ({
                       variant="outline"
                       size="sm"
                       onClick={() => executeInSdr(dia.dia)}
-                      disabled={contactBlocked}
-                      aria-disabled={contactBlocked}
-                      title={contactBlocked ? "Contato bloqueado por recusa registrada" : undefined}
+                      disabled={contactBlocked || !String(dia.mensagem || "").trim()}
+                      aria-disabled={contactBlocked || !String(dia.mensagem || "").trim()}
+                      title={contactBlocked ? "Contato bloqueado por recusa registrada" : !String(dia.mensagem || "").trim() ? "Esta etapa não tem mensagem para enviar" : undefined}
                       className="h-7 w-full border-emerald-500/30 text-xs text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-500 dark:text-emerald-400 sm:ml-auto sm:w-auto"
                     >
                       <MessageSquare className="mr-1 h-3 w-3" />
@@ -517,6 +537,15 @@ export const LeadAnalysis = ({
                     </div>
                   )}
 
+                  {dia.condicao && (
+                    <div className="rounded-md border border-amber-300/60 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/20" data-testid={`dia-${dia.dia}-condicao`}>
+                      <p className="mb-1 text-xs font-semibold text-amber-800 dark:text-amber-400">Quando fazer:</p>
+                      <p className="break-words text-sm text-amber-950 dark:text-amber-200">{dia.condicao}</p>
+                    </div>
+                  )}
+
+                  {String(dia.mensagem || "").trim() ? (
+                  <>
                   <div className="relative rounded-md border border-primary/10 bg-primary/5 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <p className="mb-1 font-medium text-primary">Mensagem:</p>
@@ -539,6 +568,7 @@ export const LeadAnalysis = ({
                     <p className="whitespace-pre-wrap break-words">{dia.mensagem}</p>
                   </div>
 
+                  {(dia.objecao_provavel || dia.resposta_sugerida) && (
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                     <div className="rounded border border-orange-200 bg-orange-50 p-2 dark:border-orange-800 dark:bg-orange-950/20">
                       <p className="mb-1 text-xs font-medium text-orange-700 dark:text-orange-400">
@@ -558,11 +588,26 @@ export const LeadAnalysis = ({
                       </p>
                     </div>
                   </div>
+                  )}
+                  </>
+                  ) : (
+                    <p className="rounded-md border border-dashed border-border/70 p-3 text-xs text-muted-foreground" data-testid={`dia-${dia.dia}-sem-mensagem`}>
+                      Nenhuma mensagem necessária nesta etapa.
+                    </p>
+                  )}
 
+                  {dia.justificativa && (
+                    <p className="break-words text-xs text-muted-foreground">
+                      <span className="font-semibold">Por que: </span>{dia.justificativa}
+                    </p>
+                  )}
+
+                  {dia.cta && (
                   <div className="rounded border border-blue-200 bg-blue-50 p-2 dark:border-blue-800 dark:bg-blue-950/20">
                     <p className="mb-1 text-xs font-medium text-blue-700 dark:text-blue-400">CTA:</p>
                     <p className="break-words text-xs text-blue-900 dark:text-blue-300">{dia.cta}</p>
                   </div>
+                  )}
                 </div>
               </li>
             ))}

@@ -19,7 +19,12 @@ export interface SinaisDigitais {
 
 export interface PlanoProspeccaoDia {
   dia: number;
-  canal: "whatsapp" | "email" | "instagram";
+  /** "telefone" = ligar (sem texto) e "nenhum" = etapa sem envio; só aparecem em análises do prompt v6. */
+  canal: "whatsapp" | "email" | "instagram" | "telefone" | "nenhum";
+  /** Tipo da etapa no prompt v6; ausente em planos antigos (todo dia tinha mensagem). */
+  tipo_dia?: "mensagem" | "acompanhamento" | "tarefa" | "sem_mensagem";
+  condicao?: string;
+  justificativa?: string;
   titulo?: string;
   titulo_dia?: string;
   assunto_email?: string;

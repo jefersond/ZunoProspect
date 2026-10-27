@@ -4,11 +4,13 @@ import { describe, expect, it } from "vitest";
 // Regressão de leitura do código: a função hospedada não roda no vitest (Deno), então estas verificações
 // travam os pontos que causaram a análise genérica anunciada como sucesso.
 const source = readFileSync(new URL("../analisar-lead-ia/index.ts", import.meta.url), "utf8");
+const analysisSource = readFileSync(new URL("./lead-analysis.ts", import.meta.url), "utf8");
 
 describe("analisar-lead-ia: sem análise genérica disfarçada de IA", () => {
   it("envia o enum de MIME aceito pela API e nunca o texto em minúsculas", () => {
-    expect(source).toContain("mimeType: GEMINI_JSON_MIME_TYPE");
-    expect(source).not.toMatch(/mimeType:\s*"application\/json"/);
+    expect(analysisSource).toContain('mimeType: "APPLICATION_JSON"');
+    expect(source).not.toMatch(/application\/json"\s*,\s*schema/);
+    expect(source).toContain("runGeminiAnalysis({");
   });
 
   it("não tem mais o gerador de reserva nem o modelo 'contextual-fallback'", () => {
@@ -17,9 +19,9 @@ describe("analisar-lead-ia: sem análise genérica disfarçada de IA", () => {
   });
 
   it("gravação e cobrança acontecem somente dentro de runRefine (provedor → gravação → cobrança)", () => {
-    expect(source).toContain("await runGuardedRefine({");
-    const runAt = source.indexOf("await runGuardedRefine({");
-    expect(source.indexOf("diagnostico_bullets: analysis.diagnostico_bullets")).toBeGreaterThan(runAt);
+    expect(source).toContain("await runGuardedRefine<V6Result>({");
+    const runAt = source.indexOf("await runGuardedRefine<V6Result>({");
+    expect(source.indexOf("diagnostico_bullets: buildDiagnosticoBullets(")).toBeGreaterThan(runAt);
     expect(source.indexOf("increment_ai_usage")).toBeGreaterThan(runAt);
     expect(source.match(/increment_ai_usage/g)).toHaveLength(1);
   });
@@ -30,12 +32,14 @@ describe("analisar-lead-ia: sem análise genérica disfarçada de IA", () => {
   });
 
   it("max_provider_attempts só reduz as tentativas ao provedor", () => {
-    expect(source).toContain("Math.min(requested, MODELS.length)");
-    expect(source).toContain("MODELS.slice(0, maxAttempts)");
+    expect(source).toContain("Math.min(requested, MAX_PROVIDER_ATTEMPTS)");
+    expect(source).toContain("maxAttempts,");
   });
 
   it("não afirma ausência de pixel/tags enquanto a inspeção de HTML está suspensa", () => {
-    expect(source).toContain("inspeção automática do HTML do site está suspensa");
+    // Nenhum campo vindo da inspeção de HTML (Pixel, GTM, GA, WhatsApp no site) entra nos fatos da análise.
+    expect(source).not.toMatch(/has_meta_pixel|has_gtag|has_gtm|whatsapp_on_site/);
+    expect(analysisSource).toContain("Nada foi medido sobre site, Pixel, GTM");
   });
 
   it("a reserva do lead é um UPDATE condicional (compare-and-set) e a gravação só vale com a reserva ainda ativa", () => {
@@ -65,8 +69,8 @@ describe("analisar-lead-ia: sem análise genérica disfarçada de IA", () => {
   });
 
   it("o tempo limite do provedor cobre também a leitura do corpo da resposta", () => {
-    const body = source.indexOf("const data = await response.json()");
-    const clear = source.indexOf("clearTimeout(timeout);", body);
+    const body = analysisSource.indexOf("(await response.json())");
+    const clear = analysisSource.indexOf("clearTimeout(timer);", body);
     expect(body).toBeGreaterThan(0);
     expect(clear).toBeGreaterThan(body);
   });

@@ -25,6 +25,8 @@ import {
   UserCheck,
   Users,
 } from "lucide-react";
+import { CommercialProfileCell, CommercialStateBadge } from "./CommercialProfileCell";
+import { COMMERCIAL_STATE_LABELS, type CommercialState } from "../../../supabase/functions/_shared/commercial-state";
 import { exportUsersToExcel, type UserExportData } from "@/utils/exportUsersToExcel";
 
 interface UserStats {
@@ -37,6 +39,9 @@ interface UserStats {
     pro: number;
     agencia: number;
   };
+  byCommercialState?: Record<CommercialState, number>;
+  byServiceCategory?: Record<string, Record<CommercialState, number>>;
+  profileComplete?: number;
   annual: number;
   withUsaAddon: number;
   admins: number;
@@ -291,6 +296,21 @@ export const UsersDashboard = () => {
           </CardContent>
         </Card>
 
+        {(["paid_active", "trial", "free", "canceled"] as CommercialState[]).map((state) => (
+          <Card key={state} data-testid={`commercial-count-${state}`}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">{state === "paid_active" ? "Pagos ativos" : state === "trial" ? "Em teste" : state === "free" ? "Gratuitos" : "Cancelados"}</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats?.byCommercialState?.[state] ?? 0}</div>
+              {state === "paid_active" && (stats?.byCommercialState?.indefinido ?? 0) > 0 && (
+                <p className="text-xs text-amber-500">{stats?.byCommercialState?.indefinido} sem status confirmado</p>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Free</CardTitle>
@@ -372,7 +392,11 @@ export const UsersDashboard = () => {
                   <SelectItem value="iniciante">Iniciante</SelectItem>
                   <SelectItem value="pro">Pro</SelectItem>
                   <SelectItem value="agencia">Agencia</SelectItem>
-                  <SelectItem value="paying">Pagantes</SelectItem>
+                  <SelectItem value="paying">Pagos ativos</SelectItem>
+                  <SelectItem value="trial">Em teste</SelectItem>
+                  <SelectItem value="canceled">Cancelados</SelectItem>
+                  <SelectItem value="indefinido">Status indefinido</SelectItem>
+                  <SelectItem value="profile_missing">Perfil comercial incompleto</SelectItem>
                   <SelectItem value="referred">Indicados</SelectItem>
                   <SelectItem value="bonus">Com bonus</SelectItem>
                   <SelectItem value="inactive">Sem ultimo acesso</SelectItem>
@@ -411,7 +435,8 @@ export const UsersDashboard = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[280px]">Usuario</TableHead>
-                    <TableHead>Plano</TableHead>
+                    <TableHead>Plano / situação</TableHead>
+                    <TableHead className="min-w-[260px]">Perfil comercial</TableHead>
                     <TableHead className="text-center">Leads</TableHead>
                     <TableHead className="text-center">IA</TableHead>
                     <TableHead>Indicacao</TableHead>
@@ -424,7 +449,7 @@ export const UsersDashboard = () => {
                 <TableBody>
                   {users.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
+                      <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
                         Nenhum usuario encontrado
                       </TableCell>
                     </TableRow>
@@ -453,7 +478,13 @@ export const UsersDashboard = () => {
                             {user.is_annual && <Badge variant="outline">Anual</Badge>}
                             {user.usa_addon && <Badge variant="outline">EUA</Badge>}
                           </div>
-                          <div className="mt-1 text-xs text-muted-foreground">{user.plan_status || "active"}</div>
+                          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                            <CommercialStateBadge state={user.commercial_state} />
+                            <span>{user.plan_status || "sem status confirmado"}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <CommercialProfileCell profile={user.commercial_profile} />
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="font-medium">{formatUsage(user.leads_used_this_month, user.leads_limit)}</div>
@@ -578,7 +609,8 @@ export const UsersDashboard = () => {
                             <Badge variant="outline">PAID VIA TRIAL</Badge>
                           )}
                         </div>
-                        <p><span className="text-muted-foreground">Status:</span> {userDetail.user.plan_status}</p>
+                        <p><span className="text-muted-foreground">Status:</span> {userDetail.user.plan_status || "Sem confirmação"}</p>
+                        <p><span className="text-muted-foreground">Situação:</span> {COMMERCIAL_STATE_LABELS[userDetail.user.commercial_state as CommercialState] ?? "-"}</p>
                         <p><span className="text-muted-foreground">Anual:</span> {userDetail.user.is_annual ? "Sim" : "Nao"}</p>
                         <p><span className="text-muted-foreground">Add-on EUA:</span> {userDetail.user.usa_addon ? "Ativo" : "Nao"}</p>
                         <p><span className="text-muted-foreground">Customer:</span> {userDetail.user.stripe_customer_id || "-"}</p>

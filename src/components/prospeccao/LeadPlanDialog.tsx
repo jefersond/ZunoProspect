@@ -120,7 +120,7 @@ export const LeadPlanDialog = ({
     try {
       const updatedPlanResult = buildIntelligentPlan({
         lead: displayLead,
-        userServiceName: displayLead.foco,
+        userServiceName: displayLead.foco || undefined,
         existingPlan: displayLead.plano_prospecao_7dias,
         forceUpdateOldCopies: true,
       });
@@ -949,6 +949,8 @@ export const LeadPlanDialog = ({
                 onReanalyze={refineError ? undefined : handleReanalyze}
                 isReanalyzing={isReanalyzing}
                 canAnalyzeAI={canAnalyzeLead}
+                onUpdateCopiesLocally={handleUpdateCopiesLocally}
+                isUpdatingCopiesLocally={isUpdatingCopiesLocally}
               />
             )}
           </TabsContent>

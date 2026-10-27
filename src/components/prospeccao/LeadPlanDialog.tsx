@@ -26,7 +26,7 @@ import type { LeadProspeccao } from "@/types/lead";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { normalizeLeadForAI, normalizePlanoProspeccao, normalizeDiagnosticoBullets } from "@/utils/normalizeLead";
-import { buildIntelligentPlan } from "@/services/intelligentSevenDayPlan";
+import { buildIntelligentPlan, hasExplicitOptOut } from "@/services/intelligentSevenDayPlan";
 import { refineWithAI } from "@/services/refineWithAI";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
@@ -172,7 +172,17 @@ export const LeadPlanDialog = ({
   const [isSdrModalOpen, setIsSdrModalOpen] = useState(false);
   const [sdrInitialDay, setSdrInitialDay] = useState<number>(1);
 
+  // Recusa registrada: nenhuma entrada do diálogo abre o SDR para novas abordagens (o SDR também bloqueia por conta própria).
+  const isContactBlocked = () => Boolean(currentLead || lead) && hasExplicitOptOut((currentLead || lead) as LeadProspeccao);
   const handleOpenSdrWithDay = (day: number) => {
+    if (isContactBlocked()) {
+      toast({
+        variant: "destructive",
+        title: "Contato bloqueado por recusa registrada",
+        description: "Esta empresa pediu para não ser contatada. O plano fica disponível apenas para consulta.",
+      });
+      return;
+    }
     setSdrInitialDay(day);
     setIsSdrModalOpen(true);
   };
@@ -788,23 +798,28 @@ export const LeadPlanDialog = ({
         </div>
 
         {/* Prospecção Assistida SDR WhatsApp */}
-        <div className="mt-2 p-3.5 bg-emerald-500/10 rounded-lg border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className={`mt-2 p-3.5 rounded-lg border ${isContactBlocked() ? "bg-destructive/10 border-destructive/30" : "bg-emerald-500/10 border-emerald-500/30"} flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3`}>
           <div className="space-y-0.5">
-            <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-sm">
+            <div className={`flex items-center gap-1.5 font-semibold text-sm ${isContactBlocked() ? "text-destructive" : "text-emerald-400"}`}>
               <MessageSquare className="h-4 w-4" />
-              Prospecção Assistida SDR (Primeira Abordagem)
+              {isContactBlocked() ? "Prospecção bloqueada" : "Prospecção Assistida SDR (Primeira Abordagem)"}
             </div>
             <p className="text-xs text-muted-foreground">
-              Abra a conversa direto no WhatsApp do seu próprio número com mensagem personalizada pronta para aprovação.
+              {isContactBlocked()
+                ? "Esta empresa pediu para não ser contatada. Nenhuma abordagem pode ser iniciada por aqui."
+                : "Abra a conversa direto no WhatsApp do seu próprio número com mensagem personalizada pronta para aprovação."}
             </p>
           </div>
           <Button
             size="sm"
-            onClick={() => setIsSdrModalOpen(true)}
-            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shrink-0 shadow-sm flex items-center justify-center gap-1.5"
+            onClick={() => handleOpenSdrWithDay(sdrInitialDay)}
+            disabled={isContactBlocked()}
+            aria-disabled={isContactBlocked()}
+            title={isContactBlocked() ? "Contato bloqueado por recusa registrada" : undefined}
+            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold disabled:bg-muted disabled:text-muted-foreground text-xs shrink-0 shadow-sm flex items-center justify-center gap-1.5"
           >
             <MessageSquare className="h-3.5 w-3.5" />
-            Abordar no WhatsApp
+            {isContactBlocked() ? "Contato bloqueado (recusa registrada)" : "Abordar no WhatsApp"}
           </Button>
         </div>
 

@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Brain,
   Building2,
+  Ban,
   Check,
   CheckCircle2,
   Copy,
@@ -15,7 +16,7 @@ import {
   RefreshCw,
   Target,
 } from "lucide-react";
-import { buildStructuredDiagnosis, type ExplorableCompatibility } from "@/services/intelligentSevenDayPlan";
+import { buildStructuredDiagnosis, hasExplicitOptOut, type ExplorableCompatibility } from "@/services/intelligentSevenDayPlan";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -126,13 +127,23 @@ export const LeadAnalysis = ({
 
   const sections = useMemo(() => splitAnalysisBullets(diagnostico), [diagnostico]);
   const facts = useMemo(() => (lead ? buildCompanyFacts(lead) : []), [lead]);
-  const recommendedDay = useMemo(() => getRecommendedPlanDay(plano), [plano]);
+  // Recusa registrada (status ou anotações) bloqueia qualquer recomendação ou execução de contato, mesmo que o plano
+  // salvo ainda tenha mensagens pendentes. É a mesma regra que o SDR usa.
+  const contactBlocked = useMemo(() => (lead ? hasExplicitOptOut(lead) : false), [lead]);
+  const recommendedDay = useMemo(() => (contactBlocked ? null : getRecommendedPlanDay(plano)), [contactBlocked, plano]);
   const copiesPreview = useMemo(
     () => (confirmCopiesOpen && plano ? previewLocalCopyUpdate(lead, plano) : null),
     [confirmCopiesOpen, lead, plano],
   );
 
+  /** Guarda na própria ação: mesmo que o botão seja reativado por fora, nada é executado para lead bloqueado. */
+  const executeInSdr = (dayNumber: number) => {
+    if (contactBlocked) return;
+    onExecuteInSdr?.(dayNumber);
+  };
+
   const handleCopyMessage = async (dia: number, mensagem: string, channel: PlanoProspeccaoDia["canal"]) => {
+    if (contactBlocked) return;
     const success = await copyToClipboard(mensagem);
     if (!success) return;
 
@@ -204,7 +215,7 @@ export const LeadAnalysis = ({
   const headline = sections.resumo.slice(0, 3);
   const moreSummary = sections.resumo.slice(3);
   const subtitle = lead ? [lead.nicho, lead.cidade].filter(Boolean).join(" · ") : "";
-  const hasNextStep = sections.proximoPasso.length > 0 || Boolean(recommendedDay);
+  const hasNextStep = !contactBlocked && (sections.proximoPasso.length > 0 || Boolean(recommendedDay));
 
   return (
     <div className="mt-4 space-y-5" data-testid="analysis-panel">
@@ -315,7 +326,26 @@ export const LeadAnalysis = ({
         </Card>
       )}
 
-      {/* 5. Próximo passo */}
+      {/* 5. Próximo passo (ou aviso de contato bloqueado) */}
+      {contactBlocked && (
+        <Card className="border-destructive/50 bg-destructive/10" role="alert" data-testid="contact-blocked">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base text-destructive">
+              <Ban className="h-4 w-4 shrink-0" />
+              Contato bloqueado por recusa registrada
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="break-words text-sm leading-relaxed text-foreground/90">
+              Esta empresa pediu para não ser contatada (recusa registrada no status ou nas anotações). O plano abaixo fica apenas para consulta: não é possível executar novas abordagens por aqui.
+            </p>
+            <Button size="sm" variant="outline" className="mt-3 w-full sm:w-auto" onClick={scrollToPlan}>
+              Consultar plano de 7 dias
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {hasNextStep && (
         <Card className="border-primary/50 bg-primary/10" data-testid="analysis-next-step">
           <CardHeader className="pb-2">
@@ -338,7 +368,7 @@ export const LeadAnalysis = ({
             )}
             <div className="flex flex-col gap-2 sm:flex-row">
               {recommendedDay && onExecuteInSdr && (
-                <Button size="sm" className="w-full gap-1.5 sm:w-auto" onClick={() => onExecuteInSdr(recommendedDay.dia)}>
+                <Button size="sm" className="w-full gap-1.5 sm:w-auto" onClick={() => executeInSdr(recommendedDay.dia)}>
                   <MessageSquare className="h-3.5 w-3.5" />
                   Executar Dia {recommendedDay.dia} no SDR
                 </Button>
@@ -363,6 +393,12 @@ export const LeadAnalysis = ({
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {contactBlocked && (
+            <p className="mb-4 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs leading-relaxed text-foreground/90" data-testid="plan-read-only">
+              <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+              <span>Somente consulta: contato bloqueado por recusa registrada. As mensagens abaixo não foram alteradas nem apagadas, mas não podem ser executadas.</span>
+            </p>
+          )}
           <ol className="space-y-4">
             {plano.map((dia) => (
               <li
@@ -387,11 +423,20 @@ export const LeadAnalysis = ({
                     )}
                     {dia.canal === "whatsapp" ? "WhatsApp" : dia.canal === "instagram" ? "Instagram" : "Email"}
                   </Badge>
+                  {contactBlocked && (
+                    <Badge variant="outline" className="gap-1 border-destructive/40 text-destructive">
+                      <Ban className="h-3 w-3" />
+                      Bloqueado
+                    </Badge>
+                  )}
                   {onExecuteInSdr && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => onExecuteInSdr(dia.dia)}
+                      onClick={() => executeInSdr(dia.dia)}
+                      disabled={contactBlocked}
+                      aria-disabled={contactBlocked}
+                      title={contactBlocked ? "Contato bloqueado por recusa registrada" : undefined}
                       className="h-7 w-full border-emerald-500/30 text-xs text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-500 dark:text-emerald-400 sm:ml-auto sm:w-auto"
                     >
                       <MessageSquare className="mr-1 h-3 w-3" />
@@ -415,7 +460,7 @@ export const LeadAnalysis = ({
                   {dia.acao_sugerida && (
                     <div className="rounded-md border border-purple-200 bg-purple-50 p-3 dark:border-purple-800 dark:bg-purple-950/30">
                       <p className="mb-1 text-xs font-semibold text-purple-700 dark:text-purple-400">
-                        Acao sugerida:
+                        {contactBlocked ? "Ação registrada no plano (bloqueada):" : "Acao sugerida:"}
                       </p>
                       <p className="break-words text-sm font-medium text-purple-900 dark:text-purple-300">
                         {dia.acao_sugerida}
@@ -437,6 +482,8 @@ export const LeadAnalysis = ({
                         variant="ghost"
                         size="sm"
                         onClick={() => handleCopyMessage(dia.dia, dia.mensagem, dia.canal)}
+                        disabled={contactBlocked}
+                        title={contactBlocked ? "Cópia desativada: contato bloqueado por recusa registrada" : undefined}
                         className="-mr-1 -mt-1 h-7 w-7 shrink-0 p-0"
                         aria-label={`Copiar mensagem do Dia ${dia.dia}`}
                       >

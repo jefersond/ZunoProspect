@@ -121,7 +121,7 @@ describe("Ver Plano → LeadPlanDialog", () => {
     expect(within(dialog).getByText("Minha mensagem editada manualmente.")).toBeTruthy();
   });
 
-  it("Executar no SDR: nunca libera contato para leads com opt-out", async () => {
+  it("Executar no SDR: leads com opt-out ficam com os botões desativados e o handler não abre o SDR", async () => {
     const lead = {
       ...makeNewLead(),
       status: "recusou_optout",
@@ -130,13 +130,18 @@ describe("Ver Plano → LeadPlanDialog", () => {
     fireEvent.click(screen.getByText("Ver Plano"));
     const dialog = await screen.findByRole("dialog");
 
-    fireEvent.click(within(dialog).getAllByText("Executar no SDR")[0]);
+    expect(within(dialog).getByText("Contato bloqueado por recusa registrada")).toBeTruthy();
+    const buttons = within(dialog).getAllByText("Executar no SDR").map((n) => n.closest("button") as HTMLButtonElement);
+    expect(buttons.every((b) => b.disabled)).toBe(true);
 
-    await waitFor(() => expect(screen.getAllByRole("dialog", { hidden: true }).length).toBeGreaterThan(1));
-    expect(screen.getByText(/Bloqueio de Contato Comercial Ativo/i)).toBeTruthy();
+    // mesmo forçando o clique, o handler não abre o SDR
+    buttons[0].removeAttribute("disabled");
+    fireEvent.click(buttons[0]);
+    expect(screen.queryByText(/Bloqueio de Contato Comercial Ativo/i)).toBeNull();
+    expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(1);
 
-    const waButton = screen.getByText(/Contato Bloqueado \(Opt-out Registrado\)/i).closest("button") as HTMLButtonElement;
-    expect(waButton.disabled).toBe(true);
+    const wa = within(dialog).getByText(/Contato bloqueado \(recusa registrada\)/i).closest("button") as HTMLButtonElement;
+    expect(wa.disabled).toBe(true);
     expect(updateSpy).not.toHaveBeenCalled();
   });
 

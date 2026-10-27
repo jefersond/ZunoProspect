@@ -370,3 +370,85 @@ describe("LeadAnalysis · responsividade (contrato de layout)", () => {
     expect(within(screen.getByTestId("fact-website")).getByText(new RegExp(long.slice(0, 20))).className).toMatch(/break-words/);
   });
 });
+
+describe("LeadAnalysis · recusa registrada (opt-out) bloqueia o contato", () => {
+  beforeEach(() => { copyToClipboard.mockClear(); toast.mockClear(); });
+  afterEach(cleanup);
+
+  const optOutByStatus = () => ({ ...makeNewLead(), status: "recusou_optout" }) as unknown as LeadProspeccao;
+  const optOutByNotes = () => ({ ...makeNewLead(), notas: "Cliente pediu para não contatar mais." }) as unknown as LeadProspeccao;
+  const legacyPendingPlan = () => {
+    const lead = { ...makeNewLead(), status: "recusou_optout" } as unknown as LeadProspeccao;
+    // plano antigo salvo antes do bloqueio: tudo pendente e sem marcador bloqueado_optout
+    lead.plano_prospecao_7dias = lead.plano_prospecao_7dias.map((d) => ({ ...d, status: "pendente" }) as typeof d);
+    return lead;
+  };
+
+  const expectBlockedPanel = (lead: LeadProspeccao, onExecute = vi.fn()) => {
+    renderAnalysis(lead, { diagnostico: TYPICAL_BULLETS, onExecuteInSdr: onExecute });
+    expect(screen.getByTestId("contact-blocked")).toBeTruthy();
+    expect(screen.getByText("Contato bloqueado por recusa registrada")).toBeTruthy();
+    expect(screen.queryByTestId("analysis-next-step")).toBeNull();
+    // fora do plano (consulta), nada recomenda contato
+    const plan = screen.getByTestId("analysis-plan");
+    const outside = Array.from(document.body.querySelectorAll("button, p, h3, h4, span")).filter((n) => !plan.contains(n));
+    expect(outside.some((n) => /Iniciar contato|Enviar mensagem|Executar Dia/i.test(n.textContent || ""))).toBe(false);
+    expect(screen.queryByText(/Executar Dia/i)).toBeNull();
+    expect(screen.getByTestId("plan-read-only")).toBeTruthy();
+    const buttons = screen.getAllByText("Executar no SDR").map((n) => n.closest("button") as HTMLButtonElement);
+    expect(buttons).toHaveLength(7);
+    buttons.forEach((b) => {
+      expect(b.disabled).toBe(true);
+      expect(b.getAttribute("aria-disabled")).toBe("true");
+    });
+    return { onExecute, buttons };
+  };
+
+  it("status recusou_optout: troca o próximo passo pelo aviso e desativa os 7 botões", () => {
+    expectBlockedPanel(optOutByStatus());
+  });
+
+  it("recusa explícita nas anotações: mesmo bloqueio", () => {
+    expectBlockedPanel(optOutByNotes());
+  });
+
+  it("plano antigo com mensagens pendentes e sem marcador bloqueado_optout continua bloqueado", () => {
+    const lead = legacyPendingPlan();
+    expect(lead.plano_prospecao_7dias.some((d) => ((d as unknown as { status?: string }).status) === "bloqueado_optout")).toBe(false);
+    expectBlockedPanel(lead);
+  });
+
+  it("handlers também bloqueiam: forçar o clique em botão sem 'disabled' não executa nem copia", async () => {
+    const lead = optOutByStatus();
+    const { onExecute, buttons } = expectBlockedPanel(lead);
+    buttons[0].removeAttribute("disabled");
+    fireEvent.click(buttons[0]);
+    expect(onExecute).not.toHaveBeenCalled();
+    const copy = screen.getByLabelText("Copiar mensagem do Dia 1") as HTMLButtonElement;
+    copy.removeAttribute("disabled");
+    fireEvent.click(copy);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(copyToClipboard).not.toHaveBeenCalled();
+  });
+
+  it("o plano segue acessível para consulta, com as mensagens exatamente como salvas", () => {
+    const lead = optOutByStatus();
+    renderAnalysis(lead, { diagnostico: TYPICAL_BULLETS });
+    const plan = screen.getByTestId("analysis-plan");
+    const texts = Array.from(plan.querySelectorAll("p.whitespace-pre-wrap")).map((n) => n.textContent);
+    expect(texts).toEqual(lead.plano_prospecao_7dias.map((d) => d.mensagem));
+    expect(screen.getByText("Consultar plano de 7 dias")).toBeTruthy();
+  });
+
+  it("lead normal, sem recusa, continua podendo prospectar", () => {
+    const onExecute = vi.fn();
+    renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS, onExecuteInSdr: onExecute });
+    expect(screen.queryByTestId("contact-blocked")).toBeNull();
+    expect(screen.queryByTestId("plan-read-only")).toBeNull();
+    expect(screen.getByTestId("analysis-next-step")).toBeTruthy();
+    const buttons = screen.getAllByText("Executar no SDR").map((n) => n.closest("button") as HTMLButtonElement);
+    expect(buttons.every((b) => !b.disabled)).toBe(true);
+    fireEvent.click(buttons[0]);
+    expect(onExecute).toHaveBeenCalledWith(1);
+  });
+});

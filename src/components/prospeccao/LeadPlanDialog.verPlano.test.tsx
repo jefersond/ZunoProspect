@@ -81,8 +81,9 @@ describe("Ver Plano → LeadPlanDialog", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(lead.nome)).toBeTruthy();
-    expect(within(dialog).getByText("Alinhamento Cadastral para Abordagem")).toBeTruthy();
-    for (let d = 1; d <= days; d++) expect(within(dialog).getByText(`Dia ${d}`)).toBeTruthy();
+    expect(within(dialog).getByText(/Alinhamento cadastral para abordagem/)).toBeTruthy();
+    expect(within(dialog).getByTestId("analysis-summary")).toBeTruthy();
+    for (let d = 1; d <= days; d++) expect(within(dialog).getByTestId(`dia-${d}`)).toBeTruthy();
     expect(within(dialog).getAllByText("Executar no SDR")).toHaveLength(days);
     expect(invokeSpy).not.toHaveBeenCalled(); // nenhuma Edge Function / IA acionada ao abrir
     expect(errorSpy.mock.calls.filter((c) => String(c[0]).includes("ReferenceError"))).toHaveLength(0);
@@ -99,7 +100,7 @@ describe("Ver Plano → LeadPlanDialog", () => {
     }
   });
 
-  it("Atualizar Cópias usa o handler local do dialog (sem IA), grava e preserva mensagem editada", async () => {
+  it("Atualizar Cópias está desativado na interface do diálogo, impedindo sobrescrita acidental", async () => {
     const lead = makeNewLead();
     const edited = { ...lead.plano_prospecao_7dias.find((d) => d.dia === 2)!, mensagem: "Minha mensagem editada manualmente.", is_custom_edited: true };
     lead.plano_prospecao_7dias = lead.plano_prospecao_7dias.map((d) => (d.dia === 2 ? edited : d));
@@ -108,24 +109,79 @@ describe("Ver Plano → LeadPlanDialog", () => {
     fireEvent.click(screen.getByText("Ver Plano"));
     const dialog = await screen.findByRole("dialog");
 
-    fireEvent.click(within(dialog).getByText(/Atualizar Cópias/));
+    const button = within(dialog).getByText(/Atualizar C[óo]pias/).closest("button") as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute("aria-disabled")).toBe("true");
 
-    await waitFor(() => expect(onRefined).toHaveBeenCalledTimes(1));
+    fireEvent.click(button);
+    expect(screen.queryByText("Substituir mensagens pelo modelo padrão?")).toBeNull();
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(onRefined).not.toHaveBeenCalled();
     expect(invokeSpy).not.toHaveBeenCalled();
-    const refined: LeadProspeccao = onRefined.mock.calls[0][0];
-    expect(refined.plano_prospecao_7dias).toHaveLength(7);
-    expect(refined.plano_prospecao_7dias.find((d) => d.dia === 2)!.mensagem).toBe("Minha mensagem editada manualmente.");
-    expect(updateSpy).toHaveBeenCalledTimes(1);
     expect(within(dialog).getByText("Minha mensagem editada manualmente.")).toBeTruthy();
   });
 
-  it("lead antigo com foco nulo: Atualizar Cópias não lança erro", async () => {
-    const onRefined = vi.fn();
-    render(<Harness lead={makeLegacyLead()} onRefined={onRefined} />);
+  it("Executar no SDR: leads com opt-out ficam com os botões desativados e o handler não abre o SDR", async () => {
+    const lead = {
+      ...makeNewLead(),
+      status: "recusou_optout",
+    } as unknown as LeadProspeccao;
+    render(<Harness lead={lead} />);
     fireEvent.click(screen.getByText("Ver Plano"));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByText(/Atualizar Cópias/));
-    await waitFor(() => expect(onRefined).toHaveBeenCalledTimes(1));
+
+    expect(within(dialog).getByText("Contato bloqueado por recusa registrada")).toBeTruthy();
+    const buttons = within(dialog).getAllByText("Executar no SDR").map((n) => n.closest("button") as HTMLButtonElement);
+    expect(buttons.every((b) => b.disabled)).toBe(true);
+
+    // mesmo forçando o clique, o handler não abre o SDR
+    buttons[0].removeAttribute("disabled");
+    fireEvent.click(buttons[0]);
+    expect(screen.queryByText(/Bloqueio de Contato Comercial Ativo/i)).toBeNull();
+    expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(1);
+
+    const wa = within(dialog).getByText(/Contato bloqueado \(recusa registrada\)/i).closest("button") as HTMLButtonElement;
+    expect(wa.disabled).toBe(true);
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it("Executar no SDR: usa exatamente a mensagem salva do dia, respeita o canal e não marca contato como enviado ao abrir", async () => {
+    const lead = makeNewLead();
+    render(<Harness lead={lead} />);
+    fireEvent.click(screen.getByText("Ver Plano"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.click(within(dialog).getAllByText("Executar no SDR")[1]); // Dia 2
+
+    const day2 = lead.plano_prospecao_7dias.find((d) => d.dia === 2)!;
+    await waitFor(() => expect(screen.getAllByRole("dialog", { hidden: true }).length).toBeGreaterThan(1));
+    const textareas = Array.from(document.querySelectorAll("textarea")).map((t) => (t as HTMLTextAreaElement).value);
+    expect(textareas).toContain(day2.mensagem);
+    expect(generateSdrFirstApproachMessage({ lead, dayNumber: 2 }).text).toBe(day2.mensagem);
+
+    // Canal correspondente respeitado
+    expect(screen.getByText(new RegExp(`Canal:\\s*${day2.canal}`, "i"))).toBeTruthy();
+
+    // Zero chamadas de IA e zero updates no banco ao apenas abrir o modal
+    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it("Executar no SDR: não inventa mensagens para dias sem texto", async () => {
+    const lead = makeNewLead();
+    lead.plano_prospecao_7dias = lead.plano_prospecao_7dias.map((d) =>
+      d.dia === 3 ? { ...d, mensagem: "" } : d
+    );
+    render(<Harness lead={lead} />);
+    fireEvent.click(screen.getByText("Ver Plano"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.click(within(dialog).getAllByText("Executar no SDR")[2]); // Dia 3
+
+    await waitFor(() => expect(screen.getAllByRole("dialog", { hidden: true }).length).toBeGreaterThan(1));
+    const textarea = document.querySelector("textarea") as HTMLTextAreaElement;
+    expect(textarea.value).toBe("");
+    expect(invokeSpy).not.toHaveBeenCalled();
   });
 
   it("copiar mensagem dentro do dialog copia o texto do dia; fechar o modal funciona", async () => {
@@ -143,18 +199,27 @@ describe("Ver Plano → LeadPlanDialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("Executar no SDR abre o modal do SDR com a mesma mensagem do dia do plano", async () => {
+  it("'Usar Template' continua disponível, porém como aba secundária; 'Análise IA' é a aba principal e a inicial", async () => {
+    render(<Harness lead={makeNewLead()} />);
+    fireEvent.click(screen.getByText("Ver Plano"));
+    const dialog = await screen.findByRole("dialog");
+    const analysis = within(dialog).getByRole("tab", { name: /Análise IA/ });
+    const template = within(dialog).getByRole("tab", { name: /Usar Template/ });
+    expect(analysis.getAttribute("data-state")).toBe("active");
+    expect(template.getAttribute("data-state")).toBe("inactive");
+    expect(template.className).toMatch(/text-xs/);
+    expect(template.className).toMatch(/text-muted-foreground/);
+    expect((analysis.parentElement as HTMLElement).className).toMatch(/grid-cols-\[minmax\(0,2fr\)_minmax\(0,1fr\)\]/);
+    fireEvent.mouseDown(template, { button: 0 });
+    await waitFor(() => expect(template.getAttribute("data-state")).toBe("active"));
+  });
+
+  it("painel dentro do diálogo: o nome não se repete e 'Atualizar Cópias' não aparece no topo", async () => {
     const lead = makeNewLead();
     render(<Harness lead={lead} />);
     fireEvent.click(screen.getByText("Ver Plano"));
     const dialog = await screen.findByRole("dialog");
-
-    fireEvent.click(within(dialog).getAllByText("Executar no SDR")[1]); // Dia 2
-
-    const day2 = lead.plano_prospecao_7dias.find((d) => d.dia === 2)!;
-    await waitFor(() => expect(screen.getAllByRole("dialog", { hidden: true }).length).toBeGreaterThan(1));
-    const textareas = Array.from(document.querySelectorAll("textarea")).map((t) => (t as HTMLTextAreaElement).value);
-    expect(textareas).toContain(day2.mensagem);
-    expect(generateSdrFirstApproachMessage({ lead, dayNumber: 2 }).text).toBe(day2.mensagem);
+    expect(within(dialog).getAllByText(lead.nome)).toHaveLength(1); // só o título do diálogo
+    expect(within(within(dialog).getByTestId("analysis-header")).queryByText(/Atualizar C[óo]pias/)).toBeNull();
   });
 });

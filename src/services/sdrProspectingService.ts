@@ -253,6 +253,15 @@ export async function updateSdrProspectingStatus({
       return { success: false, error: "Usuário não autenticado ou sessão expirada." };
     }
 
+    const user = sessionData.session.user;
+    const { data: isAdminRpc, error: rpcError } = await supabase.rpc("is_admin", { _user_id: user.id });
+    if (rpcError || !isAdminRpc) {
+      return {
+        success: false,
+        error: "Acesso restrito: operações do fluxo SDR estão em fase de testes e restritas exclusivamente a administradores.",
+      };
+    }
+
     const userId = sessionData.session.user.id;
     const nowIso = new Date().toISOString();
 

@@ -47,6 +47,8 @@ import {
   extractEmailSubjectAndBody,
 } from "@/services/intelligentSevenDayPlan";
 import { supabase } from "@/integrations/supabase/client";
+import { useSubscription } from "@/hooks/useSubscription";
+import { useUsage } from "@/hooks/useUsage";
 
 interface SdrWhatsAppModalProps {
   lead: LeadProspeccao | null;
@@ -66,6 +68,9 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
   initialDay = 1,
 }) => {
   const { toast } = useToast();
+  const { subscription, isAdmin: subscriptionIsAdmin } = useSubscription();
+  const { usage, isAdmin: usageIsAdmin } = useUsage();
+  const isAdmin = Boolean(subscriptionIsAdmin || usageIsAdmin);
 
   const [userService, setUserService] = useState<string>("gestão de tráfego e presença digital");
   const [selectedDay, setSelectedDay] = useState<number>(initialDay || 1);
@@ -148,7 +153,7 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
     }
   }, [open, lead?.id, initialDay, planResult?.currentRecommendedDay]);
 
-  if (!lead || !planResult) return null;
+  if (!isAdmin || !lead || !planResult) return null;
 
   const isOptedOut = hasExplicitOptOut(lead) || planResult.isOptedOutOrRefused;
   const currentDayData = planResult.days.find((d) => d.dia === selectedDay) || planResult.days[0];
@@ -207,6 +212,15 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
   };
 
   const handleOpenWhatsApp = async () => {
+    if (!isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Acesso restrito",
+        description: "O SDR está em fase de testes e restrito a administradores.",
+      });
+      return;
+    }
+
     if (isOptedOut) {
       toast({
         variant: "destructive",
@@ -251,7 +265,7 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
   };
 
   const handleOpenMailto = () => {
-    if (isOptedOut) return;
+    if (!isAdmin || isOptedOut) return;
     const recipient = lead.email || "";
     const mailtoUrl = `mailto:${recipient}?subject=${encodeURIComponent(currentSubject)}&body=${encodeURIComponent(activeMessage)}`;
     window.location.href = mailtoUrl;
@@ -263,7 +277,7 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
   };
 
   const handleOpenInstagram = () => {
-    if (isOptedOut || !lead.instagram_url) return;
+    if (!isAdmin || isOptedOut || !lead.instagram_url) return;
     window.open(lead.instagram_url, "_blank", "noopener,noreferrer");
     toast({
       title: "Perfil do Instagram aberto!",
@@ -298,7 +312,7 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
   };
 
   const handleSavePlanEdits = async () => {
-    if (!lead) return;
+    if (!isAdmin || !lead) return;
     setIsSavingPlan(true);
     try {
       const updatedDays: PlanoProspeccaoDia[] = planResult.days.map((d) => {
@@ -342,6 +356,14 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
   };
 
   const handleConfirmResult = async (newResult: SdrProspectingStatus) => {
+    if (!isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Acesso restrito",
+        description: "O SDR está em fase de testes e restrito a administradores.",
+      });
+      return;
+    }
     setIsSavingStatus(true);
     try {
       const res = await updateSdrProspectingStatus({

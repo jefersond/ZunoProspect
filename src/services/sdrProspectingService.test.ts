@@ -1,17 +1,31 @@
-if (!process.env.VITE_SUPABASE_URL) {
-  process.env.VITE_SUPABASE_URL = "https://mock.supabase.co";
-}
-if (!process.env.VITE_SUPABASE_PUBLISHABLE_KEY) {
-  process.env.VITE_SUPABASE_PUBLISHABLE_KEY = "mock-anon-key";
-}
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { describe, it, expect } from "vitest";
+const { getSessionMock, rpcMock, fromMock } = vi.hoisted(() => ({
+  getSessionMock: vi.fn(),
+  rpcMock: vi.fn(),
+  fromMock: vi.fn(),
+}));
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    auth: {
+      getSession: getSessionMock,
+    },
+    rpc: rpcMock,
+    from: fromMock,
+  },
+}));
+
 import {
   sanitizeBrazilianPhoneNumber,
   generateSdrFirstApproachMessage,
+  updateSdrProspectingStatus,
 } from "./sdrProspectingService";
 
 describe("sdrProspectingService - Regras Comerciais e Sanitização", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
   it("deve sanitizar números brasileiros com 11 dígitos (celular) e adicionar DDI 55", () => {
     const res = sanitizeBrazilianPhoneNumber("(27) 99999-8888");
     expect(res.isValid).toBe(true);
@@ -134,7 +148,7 @@ describe("sdrProspectingService - Regras Comerciais e Sanitização", () => {
       plano_prospecao_7dias: [
         {
           dia: 1,
-          canal: "whatsapp",
+          canal: "whatsapp" as const,
           titulo: "Abordagem Inicial",
           mensagem: "Olá Dr. Roberto! Vi a Clínica Sorriso em Vitória e preparei este contato específico.",
           objetivo: "Abertura",
@@ -145,7 +159,7 @@ describe("sdrProspectingService - Regras Comerciais e Sanitização", () => {
         },
         {
           dia: 3,
-          canal: "email",
+          canal: "email" as const,
           titulo: "Follow-up Educativo",
           mensagem: "Assunto: Observação sobre captação em Vitória\n\nOi equipe da Clínica Sorriso, complementando nossa mensagem anterior...",
           objetivo: "Follow-up",
@@ -172,5 +186,164 @@ describe("sdrProspectingService - Regras Comerciais e Sanitização", () => {
 
     expect(sdrDia3.isFromPlan).toBe(true);
     expect(sdrDia3.text).toBe("Oi equipe da Clínica Sorriso, complementando nossa mensagem anterior...");
+  });
+
+  it("deve bloquear updateSdrProspectingStatus quando usuário não estiver autenticado", async () => {
+    getSessionMock.mockResolvedValueOnce({
+      data: { session: null },
+      error: null,
+    });
+
+    const res = await updateSdrProspectingStatus({
+      leadId: "mock-lead-123",
+      status: "contato_realizado",
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toContain("não autenticado");
+  });
+
+  it("deve bloquear updateSdrProspectingStatus quando RPC is_admin retornar false (assinante comum)", async () => {
+    getSessionMock.mockResolvedValueOnce({
+      data: {
+        session: {
+          user: {
+            id: "user-subscriber-uuid",
+            email: "assinante@empresa.com",
+            app_metadata: { role: "authenticated" },
+          },
+        },
+      },
+      error: null,
+    });
+
+    rpcMock.mockResolvedValueOnce({
+      data: false,
+      error: null,
+    });
+
+    const res = await updateSdrProspectingStatus({
+      leadId: "mock-lead-123",
+      status: "contato_realizado",
+    });
+
+    expect(rpcMock).toHaveBeenCalledWith("is_admin", { _user_id: "user-subscriber-uuid" });
+    expect(res.success).toBe(false);
+    expect(res.error).toBe("Acesso restrito: operações do fluxo SDR estão em fase de testes e restritas exclusivamente a administradores.");
+  });
+
+  it("deve bloquear updateSdrProspectingStatus quando RPC is_admin falhar com erro", async () => {
+    getSessionMock.mockResolvedValueOnce({
+      data: {
+        session: {
+          user: {
+            id: "user-subscriber-uuid",
+            email: "assinante@empresa.com",
+          },
+        },
+      },
+      error: null,
+    });
+
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: "database error" },
+    });
+
+    const res = await updateSdrProspectingStatus({
+      leadId: "mock-lead-123",
+      status: "contato_realizado",
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toContain("Acesso restrito");
+  });
+
+  it("deve permitir updateSdrProspectingStatus quando RPC is_admin retornar true (administrador)", async () => {
+    getSessionMock.mockResolvedValueOnce({
+      data: {
+        session: {
+          user: {
+            id: "admin-user-uuid",
+            email: "jeferson.zanotell@gmail.com",
+          },
+        },
+      },
+      error: null,
+    });
+
+    rpcMock.mockResolvedValueOnce({
+      data: true,
+      error: null,
+    });
+
+    const singleMock = vi.fn().mockResolvedValue({
+      data: { notas: "Nota anterior existente" },
+      error: null,
+    });
+    const selectEq2Mock = vi.fn().mockReturnValue({ single: singleMock });
+    const selectEq1Mock = vi.fn().mockReturnValue({ eq: selectEq2Mock });
+    const selectMock = vi.fn().mockReturnValue({ eq: selectEq1Mock });
+
+    const updateEq2Mock = vi.fn().mockResolvedValue({ error: null });
+    const updateEq1Mock = vi.fn().mockReturnValue({ eq: updateEq2Mock });
+    const updateMock = vi.fn().mockReturnValue({ eq: updateEq1Mock });
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === "leads") {
+        return {
+          select: selectMock,
+          update: updateMock,
+        };
+      }
+      return {};
+    });
+
+    const res = await updateSdrProspectingStatus({
+      leadId: "mock-lead-123",
+      status: "contato_realizado",
+      notes: "Abordagem inicial enviada",
+    });
+
+    expect(rpcMock).toHaveBeenCalledWith("is_admin", { _user_id: "admin-user-uuid" });
+    expect(res.success).toBe(true);
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "em_contato",
+        notas: expect.stringContaining("[SDR WhatsApp - "),
+      })
+    );
+  });
+
+  it("não deve chamar nenhuma API externa ou Gemini ao gerar mensagem do SDR", () => {
+    const lead = {
+      nome: "Empresa Teste",
+      cidade: "Vitória",
+      nicho: "varejo",
+      telefone: "27999887766",
+      plano_prospecao_7dias: [
+        {
+          dia: 1,
+          canal: "whatsapp" as const,
+          titulo: "Abordagem Inicial",
+          mensagem: "Mensagem exata salva no plano de 7 dias sem recálculo.",
+          objetivo: "Abertura",
+          acao_sugerida: "Enviar no WhatsApp",
+          objecao_provavel: "Sem tempo",
+          resposta_sugerida: "Compreendo a rotina",
+          cta: "Podemos conversar?"
+        }
+      ]
+    };
+
+    const sdrMsg = generateSdrFirstApproachMessage({
+      lead,
+      dayNumber: 1
+    });
+
+    // Garante que o texto vem estritamente do plano salvo sem chamar IA
+    expect(sdrMsg.text).toBe("Mensagem exata salva no plano de 7 dias sem recálculo.");
+    expect(sdrMsg.whatsappUrl).toBe("https://wa.me/5527999887766?text=Mensagem%20exata%20salva%20no%20plano%20de%207%20dias%20sem%20rec%C3%A1lculo.");
+    expect(sdrMsg.targetPhone).toBe("5527999887766");
   });
 });

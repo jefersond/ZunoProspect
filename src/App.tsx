@@ -99,6 +99,8 @@ const AppContent = () => {
           <Route path="/admin/instagram" element={<AdminRoute><AdminErrorBoundary><AdminInstagram /></AdminErrorBoundary></AdminRoute>} />
           <Route path="/admin/marketing" element={<AdminRoute><AdminErrorBoundary><AdminMarketing /></AdminErrorBoundary></AdminRoute>} />
           <Route path="/admin/funil" element={<AdminRoute><AdminErrorBoundary><AdminFunnel /></AdminErrorBoundary></AdminRoute>} />
+          <Route path="/sdr" element={<Navigate to="/prospeccao" replace />} />
+          <Route path="/admin/sdr" element={<AdminRoute><AdminErrorBoundary><Navigate to="/prospeccao" replace /></AdminErrorBoundary></AdminRoute>} />
           <Route path="/api-docs" element={<ProtectedRoute><ApiDocs /></ProtectedRoute>} />
           <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
           

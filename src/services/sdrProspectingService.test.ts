@@ -43,88 +43,6 @@ describe("sdrProspectingService - Regras Comerciais e Sanitização", () => {
     expect(res2.cleanNumber).toBe("");
   });
 
-  it("deve gerar mensagem consultiva usando dados reais da empresa sem inventar fatos", () => {
-    const lead = {
-      nome: "Clínica Sorriso",
-      cidade: "Vila Velha",
-      nicho: "clínica odontológica",
-      telefone: "(27) 99888-7766",
-      website: "https://sorriso.com.br",
-      rating: 4.9,
-      total_reviews: 24,
-      sinais: {
-        has_whatsapp_on_site: true,
-        has_meta_pixel: false,
-        has_gtag: false,
-        has_gtm: false,
-      },
-    };
-
-    const result = generateSdrFirstApproachMessage({
-      lead,
-      userServiceName: "gestão de tráfego",
-      style: "consultivo",
-    });
-
-    expect(result.text).toContain("Oi, Clínica Sorriso!");
-    expect(result.text).toContain("Vila Velha");
-    expect(result.text).toContain("4.9 estrelas em 24 avaliações");
-    expect(result.text).toContain("gestão de tráfego");
-    expect(result.whatsappUrl).toContain("https://wa.me/5527998887766");
-    expect(result.whatsappUrl).toContain(encodeURIComponent("Oi, Clínica Sorriso!"));
-  });
-
-  it("NÃO deve inventar avaliações ou site se a empresa não possuir", () => {
-    const leadSemSiteOuReviews = {
-      nome: "Boutique Bella",
-      cidade: "Vitória",
-      nicho: "moda feminina",
-      telefone: "27991112233",
-      website: null,
-      rating: null,
-      total_reviews: 0,
-      sinais: {
-        has_whatsapp_on_site: false,
-        has_meta_pixel: false,
-        has_gtag: false,
-        has_gtm: false,
-      },
-    };
-
-    const result = generateSdrFirstApproachMessage({
-      lead: leadSemSiteOuReviews,
-      userServiceName: "criação de catálogo e anúncios",
-      style: "consultivo",
-    });
-
-    // Não deve inventar avaliações inexistentes
-    expect(result.text).not.toContain("estrelas em");
-    expect(result.text).not.toContain("Encontrei o site");
-    expect(result.text).toContain("Oi, Boutique Bella!");
-    expect(result.text).toContain("Vitória");
-  });
-
-  it("deve gerar estilo direto objetivo sem promessas agressivas", () => {
-    const lead = {
-      nome: "Advocacia Silva",
-      cidade: "Serra",
-      nicho: "escritório de advocacia",
-      telefone: "27992223344",
-      website: "https://advsilva.com.br",
-    };
-
-    const result = generateSdrFirstApproachMessage({
-      lead,
-      userServiceName: "captação de clientes locais",
-      style: "direto",
-    });
-
-    expect(result.text).toContain("Oi, Advocacia Silva! Tudo bem?");
-    expect(result.text).toContain("Quem é a pessoa responsável pelo comercial ou marketing");
-    expect(result.text).toContain("compartilhar uma observação rápida");
-    expect(result.text).not.toContain("1 minuto");
-  });
-
   it("deve usar o plano de 7 dias como fonte única de verdade quando existente", () => {
     const lead = {
       nome: "Clínica Sorriso",
@@ -172,5 +90,56 @@ describe("sdrProspectingService - Regras Comerciais e Sanitização", () => {
 
     expect(sdrDia3.isFromPlan).toBe(true);
     expect(sdrDia3.text).toBe("Oi equipe da Clínica Sorriso, complementando nossa mensagem anterior...");
+  });
+
+  it("lead sem plano salvo: o SDR não inventa texto (nenhum gerador local) e nenhuma IA é acionada", () => {
+    const res = generateSdrFirstApproachMessage({
+      lead: { nome: "Auto Peças Litoral", cidade: "Guarapari", nicho: "autopeças", telefone: "27993334455" },
+      dayNumber: 1,
+    });
+    expect(res.text).toBe("");
+    expect(res.isFromPlan).toBe(false);
+    expect(res.whatsappUrl).toBeNull();
+  });
+
+  it("dia de tarefa ou sem mensagem não carrega texto para envio", () => {
+    const lead = {
+      nome: "Oficina Lima",
+      telefone: "27999887766",
+      plano_prospecao_7dias: [
+        { dia: 2, canal: "nenhum", tipo_dia: "tarefa", acao_sugerida: "Pesquisar o Instagram", mensagem: "", objecao_provavel: "", resposta_sugerida: "", cta: "" },
+        { dia: 3, canal: "nenhum", tipo_dia: "sem_mensagem", acao_sugerida: "", mensagem: "texto que não deveria ser enviado", objecao_provavel: "", resposta_sugerida: "", cta: "" },
+      ],
+    };
+    expect(generateSdrFirstApproachMessage({ lead: lead as never, dayNumber: 2 }).text).toBe("");
+    // texto residual em dia "sem mensagem" também não é enviável
+    const stray = generateSdrFirstApproachMessage({ lead: lead as never, dayNumber: 3 });
+    expect(stray.text).toBe("");
+    expect(stray.isFromPlan).toBe(false);
+  });
+
+  it("opt-out registrado bloqueia o texto do plano", () => {
+    const res = generateSdrFirstApproachMessage({
+      lead: {
+        nome: "Loja X", telefone: "27999887766", status: "recusou_optout",
+        plano_prospecao_7dias: [{ dia: 1, canal: "whatsapp", mensagem: "Oi, tudo bem? Posso falar com o responsável?", acao_sugerida: "", objecao_provavel: "", resposta_sugerida: "", cta: "" }],
+      } as never,
+      dayNumber: 1,
+    });
+    expect(res.text).toBe("");
+    expect(res.whatsappUrl).toBeNull();
+  });
+
+  it("o link do WhatsApp carrega exatamente o texto salvo, codificado, sem alteração", () => {
+    const text = "Oi, tudo bem? Aqui é a Marina, da Costa Digital.\n\nVocês já têm site?";
+    const res = generateSdrFirstApproachMessage({
+      lead: {
+        nome: "Oficina Lima", telefone: "27999887766",
+        plano_prospecao_7dias: [{ dia: 1, canal: "whatsapp", mensagem: text, acao_sugerida: "", objecao_provavel: "", resposta_sugerida: "", cta: "" }],
+      } as never,
+      dayNumber: 1,
+    });
+    expect(res.text).toBe(text);
+    expect(res.whatsappUrl).toBe(`https://wa.me/5527999887766?text=${encodeURIComponent(text)}`);
   });
 });

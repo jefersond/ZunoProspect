@@ -21,12 +21,22 @@ import { useUsage } from "@/hooks/useUsage";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe, StickyNote, Loader2, Lock } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { normalizeLeadForAI, normalizePlanoProspeccao, normalizeDiagnosticoBullets } from "@/utils/normalizeLead";
-import { buildIntelligentPlan } from "@/services/intelligentSevenDayPlan";
+import { ensureSellerProfileOrPrompt, openSellerProfileDialog } from "@/lib/sellerProfile";
 import { refineWithAI } from "@/services/refineWithAI";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
@@ -111,58 +121,8 @@ export const LeadPlanDialog = ({
   onStatusChange 
 }: LeadPlanDialogProps) => {
   const [isReanalyzing, setIsReanalyzing] = useState(false);
-  const [isUpdatingCopiesLocally, setIsUpdatingCopiesLocally] = useState(false);
-
-  const handleUpdateCopiesLocally = async () => {
-    if (!displayLead) return;
-    setIsUpdatingCopiesLocally(true);
-
-    try {
-      const updatedPlanResult = buildIntelligentPlan({
-        lead: displayLead,
-        userServiceName: displayLead.foco || undefined,
-        existingPlan: displayLead.plano_prospecao_7dias,
-        forceUpdateOldCopies: true,
-      });
-
-      const newDays = updatedPlanResult.days;
-      const newDiagnostico = updatedPlanResult.diagnostico;
-
-      if (displayLead.id) {
-        await supabase
-          .from("leads")
-          .update({
-            plano_prospeccao: newDays,
-            diagnostico_bullets: newDiagnostico,
-          })
-          .eq("id", displayLead.id);
-      }
-
-      const updatedLeadData: LeadProspeccao = {
-        ...displayLead,
-        plano_prospecao_7dias: newDays,
-        diagnostico_bullets: newDiagnostico,
-      };
-
-      setCurrentLead(updatedLeadData);
-      onLeadRefined?.(updatedLeadData);
-      onLeadUpdate?.();
-
-      toast({
-        title: "Cópias do plano atualizadas!",
-        description: "Plano atualizado para o novo padrão de copy humana sem consumir saldo de IA. Edições personalizadas foram preservadas.",
-      });
-    } catch (err) {
-      console.error("Erro ao atualizar cópias localmente:", err);
-      toast({
-        title: "Erro ao atualizar cópias",
-        description: "Não foi possível atualizar as cópias localmente.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUpdatingCopiesLocally(false);
-    }
-  };
+  const [confirmReplaceOpen, setConfirmReplaceOpen] = useState(false);
+  const lastReplaceRef = useRef(false);
 
   const [refineError, setRefineError] = useState<RefineErrorPayload | null>(null);
   const activeRequestRef = useRef(false);
@@ -443,7 +403,7 @@ export const LeadPlanDialog = ({
     }
   };
 
-  const handleReanalyze = async () => {
+  const handleReanalyze = async (options?: { replaceExisting?: boolean }) => {
     if (!lead) return;
     const leadKey = getLeadKey(lead);
     const requestId = createRefineRequestId();
@@ -518,6 +478,11 @@ export const LeadPlanDialog = ({
       return;
     }
 
+    lastReplaceRef.current = options?.replaceExisting === true;
+
+    // Sem perfil comercial o Zuno não gera mensagens: abre o formulário e NÃO chama a IA nem consome crédito.
+    if (!ensureSellerProfileOrPrompt()) return;
+
     activeRequestRef.current = true;
     setIsReanalyzing(true);
     trackMetaCustomEvent("AI_Analysis_Started", {
@@ -582,12 +547,8 @@ export const LeadPlanDialog = ({
           cidade: lead.cidade,
           website: lead.website,
           foco: lead.foco,
-          whatsapp_on_site: lead.sinais.has_whatsapp_on_site,
-          has_meta_pixel: lead.sinais.has_meta_pixel,
-          has_gtag: lead.sinais.has_gtag,
-          has_gtm: lead.sinais.has_gtm,
           instagram_url: lead.instagram_url,
-          instagram_context: lead.instagram_context,
+          replace_existing: options?.replaceExisting === true,
         };
 
       const refineRes = await refineWithAI<any>(invokeBody, token, requestId);
@@ -617,7 +578,7 @@ export const LeadPlanDialog = ({
           resData.probabilidade_conversao ??
           resData.diagnostico?.score ??
           resData.data?.analise?.probabilidade_conversao ??
-          85
+          0
         );
         const rawPlano = resData.plano_prospeccao_7dias ??
           resData.plano_prospeccao?.plano_prospeccao_7dias ??
@@ -731,6 +692,15 @@ export const LeadPlanDialog = ({
   };
 
   const displayLead = currentLead || lead;
+
+  // Ação explícita do assinante. Se já existe plano, pede confirmação antes de gerar outra versão.
+  const requestReanalyze = () => {
+    if (displayLead && Array.isArray(displayLead.plano_prospecao_7dias) && displayLead.plano_prospecao_7dias.length > 0) {
+      setConfirmReplaceOpen(true);
+      return;
+    }
+    void handleReanalyze();
+  };
 
   const whatsappNumber = extractWhatsAppNumber(displayLead.whatsapp_link);
 
@@ -877,7 +847,7 @@ export const LeadPlanDialog = ({
             {refineError && (
               <RefineErrorPanel
                 error={refineError}
-                onRetry={handleReanalyze}
+                onRetry={() => void handleReanalyze({ replaceExisting: lastReplaceRef.current })}
                 retrying={isReanalyzing}
               />
             )}
@@ -946,11 +916,10 @@ export const LeadPlanDialog = ({
                 probabilidade={displayLead.probabilidade_conversao ?? null}
                 plano={normalizePlanoProspeccao(displayLead.plano_prospecao_7dias && displayLead.plano_prospecao_7dias.length > 0 ? displayLead.plano_prospecao_7dias : (displayLead as any).plano_prospeccao)}
                 geradoEm={displayLead.ai_analise_gerada_em}
-                onReanalyze={refineError ? undefined : handleReanalyze}
+                onReanalyze={refineError ? undefined : requestReanalyze}
                 isReanalyzing={isReanalyzing}
                 canAnalyzeAI={canAnalyzeLead}
-                onUpdateCopiesLocally={handleUpdateCopiesLocally}
-                isUpdatingCopiesLocally={isUpdatingCopiesLocally}
+                onEditSellerProfile={openSellerProfileDialog}
               />
             )}
           </TabsContent>
@@ -967,12 +936,34 @@ export const LeadPlanDialog = ({
         open={isSdrModalOpen}
         onOpenChange={setIsSdrModalOpen}
         initialDay={sdrInitialDay}
-        onRequestRefine={refineError ? undefined : handleReanalyze}
+        onRequestRefine={refineError ? undefined : requestReanalyze}
         onStatusUpdated={(leadId, newStatus) => {
           handleStatusChange(newStatus);
           onLeadUpdate?.();
         }}
       />
+      <AlertDialog open={confirmReplaceOpen} onOpenChange={setConfirmReplaceOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Gerar uma nova versão do plano?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isto usa 1 análise de IA. A versão atual fica guardada no histórico do lead, e as mensagens que você editou ou
+              marcou como concluídas continuam exatamente como estão. Abrir, copiar, editar e executar mensagens nunca gera IA.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmReplaceOpen(false);
+                void handleReanalyze({ replaceExisting: true });
+              }}
+            >
+              Gerar nova versão
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <UpgradePlanDialog
         open={showUpgradeDialog}
         onOpenChange={setShowUpgradeDialog}

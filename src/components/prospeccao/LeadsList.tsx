@@ -30,8 +30,9 @@ import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import type { UpgradeSource } from "@/lib/funnelContext";
 import { normalizeLeadForAI } from "@/utils/normalizeLead";
-import { generateSmartProspectingCopy } from "@/utils/smartProspectingCopy";
+import { dayHasMessage } from "@/services/intelligentSevenDayPlan";
 import { refineWithAI } from "@/services/refineWithAI";
+import { ensureSellerProfileOrPrompt } from "@/lib/sellerProfile";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
 const normalizeLeadsResponse = (response: any): any[] => {
@@ -146,15 +147,6 @@ export const LeadsList = () => {
   const aiRemaining = usage.ai_remaining ?? Math.max(0, 3 - aiUsed);
   const aiLimit = usage.ai_limit ?? 3;
 
-  const getSmartCopyPreview = (lead: LeadProspeccao) =>
-    generateSmartProspectingCopy({
-      lead,
-      channel: "whatsapp",
-      focus: lead.foco,
-      niche: lead.nicho,
-      city: lead.cidade,
-    }).message;
-  
   // Estado 1: Onboarding Pós-Busca (Free, 0 IA usada, tem saldo, tem leads)
   const isEstado1Onboarding = isFree && aiUsed === 0 && aiRemaining > 0 && leads.length > 0 && !isAdmin;
   
@@ -309,7 +301,7 @@ export const LeadsList = () => {
       diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
       probabilidade_conversao: (lead.probabilidade_conversao && Number(lead.probabilidade_conversao) > 0)
         ? Number(lead.probabilidade_conversao)
-        : (lead.plano_prospeccao ? 85 : 0),
+        : 0,
       plano_prospecao_7dias: Array.isArray(lead.plano_prospeccao)
         ? lead.plano_prospeccao
         : (lead.plano_prospeccao?.plano_prospeccao_7dias || []),
@@ -1017,6 +1009,9 @@ export const LeadsList = () => {
       return;
     }
 
+    // Sem perfil comercial do assinante não há mensagem honesta a gerar: abre o formulário, sem IA e sem crédito.
+    if (!ensureSellerProfileOrPrompt()) return;
+
     activeRequestsRef.current.add(leadKey);
     setReanalyzingLeads(prev => new Set(prev).add(leadKey));
     
@@ -1116,7 +1111,7 @@ export const LeadsList = () => {
         resData.probabilidade_conversao ??
         resData.diagnostico?.score ??
         resData.data?.analise?.probabilidade_conversao ??
-        85
+        0
       );
 
       const rawPlano = resData.plano_prospeccao_7dias ??
@@ -1133,7 +1128,7 @@ export const LeadsList = () => {
 
       const updatedLeadObj: LeadProspeccao = {
         ...lead,
-        probabilidade_conversao: probVal > 0 ? probVal : 85,
+        probabilidade_conversao: probVal > 0 ? probVal : 0,
         plano_prospecao_7dias: planoDias,
         diagnostico_bullets: bullets,
         status: "analisado",
@@ -1814,31 +1809,35 @@ export const LeadsList = () => {
                     
                     <TableCell className="px-3 py-3 align-top">
                       <div className="min-w-0 max-w-full">
-                        {lead.plano_prospecao_7dias.length > 0 ? (
-                          <div className="space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant="outline" className="shrink-0 text-xs">
-                                Dia 1
-                              </Badge>
-                              <Badge 
-                                variant={lead.plano_prospecao_7dias[0].canal === "whatsapp" ? "default" : "secondary"}
-                                className="shrink-0 text-xs"
-                              >
-                                {lead.plano_prospecao_7dias[0].canal === "whatsapp" ? (
-                                  <MessageSquare className="h-3 w-3 mr-1" />
-                                ) : (
-                                  "📧"
+                        {lead.plano_prospecao_7dias.length > 0 ? (() => {
+                          const firstDay = lead.plano_prospecao_7dias.find((d) => dayHasMessage(d)) ?? lead.plano_prospecao_7dias[0];
+                          const hasText = dayHasMessage(firstDay);
+                          return (
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant="outline" className="shrink-0 text-xs">
+                                  Dia {firstDay.dia}
+                                </Badge>
+                                {hasText && (
+                                  <Badge
+                                    variant={firstDay.canal === "whatsapp" ? "default" : "secondary"}
+                                    className="shrink-0 text-xs"
+                                  >
+                                    {firstDay.canal === "whatsapp" ? (
+                                      <MessageSquare className="h-3 w-3 mr-1" />
+                                    ) : null}
+                                    {firstDay.canal}
+                                  </Badge>
                                 )}
-                                {lead.plano_prospecao_7dias[0].canal}
-                              </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {hasText ? firstDay.mensagem : (firstDay.acao_sugerida || "Nenhuma mensagem necessária nesta etapa")}
+                              </p>
                             </div>
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                              {lead.plano_prospecao_7dias[0].mensagem}
-                            </p>
-                          </div>
-                        ) : (
+                          );
+                        })() : (
                           <p className="line-clamp-2 text-xs text-muted-foreground">
-                            {getSmartCopyPreview(lead)}
+                            Análise com IA ainda não gerada. Abra o plano para gerar com o seu perfil comercial.
                           </p>
                         )}
                       </div>

@@ -1,0 +1,14 @@
+{
+  "_aviso": "PREÇOS NÃO VERIFICADOS NA FONTE. ai.google.dev não é acessível da sessão que gerou este arquivo; os valores vêm de resultados de busca sobre as páginas oficiais (pricing e 'What's new'), consultados em 2026-10-27. Confirme em https://ai.google.dev/gemini-api/docs/pricing antes de usar para decisão. Valores em USD por 1 milhão de tokens, nível pago, Standard, texto. O raciocínio (thinking) é cobrado como saída.",
+  "consultado_em": "2026-10-27",
+  "modelos": {
+    "gemini-3.6-flash (preço introdutório até 2026-12-31)": { "id": "gemini-3.6-flash", "input": 0.75, "output": 3.75 },
+    "gemini-3.6-flash (preço padrão a partir de 2027-01-01)": { "id": "gemini-3.6-flash", "input": 1.5, "output": 7.5 },
+    "gemini-3.5-flash-lite": { "id": "gemini-3.5-flash-lite", "input": 0.3, "output": 2.5 },
+    "gemini-3.1-flash-lite": { "id": "gemini-3.1-flash-lite", "input": 0.25, "output": 1.5 }
+  },
+  "divergencias_conhecidas": [
+    "gemini-3.6-flash: uma fonte lista 0.75/3.75 (introdutório até 2026-12-31) e 1.50/7.50 depois; outra lista 1.50/7.50 como preço atual. Os dois cenários estão acima.",
+    "gemini-3.1-flash-lite: a página de descontinuação indica desligamento em 2027-05-07 com gemini-3.5-flash-lite como substituto (via busca; não verificado)."
+  ]
+}

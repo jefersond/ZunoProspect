@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Brain, Check, CheckCircle2, Copy, Info, Instagram, Mail, MessageSquare, RefreshCw, Sparkles } from "lucide-react";
-import { buildStructuredDiagnosis, type ExplorableCompatibility } from "@/services/intelligentSevenDayPlan";
+import { Brain, Check, CheckCircle2, ClipboardList, Copy, Info, Instagram, Mail, MessageSquare, Phone, RefreshCw, UserCog } from "lucide-react";
+import { buildAlignmentCompatibility, dayHasMessage, resolveDayType, type ExplorableCompatibility } from "@/services/intelligentSevenDayPlan";
+import { NO_MESSAGE_LABEL } from "../../../supabase/functions/_shared/lead-analysis";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,8 +23,7 @@ interface LeadAnalysisProps {
   lead?: LeadProspeccao | null;
   compatibilidade?: ExplorableCompatibility | null;
   onExecuteInSdr?: (dayNumber: number) => void;
-  onUpdateCopiesLocally?: () => void;
-  isUpdatingCopiesLocally?: boolean;
+  onEditSellerProfile?: () => void;
 }
 
 export const LeadAnalysis = ({
@@ -37,10 +37,10 @@ export const LeadAnalysis = ({
   lead,
   compatibilidade,
   onExecuteInSdr,
-  onUpdateCopiesLocally,
-  isUpdatingCopiesLocally = false,
+  onEditSellerProfile,
 }: LeadAnalysisProps) => {
   const [copiedDia, setCopiedDia] = useState<number | null>(null);
+  const hasSavedPlan = Boolean(plano && plano.length > 0);
   const { toast } = useToast();
 
   const handleCopyMessage = async (dia: number, mensagem: string, channel: PlanoProspeccaoDia["canal"]) => {
@@ -65,7 +65,7 @@ export const LeadAnalysis = ({
   );
 
   const renderFallbackRefineButton = () => {
-    if (!onReanalyze || lead) return null;
+    if (!onReanalyze) return null;
 
     return (
       <TooltipProvider>
@@ -80,7 +80,7 @@ export const LeadAnalysis = ({
                 className={!canAnalyzeAI ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 font-semibold transition-all duration-200" : ""}
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? "animate-spin" : ""}`} />
-                {isReanalyzing ? "Refinando..." : canAnalyzeAI ? "Refinar com IA" : "Liberar analises IA"}
+                {isReanalyzing ? "Gerando..." : canAnalyzeAI ? (hasSavedPlan ? "Gerar nova versão com IA" : "Gerar análise com IA") : "Liberar analises IA"}
               </Button>
             </span>
           </TooltipTrigger>
@@ -90,12 +90,18 @@ export const LeadAnalysis = ({
     );
   };
 
-  if (!diagnostico || !plano || plano.length === 0) {
+  if (!diagnostico || diagnostico.length === 0 || !plano || plano.length === 0) {
     return (
       <div className="space-y-4 mt-4">
         <Card>
           <CardContent className="py-6 text-center space-y-3">
             <p className="text-muted-foreground">Analise premium de IA ainda nao gerada para este lead</p>
+            {onEditSellerProfile && (
+              <Button variant="ghost" size="sm" onClick={onEditSellerProfile} className="gap-1.5 text-xs">
+                <UserCog className="h-3.5 w-3.5" />
+                Meu perfil comercial
+              </Button>
+            )}
             {renderFallbackRefineButton()}
           </CardContent>
         </Card>
@@ -110,7 +116,7 @@ export const LeadAnalysis = ({
     return "text-muted-foreground bg-muted/40 border-border/50 font-medium";
   };
 
-  const effectiveCompat = compatibilidade || (lead ? buildStructuredDiagnosis(lead, lead.foco || undefined).compatibilidade : null);
+  const effectiveCompat = compatibilidade || (lead ? buildAlignmentCompatibility(lead) : null);
 
   const getProbabilidadeColor = (prob: number) => {
     if (prob >= 70) return "text-green-600 bg-green-50 border-green-200";
@@ -135,19 +141,6 @@ export const LeadAnalysis = ({
                   </CardDescription>
                 )}
               </div>
-              {onUpdateCopiesLocally && (
-                <Button
-                  onClick={onUpdateCopiesLocally}
-                  disabled={isUpdatingCopiesLocally}
-                  variant="outline"
-                  size="sm"
-                  className="border-primary/20 text-xs hover:bg-primary/10 gap-1.5"
-                  title="Atualiza todas as cópias do plano para o novo padrão humano sem consumir créditos de IA. Mensagens já editadas por você são mantidas."
-                >
-                  <Sparkles className={`h-3.5 w-3.5 text-primary ${isUpdatingCopiesLocally ? "animate-spin" : ""}`} />
-                  {isUpdatingCopiesLocally ? "Atualizando..." : "Atualizar Cópias (R$ 0,00)"}
-                </Button>
-              )}
               {onReanalyze && (
                 <TooltipProvider>
                   <Tooltip>
@@ -161,7 +154,7 @@ export const LeadAnalysis = ({
                           className={!canAnalyzeAI ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 font-semibold transition-all duration-200" : ""}
                         >
                           <RefreshCw className={`h-4 w-4 mr-2 ${isReanalyzing ? "animate-spin" : ""}`} />
-                          {isReanalyzing ? "Refinando..." : canAnalyzeAI ? "Refinar com IA" : "Liberar analises IA"}
+                          {isReanalyzing ? "Gerando..." : canAnalyzeAI ? (hasSavedPlan ? "Gerar nova versão com IA" : "Gerar análise com IA") : "Liberar analises IA"}
                         </Button>
                       </span>
                     </TooltipTrigger>
@@ -230,34 +223,55 @@ export const LeadAnalysis = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-primary" />
-            Copies prontas
+            Plano de 7 dias
           </CardTitle>
           <CardDescription>
-            WhatsApp, Instagram, e-mail, follow-up e resposta para objecao gerados na mesma chamada de IA
+            Plano de 7 dias gerado em uma única chamada de IA com o seu perfil comercial e os dados verificados da empresa. Nem todo dia tem mensagem: alguns são tarefas ou pausas.
+            {onEditSellerProfile && (
+              <button type="button" onClick={onEditSellerProfile} className="ml-1 underline underline-offset-2 hover:text-foreground">
+                Editar meu perfil comercial
+              </button>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {plano.map((dia) => (
-              <div key={dia.dia} className="space-y-3">
-                <div className="flex items-center gap-2">
+            {plano.map((dia) => {
+              const tipo = resolveDayType(dia);
+              const hasMessage = dayHasMessage(dia);
+              const isFollowUp = tipo === "acompanhamento";
+              return (
+              <div key={dia.dia} className="space-y-3" data-testid={`dia-${dia.dia}`} data-tipo={tipo}>
+                <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant="outline" className="font-semibold">
                     Dia {dia.dia}
                   </Badge>
-                  <Badge
-                    variant={dia.canal === "whatsapp" ? "default" : dia.canal === "instagram" ? "outline" : "secondary"}
-                    className="gap-1"
-                  >
-                    {dia.canal === "whatsapp" ? (
-                      <MessageSquare className="h-3 w-3" />
-                    ) : dia.canal === "instagram" ? (
-                      <Instagram className="h-3 w-3" />
-                    ) : (
-                      <Mail className="h-3 w-3" />
-                    )}
-                    {dia.canal === "whatsapp" ? "WhatsApp" : dia.canal === "instagram" ? "Instagram" : "Email"}
-                  </Badge>
-                  {onExecuteInSdr && (
+                  {dia.canal !== "nenhum" && (
+                    <Badge
+                      variant={dia.canal === "whatsapp" ? "default" : dia.canal === "instagram" ? "outline" : "secondary"}
+                      className="gap-1"
+                    >
+                      {dia.canal === "whatsapp" ? (
+                        <MessageSquare className="h-3 w-3" />
+                      ) : dia.canal === "instagram" ? (
+                        <Instagram className="h-3 w-3" />
+                      ) : dia.canal === "telefone" ? (
+                        <Phone className="h-3 w-3" />
+                      ) : (
+                        <Mail className="h-3 w-3" />
+                      )}
+                      {dia.canal === "whatsapp" ? "WhatsApp" : dia.canal === "instagram" ? "Instagram" : dia.canal === "telefone" ? "Ligação" : "Email"}
+                    </Badge>
+                  )}
+                  {isFollowUp && <Badge variant="secondary">Acompanhamento</Badge>}
+                  {tipo === "tarefa" && (
+                    <Badge variant="secondary" className="gap-1">
+                      <ClipboardList className="h-3 w-3" />
+                      Tarefa
+                    </Badge>
+                  )}
+                  {dia.is_custom_edited && <Badge variant="outline" className="text-xs">Editado por você</Badge>}
+                  {hasMessage && onExecuteInSdr && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -285,69 +299,99 @@ export const LeadAnalysis = ({
                   {dia.acao_sugerida && (
                     <div className="bg-purple-50 dark:bg-purple-950/30 p-3 rounded-md border border-purple-200 dark:border-purple-800">
                       <p className="font-semibold text-purple-700 dark:text-purple-400 text-xs mb-1">
-                        Acao sugerida:
+                        {hasMessage ? "Acao sugerida:" : tipo === "tarefa" ? "O que fazer:" : "Nesta etapa:"}
                       </p>
-                      <p className="text-sm text-purple-900 dark:text-purple-300 font-medium">
+                      <p className="text-sm text-purple-900 dark:text-purple-300 font-medium whitespace-pre-wrap">
                         {dia.acao_sugerida}
                       </p>
                     </div>
                   )}
 
-                  {dia.assunto_email && (
+                  {dia.condicao && (
+                    <div className="bg-amber-50 dark:bg-amber-950/20 p-2 rounded border border-amber-200 dark:border-amber-800 text-xs">
+                      <span className="font-semibold text-amber-700 dark:text-amber-400">Quando enviar: </span>
+                      <span className="text-amber-900 dark:text-amber-300">{dia.condicao}</span>
+                    </div>
+                  )}
+
+                  {!hasMessage && (
+                    <div className="bg-muted/40 p-3 rounded-md border border-border/50 text-muted-foreground text-sm">
+                      {NO_MESSAGE_LABEL}
+                    </div>
+                  )}
+
+                  {hasMessage && dia.assunto_email && (
                     <div className="bg-slate-100 dark:bg-slate-900 px-3 py-2 rounded-md border border-slate-200 dark:border-slate-800 text-xs">
                       <span className="font-semibold text-slate-700 dark:text-slate-300">Assunto sugerido: </span>
                       <span className="text-slate-900 dark:text-slate-200 font-medium">{dia.assunto_email}</span>
                     </div>
                   )}
 
-                  <div className="bg-primary/5 p-3 rounded-md border border-primary/10 relative">
-                    <div className="flex items-start justify-between">
-                      <p className="font-medium text-primary mb-1">Mensagem:</p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopyMessage(dia.dia, dia.mensagem, dia.canal)}
-                        className="h-7 w-7 p-0 -mt-1 -mr-1"
-                      >
-                        {copiedDia === dia.dia ? (
-                          <Check className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
-                      </Button>
+                  {hasMessage && (
+                    <div className="bg-primary/5 p-3 rounded-md border border-primary/10 relative">
+                      <div className="flex items-start justify-between">
+                        <p className="font-medium text-primary mb-1">Mensagem:</p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopyMessage(dia.dia, dia.mensagem, dia.canal)}
+                          className="h-7 w-7 p-0 -mt-1 -mr-1"
+                        >
+                          {copiedDia === dia.dia ? (
+                            <Check className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <p className="whitespace-pre-wrap pr-6">{dia.mensagem}</p>
                     </div>
-                    <p className="whitespace-pre-wrap pr-6">{dia.mensagem}</p>
-                  </div>
+                  )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded border border-orange-200 dark:border-orange-800">
-                      <p className="font-medium text-orange-700 dark:text-orange-400 text-xs mb-1">
-                        Objecao provavel:
-                      </p>
-                      <p className="text-xs text-orange-900 dark:text-orange-300">
-                        {dia.objecao_provavel}
-                      </p>
+                  {dia.justificativa && (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium">Por que: </span>
+                      {dia.justificativa}
+                    </p>
+                  )}
+
+                  {hasMessage && (dia.objecao_provavel || dia.resposta_sugerida) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {dia.objecao_provavel && (
+                        <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded border border-orange-200 dark:border-orange-800">
+                          <p className="font-medium text-orange-700 dark:text-orange-400 text-xs mb-1">
+                            Objecao provavel:
+                          </p>
+                          <p className="text-xs text-orange-900 dark:text-orange-300">
+                            {dia.objecao_provavel}
+                          </p>
+                        </div>
+                      )}
+                      {dia.resposta_sugerida && (
+                        <div className="bg-green-50 dark:bg-green-950/20 p-2 rounded border border-green-200 dark:border-green-800">
+                          <p className="font-medium text-green-700 dark:text-green-400 text-xs mb-1">
+                            Resposta sugerida:
+                          </p>
+                          <p className="text-xs text-green-900 dark:text-green-300">
+                            {dia.resposta_sugerida}
+                          </p>
+                        </div>
+                      )}
                     </div>
+                  )}
 
-                    <div className="bg-green-50 dark:bg-green-950/20 p-2 rounded border border-green-200 dark:border-green-800">
-                      <p className="font-medium text-green-700 dark:text-green-400 text-xs mb-1">
-                        Resposta sugerida:
-                      </p>
-                      <p className="text-xs text-green-900 dark:text-green-300">
-                        {dia.resposta_sugerida}
-                      </p>
+                  {hasMessage && dia.cta && (
+                    <div className="bg-blue-50 dark:bg-blue-950/20 p-2 rounded border border-blue-200 dark:border-blue-800">
+                      <p className="font-medium text-blue-700 dark:text-blue-400 text-xs mb-1">CTA:</p>
+                      <p className="text-xs text-blue-900 dark:text-blue-300">{dia.cta}</p>
                     </div>
-                  </div>
-
-                  <div className="bg-blue-50 dark:bg-blue-950/20 p-2 rounded border border-blue-200 dark:border-blue-800">
-                    <p className="font-medium text-blue-700 dark:text-blue-400 text-xs mb-1">CTA:</p>
-                    <p className="text-xs text-blue-900 dark:text-blue-300">{dia.cta}</p>
-                  </div>
+                  )}
                 </div>
 
                 {dia.dia < 7 && <Separator className="my-4" />}
               </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>

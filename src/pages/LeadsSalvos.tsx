@@ -42,6 +42,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { trackEvent } from "@/lib/analytics";
 import { refineWithAI } from "@/services/refineWithAI";
+import { ensureSellerProfileOrPrompt } from "@/lib/sellerProfile";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
 const LeadsSalvos = () => {
@@ -246,7 +247,7 @@ const LeadsSalvos = () => {
           diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
           probabilidade_conversao: (lead.probabilidade_conversao && Number(lead.probabilidade_conversao) > 0)
             ? Number(lead.probabilidade_conversao)
-            : (lead.plano_prospeccao ? 85 : 0),
+            : 0,
           plano_prospecao_7dias: normalizePlanoProspeccao(lead.plano_prospeccao),          rating: lead.rating,
           total_reviews: lead.total_reviews,
           status: lead.status || "novo",
@@ -340,6 +341,9 @@ const LeadsSalvos = () => {
       return;
     }
 
+    // Sem perfil comercial do assinante não há mensagem honesta a gerar: abre o formulário, sem IA e sem crédito.
+    if (!ensureSellerProfileOrPrompt()) return;
+
     let searchContext = {};
     try {
       const storedContext = localStorage.getItem("zuno_last_search_context");
@@ -379,7 +383,7 @@ const LeadsSalvos = () => {
         resData.probabilidade_conversao ??
         resData.diagnostico?.score ??
         resData.data?.analise?.probabilidade_conversao ??
-        85
+        0
       );
 
       const rawPlano = resData.plano_prospeccao_7dias ??
@@ -398,7 +402,7 @@ const LeadsSalvos = () => {
           item.id === leadId
             ? {
                 ...item,
-                probabilidade_conversao: probVal > 0 ? probVal : 85,
+                probabilidade_conversao: probVal > 0 ? probVal : 0,
                 plano_prospecao_7dias: planoDias,
                 diagnostico_bullets: bullets,
                 status: "analisado",

@@ -1,4 +1,3 @@
-import { buildIntelligentPlan } from "@/services/intelligentSevenDayPlan";
 
 export interface NormalizedLead {
   nome: string;
@@ -135,16 +134,7 @@ export function normalizeLeadForAI(lead: any, searchContext: any = {}): Normaliz
   };
 }
 
-function generateFallback7Days(lead?: any): any[] {
-  const focoRaw = lead?.foco || "Full Service";
-  const foco = focoRaw === "zuno_internal_prospecting" ? "Oportunidade comercial" : focoRaw;
-  return buildIntelligentPlan({
-    lead: lead || {},
-    userServiceName: foco,
-  }).days;
-}
-
-export function normalizePlanoProspeccao(plano: any, lead?: any): any[] {
+export function normalizePlanoProspeccao(plano: any, _lead?: any): any[] {
   if (Array.isArray(plano) && plano.length > 0) return plano;
   
   if (plano && typeof plano === 'object') {
@@ -247,7 +237,8 @@ export function normalizePlanoProspeccao(plano: any, lead?: any): any[] {
     }
   }
 
-  return generateFallback7Days(lead);
+  // Sem plano salvo: nada é inventado. A tela pede a geração explícita da análise.
+  return [];
 }
 
 export function normalizeDiagnosticoBullets(bullets: any, lead?: any): string[] {
@@ -265,27 +256,6 @@ export function normalizeDiagnosticoBullets(bullets: any, lead?: any): string[] 
       if (diag.oportunidade) list.push(`Ângulo comercial recomendado: ${diag.oportunidade}`);
       if (diag.urgencia) list.push(`Urgência estimada para contato: ${diag.urgencia}`);
     }
-  }
-
-  if (list.length === 0) {
-    const nome = lead?.nome || "a empresa";
-    const nicho = lead?.nicho || "seu segmento";
-    const cidade = lead?.cidade || "sua região";
-    const focoRaw = lead?.foco || "Full Service";
-    const foco = focoRaw === "zuno_internal_prospecting" ? "Oportunidade comercial" : focoRaw;
-
-    const hasWeb = Boolean(lead?.website && String(lead.website).trim().length > 4);
-    const revCount = typeof lead?.total_reviews === "number" ? lead.total_reviews : (typeof lead?.reviews === "number" ? lead.reviews : null);
-    const ratVal = typeof lead?.rating === "number" ? lead.rating : null;
-
-    list = [
-      `${nome} atua no segmento de ${nicho} em ${cidade}.`,
-      hasWeb || revCount
-        ? `Presença observada: ${hasWeb ? "URL informada no perfil público (requer conferência manual de atividade)" : "sem site cadastrado"} e ${revCount ? `${revCount} avaliações no Google (${ratVal || 5} estrelas)` : "sem avaliações identificadas"}.`
-        : "Poucos ativos digitais públicos disponíveis; a abordagem inicial deve validar canais e responsável antes de aprofundar.",
-      `Possibilidade de abordagem para ${foco}: avaliar se a entrada de novos clientes hoje acontece de forma previsível ou se oscila ao longo do mês.`,
-      "Próxima ação recomendada: enviar abertura curta e consultiva no canal comercial principal, sem promessas agressivas."
-    ];
   }
 
   return list.map(b => b.replace(/zuno_internal_prospecting/g, "Oportunidade comercial"));

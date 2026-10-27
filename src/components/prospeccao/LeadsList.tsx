@@ -32,6 +32,7 @@ import type { UpgradeSource } from "@/lib/funnelContext";
 import { normalizeLeadForAI } from "@/utils/normalizeLead";
 import { generateSmartProspectingCopy } from "@/utils/smartProspectingCopy";
 import { refineWithAI } from "@/services/refineWithAI";
+import { buildRefineOutcomeError, classifyRefineResponse } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
 const normalizeLeadsResponse = (response: any): any[] => {
@@ -318,6 +319,8 @@ export const LeadsList = () => {
       status: lead.status || 'novo',
       created_at: lead.created_at,
       ai_analise_gerada_em: lead.ai_analise_gerada_em,
+      ai_used_fallback: (lead as { ai_used_fallback?: boolean | null }).ai_used_fallback ?? undefined,
+      ai_fallback_reason: (lead as { ai_fallback_reason?: string | null }).ai_fallback_reason ?? null,
       salvo: lead.salvo || false,
       notas: lead.notas || null,
       // Campos CNPJ
@@ -1109,6 +1112,13 @@ export const LeadsList = () => {
         };
 
       const refineResponse = await refineWithAI<any>(invokeBody, token, requestId);
+      // HTTP 200 não basta: só é "Análise concluída" quando a resposta é mesmo uma análise do Gemini.
+      const outcome = classifyRefineResponse(refineResponse?.data);
+      if (outcome.kind !== "generated") {
+        // Um texto de reserva já pode ter sido salvo pelo backend antigo: relê o registro para a tela mostrar o que existe.
+        await refreshSingleLead(lead.id).catch(() => undefined);
+        throw buildRefineOutcomeError(outcome, requestId);
+      }
       setLastRefineError(null);
 
       const resData = refineResponse?.data || {};
@@ -1116,7 +1126,7 @@ export const LeadsList = () => {
         resData.probabilidade_conversao ??
         resData.diagnostico?.score ??
         resData.data?.analise?.probabilidade_conversao ??
-        85
+        0
       );
 
       const rawPlano = resData.plano_prospeccao_7dias ??
@@ -1133,7 +1143,7 @@ export const LeadsList = () => {
 
       const updatedLeadObj: LeadProspeccao = {
         ...lead,
-        probabilidade_conversao: probVal > 0 ? probVal : 85,
+        probabilidade_conversao: probVal > 0 ? probVal : null,
         plano_prospecao_7dias: planoDias,
         diagnostico_bullets: bullets,
         status: "analisado",
@@ -1275,7 +1285,7 @@ export const LeadsList = () => {
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
           ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
-          : errorPayload.category === "rate_limit_error"
+          : errorPayload.category === "rate_limit_error" || errorPayload.category === "provider_error"
           ? errorMsg
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
       });

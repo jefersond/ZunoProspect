@@ -108,6 +108,8 @@ export const transformSecureLead = (lead: any): LeadProspeccao => {
     status: lead.status || 'novo',
     created_at: lead.created_at,
     ai_analise_gerada_em: lead.ai_analise_gerada_em,
+    ai_used_fallback: (lead as { ai_used_fallback?: boolean | null }).ai_used_fallback ?? undefined,
+    ai_fallback_reason: (lead as { ai_fallback_reason?: string | null }).ai_fallback_reason ?? null,
     salvo: lead.salvo || false,
     notas: lead.notas || null,
     cnpj: lead.cnpj || null,

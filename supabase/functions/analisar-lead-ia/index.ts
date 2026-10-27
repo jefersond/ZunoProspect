@@ -1,5 +1,15 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  GEMINI_JSON_MIME_TYPE,
+  REFINE_MODELS,
+  buildProviderFailure,
+  shouldChargeCredit,
+  shouldPersistAnalysis,
+  summarizeProviderError,
+  validateAnalysis,
+  type AnalysisValidation,
+} from "../_shared/refine-provider-guard.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -12,11 +22,7 @@ const ADMIN_EMAILS = new Set([
   "jefeson.zanotell@gmail.com",
 ]);
 
-const MODELS = [
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
-  "gemini-3.1-flash-lite",
-];
+const MODELS = REFINE_MODELS;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -84,122 +90,8 @@ function signals(lead: any) {
     lead.has_meta_pixel ? "Meta Pixel detectado" : null,
     lead.has_gtag ? "Google Analytics detectado" : null,
     lead.has_gtm ? "Google Tag Manager detectado" : null,
+    "A inspeção automática do HTML do site está suspensa: a falta de menção a pixel, tags ou rastreamento NÃO indica que a empresa não os tenha; não afirme nada sobre isso",
   ].filter(Boolean).slice(0, 10);
-}
-
-function fallbackAnalysis(lead: any) {
-  const city = lead.cidade && !lead.cidade.includes("não inform") ? lead.cidade : "sua região";
-  const cityPhrase = lead.cidade && !lead.cidade.includes("não inform") ? ` em ${lead.cidade}` : "";
-  const niche = lead.nicho || "seu segmento";
-  const foco = (lead.foco || "Full Service").replace(/zuno_internal_prospecting/g, "Oportunidade comercial");
-  const s = foco.toLowerCase();
-
-  const channels = availableChannels(lead);
-  const channelAt = (i: number) => channels[i % channels.length] || "whatsapp";
-  const score = Math.min(86, 35 + (lead.website ? 12 : 0) + (lead.instagram ? 10 : 0) + (lead.phone ? 12 : 0) + (lead.email ? 8 : 0) + (lead.rating !== null ? 6 : 0));
-
-  const hasWeb = Boolean(lead.website && String(lead.website).trim().length > 4);
-  const revCount = typeof lead.reviews === "number" ? lead.reviews : null;
-  const rating = typeof lead.rating === "number" ? lead.rating : null;
-  const hasReviews = Boolean(revCount && revCount > 0);
-
-  const diag = [
-    `${lead.nome} atua no segmento de ${niche}${cityPhrase}.`,
-    hasWeb || hasReviews
-      ? `Sinais observados: ${hasWeb ? "URL informada no perfil público (requer conferência manual de funcionamento)" : "sem website cadastrado nos dados públicos"} e ${hasReviews ? `${revCount} avaliações no Google (${rating || 5} estrelas)` : "sem avaliações identificadas publicamente"}.`
-      : "Poucos ativos digitais públicos mapeados; a abordagem inicial deve validar o responsável comercial antes de aprofundar.",
-    s.includes("site") || s.includes("landing") || s.includes("web")
-      ? hasWeb
-        ? "Possibilidade comercial: avaliar se a página cadastrada facilita o contato imediato no WhatsApp de quem pesquisa pelo serviço no celular."
-        : "Possibilidade comercial: avaliar oportunidade de estruturar uma página simples no Google para receber contatos comerciais diretos da cidade."
-      : s.includes("social") || s.includes("instagram") || s.includes("conteúdo")
-      ? "Possibilidade comercial: avaliar oportunidade de alinhar a comunicação digital para transformar interesse local em conversas comerciais diretas."
-      : s.includes("crm") || s.includes("automação") || s.includes("atendimento")
-      ? "Possibilidade comercial: avaliar como a empresa organiza o fluxo de mensagens no WhatsApp para evitar atrasos no atendimento a novos orçamentos."
-      : `Possibilidade comercial para ${foco}: avaliar se a entrada de novos clientes hoje acontece com previsibilidade ou se oscila bastante ao longo do mês.`,
-    "Próximo passo útil: enviar abertura curta e consultiva focada na rotina comercial da empresa, sem promessas agressivas nem alegações não verificadas.",
-  ];
-
-  const days = [
-    {
-      dia: 1,
-      canal: channelAt(0),
-      acao_sugerida: "Enviar abertura curta no WhatsApp focada na rotina comercial.",
-      mensagem: `Oi, ${lead.nome}! Tudo bem?\n\nEncontrei o contato público de vocês pesquisando empresas de ${niche}${cityPhrase}.\n\nAtuo com ${foco} e queria te fazer uma pergunta rápida: hoje a entrada de novos clientes aí acontece de forma constante ou oscila bastante ao longo do mês?\n\nSe preferirem não receber contato, sem problemas.`,
-      objecao_provavel: "Quem é você e como conseguiu nosso número?",
-      resposta_sugerida: `Atuo com ${foco} para negócios de ${niche} e localizei o contato público da ${lead.nome} na pesquisa local de ${city}.`,
-      cta: "Hoje a demanda de novos clientes oscila muito ao longo do mês?",
-    },
-    {
-      dia: 2,
-      canal: channelAt(1),
-      acao_sugerida: "Compartilhar observação real sobre o segmento local sem intimidade falsa.",
-      mensagem: `Oi, equipe da ${lead.nome}! Tudo bem?\n\nEstava analisando o mercado de ${niche}${cityPhrase}. Em ${foco}, costumo notar que muitas empresas têm boa reputação na região, mas poderiam receber mais contatos diretos de quem já pesquisa ativamente pelo serviço na internet.\n\nVocês têm interesse em avaliar como estruturar essa captação local?`,
-      objecao_provavel: "Não temos interesse no momento.",
-      resposta_sugerida: "Compreendo perfeitamente! Fico à disposição se em outro momento isso for prioridade.",
-      cta: "Faz sentido avaliarmos isso em 5 minutos?",
-    },
-    {
-      dia: 3,
-      canal: channelAt(2),
-      acao_sugerida: "Enviar e-mail ou mensagem curta com hipótese comercial clara, sem jargões.",
-      mensagem: `Assunto: Pergunta rápida sobre captação de clientes - ${lead.nome}\n\nOlá, equipe da ${lead.nome}!\n\nEntrei em contato recentemente porque trabalho com ${foco} voltado para ${niche}${cityPhrase}.\n\nA ideia é bem direta: em vez de depender apenas de indicações ocasionais, estruturar uma rotina clara para que pessoas da cidade encontrem a empresa no momento em que precisam dos seus serviços.\n\nFaz sentido conversarmos 5 minutos sobre isso esta semana?`,
-      objecao_provavel: "Qual é o valor do investimento?",
-      resposta_sugerida: "O investimento varia conforme o objetivo de captação da empresa. Minha ideia inicial é só entender o cenário de vocês para ver se faz sentido.",
-      cta: "Consegue falar 5 minutos esta semana?",
-    },
-    {
-      dia: 4,
-      canal: "whatsapp",
-      acao_sugerida: "Acompanhamento leve com pergunta prática, sem cobrança passiva.",
-      mensagem: `Oi, ${lead.nome}! Tudo bem?\n\nImagino que a rotina aí${cityPhrase} seja corrida. Só retomando de forma bem prática: hoje o maior desafio de vocês está em atrair novas oportunidades ou em converter os contatos que já chegam?\n\nSe não fizer sentido falar sobre isso agora, é só me avisar.`,
-      objecao_provavel: "Estamos sem tempo para ver isso agora.",
-      resposta_sugerida: "Sem problemas! Quando a rotina estiver mais tranquila, me avise por aqui.",
-      cta: "Prefere que eu retome contato no próximo mês?",
-    },
-    {
-      dia: 5,
-      canal: "email",
-      acao_sugerida: "Apresentar os 3 passos práticos da solução sem inventar estudos de caso.",
-      mensagem: `Assunto: 3 pontos práticos para captação local - ${lead.nome}\n\nOlá!\n\nPara ser bem direto e prático sobre como trabalho com ${foco} para ${niche}:\n\n1. Mapeamos os termos e serviços que os clientes mais procuram em ${city}.\n2. Organizamos o canal de contato para que a pessoa fale diretamente com vocês com o mínimo de atrito.\n3. Acompanhamos semanalmente quais canais trazem contatos reais de orçamento.\n\nPosso te mostrar como isso se aplicaria no cenário da ${lead.nome}?`,
-      objecao_provavel: "Já temos alguém que cuida disso internamente.",
-      resposta_sugerida: "Excelente! Nesse caso, nosso foco seria apenas complementar o trabalho atual ou fornecer dados adicionais de mercado.",
-      cta: "Quer que eu envie esse resumo por aqui?",
-    },
-    {
-      dia: 6,
-      canal: channelAt(5),
-      acao_sugerida: "Validar respeitosamente o timing comercial da empresa.",
-      mensagem: `Oi, pessoal da ${lead.nome}! Só uma pergunta sincera sobre timing: vocês estão buscando novas frentes de captação de clientes neste mês ou a prioridade do negócio agora é outra?\n\nPergunto apenas para não tomar o tempo de vocês caso o momento não seja esse.`,
-      objecao_provavel: "O momento agora não é esse.",
-      resposta_sugerida: "Perfeito! Obrigado pela transparência. Fico à disposição para quando surgir a necessidade.",
-      cta: "Podemos manter o contato para o futuro?",
-    },
-    {
-      dia: 7,
-      canal: "whatsapp",
-      acao_sugerida: "Encerrar o ciclo de forma cordial, sem pressão e mantendo portas abertas.",
-      mensagem: `Olá, ${lead.nome}! Vou encerrar meus contatos por aqui para não insistir na sua rotina.\n\nSe em algum momento fizer sentido conversar sobre ${foco} para ${niche}, meu contato fica à disposição.\n\nDesejo muito sucesso aos negócios de vocês${cityPhrase}!`,
-      objecao_provavel: "Obrigado pelo contato!",
-      resposta_sugerida: "Disponha! Bom trabalho para vocês por aí.",
-      cta: "Grande abraço e até a próxima!",
-    },
-  ];
-
-  return {
-    diagnostico_bullets: diag,
-    probabilidade_conversao: score,
-    fit_level: score >= 70 ? "alto" : score >= 45 ? "medio" : "baixo",
-    commercial_opportunity: `Estruturar captação ativa e presença local para ${lead.nome} em ${niche}.`,
-    probable_pain: "Oscilação no volume de novos clientes e dependência passiva de indicações.",
-    why_good_lead: diag.join(" "),
-    messages: {
-      whatsapp_primary: days[0].mensagem,
-      instagram: days[1].mensagem,
-      email_body: days[2].mensagem,
-    },
-    plano_prospeccao_7dias: days,
-  };
 }
 
 const daySchema = {
@@ -304,47 +196,13 @@ REGRAS INVIOLÁVEIS DE QUALIDADE (DIRETRIZ ANTI-ROBÔ):
 Retorne estritamente o JSON compatível com o schema.`;
 }
 
-function normalizeAIResult(ai: any, lead: any) {
-  const fb = fallbackAnalysis(lead);
-  const result = ai && typeof ai === "object" ? ai : {};
-  const bullets = Array.isArray(result.diagnostico_bullets) ? result.diagnostico_bullets.map((x: unknown) => text(x)).filter(Boolean).slice(0, 4) : [];
-  result.diagnostico_bullets = bullets.length >= 3 ? bullets : fb.diagnostico_bullets;
-  const score = num(result.probabilidade_conversao);
-  result.probabilidade_conversao = score === null ? fb.probabilidade_conversao : Math.max(0, Math.min(100, score));
-  result.fit_level = ["alto", "medio", "baixo"].includes(result.fit_level) ? result.fit_level : fb.fit_level;
-  result.commercial_opportunity = text(result.commercial_opportunity, fb.commercial_opportunity);
-  result.probable_pain = text(result.probable_pain, fb.probable_pain);
-  result.why_good_lead = text(result.why_good_lead, result.diagnostico_bullets.join(" "));
-  result.messages = result.messages && typeof result.messages === "object" ? result.messages : {};
-  result.messages.whatsapp_primary = text(result.messages.whatsapp_primary, fb.messages.whatsapp_primary);
-  result.messages.instagram = text(result.messages.instagram, fb.messages.instagram);
-  result.messages.email_body = text(result.messages.email_body, fb.messages.email_body);
+type ProviderResult =
+  | { ok: true; analysis: any; model: string }
+  | { ok: false; error: string };
 
-  const byDay = new Map<number, any>();
-  if (Array.isArray(result.plano_prospeccao_7dias)) {
-    for (const d of result.plano_prospeccao_7dias) {
-      const dia = Math.trunc(Number(d?.dia));
-      if (dia >= 1 && dia <= 7 && !byDay.has(dia)) byDay.set(dia, d);
-    }
-  }
-  result.plano_prospeccao_7dias = fb.plano_prospeccao_7dias.map((fallbackDay: any) => {
-    const d = byDay.get(fallbackDay.dia) || {};
-    const canal = ["whatsapp", "email", "instagram"].includes(d.canal) ? d.canal : fallbackDay.canal;
-    return {
-      dia: fallbackDay.dia,
-      canal,
-      acao_sugerida: text(d.acao_sugerida, fallbackDay.acao_sugerida),
-      mensagem: text(d.mensagem, fallbackDay.mensagem),
-      objecao_provavel: text(d.objecao_provavel, fallbackDay.objecao_provavel),
-      resposta_sugerida: text(d.resposta_sugerida, fallbackDay.resposta_sugerida),
-      cta: text(d.cta, fallbackDay.cta),
-    };
-  });
-  return result;
-}
-
-async function callGemini(apiKey: string, lead: any, requestData: any, requestId: string) {
+async function callGemini(apiKey: string, lead: any, requestData: any, requestId: string): Promise<ProviderResult> {
   const prompt = promptFor(lead, requestData);
+  const defaultChannel = availableChannels(lead)[0] || "whatsapp";
   let lastError = "";
 
   for (const model of MODELS) {
@@ -364,7 +222,7 @@ async function callGemini(apiKey: string, lead: any, requestData: any, requestId
             maxOutputTokens: 7000,
             responseFormat: {
               text: {
-                mimeType: "application/json",
+                mimeType: GEMINI_JSON_MIME_TYPE,
                 schema: outputSchema,
               },
             },
@@ -376,7 +234,8 @@ async function callGemini(apiKey: string, lead: any, requestData: any, requestId
 
       if (!response.ok) {
         lastError = `${model}:${response.status}`;
-        console.warn(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "provider", model, status: response.status, duration_ms: Date.now() - started }));
+        const detail = summarizeProviderError(await response.text().catch(() => ""));
+        console.warn(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "provider", model, status: response.status, detail, duration_ms: Date.now() - started }));
         if ([401, 403].includes(response.status)) break;
         continue;
       }
@@ -387,9 +246,14 @@ async function callGemini(apiKey: string, lead: any, requestData: any, requestId
         lastError = `${model}:empty`;
         continue;
       }
-      const parsed = JSON.parse(rawText);
+      const validation = validateAnalysis(JSON.parse(rawText), defaultChannel);
+      if (!validation.ok) {
+        lastError = `${model}:invalid_output:${validation.reason}`;
+        console.warn(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "provider", model, status: 200, invalid_output: validation.reason, duration_ms: Date.now() - started }));
+        continue;
+      }
       console.info(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "provider", model, status: 200, duration_ms: Date.now() - started, success: true }));
-      return { analysis: normalizeAIResult(parsed, lead), model, error: null };
+      return { ok: true, analysis: validation.value, model };
     } catch (err) {
       clearTimeout(timeout);
       lastError = err instanceof Error ? `${model}:${err.name}:${err.message}` : `${model}:${String(err)}`;
@@ -397,7 +261,7 @@ async function callGemini(apiKey: string, lead: any, requestData: any, requestId
     }
   }
 
-  return { analysis: fallbackAnalysis(lead), model: "contextual-fallback", error: lastError || "provider_unavailable" };
+  return { ok: false, error: lastError || "provider_unavailable" };
 }
 
 function buildResponse(leadId: string, requestId: string, lead: any, analysis: any, requestData: any, model: string, usedFallback: boolean) {
@@ -533,12 +397,28 @@ serve(async (req) => {
       return json({ success: false, request_id: requestId, error_code: "REFINE_PERMISSION_DENIED", error_message: "Este tipo de análise não está disponível para sua conta." }, 403);
     }
 
-    const provider = GEMINI_KEY
+    const provider: ProviderResult = GEMINI_KEY
       ? await callGemini(GEMINI_KEY, lead, requestData, requestId)
-      : { analysis: fallbackAnalysis(lead), model: "contextual-fallback", error: "gemini_key_missing" };
+      : { ok: false, error: "gemini_key_missing" };
 
-    const usedFallback = provider.model === "contextual-fallback";
-    const analysis = normalizeAIResult(provider.analysis, lead);
+    // Sem análise válida do Gemini: nada é gravado (a análise anterior permanece), nenhum crédito é cobrado e o
+    // usuário recebe um erro claro. Antes, um texto genérico de reserva era gravado e anunciado como sucesso.
+    if (!provider.ok) {
+      const failure = buildProviderFailure(requestId, provider.error);
+      await logEvent(admin, user.id, "ai_analysis_failed_handled", {
+        request_id: requestId,
+        leadId,
+        stage: "provider",
+        reason: provider.error,
+        saved: false,
+        deducted_credit: false,
+      });
+      return json(failure.body, failure.status);
+    }
+
+    const usedFallback = false;
+    const validation: AnalysisValidation = { ok: true, value: provider.analysis };
+    const analysis = provider.analysis;
     const responsePayload = buildResponse(leadId, requestId, lead, analysis, requestData, provider.model, usedFallback);
     const now = new Date().toISOString();
 
@@ -549,8 +429,8 @@ serve(async (req) => {
         probabilidade_conversao: analysis.probabilidade_conversao,
         plano_prospeccao: responsePayload,
         ai_analise_gerada_em: now,
-        ai_used_fallback: usedFallback,
-        ai_fallback_reason: usedFallback ? provider.error || "provider_unavailable" : null,
+        ai_used_fallback: false,
+        ai_fallback_reason: null,
       })
       .eq("id", leadId)
       .eq("user_id", user.id)
@@ -562,7 +442,7 @@ serve(async (req) => {
     }
 
     let creditWarning: string | null = null;
-    if (!isAdmin && !usedFallback) {
+    if (shouldPersistAnalysis(validation) && shouldChargeCredit(validation, isAdmin)) {
       try {
         const { data: ok, error } = await admin.rpc("increment_ai_usage", { p_user_id: user.id });
         if (error || ok !== true) creditWarning = "Análise concluída, mas houve um erro ao registrar o consumo do crédito.";
@@ -576,7 +456,7 @@ serve(async (req) => {
       leadId,
       model: provider.model,
       fallback_used: usedFallback,
-      credit_consumed: !isAdmin && !usedFallback,
+      credit_consumed: shouldChargeCredit(validation, isAdmin),
       duration_ms: Date.now() - started,
     });
 
@@ -584,8 +464,8 @@ serve(async (req) => {
       ...responsePayload,
       success: true,
       request_id: requestId,
-      used_fallback: usedFallback,
-      fallback_reason: usedFallback ? provider.error : null,
+      used_fallback: false,
+      fallback_reason: null,
       timing: { total_ms: Date.now() - started },
       ...(creditWarning ? { credit_warning: creditWarning } : {}),
     });

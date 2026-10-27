@@ -35,6 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/utils/templateUtils";
+import { getAnalysisOrigin } from "@/utils/refineOutcome";
 import {
   FACT_STATUS_LABEL,
   buildCompanyFacts,
@@ -215,6 +216,7 @@ export const LeadAnalysis = ({
   const headline = sections.resumo.slice(0, 3);
   const moreSummary = sections.resumo.slice(3);
   const subtitle = lead ? [lead.nicho, lead.cidade].filter(Boolean).join(" · ") : "";
+  const origin = getAnalysisOrigin({ ai_analise_gerada_em: geradoEm, ai_used_fallback: lead?.ai_used_fallback });
   const hasNextStep = !contactBlocked && (sections.proximoPasso.length > 0 || Boolean(recommendedDay));
 
   return (
@@ -229,6 +231,24 @@ export const LeadAnalysis = ({
           {showCompanyName && lead?.nome && <h3 className="break-words text-xl font-semibold leading-tight text-foreground">{lead.nome}</h3>}
           {subtitle && <p className="break-words text-sm text-muted-foreground">{subtitle}</p>}
           {geradoEm && <p className="text-xs text-muted-foreground">Gerado em {new Date(geradoEm).toLocaleDateString("pt-BR")}</p>}
+          {origin === "gemini" && (
+            <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" data-testid="analysis-origin">
+              Gerado pelo Gemini
+            </Badge>
+          )}
+          {origin === "not_generated" && (
+            <Badge variant="outline" className="text-muted-foreground" data-testid="analysis-origin">
+              Análise com IA não gerada
+            </Badge>
+          )}
+          {origin === "fallback" && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300" role="alert" data-testid="analysis-origin">
+              <p className="font-semibold">Texto de reserva: não foi gerado pela IA</p>
+              <p className="mt-0.5">
+                A IA não respondeu na última tentativa e este conteúdo é genérico. Use "Refinar com IA" para tentar novamente.
+              </p>
+            </div>
+          )}
         </div>
         {renderRefineAction("end")}
       </header>

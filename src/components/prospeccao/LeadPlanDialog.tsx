@@ -28,6 +28,7 @@ import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { normalizeLeadForAI, normalizePlanoProspeccao, normalizeDiagnosticoBullets } from "@/utils/normalizeLead";
 import { buildIntelligentPlan, hasExplicitOptOut } from "@/services/intelligentSevenDayPlan";
 import { refineWithAI } from "@/services/refineWithAI";
+import { buildRefineOutcomeError, classifyRefineResponse } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
 // Função para sanitizar e padronizar número de telefone brasileiro
@@ -601,6 +602,9 @@ export const LeadPlanDialog = ({
         };
 
       const refineRes = await refineWithAI<any>(invokeBody, token, requestId);
+      // HTTP 200 não basta: a resposta precisa ser mesmo uma análise do Gemini (e não o texto de reserva).
+      const outcome = classifyRefineResponse(refineRes?.data);
+      if (outcome.kind === "failed") throw buildRefineOutcomeError(outcome, requestId);
       setRefineError(null);
 
       let transformedLead: LeadProspeccao;
@@ -619,15 +623,20 @@ export const LeadPlanDialog = ({
           probabilidade_conversao: updatedLead.probabilidade_conversao || 0,
           plano_prospecao_7dias: normalizePlanoProspeccao(updatedLead.plano_prospeccao),
           ai_analise_gerada_em: updatedLead.ai_analise_gerada_em,
+          // As colunas existem no banco, mas ainda não estão nos tipos gerados do cliente.
+          ai_used_fallback: (updatedLead as { ai_used_fallback?: boolean | null }).ai_used_fallback ?? undefined,
+          ai_fallback_reason: (updatedLead as { ai_fallback_reason?: string | null }).ai_fallback_reason ?? null,
         };
       } catch (fErr) {
+        // Sem o registro salvo não há como mostrar o que foi persistido: só aceita a resposta direta se for do Gemini.
+        if (outcome.kind !== "generated") throw buildRefineOutcomeError(outcome, requestId);
         console.warn("⚠️ Usando resposta direta do refineWithAI no LeadPlanDialog:", fErr);
         const resData = refineRes?.data || {};
         const probVal = Number(
           resData.probabilidade_conversao ??
           resData.diagnostico?.score ??
           resData.data?.analise?.probabilidade_conversao ??
-          85
+          0
         );
         const rawPlano = resData.plano_prospeccao_7dias ??
           resData.plano_prospeccao?.plano_prospeccao_7dias ??
@@ -646,12 +655,26 @@ export const LeadPlanDialog = ({
           diagnostico_bullets: bullets,
           status: "analisado",
           ai_analise_gerada_em: new Date().toISOString(),
+          ai_used_fallback: false,
+          ai_fallback_reason: null,
         };
       }
 
+      // Mostra o que está realmente salvo, inclusive quando é só o texto de reserva (sinalizado na tela).
       setCurrentLead(transformedLead);
       await refetchUsage();
       onLeadRefined?.(transformedLead);
+      if (outcome.kind === "fallback") {
+        const fallbackError = buildRefineOutcomeError(outcome, requestId);
+        setRefineError(fallbackError.payload);
+        trackEvent("ai_analysis_failed", { lead_id: leadKey, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: outcome.reason, source: "lead_dialog", used_fallback: true });
+        toast({
+          variant: "destructive",
+          title: "A IA não gerou a análise",
+          description: fallbackError.payload.safe_message,
+        });
+        return;
+      }
       trackMetaCustomEvent("AI_Analysis_Completed", {
         lead_id: leadKey,
         lead_name: lead.nome,
@@ -729,7 +752,7 @@ export const LeadPlanDialog = ({
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
           ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
-          : errorPayload.category === "rate_limit_error"
+          : errorPayload.category === "rate_limit_error" || errorPayload.category === "provider_error"
           ? errorMsg
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
         variant: "destructive",

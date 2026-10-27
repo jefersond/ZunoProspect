@@ -20,7 +20,10 @@ interface LeadAnalysisProps {
   isReanalyzing?: boolean;
   canAnalyzeAI?: boolean;
   lead?: LeadProspeccao | null;
+  compatibilidade?: ExplorableCompatibility | null;
   onExecuteInSdr?: (dayNumber: number) => void;
+  onUpdateCopiesLocally?: () => void;
+  isUpdatingCopiesLocally?: boolean;
 }
 
 export const LeadAnalysis = ({
@@ -32,7 +35,10 @@ export const LeadAnalysis = ({
   isReanalyzing,
   canAnalyzeAI = true,
   lead,
+  compatibilidade,
   onExecuteInSdr,
+  onUpdateCopiesLocally,
+  isUpdatingCopiesLocally = false,
 }: LeadAnalysisProps) => {
   const [copiedDia, setCopiedDia] = useState<number | null>(null);
   const { toast } = useToast();
@@ -104,7 +110,7 @@ export const LeadAnalysis = ({
     return "text-muted-foreground bg-muted/40 border-border/50 font-medium";
   };
 
-  const effectiveCompat = compatibilidade || (lead ? buildStructuredDiagnosis(lead, lead.foco).compatibilidade : null);
+  const effectiveCompat = compatibilidade || (lead ? buildStructuredDiagnosis(lead, lead.foco || undefined).compatibilidade : null);
 
   const getProbabilidadeColor = (prob: number) => {
     if (prob >= 70) return "text-green-600 bg-green-50 border-green-200";
@@ -129,7 +135,7 @@ export const LeadAnalysis = ({
                   </CardDescription>
                 )}
               </div>
-                            {onUpdateCopiesLocally && (
+              {onUpdateCopiesLocally && (
                 <Button
                   onClick={onUpdateCopiesLocally}
                   disabled={isUpdatingCopiesLocally}

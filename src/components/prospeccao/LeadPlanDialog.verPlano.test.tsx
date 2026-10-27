@@ -81,8 +81,9 @@ describe("Ver Plano → LeadPlanDialog", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(lead.nome)).toBeTruthy();
-    expect(within(dialog).getByText("Alinhamento Cadastral para Abordagem")).toBeTruthy();
-    for (let d = 1; d <= days; d++) expect(within(dialog).getByText(`Dia ${d}`)).toBeTruthy();
+    expect(within(dialog).getByText(/Alinhamento cadastral para abordagem/)).toBeTruthy();
+    expect(within(dialog).getByTestId("analysis-summary")).toBeTruthy();
+    for (let d = 1; d <= days; d++) expect(within(dialog).getByTestId(`dia-${d}`)).toBeTruthy();
     expect(within(dialog).getAllByText("Executar no SDR")).toHaveLength(days);
     expect(invokeSpy).not.toHaveBeenCalled(); // nenhuma Edge Function / IA acionada ao abrir
     expect(errorSpy.mock.calls.filter((c) => String(c[0]).includes("ReferenceError"))).toHaveLength(0);
@@ -109,6 +110,8 @@ describe("Ver Plano → LeadPlanDialog", () => {
     const dialog = await screen.findByRole("dialog");
 
     fireEvent.click(within(dialog).getByText(/Atualizar Cópias/));
+    expect(updateSpy).not.toHaveBeenCalled(); // nada acontece antes da confirmação
+    fireEvent.click(await screen.findByRole("button", { name: "Substituir mensagens" }));
 
     await waitFor(() => expect(onRefined).toHaveBeenCalledTimes(1));
     expect(invokeSpy).not.toHaveBeenCalled();
@@ -125,6 +128,8 @@ describe("Ver Plano → LeadPlanDialog", () => {
     fireEvent.click(screen.getByText("Ver Plano"));
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByText(/Atualizar Cópias/));
+    expect(updateSpy).not.toHaveBeenCalled(); // nada acontece antes da confirmação
+    fireEvent.click(await screen.findByRole("button", { name: "Substituir mensagens" }));
     await waitFor(() => expect(onRefined).toHaveBeenCalledTimes(1));
   });
 
@@ -156,5 +161,29 @@ describe("Ver Plano → LeadPlanDialog", () => {
     const textareas = Array.from(document.querySelectorAll("textarea")).map((t) => (t as HTMLTextAreaElement).value);
     expect(textareas).toContain(day2.mensagem);
     expect(generateSdrFirstApproachMessage({ lead, dayNumber: 2 }).text).toBe(day2.mensagem);
+  });
+
+  it("'Usar Template' continua disponível, porém como aba secundária; 'Análise IA' é a aba principal e a inicial", async () => {
+    render(<Harness lead={makeNewLead()} />);
+    fireEvent.click(screen.getByText("Ver Plano"));
+    const dialog = await screen.findByRole("dialog");
+    const analysis = within(dialog).getByRole("tab", { name: /Análise IA/ });
+    const template = within(dialog).getByRole("tab", { name: /Usar Template/ });
+    expect(analysis.getAttribute("data-state")).toBe("active");
+    expect(template.getAttribute("data-state")).toBe("inactive");
+    expect(template.className).toMatch(/text-xs/);
+    expect(template.className).toMatch(/text-muted-foreground/);
+    expect((analysis.parentElement as HTMLElement).className).toMatch(/grid-cols-\[minmax\(0,2fr\)_minmax\(0,1fr\)\]/);
+    fireEvent.mouseDown(template, { button: 0 });
+    await waitFor(() => expect(template.getAttribute("data-state")).toBe("active"));
+  });
+
+  it("painel dentro do diálogo: o nome não se repete e 'Atualizar Cópias' não aparece no topo", async () => {
+    const lead = makeNewLead();
+    render(<Harness lead={lead} />);
+    fireEvent.click(screen.getByText("Ver Plano"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getAllByText(lead.nome)).toHaveLength(1); // só o título do diálogo
+    expect(within(within(dialog).getByTestId("analysis-header")).queryByText(/Atualizar C[óo]pias/)).toBeNull();
   });
 });

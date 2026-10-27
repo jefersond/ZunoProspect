@@ -740,7 +740,7 @@ export const LeadPlanDialog = ({
         <DialogHeader>
           <DialogTitle className="text-2xl">{displayLead.nome}</DialogTitle>
           <DialogDescription>
-            {displayLead.nicho} • {displayLead.cidade} • Foco: {displayLead.foco}
+            {displayLead.nicho} • {displayLead.cidade} • Foco: {displayLead.foco === "zuno_internal_prospecting" ? "Oportunidade comercial" : displayLead.foco}
           </DialogDescription>
         </DialogHeader>
 
@@ -862,13 +862,18 @@ export const LeadPlanDialog = ({
         </div>
 
         <Tabs defaultValue="analise" className="mt-2">
-          <TabsList className="grid w-full grid-cols-2">
+          {/* A Análise IA é o fluxo principal; "Usar Template" continua disponível, mas como opção secundária. */}
+          <TabsList className="grid h-auto w-full grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <TabsTrigger value="analise" className="gap-2">
-              <Brain className="h-4 w-4" />
+              <Brain className="h-4 w-4 shrink-0" />
               Análise IA
             </TabsTrigger>
-            <TabsTrigger value="templates" className="gap-2">
-              <FileText className="h-4 w-4" />
+            <TabsTrigger
+              value="templates"
+              className="gap-2 text-xs text-muted-foreground data-[state=active]:text-foreground"
+              title="Modelos de mensagem que você salvou, com os dados da empresa preenchidos"
+            >
+              <FileText className="h-3.5 w-3.5 shrink-0" />
               Usar Template
             </TabsTrigger>
           </TabsList>
@@ -921,6 +926,7 @@ export const LeadPlanDialog = ({
                 </div>
                 <LeadAnalysis
                   lead={displayLead}
+                  showCompanyName={false}
                   onExecuteInSdr={handleOpenSdrWithDay}
                   diagnostico={[
                     pendingAnalysis.opportunity_summary,
@@ -941,6 +947,7 @@ export const LeadPlanDialog = ({
             ) : (
               <LeadAnalysis
                 lead={displayLead}
+                showCompanyName={false}
                 onExecuteInSdr={handleOpenSdrWithDay}
                 diagnostico={normalizeDiagnosticoBullets(displayLead.diagnostico_bullets, displayLead)}
                 probabilidade={displayLead.probabilidade_conversao ?? null}

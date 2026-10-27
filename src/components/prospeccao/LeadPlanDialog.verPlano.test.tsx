@@ -167,20 +167,24 @@ describe("Ver Plano → LeadPlanDialog", () => {
     expect(updateSpy).not.toHaveBeenCalled();
   });
 
-  it("Executar no SDR: não inventa mensagens para dias sem texto", async () => {
+  it("Executar no SDR: dia sem texto fica desativado e nunca abre o SDR nem inventa mensagem", async () => {
     const lead = makeNewLead();
     lead.plano_prospecao_7dias = lead.plano_prospecao_7dias.map((d) =>
-      d.dia === 3 ? { ...d, mensagem: "" } : d
+      d.dia === 3 ? { ...d, mensagem: "", tipo_dia: "tarefa" as const, canal: "nenhum" as const } : d
     );
     render(<Harness lead={lead} />);
     fireEvent.click(screen.getByText("Ver Plano"));
     const dialog = await screen.findByRole("dialog");
 
-    fireEvent.click(within(dialog).getAllByText("Executar no SDR")[2]); // Dia 3
+    const buttons = within(dialog).getAllByText("Executar no SDR").map((n) => n.closest("button") as HTMLButtonElement);
+    expect(buttons[2].disabled).toBe(true); // Dia 3 (tarefa)
+    expect(buttons.filter((b) => !b.disabled)).toHaveLength(6);
+    expect(within(dialog).getByTestId("dia-3-sem-mensagem")).toBeTruthy();
 
-    await waitFor(() => expect(screen.getAllByRole("dialog", { hidden: true }).length).toBeGreaterThan(1));
-    const textarea = document.querySelector("textarea") as HTMLTextAreaElement;
-    expect(textarea.value).toBe("");
+    // mesmo forçando o clique, o handler recusa
+    buttons[2].removeAttribute("disabled");
+    fireEvent.click(buttons[2]);
+    expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(1);
     expect(invokeSpy).not.toHaveBeenCalled();
   });
 

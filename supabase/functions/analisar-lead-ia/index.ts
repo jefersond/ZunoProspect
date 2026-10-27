@@ -1,16 +1,33 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
-  GEMINI_JSON_MIME_TYPE,
-  REFINE_MODELS,
   CONFLICT_BODY,
   IN_PROGRESS_BODY,
+  REFINE_MODELS,
   SAVE_FAILED_BODY,
+  okAlready,
   runGuardedRefine,
   summarizeProviderError,
   type RefineStore,
-  validateAnalysis,
 } from "../_shared/refine-provider-guard.ts";
+import {
+  buildAnalysisPrompt,
+  buildDiagnosticoBullets,
+  buildPersistedPayload,
+  buildVerifiedFacts,
+  evaluatePreconditions,
+  nextHistory,
+  runGeminiAnalysis,
+  sanitizeSellerProfile,
+  toStoredDay,
+  validateAnalysis,
+  type GeminiTelemetry,
+  type RawLeadForAnalysis,
+  type SellerProfile,
+  type StoredDay,
+  type ValidatedAnalysis,
+  type VerifiedFacts,
+} from "../_shared/lead-analysis.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -23,8 +40,6 @@ const ADMIN_EMAILS = new Set([
   "jefeson.zanotell@gmail.com",
 ]);
 
-const MODELS = REFINE_MODELS;
-
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function json(body: unknown, status = 200) {
@@ -34,287 +49,83 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function text(v: unknown, fallback = "") {
-  return typeof v === "string" && v.trim() ? v.trim() : fallback;
-}
+// Mantém exatamente o formato de requisição que já está em produção (sem thinkingConfig, 7000 tokens, 18 s):
+// trocar modelo, prazo ou raciocínio é decisão separada, a ser tomada com amostras reais.
+const PROVIDER_TIMEOUT_MS = 18_000;
+const PROVIDER_MAX_OUTPUT_TOKENS = 7_000;
+const MAX_PROVIDER_ATTEMPTS = REFINE_MODELS.length;
 
-function num(v: unknown): number | null {
-  const n = Number(v);
+const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
+const num = (v: unknown): number | null => {
+  const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;
-}
+};
 
-function normalizeLead(raw: any, context: any = {}) {
-  const nome = text(raw?.nome || raw?.name || raw?.business_name || raw?.company_name || raw?.title, "Empresa");
-  const nicho = text(raw?.nicho || raw?.category || raw?.categoria || raw?.niche || raw?.segmento || context?.nicho || context?.niche, "segmento não informado");
-  const cidade = text(raw?.cidade || raw?.city || context?.cidade || context?.city, "cidade não informada");
-  const website = text(raw?.website || raw?.site || raw?.url || raw?.website_url) || null;
-  const phone = text(raw?.whatsapp_number || raw?.whatsapp || raw?.phone || raw?.telefone || raw?.formatted_phone_number) || null;
-  const instagram = text(raw?.instagram_url || raw?.instagram) || null;
-  const email = text(raw?.email) || null;
-  const endereco = text(raw?.endereco || raw?.address || raw?.formatted_address) || null;
-  const foco = text(raw?.foco || raw?.focus || context?.focus, "Full Service");
-  const rating = num(raw?.rating ?? raw?.avaliacao ?? raw?.stars);
-  const reviews = num(raw?.reviews ?? raw?.user_ratings_total ?? raw?.review_count);
-  const pais = text(raw?.pais || raw?.country || context?.pais || context?.country, "BR").toUpperCase();
-  const canais = Array.isArray(raw?.canaisProspeccao) ? raw.canaisProspeccao.filter((c: unknown) => ["whatsapp", "email", "instagram"].includes(String(c))) : [];
-
+/** Converte a linha do lead (cadastro público) nos fatos que a análise pode usar. Nada de sinais de HTML (#55). */
+function leadFromRow(raw: any, context: any = {}): RawLeadForAnalysis {
   return {
-    nome, nicho, cidade, website, phone, instagram, email, endereco, foco,
-    rating, reviews, pais,
-    has_meta_pixel: !!raw?.has_meta_pixel,
-    has_gtag: !!raw?.has_gtag,
-    has_gtm: !!raw?.has_gtm,
-    canaisProspeccao: canais,
+    nome: str(raw?.nome || raw?.name || raw?.business_name || raw?.company_name),
+    nicho: str(raw?.nicho || raw?.category || raw?.categoria || raw?.niche || raw?.segmento || context?.nicho || context?.niche),
+    cidade: str(raw?.cidade || raw?.city || context?.cidade || context?.city),
+    endereco: str(raw?.endereco || raw?.address || raw?.formatted_address) || null,
+    website: str(raw?.website || raw?.site || raw?.url || raw?.website_url) || null,
+    instagram: str(raw?.instagram_url || raw?.instagram) || null,
+    email: str(raw?.email) || null,
+    phone: str(raw?.whatsapp_number || raw?.whatsapp || raw?.phone || raw?.telefone || raw?.formatted_phone_number) || null,
+    rating: num(raw?.rating ?? raw?.avaliacao ?? raw?.stars),
+    reviews: num(raw?.total_reviews ?? raw?.reviews ?? raw?.user_ratings_total ?? raw?.review_count),
+    status: str(raw?.status) || "novo",
+    notas: str(raw?.notas) || null,
   };
 }
 
-function availableChannels(lead: any) {
-  const selected = lead.canaisProspeccao?.length ? lead.canaisProspeccao : ["whatsapp", "email", "instagram"];
-  const out: string[] = [];
-  if (selected.includes("whatsapp") && lead.phone) out.push("whatsapp");
-  if (selected.includes("email") && lead.email) out.push("email");
-  if (selected.includes("instagram") && lead.instagram) out.push("instagram");
-  return out.length ? out : selected;
+/** Resultado do prompt v6 já validado e no formato gravado (`plano_prospeccao_7dias`), pronto para o guarda de gravação. */
+interface V6Result {
+  plano_prospeccao_7dias: StoredDay[];
+  validated: ValidatedAnalysis;
+  warnings: string[];
+  demotedDays: number[];
+  telemetry: GeminiTelemetry;
 }
 
-function signals(lead: any) {
-  return [
-    `Empresa: ${lead.nome}`,
-    `Segmento: ${lead.nicho}`,
-    `Cidade: ${lead.cidade}`,
-    lead.website ? `Site informado: ${lead.website}` : "Site não informado nos dados disponíveis",
-    lead.instagram ? `Instagram informado: ${lead.instagram}` : "Instagram não informado nos dados disponíveis",
-    lead.phone ? "Telefone/WhatsApp disponível" : "Telefone/WhatsApp não informado nos dados disponíveis",
-    lead.email ? `E-mail disponível: ${lead.email}` : null,
-    lead.rating !== null ? `Nota no Google: ${lead.rating}` : null,
-    lead.reviews !== null ? `Avaliações no Google: ${lead.reviews}` : null,
-    lead.has_meta_pixel ? "Meta Pixel detectado" : null,
-    lead.has_gtag ? "Google Analytics detectado" : null,
-    lead.has_gtm ? "Google Tag Manager detectado" : null,
-    "A inspeção automática do HTML do site está suspensa: a falta de menção a pixel, tags ou rastreamento NÃO indica que a empresa não os tenha; não afirme nada sobre isso",
-  ].filter(Boolean).slice(0, 10);
-}
+type V6Outcome = { ok: true; analysis: V6Result; model: string } | { ok: false; error: string };
 
-const daySchema = {
-  type: "object",
-  properties: {
-    dia: { type: "integer", minimum: 1, maximum: 7 },
-    canal: { type: "string", enum: ["whatsapp", "email", "instagram"] },
-    acao_sugerida: { type: "string", description: "Ação prática e curta para executar o contato." },
-    mensagem: { type: "string", description: "Mensagem pronta, natural, específica e sem inventar fatos." },
-    objecao_provavel: { type: "string" },
-    resposta_sugerida: { type: "string" },
-    cta: { type: "string" },
-  },
-  required: ["dia", "canal", "acao_sugerida", "mensagem", "objecao_provavel", "resposta_sugerida", "cta"],
-  additionalProperties: false,
-};
-
-const outputSchema = {
-  type: "object",
-  properties: {
-    diagnostico_bullets: { type: "array", minItems: 3, maxItems: 4, items: { type: "string" } },
-    probabilidade_conversao: { type: "number", minimum: 0, maximum: 100 },
-    fit_level: { type: "string", enum: ["alto", "medio", "baixo"] },
-    commercial_opportunity: { type: "string" },
-    probable_pain: { type: "string" },
-    why_good_lead: { type: "string" },
-    messages: {
-      type: "object",
-      properties: {
-        whatsapp_primary: { type: "string" },
-        instagram: { type: "string" },
-        email_body: { type: "string" },
-      },
-      required: ["whatsapp_primary", "instagram", "email_body"],
-      additionalProperties: false,
-    },
-    plano_prospeccao_7dias: { type: "array", minItems: 7, maxItems: 7, items: daySchema },
-  },
-  required: ["diagnostico_bullets", "probabilidade_conversao", "fit_level", "commercial_opportunity", "probable_pain", "why_good_lead", "messages", "plano_prospeccao_7dias"],
-  additionalProperties: false,
-};
-
-function promptFor(lead: any, requestData: any) {
-  const chans = availableChannels(lead).join(", ");
-  const sigs = signals(lead).join("\n- ");
-  const oferta = text(requestData?.oferta_usuario || requestData?.context?.oferta_usuario, "");
-  const publico = text(requestData?.publico_alvo || requestData?.context?.publico_alvo, "");
-  const dor = text(requestData?.dor_principal || requestData?.context?.dor_principal, "");
-  const objetivo = text(requestData?.objetivo || requestData?.context?.objetivo, "");
-  const foco = (lead.foco || "Full Service").replace(/zuno_internal_prospecting/g, "Oportunidade comercial");
-
-  return `Você é um estrategista de prospecção B2B brasileiro sênior. Sua missão é gerar uma análise comercial altamente personalizada e um plano de prospecção de exatamente 7 dias progressivos e coerentes.
-
-DADOS REAIS VERIFICADOS DO LEAD:
-- ${sigs}
-- Serviço/Foco oferecido pelo assinante: ${foco}
-- Canais de contato permitidos: ${chans}
-${oferta ? `- Oferta específica do usuário: ${oferta}` : ""}
-${publico ? `- Público-alvo prioritário: ${publico}` : ""}
-${dor ? `- Dor que o usuário deseja explorar: ${dor}` : ""}
-${objetivo ? `- Objetivo da abordagem: ${objetivo}` : ""}
-
-REGRAS INVIOLÁVEIS DE QUALIDADE (DIRETRIZ ANTI-ROBÔ):
-1. PROIBIÇÃO TOTAL DE CLICHÊS DE IA:
-   - NUNCA use as frases:
-     * "identificamos oportunidades de melhoria"
-     * "potencializar sua presença digital / vendas"
-     * "alavancar seus resultados / vendas"
-     * "transformar seu negócio"
-     * "aumentar exponencialmente"
-     * "está perdendo clientes"
-     * "diagnóstico exclusivo"
-     * "acompanho o perfil / trabalho de vocês há algum tempo" (intimidade falsa)
-     * "preparei um vídeo de um minuto" / "vídeo de aproximadamente um minuto" (nunca prometa vídeo que não existe)
-     * "já analisei todo o seu marketing"
-     * "gap comercial importante"
-     * "passando só para saber se viu minha mensagem" (follow-up passivo-agressivo proibido)
-     * "+40% de conversão" (provas sociais e percentuais falsos proibidos)
-
-2. ADAPTAÇÃO RIGOROSA AO SERVIÇO OFERECIDO:
-   - Se Tráfego Pago: focar em captação local de clientes que buscam ativamente o serviço na cidade, sem acusar falhas em campanhas atuais.
-   - Se Social Media: focar em comunicação, apresentação clara dos diferenciais e conversão de seguidores em orçamentos, sem fingir que auditou o Instagram da empresa.
-   - Se Criação de Sites: focar em clareza de contato no celular e presença nas buscas do Google, ancorado em se o lead tem ou não site.
-   - Se CRM/Automação: focar na velocidade e organização do atendimento no WhatsApp, sem acusar perda de mensagens.
-   - Outros serviços: conectar com respeito à demanda comercial da empresa.
-
-3. DIAGNÓSTICO COMERCIAL (3 ou 4 bullets curtos):
-   - Bullet 1: O que sabemos sobre a empresa (fatos observados: cidade, nicho, se tem site ou avaliações).
-   - Bullet 2: Sinais realmente observáveis na presença pública.
-   - Bullet 3: Hipótese comercial honesta conectada ao serviço vendido pelo assinante.
-   - Bullet 4: Próxima ação recomendada: iniciar abordagem consultiva focada na rotina atual de captação de clientes.
-
-4. SEQUÊNCIA DE 7 DIAS COERENTES E PROGRESSIVOS:
-   - Dia 1: Abertura humana curta e educada, perguntando sobre a rotina de captação ou confirmando o responsável comercial.
-   - Dia 2: Observação real sobre o segmento local sem falsa intimidade.
-   - Dia 3: Ângulo consultivo com hipótese comercial clara, sem jargões.
-   - Dia 4: Acompanhamento leve com pergunta prática, sem cobrança passiva.
-   - Dia 5: Ideia prática tangível do segmento em 3 passos, sem estudos de caso inventados.
-   - Dia 6: Validação de timing comercial ("faz sentido avaliar agora ou o foco é outro?").
-   - Dia 7: Encerramento elegante e cordial, deixando portas abertas e CRM limpo.
-
-Retorne estritamente o JSON compatível com o schema.`;
-}
-
-type ProviderResult =
-  | { ok: true; analysis: any; model: string }
-  | { ok: false; error: string };
-
-async function callGemini(apiKey: string, lead: any, requestData: any, requestId: string): Promise<ProviderResult> {
+async function callGeminiV6(apiKey: string, facts: VerifiedFacts, profile: SellerProfile, requestData: any, requestId: string): Promise<V6Outcome> {
   // `max_provider_attempts` só pode REDUZIR as tentativas (ex.: 1 em verificações pontuais); nunca aumenta.
   const requested = Math.trunc(Number(requestData?.max_provider_attempts));
-  const maxAttempts = Number.isFinite(requested) && requested >= 1 ? Math.min(requested, MODELS.length) : MODELS.length;
-  const prompt = promptFor(lead, requestData);
-  const defaultChannel = availableChannels(lead)[0] || "whatsapp";
-  let lastError = "";
+  const maxAttempts = Number.isFinite(requested) && requested >= 1 ? Math.min(requested, MAX_PROVIDER_ATTEMPTS) : MAX_PROVIDER_ATTEMPTS;
 
-  for (const model of MODELS.slice(0, maxAttempts)) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 18_000);
-    const started = Date.now();
-    try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: {
-            maxOutputTokens: 7000,
-            responseFormat: {
-              text: {
-                mimeType: GEMINI_JSON_MIME_TYPE,
-                schema: outputSchema,
-              },
-            },
-          },
-        }),
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        lastError = `${model}:${response.status}`;
-        const detail = summarizeProviderError(await response.text().catch(() => ""));
-        clearTimeout(timeout);
-        console.warn(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "provider", model, status: response.status, detail, duration_ms: Date.now() - started }));
-        if ([401, 403].includes(response.status)) break;
-        continue;
-      }
+  const run = await runGeminiAnalysis({
+    apiKey,
+    prompt: buildAnalysisPrompt(facts, profile),
+    fetchFn: fetch as never,
+    models: [...REFINE_MODELS],
+    maxAttempts,
+    timeoutMs: PROVIDER_TIMEOUT_MS,
+    request: { thinkingLevel: null, maxOutputTokens: PROVIDER_MAX_OUTPUT_TOKENS },
+  });
 
-      const data = await response.json(); // ainda sob o mesmo limite de tempo (clearTimeout só depois)
-      clearTimeout(timeout);
-      const rawText = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || "").join("") || "";
-      if (!rawText) {
-        lastError = `${model}:empty`;
-        continue;
-      }
-      const validation = validateAnalysis(JSON.parse(rawText), defaultChannel);
-      if (!validation.ok) {
-        lastError = `${model}:invalid_output:${validation.reason}`;
-        console.warn(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "provider", model, status: 200, invalid_output: validation.reason, duration_ms: Date.now() - started }));
-        continue;
-      }
-      console.info(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "provider", model, status: 200, duration_ms: Date.now() - started, success: true }));
-      return { ok: true, analysis: validation.value, model };
-    } catch (err) {
-      clearTimeout(timeout);
-      lastError = err instanceof Error ? `${model}:${err.name}:${err.message}` : `${model}:${String(err)}`;
-      console.warn(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "provider", model, error: err instanceof Error ? err.name : typeof err, duration_ms: Date.now() - started }));
-    }
-  }
+  // Telemetria por análise (modelos tentados, status, duração implícita e tokens), sem dados do lead nem chaves.
+  console.info(JSON.stringify({
+    module: "analisar-lead-ia", request_id: requestId, stage: "provider_summary",
+    attempts: run.telemetry.attempts.map((a) => ({ model: a.model, status: a.http_status, outcome: a.outcome })),
+    model_used: run.telemetry.model_used, finish_reason: run.telemetry.finish_reason, usage: run.telemetry.usage,
+  }));
 
-  return { ok: false, error: lastError || "provider_unavailable" };
-}
+  if (!run.ok) return { ok: false, error: summarizeProviderError(run.error, 160) };
 
-function buildResponse(leadId: string, requestId: string, lead: any, analysis: any, requestData: any, model: string, usedFallback: boolean) {
-  const days = analysis.plano_prospeccao_7dias;
+  const validation = validateAnalysis(run.raw, { channels: facts.canais_disponiveis, profile, stage: facts.etapa_do_historico, facts });
+  if (!validation.ok) return { ok: false, error: `${run.model}:invalid_output:${validation.issues.join("|").slice(0, 200)}` };
+
   return {
-    lead_id: leadId,
-    generated_at: new Date().toISOString(),
-    prompt_version: "v4_human_commercial_plan",
-    model,
-    input_context: {
-      empresa: lead.nome,
-      nicho: lead.nicho,
-      cidade: lead.cidade,
-      estado: lead.endereco || null,
-      site: lead.website || null,
-      oferta_usuario: text(requestData?.oferta_usuario || requestData?.context?.oferta_usuario, ""),
-      publico_alvo: text(requestData?.publico_alvo || requestData?.context?.publico_alvo, ""),
-      dor_principal: text(requestData?.dor_principal || requestData?.context?.dor_principal, ""),
-      objetivo: text(requestData?.objetivo || requestData?.context?.objetivo, ""),
-      canal: text(requestData?.canal || requestData?.context?.canal, "") || null,
-      etapa: text(requestData?.etapa || requestData?.context?.etapa, "") || null,
-    },
-    diagnostico: {
-      fit: analysis.fit_level,
-      dor_provavel: analysis.probable_pain,
-      urgencia: analysis.fit_level === "alto" ? "alta" : "media",
-      oportunidade: analysis.commercial_opportunity,
-      justificativa: analysis.why_good_lead,
-    },
-    copies: {
-      dia_1: days[0]?.mensagem || "",
-      dia_2: days[1]?.mensagem || "",
-      dia_3: days[2]?.mensagem || "",
-      dia_4: days[3]?.mensagem || "",
-      dia_5: days[4]?.mensagem || "",
-      dia_6: days[5]?.mensagem || "",
-      dia_7: days[6]?.mensagem || "",
-    },
-    abordagens_por_canal: {
-      whatsapp: analysis.messages?.whatsapp_primary || "",
-      instagram: analysis.messages?.instagram || "",
-      email: analysis.messages?.email_body || "",
-    },
-    plano_prospeccao_7dias: days,
-    debug: {
-      request_id: requestId,
-      fallback_used: usedFallback,
-      cache_used: false,
-      response_size_bytes: JSON.stringify(analysis).length,
+    ok: true,
+    model: run.model,
+    analysis: {
+      plano_prospeccao_7dias: validation.analysis.plano.map(toStoredDay),
+      validated: validation.analysis,
+      warnings: validation.warnings,
+      demotedDays: validation.demoted_days,
+      telemetry: run.telemetry,
     },
   };
 }
@@ -394,14 +205,31 @@ serve(async (req) => {
     }
     if (!rows?.length) return json({ success: false, request_id: requestId, error_code: "REFINE_LEAD_NOT_FOUND", error_message: "O lead não foi encontrado na sua conta. Atualize a lista e tente novamente." }, 409);
 
-    const rawLead = { ...rows[0], canaisProspeccao: requestData.canaisProspeccao || rows[0]?.canaisProspeccao || [] };
-    const lead = normalizeLead(rawLead, requestData.search_context || requestData.context || {});
-
-    if (lead.foco === "zuno_internal_prospecting" && !isAdmin) {
+    if (str(rows[0]?.foco) === "zuno_internal_prospecting" && !isAdmin) {
       return json({ success: false, request_id: requestId, error_code: "REFINE_PERMISSION_DENIED", error_message: "Este tipo de análise não está disponível para sua conta." }, 403);
     }
 
-    let responsePayload: ReturnType<typeof buildResponse> | null = null;
+    // Pré-condições ANTES de qualquer reserva, chamada de IA ou crédito: perfil comercial do assinante completo e lead sem recusa.
+    const leadRow = leadFromRow(rows[0], requestData.search_context || requestData.context || {});
+    const facts = buildVerifiedFacts(leadRow);
+    const profile = sanitizeSellerProfile(requestData.seller_profile);
+    const blocked = evaluatePreconditions({ profile, stage: facts.etapa_do_historico, existingPlan: null, replaceExisting: true });
+    if (blocked) {
+      return json({
+        success: false,
+        request_id: requestId,
+        error_code: blocked.code,
+        category: "validation_error",
+        retryable: false,
+        safe_message: blocked.message,
+        error_message: blocked.message,
+        ...("missing" in blocked ? { missing_fields: blocked.missing } : {}),
+        credit_consumed: false,
+        saved: false,
+      }, blocked.status);
+    }
+
+    let responsePayload: Record<string, unknown> | null = null;
 
     // Exclusão mútua por lead: duas requisições simultâneas (duas abas, clique duplo) não geram nem cobram duas vezes.
     const store: RefineStore = {
@@ -432,25 +260,35 @@ serve(async (req) => {
       },
     };
 
-    const run = await runGuardedRefine({
+    const run = await runGuardedRefine<V6Result>({
       requestId,
       isAdmin,
       store,
-      callProvider: async () => GEMINI_KEY
-        ? await callGemini(GEMINI_KEY, lead, requestData, requestId)
+      callProvider: async (): Promise<V6Outcome> => GEMINI_KEY
+        ? await callGeminiV6(GEMINI_KEY, facts, profile, requestData, requestId)
         : { ok: false, error: "gemini_key_missing" },
+      validate: okAlready,
       persist: async (analysis, model, ctx) => {
-        const built = buildResponse(leadId, requestId, lead, analysis, requestData, model, false);
-        // Mantém qualquer outro dado já guardado no plano (histórico) e sobrepõe só o que a nova análise define.
+        const generatedAt = new Date().toISOString();
+        const built = buildPersistedPayload({
+          leadId, requestId, model, generatedAt, facts, profile,
+          analysis: analysis.validated,
+          days: analysis.plano_prospeccao_7dias,
+          history: nextHistory(ctx.previousPlan, generatedAt),
+          warnings: analysis.warnings,
+          telemetry: analysis.telemetry,
+        });
+        // Mantém qualquer outro dado já guardado no plano e sobrepõe só o que a nova análise define.
         const previousObject = ctx.previousPlan && typeof ctx.previousPlan === "object" && !Array.isArray(ctx.previousPlan) ? ctx.previousPlan as Record<string, unknown> : {};
-        responsePayload = { ...previousObject, ...built } as ReturnType<typeof buildResponse>;
+        responsePayload = { ...previousObject, ...built };
         let update = admin
           .from("leads")
           .update({
-            diagnostico_bullets: analysis.diagnostico_bullets,
-            probabilidade_conversao: analysis.probabilidade_conversao,
+            diagnostico_bullets: buildDiagnosticoBullets(analysis.validated.diagnostico),
+            // O prompt v6 não produz nota de fechamento: o valor antigo deixa de valer e nada é inventado no lugar.
+            probabilidade_conversao: null,
             plano_prospeccao: responsePayload,
-            ai_analise_gerada_em: new Date().toISOString(),
+            ai_analise_gerada_em: generatedAt,
             ai_used_fallback: false,
             ai_fallback_reason: null, // limpa a reserva na mesma gravação
           })

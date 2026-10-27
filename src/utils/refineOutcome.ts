@@ -113,10 +113,13 @@ export function confirmPersistedRefine(
 
   const rawPlan = Array.isArray(row.plano_prospeccao) ? row.plano_prospeccao : asRecord(row.plano_prospeccao).plano_prospeccao_7dias;
   const days = Array.isArray(rawPlan) ? rawPlan : [];
+  // Cada um dos 7 dias precisa existir; no prompt v6 uma etapa de tarefa ou sem mensagem não tem texto, mas tem ação.
   const complete = [1, 2, 3, 4, 5, 6, 7].every((n) => {
-    const day = days.find((d) => Number(asRecord(d).dia) === n);
-    const message = asRecord(day).mensagem;
-    return typeof message === "string" && message.trim().length > 0;
+    const day = asRecord(days.find((d) => Number(asRecord(d).dia) === n));
+    const text = (v: unknown) => typeof v === "string" && v.trim().length > 0;
+    if (text(day.mensagem)) return true;
+    const type = String(day.tipo_dia ?? "");
+    return (type === "tarefa" || type === "sem_mensagem") && (text(day.acao_sugerida) || text(day.justificativa));
   });
   if (!complete) return { ok: false, reason: "plan_incomplete" };
 
@@ -168,6 +171,8 @@ export function shouldShowServerMessage(payload: { category?: string; error_code
     payload.category === "provider_error" ||
     payload.category === "database_error" ||
     payload.error_code === "REFINE_IN_PROGRESS" ||
+    payload.error_code === "REFINE_PROFILE_REQUIRED" ||
+    payload.error_code === "REFINE_LEAD_OPTED_OUT" ||
     payload.error_code === "REFINE_CONFLICT" ||
     payload.error_code === "REFINE_LOCK_EXPIRED" ||
     payload.error_code === "REFINE_SAVE_FAILED"

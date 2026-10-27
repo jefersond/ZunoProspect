@@ -32,6 +32,7 @@ import type { UpgradeSource } from "@/lib/funnelContext";
 import { normalizeLeadForAI } from "@/utils/normalizeLead";
 import { generateSmartProspectingCopy } from "@/utils/smartProspectingCopy";
 import { refineWithAI } from "@/services/refineWithAI";
+import { ensureSellerProfileOrPrompt, getSellerProfileForRequest, openSellerProfileDialog } from "@/lib/sellerProfile";
 import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, resolveUsedFallback, describePreservedDays, readPreservedDays, shouldShowServerMessage, sanitizeFallbackReason } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
@@ -312,7 +313,7 @@ export const LeadsList = () => {
       diagnostico_bullets: (lead.diagnostico_bullets as string[]) || [],
       probabilidade_conversao: (lead.probabilidade_conversao && Number(lead.probabilidade_conversao) > 0)
         ? Number(lead.probabilidade_conversao)
-        : (lead.plano_prospeccao ? 85 : 0),
+        : 0,
       plano_prospecao_7dias: Array.isArray(lead.plano_prospeccao)
         ? lead.plano_prospeccao
         : (lead.plano_prospeccao?.plano_prospeccao_7dias || []),
@@ -969,6 +970,12 @@ export const LeadsList = () => {
       return;
     }
 
+    // Sem perfil comercial completo (nome, serviço e oferta), o Zuno pede o preenchimento ANTES de qualquer chamada de IA.
+    if (!ensureSellerProfileOrPrompt()) {
+      toast({ title: "Complete seu perfil comercial", description: "Para escrever mensagens em seu nome, o Zuno precisa saber quem você é e o que você vende. Nenhuma análise foi gerada e nenhum crédito foi usado." });
+      return;
+    }
+
     const leadKey = getLeadKey(lead);
     if (activeRequestsRef.current.has(leadKey) || reanalyzingLeads.has(leadKey)) {
       console.log("Clique duplo detectado e prevenido para o lead:", leadKey);
@@ -1103,6 +1110,7 @@ export const LeadsList = () => {
       if (!token) throw new Error("Sessão expirada. Faça login novamente.");
 
       const invokeBody = {
+          seller_profile: getSellerProfileForRequest(),
           leadId: lead.id,
           lead_id: leadKey,
           user_id: user.id,
@@ -1213,6 +1221,7 @@ export const LeadsList = () => {
       const errorPayload = normalizedError.payload;
       const errorMsg = errorPayload.safe_message;
       setLastRefineError({ lead, error: errorPayload });
+      if (errorPayload.error_code === "REFINE_PROFILE_REQUIRED") openSellerProfileDialog();
       const durationMs = Date.now() - startTime;
       
       const isBalanceError = (errorPayload?.error_code === "AI_CREDITS_EXHAUSTED") ||
@@ -1784,6 +1793,11 @@ export const LeadsList = () => {
                               className="h-2 w-24"
                             />
                           </>
+                        ) : lead.ai_analise_gerada_em || lead.plano_prospecao_7dias.length > 0 ? (
+                          // Análise sem nota de fechamento (o prompt atual não inventa porcentagem): mostra o estado real.
+                          <Badge variant="outline" className="px-2 py-0.5 text-xs text-emerald-700 border-emerald-500/30 bg-emerald-500/10" data-testid="analysis-ready">
+                            Análise pronta
+                          </Badge>
                         ) : (
                           <TooltipProvider>
                             <Tooltip>

@@ -849,7 +849,7 @@ export function getSdrMessageFromPlan(
   return {
     message,
     text: message,
-    canal: targetDay?.canal || "whatsapp",
+    canal: targetDay?.canal === "email" || targetDay?.canal === "instagram" ? targetDay.canal : "whatsapp",
     assuntoEmail,
     acaoSugerida: targetDay?.acao_sugerida || "Abertura comercial",
     objetivo: targetDay?.objetivo || "Iniciar conversa",

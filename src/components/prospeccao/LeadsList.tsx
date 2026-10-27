@@ -32,6 +32,7 @@ import type { UpgradeSource } from "@/lib/funnelContext";
 import { normalizeLeadForAI } from "@/utils/normalizeLead";
 import { generateSmartProspectingCopy } from "@/utils/smartProspectingCopy";
 import { refineWithAI } from "@/services/refineWithAI";
+import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, resolveUsedFallback } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
 const normalizeLeadsResponse = (response: any): any[] => {
@@ -318,6 +319,8 @@ export const LeadsList = () => {
       status: lead.status || 'novo',
       created_at: lead.created_at,
       ai_analise_gerada_em: lead.ai_analise_gerada_em,
+      ai_used_fallback: resolveUsedFallback(lead),
+      ai_fallback_reason: (lead as { ai_fallback_reason?: string | null }).ai_fallback_reason ?? null,
       salvo: lead.salvo || false,
       notas: lead.notas || null,
       // Campos CNPJ
@@ -651,6 +654,7 @@ export const LeadsList = () => {
                   probabilidade_conversao: incomingProb > 0 ? incomingProb : lead.probabilidade_conversao,
                   plano_prospecao_7dias: incomingPlano.length > 0 ? incomingPlano : lead.plano_prospecao_7dias,
                   ai_analise_gerada_em: payload.new.ai_analise_gerada_em || lead.ai_analise_gerada_em,
+                  ai_used_fallback: resolveUsedFallback(payload.new) ?? lead.ai_used_fallback,
                   status: payload.new.status || lead.status,
                   salvo: payload.new.salvo ?? lead.salvo,
                 };
@@ -660,7 +664,8 @@ export const LeadsList = () => {
           );
           
           // Se a análise foi concluída agora, mostrar toast
-          if (payload.new.ai_analise_gerada_em && !payload.old?.ai_analise_gerada_em) {
+          // Texto de reserva gravado pelo backend antigo não é "análise IA concluída".
+          if (payload.new.ai_analise_gerada_em && !payload.old?.ai_analise_gerada_em && resolveUsedFallback(payload.new) !== true) {
             toast({
               title: "✨ Análise IA concluída",
               description: `Lead "${payload.new.nome}" foi analisado com sucesso`,
@@ -1109,42 +1114,47 @@ export const LeadsList = () => {
         };
 
       const refineResponse = await refineWithAI<any>(invokeBody, token, requestId);
+      // HTTP 200 não basta: só é "Análise concluída" quando a resposta é mesmo uma análise do Gemini.
+      const outcome = classifyRefineResponse(refineResponse?.data);
+      if (outcome.kind !== "generated") {
+        // Um texto de reserva já pode ter sido salvo pelo backend antigo: relê o registro para a tela mostrar o que existe.
+        await refreshSingleLead(lead.id).catch(() => undefined);
+        throw buildRefineOutcomeError(outcome, requestId);
+      }
       setLastRefineError(null);
 
-      const resData = refineResponse?.data || {};
-      const probVal = Number(
-        resData.probabilidade_conversao ??
-        resData.diagnostico?.score ??
-        resData.data?.analise?.probabilidade_conversao ??
-        85
-      );
+      // Só vale o que o banco devolve numa nova leitura: nunca a resposta da função nem uma data local.
+      let persistedRow: any = null;
+      try {
+        const read = await supabase.from("leads").select("*").eq("id", lead.id).single();
+        persistedRow = read.error ? null : read.data;
+      } catch {
+        persistedRow = null;
+      }
+      const persisted = confirmPersistedRefine(persistedRow, lead.ai_analise_gerada_em, { alreadyCurrent: outcome.alreadyCurrent });
+      if (!persisted.ok || !persistedRow) {
+        console.warn("Refinamento não confirmado no banco:", "reason" in persisted ? persisted.reason : "empty_row");
+        throw buildPersistenceUnconfirmedError(requestId);
+      }
 
-      const rawPlano = resData.plano_prospeccao_7dias ??
-        resData.plano_prospeccao?.plano_prospeccao_7dias ??
-        resData.plano_prospeccao ??
-        resData.data?.analise?.plano_prospeccao_7dias ??
-        [];
-
-      const planoDias = Array.isArray(rawPlano) ? rawPlano : [];
-
-      const bullets = Array.isArray(resData.diagnostico_bullets)
-        ? resData.diagnostico_bullets
-        : (resData.data?.analise?.diagnostico_bullets || []);
-
+      // Atualiza apenas os campos da análise; os dados de contato continuam os já exibidos.
       const updatedLeadObj: LeadProspeccao = {
         ...lead,
-        probabilidade_conversao: probVal > 0 ? probVal : 85,
-        plano_prospecao_7dias: planoDias,
-        diagnostico_bullets: bullets,
+        probabilidade_conversao: Number(persistedRow.probabilidade_conversao) > 0 ? Number(persistedRow.probabilidade_conversao) : lead.probabilidade_conversao,
+        plano_prospecao_7dias: Array.isArray(persistedRow.plano_prospeccao)
+          ? persistedRow.plano_prospeccao
+          : (persistedRow.plano_prospeccao?.plano_prospeccao_7dias || []),
+        diagnostico_bullets: persistedRow.diagnostico_bullets as string[],
         status: "analisado",
-        ai_analise_gerada_em: new Date().toISOString(),
+        ai_analise_gerada_em: persistedRow.ai_analise_gerada_em,
+        ai_used_fallback: persisted.usedFallback,
       };
 
       updateLeadLocally(updatedLeadObj);
 
       toast({
-        title: "Análise concluída",
-        description: `Lead "${lead.nome}" foi analisado com sucesso`,
+        title: "Análise atualizada",
+        description: `Lead "${lead.nome}" foi analisado pelo Gemini e o resultado foi salvo.`,
       });
 
       const nextUsage = await refetchUsage();
@@ -1275,7 +1285,7 @@ export const LeadsList = () => {
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
           ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
-          : errorPayload.category === "rate_limit_error"
+          : errorPayload.category === "rate_limit_error" || errorPayload.category === "provider_error" || errorPayload.category === "database_error"
           ? errorMsg
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
       });

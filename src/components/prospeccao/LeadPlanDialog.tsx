@@ -28,6 +28,7 @@ import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { normalizeLeadForAI, normalizePlanoProspeccao, normalizeDiagnosticoBullets } from "@/utils/normalizeLead";
 import { buildIntelligentPlan, hasExplicitOptOut } from "@/services/intelligentSevenDayPlan";
 import { refineWithAI } from "@/services/refineWithAI";
+import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
 // Função para sanitizar e padronizar número de telefone brasileiro
@@ -601,57 +602,55 @@ export const LeadPlanDialog = ({
         };
 
       const refineRes = await refineWithAI<any>(invokeBody, token, requestId);
+      // HTTP 200 não basta: a resposta precisa ser mesmo uma análise do Gemini (e não o texto de reserva).
+      const outcome = classifyRefineResponse(refineRes?.data);
+      if (outcome.kind === "failed") throw buildRefineOutcomeError(outcome, requestId);
       setRefineError(null);
 
-      let transformedLead: LeadProspeccao;
+      // Só vale o que o banco devolve numa nova leitura: nunca a resposta da função nem uma data local.
+      let updatedLead: any = null;
       try {
-        const { data: updatedLead, error: fetchError } = await supabase
-          .from('leads')
-          .select('*')
-          .eq('id', lead.id)
-          .single();
-
-        if (fetchError || !updatedLead) throw fetchError || new Error("Lead não encontrado");
-
-        transformedLead = {
-          ...lead,
-          diagnostico_bullets: updatedLead.diagnostico_bullets as string[],
-          probabilidade_conversao: updatedLead.probabilidade_conversao || 0,
-          plano_prospecao_7dias: normalizePlanoProspeccao(updatedLead.plano_prospeccao),
-          ai_analise_gerada_em: updatedLead.ai_analise_gerada_em,
-        };
-      } catch (fErr) {
-        console.warn("⚠️ Usando resposta direta do refineWithAI no LeadPlanDialog:", fErr);
-        const resData = refineRes?.data || {};
-        const probVal = Number(
-          resData.probabilidade_conversao ??
-          resData.diagnostico?.score ??
-          resData.data?.analise?.probabilidade_conversao ??
-          85
-        );
-        const rawPlano = resData.plano_prospeccao_7dias ??
-          resData.plano_prospeccao?.plano_prospeccao_7dias ??
-          resData.plano_prospeccao ??
-          resData.data?.analise?.plano_prospeccao_7dias ??
-          [];
-        const planoDias = Array.isArray(rawPlano) ? rawPlano : [];
-        const bullets = Array.isArray(resData.diagnostico_bullets)
-          ? resData.diagnostico_bullets
-          : (resData.data?.analise?.diagnostico_bullets || []);
-
-        transformedLead = {
-          ...lead,
-          probabilidade_conversao: probVal > 0 ? probVal : null,
-          plano_prospecao_7dias: planoDias,
-          diagnostico_bullets: bullets,
-          status: "analisado",
-          ai_analise_gerada_em: new Date().toISOString(),
-        };
+        const read = await supabase.from('leads').select('*').eq('id', lead.id).single();
+        updatedLead = read.error ? null : read.data;
+      } catch {
+        updatedLead = null;
+      }
+      const persisted = confirmPersistedRefine(
+        updatedLead,
+        (currentLead || lead).ai_analise_gerada_em,
+        { alreadyCurrent: outcome.alreadyCurrent },
+      );
+      if (!persisted.ok || !updatedLead) {
+        console.warn("Refinamento não confirmado no banco:", "reason" in persisted ? persisted.reason : "empty_row");
+        throw buildPersistenceUnconfirmedError(requestId);
       }
 
+      const transformedLead: LeadProspeccao = {
+        ...lead,
+        diagnostico_bullets: updatedLead.diagnostico_bullets as string[],
+        probabilidade_conversao: updatedLead.probabilidade_conversao || 0,
+        plano_prospecao_7dias: normalizePlanoProspeccao(updatedLead.plano_prospeccao),
+        ai_analise_gerada_em: updatedLead.ai_analise_gerada_em,
+        // As colunas existem no banco, mas ainda não estão nos tipos gerados do cliente.
+        ai_used_fallback: persisted.usedFallback,
+        ai_fallback_reason: (updatedLead as { ai_fallback_reason?: string | null }).ai_fallback_reason ?? null,
+      };
+
+      // Mostra o que está realmente salvo, inclusive quando é só o texto de reserva (sinalizado na tela).
       setCurrentLead(transformedLead);
       await refetchUsage();
       onLeadRefined?.(transformedLead);
+      if (outcome.kind === "fallback") {
+        const fallbackError = buildRefineOutcomeError(outcome, requestId);
+        setRefineError(fallbackError.payload);
+        trackEvent("ai_analysis_failed", { lead_id: leadKey, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, error: outcome.reason, source: "lead_dialog", used_fallback: true });
+        toast({
+          variant: "destructive",
+          title: "A IA não gerou a análise",
+          description: fallbackError.payload.safe_message,
+        });
+        return;
+      }
       trackMetaCustomEvent("AI_Analysis_Completed", {
         lead_id: leadKey,
         lead_name: lead.nome,
@@ -674,8 +673,10 @@ export const LeadPlanDialog = ({
       trackEvent("ai_analysis_completed", { lead_id: leadKey, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "lead_dialog" });
 
       toast({
-        title: "Análise concluída",
-        description: "O lead foi reanalisado com sucesso pela IA",
+        title: "Análise atualizada",
+        description: refineRes?.data?.credit_warning
+          ? `O diagnóstico e o plano foram atualizados pelo Gemini e salvos. ${refineRes.data.credit_warning}`
+          : "O diagnóstico e o plano foram atualizados pelo Gemini e salvos.",
       });
     } catch (error: unknown) {
       const normalizedError = error instanceof RefineClientError
@@ -729,7 +730,7 @@ export const LeadPlanDialog = ({
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
           ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
-          : errorPayload.category === "rate_limit_error"
+          : errorPayload.category === "rate_limit_error" || errorPayload.category === "provider_error" || errorPayload.category === "database_error"
           ? errorMsg
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
         variant: "destructive",

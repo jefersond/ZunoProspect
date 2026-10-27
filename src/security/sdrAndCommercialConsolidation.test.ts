@@ -115,13 +115,21 @@ describe("Consolidação PR #65 - Segurança do SDR, CRM e Perfil Comercial", ()
           return { allowed: false, error: "Acesso restrito: transição para abertura_iniciada é exclusiva do SDR." };
         }
 
-        // Verifica inserção de NOVOS marcadores [SDR WhatsApp
-        if (newRow.notas && newRow.notas.includes("[SDR WhatsApp")) {
-          const oldCount = (oldRow?.notas?.match(/\[SDR WhatsApp/gi) || []).length;
-          const newCount = (newRow.notas.match(/\[SDR WhatsApp/gi) || []).length;
-          if (newCount > oldCount) {
-            return { allowed: false, error: "Acesso restrito: adição de novos logs [SDR WhatsApp] é restrita ao ADM." };
-          }
+        // Verifica integridade das linhas de log do SDR:
+        // Extrai todas as linhas que contenham o marcador [SDR WhatsApp
+        const oldLines = (oldRow?.notas || "").match(/\[SDR WhatsApp[^\r\n]*/gi) || [];
+        const newLines = (newRow.notas || "").match(/\[SDR WhatsApp[^\r\n]*/gi) || [];
+
+        // Comparação estrita de array: qualquer adição, remoção ou alteração nas linhas de SDR é bloqueada
+        const linesMatch =
+          oldLines.length === newLines.length &&
+          oldLines.every((line, idx) => line === newLines[idx]);
+
+        if (!linesMatch) {
+          return {
+            allowed: false,
+            error: "Acesso restrito: registros de log [SDR WhatsApp] não podem ser inseridos, alterados ou forjados por assinantes comuns.",
+          };
         }
         return { allowed: true };
       }
@@ -168,7 +176,7 @@ describe("Consolidação PR #65 - Segurança do SDR, CRM e Perfil Comercial", ()
         newRow: { status: "em_contato", notas: "Nota normal\n[SDR WhatsApp - 2026-10-27] Status: contato_realizado" },
       });
       expect(res.allowed).toBe(false);
-      expect(res.error).toContain("adição de novos logs [SDR WhatsApp]");
+      expect(res.error).toContain("registros de log [SDR WhatsApp]");
     });
   });
 
@@ -227,15 +235,40 @@ describe("Consolidação PR #65 - Segurança do SDR, CRM e Perfil Comercial", ()
       if (newRow.status === "abertura_iniciada" && oldRow.status !== "abertura_iniciada") {
         return { allowed: false, error: "bloqueado status" };
       }
-      if (newRow.notas && newRow.notas.includes("[SDR WhatsApp")) {
-        const oldCount = (oldRow.notas?.match(/\[SDR WhatsApp/gi) || []).length;
-        const newCount = (newRow.notas.match(/\[SDR WhatsApp/gi) || []).length;
-        if (newCount > oldCount) {
-          return { allowed: false, error: "bloqueado notas novas" };
-        }
+      
+      const oldLines = (oldRow.notas || "").match(/\[SDR WhatsApp[^\r\n]*/gi) || [];
+      const newLines = (newRow.notas || "").match(/\[SDR WhatsApp[^\r\n]*/gi) || [];
+
+      const linesMatch =
+        oldLines.length === newLines.length &&
+        oldLines.every((line, idx) => line === newLines[idx]);
+
+      if (!linesMatch) {
+        return { allowed: false, error: "bloqueado adulteracao/forja sdr" };
       }
       return { allowed: true };
     }
+
+    it("demonstra que a contagem simples permitia bypass ao substituir marcador antigo por falso", () => {
+      // Abordagem antiga (apenas contagem)
+      const oldNotes = "[SDR WhatsApp - 2026-10-20] Status: sem_resposta";
+      const forgedNotes = "[SDR WhatsApp - 2026-10-27] Status: reuniao_marcada_100k";
+      const oldCount = (oldNotes.match(/\[SDR WhatsApp/gi) || []).length; // 1
+      const forgedCount = (forgedNotes.match(/\[SDR WhatsApp/gi) || []).length; // 1
+
+      // Comprovação do bypass na contagem: como 1 > 1 é falso, o gatilho antigo NÃO bloqueava!
+      const antigoGatilhoBloqueou = forgedCount > oldCount;
+      expect(antigoGatilhoBloqueou).toBe(false); // BYPASS CONFIRMADO!
+
+      // Comprovação da correção segura: a nova verificação estrita bloqueia sumariamente a forja
+      const res = evaluateSdrTriggerUpdate({
+        isAdmin: false,
+        oldRow: { status: "em_contato", notas: oldNotes },
+        newRow: { status: "em_contato", notas: forgedNotes },
+      });
+      expect(res.allowed).toBe(false);
+      expect(res.error).toContain("bloqueado adulteracao/forja sdr");
+    });
 
     it("assinante PODE avançar status de abertura_iniciada para em_contato ou fechado", () => {
       const res = evaluateSdrTriggerUpdate({

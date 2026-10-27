@@ -23,11 +23,11 @@ SET search_path = public, auth
 AS $$
 DECLARE
   v_is_admin boolean;
-  v_old_notes_sdr_count int := 0;
-  v_new_notes_sdr_count int := 0;
+  v_old_sdr_lines text[];
+  v_new_sdr_lines text[];
 BEGIN
   -- Determina se o usuário da sessão autenticada é administrador real.
-  -- public.is_admin() valida o auth.uid() e auth.email() do JWT assinado no banco.
+  -- public.is_admin() (sem argumentos) valida o auth.uid() e auth.email() do JWT assinado no banco.
   v_is_admin := public.is_admin();
 
   -- Se for administrador autenticado, todas as operações do SDR são liberadas.
@@ -62,15 +62,21 @@ BEGIN
         USING ERRCODE = '42501';
     END IF;
 
-    -- B. Preservação e Adição de NOTAS no CRM:
-    -- O assinante PODE editar suas anotações comerciais mesmo se o lead contiver logs anteriores do SDR.
-    -- O que é BLOQUEADO: o assinante injetar NOVOS marcadores '[SDR WhatsApp' que não existiam no OLD.notas.
-    IF NEW.notas IS NOT NULL AND NEW.notas LIKE '%[SDR WhatsApp%' THEN
-      v_old_notes_sdr_count := coalesce(regexp_count(coalesce(OLD.notas, ''), '\[SDR WhatsApp', 1, 'i'), 0);
-      v_new_notes_sdr_count := coalesce(regexp_count(NEW.notas, '\[SDR WhatsApp', 1, 'i'), 0);
+    -- B. Preservação estrita de NOTAS no CRM (Proteção contra bypass por substituição e forja):
+    -- Extrai todas as entradas de log do SDR de OLD e NEW.
+    -- Se qualquer entrada de SDR for inserida, adulterada ou substituída (mesmo mantendo a contagem igual), bloqueia.
+    -- Edições em anotações normais do CRM mantêm as linhas de SDR intactas e são 100% permitidas.
+    IF (OLD.notas IS NOT NULL AND OLD.notas LIKE '%[SDR WhatsApp%') OR (NEW.notas IS NOT NULL AND NEW.notas LIKE '%[SDR WhatsApp%') THEN
+      SELECT coalesce(array_agg(m[1]), '{}')
+      INTO v_old_sdr_lines
+      FROM regexp_matches(coalesce(OLD.notas, ''), '\[SDR WhatsApp[^\r\n]*', 'g') AS m;
 
-      IF v_new_notes_sdr_count > v_old_notes_sdr_count THEN
-        RAISE EXCEPTION 'Acesso restrito: inserção de novos registros de log [SDR WhatsApp] é exclusiva do fluxo SDR (somente ADM).'
+      SELECT coalesce(array_agg(m[1]), '{}')
+      INTO v_new_sdr_lines
+      FROM regexp_matches(coalesce(NEW.notas, ''), '\[SDR WhatsApp[^\r\n]*', 'g') AS m;
+
+      IF v_old_sdr_lines IS DISTINCT FROM v_new_sdr_lines THEN
+        RAISE EXCEPTION 'Acesso restrito: registros de log [SDR WhatsApp] não podem ser inseridos, alterados ou forjados por assinantes comuns.'
           USING ERRCODE = '42501';
       END IF;
     END IF;

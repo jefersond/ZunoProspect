@@ -162,7 +162,7 @@ describe("validador", () => {
   it("mensagem longa demais é descartada; um pouco longa vira aviso", () => {
     const raw = goodRaw();
     raw.plano[0].mensagem = "Oi, aqui é a Marina. " + "palavra ".repeat(120) + "Vocês já têm site?";
-    raw.plano[3] = day(4, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, aqui é a Marina. " + "palavra ".repeat(66) + "Posso explicar?" });
+    raw.plano[3] = day(4, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, aqui é a Marina. " + "palavra ".repeat(66) + "Posso explicar como funcionam os sites?" });
     const r = validateAnalysis(raw, ctx);
     expect(r.ok).toBe(true);
     if (!r.ok) return;

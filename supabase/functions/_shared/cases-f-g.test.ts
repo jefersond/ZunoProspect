@@ -75,7 +75,7 @@ describe("Caso F · assinante sem oferta cadastrada, lead com poucos dados", () 
     const raw = goodRaw();
     raw.plano = raw.plano.map((d, i) => (i === 0 ? day(1, { tipo: "tarefa", canal: "telefone", acao: "Ligar para o studio e perguntar quem cuida da divulgação." }) : day(i + 1)));
     const facts = buildVerifiedFacts(caseF.lead);
-    const result = validateAnalysis(raw, { channels: facts.canais_disponiveis, profile, stage: facts.etapa_do_historico });
+    const result = validateAnalysis(raw, { channels: facts.canais_disponiveis, profile, stage: facts.etapa_do_historico, facts });
     // Hoje o validador exige ao menos uma mensagem enviável para lead frio. Para quem só tem telefone fixo isso reprova um plano correto
     // (a geração foi faturada pelo provedor e o assinante vê erro). Correção sugerida, NÃO aplicada: aceitar também uma tarefa de ligação.
     expect(result.ok).toBe(false);

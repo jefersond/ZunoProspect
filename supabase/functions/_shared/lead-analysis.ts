@@ -1,4 +1,4 @@
-// Contrato da análise comercial do Zuno (prompt v5).
+// Contrato da análise comercial do Zuno (prompt v6).
 // Módulo puro (sem Deno/Supabase): é importado pela Edge Function `analisar-lead-ia` e testado com vitest.
 //
 // Princípios:
@@ -7,8 +7,8 @@
 //  - Nenhum texto estático de fallback: se a IA falhar, o chamador devolve erro sem cobrar crédito.
 //  - Sinais de inspeção de HTML (Pixel, GTM, GA, WhatsApp no site) NÃO entram: a inspeção está suspensa (#55).
 
-export const ANALYSIS_PROMPT_VERSION = "v5_gemini_seller_profile";
-export const COPY_VERSION = "2026-10-gemini-profile-v1";
+export const ANALYSIS_PROMPT_VERSION = "v6_valor_comercial";
+export const COPY_VERSION = "2026-10-gemini-valor-v1";
 
 export type DayType = "mensagem" | "acompanhamento" | "tarefa" | "sem_mensagem";
 export type DayChannel = "whatsapp" | "instagram" | "email" | "telefone" | "nenhum";
@@ -331,16 +331,22 @@ Etapa do histórico: ${facts.etapa_do_historico}. Se a empresa já respondeu, pa
 Canais: use apenas canais de "canais_disponiveis". "whatsapp" só existe para celular; "telefone" significa ligar (sem texto); "instagram" e "email" só se cadastrados. Não troque de canal sem motivo operacional, e registre o motivo em "justificativa".
 
 PADRÃO DAS MENSAGENS (português do Brasil, natural, como uma pessoa escreve)
-- Primeiro contato por WhatsApp: 2 a 4 frases curtas, até 55 palavras; apresente-se com o nome de apresentação${profile.company_name ? " e a empresa" : ""}; diga o serviço concreto; diga por que procurou esta empresa usando só fatos do LEAD; UMA única pergunta simples. Sem "Tudo bem?" duplicado e sem listas.
-- Instagram Direct: até 45 palavras, sem fingir interação anterior com o perfil.
-- E-mail: "assunto_email" separado do corpo; corpo com até 110 palavras e um argumento concreto do serviço.
-- Escreva em primeira pessoa como o assinante. Assine pelo nome de apresentação. NÃO use colchetes, chaves, placeholders ou campos a preencher.
+- Primeiro contato por WhatsApp: 3 a 4 frases curtas, até 55 palavras, nesta ordem: (1) cumprimento citando a empresa; (2) "Sou ${profile.display_name}${profile.company_name ? `, da ${profile.company_name}` : ""}" e, em uma frase, o que o assinante faz, com as palavras da descrição dele; (3) por que procurou ESTA empresa, usando só fatos do LEAD (segmento, cidade, avaliações, canal cadastrado); (4) UMA pergunta simples, que se responde com sim, não ou uma frase curta (ex.: se faz sentido conversar, se é a pessoa certa para falar do assunto). A pergunta é a ÚLTIMA frase. Sem "Tudo bem?" duplicado, sem lista, sem elogio genérico.
+- A mensagem deve poder ser enviada como está: nada de colchetes, chaves, "[Seu Nome]", "[empresa]" ou campos a preencher. Todos os dados necessários estão em ASSINANTE e LEAD.
+- Instagram Direct: até 45 palavras, mesma lógica, sem fingir interação anterior com o perfil.
+- E-mail: "assunto_email" separado do corpo; corpo com até 110 palavras e um argumento concreto do serviço; pergunta simples antes da assinatura.
+- Escreva em primeira pessoa como o assinante e assine pelo nome de apresentação.
 - Cada mensagem tem no máximo uma pergunta.
+- Não afirme necessidade, interesse ou intenção de compra da empresa; fale do serviço como algo que pode ou não fazer sentido para ela.
+- Acompanhamentos (dias seguintes): só com um motivo novo e concreto (um ponto específico do serviço aplicado ao segmento, ou uma pergunta nova), nunca "só para lembrar" e nunca o primeiro texto reescrito.
 - "justificativa": por que este contato ou esta ausência de contato faz sentido comercialmente (1 frase).
-- "objecao_provavel" e "resposta_sugerida": preencha só nos dias com mensagem; nos demais use "".
+- "objecao_provavel" e "resposta_sugerida": preencha só nos dias com mensagem, e só com uma objeção ESPECÍFICA do serviço e do segmento (preço ou formato de contratação, momento da empresa, já ter quem faça isso hoje, quem decide, como funciona na prática). NÃO use objeções de identidade ou de clareza ("quem é você", "como conseguiu meu número", "não tenho interesse", "não preciso"): se a mensagem já se apresentou bem, elas não existem. Se não houver objeção específica real, use "". A resposta sugerida é curta, honesta e termina com uma pergunta ou convite simples, sem pressão.
 - Campos de texto não usados devem ser "".
 
-"resumo_estrategia": 1 ou 2 frases dizendo como abordar esta empresa e o que dizer primeiro.
+PRÓXIMA AÇÃO
+O "resumo_estrategia" e os dias seguintes devem deixar claro o que o assinante faz depois do primeiro contato e no dia seguinte (esperar resposta, tarefa de preparo, ou acompanhamento com condição), de acordo com a etapa do histórico.
+
+"resumo_estrategia": 1 ou 2 frases dizendo como abordar esta empresa, o que dizer primeiro e o que fazer em seguida.
 
 Responda somente com o JSON do schema.`;
 }
@@ -395,7 +401,52 @@ export const FORBIDDEN_MESSAGE_PATTERNS: Array<{ pattern: RegExp; label: string 
   { pattern: /site (est[áa] )?(lento|quebrado|fora do ar)|demora(m)? (para|a) responder/i, label: "defeito não medido" },
   { pattern: /[úu]ltima chance|s[óo] hoje|oferta (por )?tempo limitado|vagas? limitadas?/i, label: "falsa urgência" },
   { pattern: /full service|zuno_internal_prospecting/i, label: "serviço genérico do dropdown" },
+  { pattern: /(n[ãa]o (tem|possui|t[êe]m)|sem|falta de) (um |o )?(site|instagram|perfil|presen[çc]a digital|redes sociais)(?![^.?!\n]{0,30}(cadastr|informad|listad|no perfil|no cadastro))/i, label: "ausência no cadastro tratada como fato" },
+  { pattern: /atendimento (([ée]|est[áa]|[ée] muito) )?(ruim|lento|fraco|falho|p[ée]ssimo)|m[áa] reputa|reputa[çc][ãa]o (([ée]|est[áa]) )?(ruim|baixa|fraca)|baixa (convers|qualidade)|campanhas? (mal|fracas?)|perfil abandonado|site desatualizado/i, label: "qualidade não medida" },
 ];
+
+/** Afirmações de necessidade, intenção ou qualidade que o cadastro público não permite fazer no diagnóstico. */
+export const FORBIDDEN_DIAGNOSIS_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
+  { pattern: /precisa(m)? (de|urgente)|necessita(m)?\b|est[áa] (procurando|buscando)|quer(em)? (contratar|comprar)|inten[çc][ãa]o de (compra|contrata)|pronto(a)? para (comprar|contratar)/i, label: "necessidade ou intenção de compra afirmada" },
+  { pattern: /(n[ãa]o (tem|possui|t[êe]m)|sem|falta de) (um |o )?(site|instagram|perfil|presen[çc]a digital|redes sociais)(?![^.?!\n]{0,30}(cadastr|informad|listad|no perfil|no cadastro))/i, label: "ausência no cadastro tratada como fato" },
+  { pattern: /atendimento (([ée]|est[áa]|[ée] muito) )?(ruim|lento|fraco|falho|p[ée]ssimo)|m[áa] reputa|reputa[çc][ãa]o (([ée]|est[áa]) )?(ruim|baixa|fraca)|baixa (convers|qualidade)|campanhas? (mal|fracas?)|perfil abandonado|site desatualizado|investe pouco|n[ãa]o investe/i, label: "qualidade ou investimento não medidos" },
+];
+
+/** Objeções que só repetem falta de clareza da primeira mensagem ou rejeição genérica. */
+export const GENERIC_OBJECTION_PATTERNS: RegExp[] = [
+  /quem (é|e|s[ãa]o) (voc[êe]|voc[êe]s)|quem est[áa] falando/i,
+  /como (conseguiu|conseguiram|achou|acharam|encontrou|encontraram|obteve|pegou|teve acesso)/i,
+  /n[ãa]o (tenho|temos) interesse|n[ãa]o (preciso|precisamos)\b|sem interesse/i,
+  /n[ãa]o (entendi|compreendi)|do que se trata|qual o assunto/i,
+];
+
+const normalizeText = (value: string) => value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const SERVICE_STOPWORDS = new Set(["gestao", "criacao", "servico", "servicos", "empresa", "empresas", "negocio", "negocios", "locais", "local", "clientes", "pequenas", "pequeno", "crio", "faco", "cuido", "monto", "configuro", "mensal", "relatorio"]);
+
+/** Radicais (5 letras) das palavras que identificam o serviço e a oferta do assinante. */
+export function serviceStems(profile: SellerProfile): string[] {
+  const text = normalizeText(`${profile.service_offered} ${profile.offer_description}`);
+  const stems = new Set<string>();
+  for (const w of text.split(/[^a-z0-9]+/)) {
+    if (w.length >= 5 && !SERVICE_STOPWORDS.has(w)) stems.add(w.slice(0, 5));
+  }
+  return [...stems];
+}
+
+/** A mensagem apresenta o serviço do assinante com palavras dele (ao menos um radical do serviço/oferta). */
+export function mentionsSellerService(message: string, profile: SellerProfile): boolean {
+  const normalized = normalizeText(message);
+  return serviceStems(profile).some((stem) => normalized.includes(stem));
+}
+
+/** Exatamente uma pergunta e ela está nas três últimas linhas (antes de uma eventual assinatura de até duas linhas). */
+export function hasSingleFinalQuestion(message: string): boolean {
+  const withoutGreeting = message.replace(/tudo bem\s*\?/gi, "");
+  const questionMarks = (withoutGreeting.match(/\?/g) || []).length;
+  if (questionMarks !== 1) return false;
+  const lines = message.trim().split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  return lines.slice(-3).some((l) => l.replace(/tudo bem\s*\?/gi, "").includes("?"));
+}
 
 const PLACEHOLDER = /\[[^\]]{1,80}\]|\{\{|\}\}|\{[^}]{1,80}\}|<[^>]{1,40}>/;
 
@@ -409,7 +460,7 @@ const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 export function validateAnalysis(
   raw: unknown,
-  ctx: { channels: DayChannel[]; profile: SellerProfile; stage: HistoryStage },
+  ctx: { channels: DayChannel[]; profile: SellerProfile; stage: HistoryStage; facts?: VerifiedFacts },
 ): ValidationResult {
   const issues: string[] = [];
   if (!raw || typeof raw !== "object") return { ok: false, issues: ["resposta não é um objeto"] };
@@ -435,6 +486,9 @@ export function validateAnalysis(
   if (/pixel|\bgtm\b|\bgtag\b|tag manager|google analytics/i.test(diagText)) {
     issues.push("diagnostico afirma sinal de site não verificado");
   }
+  const diagForbidden = FORBIDDEN_DIAGNOSIS_PATTERNS.find((p) => p.pattern.test(diagText));
+  if (diagForbidden) issues.push(`diagnostico: ${diagForbidden.label}`);
+  if (PLACEHOLDER.test(diagText) || PLACEHOLDER.test(str(r.resumo_estrategia))) issues.push("diagnostico ou resumo com campo a preencher");
 
   const rawPlan = Array.isArray(r.plano) ? r.plano : [];
   if (rawPlan.length !== 7) issues.push(`plano deve ter 7 dias (recebeu ${rawPlan.length})`);
@@ -508,6 +562,24 @@ export function validateAnalysis(
       demote("acompanhamento antes de qualquer contato"); plano.push(day); continue;
     }
 
+    const isFirstContact = tipo === "mensagem" && !firstContactSeen;
+    if (isFirstContact) {
+      if (!hasSingleFinalQuestion(mensagem)) { demote("o primeiro contato deve terminar com uma única pergunta simples"); plano.push(day); continue; }
+      if (!mentionsSellerService(mensagem, ctx.profile)) { demote("o primeiro contato não apresenta o serviço do assinante"); plano.push(day); continue; }
+      if (ctx.facts) {
+        const company = normalizeText(ctx.facts.empresa).split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+        const normalizedMessage = normalizeText(mensagem);
+        if (company.length && !company.some((w) => normalizedMessage.includes(w)) && !normalizedMessage.includes(normalizeText(ctx.facts.segmento).slice(0, 6))) {
+          warnings.push(`dia ${dia}: não cita a empresa nem o segmento`);
+        }
+      }
+    }
+    if (day.objecao_provavel && (GENERIC_OBJECTION_PATTERNS.some((p) => p.test(day.objecao_provavel)) || day.objecao_provavel.length < 12)) {
+      warnings.push(`dia ${dia}: objeção genérica removida`);
+      day.objecao_provavel = "";
+      day.resposta_sugerida = "";
+    }
+
     const words = countWords(mensagem);
     if (words > HARD_WORD_LIMIT[canal]) { demote(`longa demais (${words} palavras)`); plano.push(day); continue; }
     if (countRealQuestions(mensagem) > 2) { demote("perguntas demais"); plano.push(day); continue; }
@@ -538,6 +610,97 @@ export function validateAnalysis(
     demoted_days: demoted,
     analysis: { diagnostico, resumo_estrategia: str(r.resumo_estrategia), plano },
   };
+}
+
+// ───────────────────────── Teste de valor (verificações determinísticas) ─────────────────────────
+
+export interface ValueCheck {
+  id: "enviavel_sem_edicao" | "por_que_vale_abordar" | "dados_verificaveis" | "proxima_acao_conforme_historico" | "continua_no_dia_seguinte";
+  question: string;
+  ok: boolean;
+  detail: string;
+}
+
+const numbersIn = (text: string) => (text.match(/\d+(?:[.,]\d+)?/g) || []).map((n) => n.replace(",", "."));
+
+/**
+ * Responde, por regras objetivas, às cinco perguntas do teste de valor para uma análise JÁ validada.
+ * Não substitui a leitura humana do texto: mede o que é verificável (estrutura, fatos citados, histórico).
+ */
+export function evaluateAnalysisValue(analysis: ValidatedAnalysis, ctx: { facts: VerifiedFacts; profile: SellerProfile }): ValueCheck[] {
+  const { facts, profile } = ctx;
+  const sendable = analysis.plano.filter((d) => d.tipo === "mensagem" || d.tipo === "acompanhamento");
+  const firstSend = analysis.plano.find((d) => d.tipo === "mensagem" || d.tipo === "acompanhamento");
+  const checks: ValueCheck[] = [];
+
+  // 1) Enviável sem grande edição
+  {
+    const problems: string[] = [];
+    if (facts.etapa_do_historico === "recusou_ou_optout") {
+      if (sendable.length) problems.push("há mensagem para um lead que recusou contato");
+    } else if (!firstSend) {
+      if (!["reuniao_marcada", "descartado"].includes(facts.etapa_do_historico)) problems.push("nenhuma mensagem para enviar");
+    } else {
+      const m = firstSend.mensagem;
+      if (PLACEHOLDER.test(m)) problems.push("tem campo a preencher");
+      if (!hasSingleFinalQuestion(m)) problems.push("não termina com uma única pergunta");
+      if (firstSend.tipo === "mensagem" && !mentionsSellerService(m, profile)) problems.push("não apresenta o serviço");
+      if (firstSend.tipo === "mensagem" && !new RegExp(profile.display_name.split(" ")[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(m)) problems.push("não cita o nome do assinante");
+      if (countWords(m) > (SOFT_WORD_LIMIT[firstSend.canal] ?? 70)) problems.push(`longa (${countWords(m)} palavras)`);
+    }
+    checks.push({ id: "enviavel_sem_edicao", question: "A primeira mensagem poderia ser enviada sem grande edição manual?", ok: problems.length === 0, detail: problems.join("; ") || "completa, com serviço, nome e uma pergunta final" });
+  }
+
+  // 2) Por que vale abordar
+  {
+    const diag = analysis.diagnostico;
+    const evidence = normalizeText([facts.empresa, facts.segmento, facts.cidade].join(" ")).split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+    const text = normalizeText([...diag.observado, diag.hipotese_comercial].join(" "));
+    const grounded = evidence.some((w) => text.includes(w)) || (facts.avaliacoes_google ? text.includes(String(facts.avaliacoes_google.quantidade)) : false);
+    const ok = diag.observado.length >= 1 && diag.hipotese_comercial.length >= 40 && grounded;
+    checks.push({ id: "por_que_vale_abordar", question: "O usuário entende por que vale abordar a empresa?", ok, detail: ok ? "hipótese ancorada em fatos do cadastro" : "hipótese curta ou sem ligação com os fatos do cadastro" });
+  }
+
+  // 3) Dados verificáveis
+  {
+    const allowed = new Set<string>();
+    if (facts.avaliacoes_google) {
+      allowed.add(String(facts.avaliacoes_google.quantidade));
+      if (facts.avaliacoes_google.nota !== null) allowed.add(String(facts.avaliacoes_google.nota));
+    }
+    for (const n of numbersIn(`${profile.service_offered} ${profile.offer_description} ${profile.target_audience}`)) allowed.add(n);
+    for (const n of numbersIn(`${facts.empresa} ${facts.endereco_publico ?? ""} ${facts.anotacoes_do_assinante ?? ""}`)) allowed.add(n);
+    for (let i = 1; i <= 7; i++) allowed.add(String(i));
+    const texts = [...analysis.diagnostico.observado, analysis.diagnostico.permite_concluir, analysis.diagnostico.hipotese_comercial, ...analysis.plano.map((d) => d.mensagem)];
+    const unknown = [...new Set(texts.flatMap(numbersIn))].filter((n) => !allowed.has(n));
+    const urls = [...new Set(texts.join(" ").match(/https?:\/\/\S+|@\w{3,}/g) || [])].filter((u) => !JSON.stringify(facts).includes(u.replace(/[.,;)]+$/, "")));
+    const problems = [...unknown.map((n) => `número "${n}" fora dos fatos`), ...urls.map((u) => `endereço "${u}" fora dos fatos`)];
+    checks.push({ id: "dados_verificaveis", question: "Os dados utilizados são verificáveis?", ok: problems.length === 0, detail: problems.join("; ") || "todo número e endereço citado está nos fatos do cadastro ou no perfil do assinante" });
+  }
+
+  // 4) Próxima ação conforme o histórico
+  {
+    const stage = facts.etapa_do_historico;
+    const problems: string[] = [];
+    if (stage === "recusou_ou_optout" && sendable.length) problems.push("há envio para quem recusou");
+    if (stage === "nao_contatado") {
+      const firstIdx = analysis.plano.findIndex((d) => d.tipo === "acompanhamento");
+      const firstMsg = analysis.plano.findIndex((d) => d.tipo === "mensagem");
+      if (firstIdx !== -1 && (firstMsg === -1 || firstIdx < firstMsg)) problems.push("acompanhamento antes do primeiro contato");
+    }
+    if (["respondeu", "interessado", "reuniao_marcada"].includes(stage) && analysis.plano.some((d) => d.tipo === "mensagem")) problems.push("abertura fria para quem já respondeu");
+    if (stage === "contato_realizado_sem_resposta" && analysis.plano.some((d) => d.tipo === "mensagem")) problems.push("repete a abertura para quem já foi contatado");
+    checks.push({ id: "proxima_acao_conforme_historico", question: "A próxima ação depende corretamente do histórico?", ok: problems.length === 0, detail: problems.join("; ") || `coerente com a etapa "${stage}"` });
+  }
+
+  // 5) Continuação no dia seguinte
+  {
+    const day2 = analysis.plano.find((d) => d.dia === 2);
+    const hasNext = Boolean(day2 && (day2.acao.length >= 15 || day2.condicao.length >= 15 || day2.mensagem));
+    checks.push({ id: "continua_no_dia_seguinte", question: "O assinante consegue continuar a prospecção no dia seguinte?", ok: hasNext && analysis.resumo_estrategia.length >= 20, detail: hasNext ? "o dia 2 diz o que fazer" : "o dia 2 não orienta nenhuma ação" });
+  }
+
+  return checks;
 }
 
 // ───────────────────────── Saída para o app ─────────────────────────

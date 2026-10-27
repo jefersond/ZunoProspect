@@ -23,6 +23,7 @@ import {
   buildGeminiRequestBody,
   runGeminiAnalysis,
   validateAnalysis,
+  evaluateAnalysisValue,
   type GeminiRequestOptions,
   type ThinkingLevel,
 } from "../supabase/functions/_shared/lead-analysis";
@@ -157,7 +158,7 @@ for (const c of stop ? [] : analysisCases) {
       if (run.kind === "invalid_request" || run.kind === "auth_error") stop = true;
       continue;
     }
-    const v = validateAnalysis(run.raw, { channels: facts.canais_disponiveis, profile: c.seller, stage: facts.etapa_do_historico });
+    const v = validateAnalysis(run.raw, { channels: facts.canais_disponiveis, profile: c.seller, stage: facts.etapa_do_historico, facts });
     if (v.ok) totals.approved++; else totals.rejected++;
     lines.push(head, `validação: ${v.ok ? "aprovada" : "REPROVADA"}`, "");
     console.log(`[${c.id}/${m}] ${v.ok ? "aprovada" : "reprovada"} · tokens ${JSON.stringify(t.usage)}`);
@@ -175,7 +176,9 @@ for (const c of stop ? [] : analysisCases) {
     const noSend = v.analysis.plano.filter((d) => d.tipo === "tarefa" || d.tipo === "sem_mensagem").map((d) => d.dia);
     const withText = v.analysis.plano.filter((d) => d.mensagem).map((d) => d.dia);
     lines.push(`**Resumo do plano:** dias com mensagem: ${withText.join(", ") || "nenhum"} · dias sem envio (tarefa ou sem mensagem): ${noSend.join(", ") || "nenhum"}`, "");
-    report.push({ case: c.id, model: m, telemetry: t, estimatedCost: costOf(m, t.usage), warnings: v.warnings, demoted: v.demoted_days, noSendDays: noSend, messageDays: withText, analysis: v.analysis });
+    const value = evaluateAnalysisValue(v.analysis, { facts, profile: c.seller });
+    lines.push("**Teste de valor (verificações objetivas; a leitura humana continua necessária):**", ...value.map((x) => `- ${x.ok ? "✔" : "✘"} ${x.question} — ${x.detail}`), "");
+    report.push({ case: c.id, model: m, telemetry: t, estimatedCost: costOf(m, t.usage), warnings: v.warnings, demoted: v.demoted_days, noSendDays: noSend, messageDays: withText, value, analysis: v.analysis });
   }
 }
 

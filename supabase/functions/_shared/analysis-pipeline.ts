@@ -108,7 +108,7 @@ export async function runAnalysisPipeline(deps: PipelineDeps, input: PipelineInp
     return failure({ ...map[run.kind], telemetry: run.telemetry, providerBilling: run.telemetry.billing });
   }
 
-  const validation = validateAnalysis(run.raw, { channels: facts.canais_disponiveis, profile: input.profile, stage: facts.etapa_do_historico });
+  const validation = validateAnalysis(run.raw, { channels: facts.canais_disponiveis, profile: input.profile, stage: facts.etapa_do_historico, facts });
   if ("issues" in validation) {
     return failure({
       code: "REFINE_PROVIDER_INVALID_RESPONSE",

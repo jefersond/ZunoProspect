@@ -3,6 +3,7 @@ import {
   GEMINI_JSON_MIME_TYPE,
   REFINE_MODELS,
   buildProviderFailure,
+  isDuplicateRefine,
   shouldChargeCredit,
   shouldPersistAnalysis,
   summarizeProviderError,
@@ -134,5 +135,22 @@ describe("summarizeProviderError", () => {
     const out = summarizeProviderError(`key=AIza${"x".repeat(35)} ${"y".repeat(500)}`, 120);
     expect(out).not.toMatch(/AIza/);
     expect(out.length).toBeLessThanOrEqual(120);
+  });
+});
+
+describe("isDuplicateRefine: clique duplo/duas abas não geram nem cobram duas vezes", () => {
+  const now = Date.parse("2026-10-27T12:00:30Z");
+  it("análise válida gravada há 10 s é duplicata", () => {
+    expect(isDuplicateRefine({ generatedAt: "2026-10-27T12:00:20Z", usedFallback: false }, now)).toBe(true);
+  });
+  it("fora da janela (nova geração intencional) não é duplicata", () => {
+    expect(isDuplicateRefine({ generatedAt: "2026-10-27T11:50:00Z", usedFallback: false }, now)).toBe(false);
+  });
+  it("texto de reserva recente nunca bloqueia uma nova tentativa", () => {
+    expect(isDuplicateRefine({ generatedAt: "2026-10-27T12:00:25Z", usedFallback: true }, now)).toBe(false);
+  });
+  it("sem análise anterior ou data inválida não é duplicata", () => {
+    expect(isDuplicateRefine({ generatedAt: null, usedFallback: null }, now)).toBe(false);
+    expect(isDuplicateRefine({ generatedAt: "lixo", usedFallback: false }, now)).toBe(false);
   });
 });

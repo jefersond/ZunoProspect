@@ -35,7 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/utils/templateUtils";
-import { getAnalysisOrigin } from "@/utils/refineOutcome";
+import { formatRefinedAt, getAnalysisOrigin } from "@/utils/refineOutcome";
 import {
   FACT_STATUS_LABEL,
   buildCompanyFacts,
@@ -124,6 +124,7 @@ export const LeadAnalysis = ({
 }: LeadAnalysisProps) => {
   const [copiedDia, setCopiedDia] = useState<number | null>(null);
   const [confirmCopiesOpen, setConfirmCopiesOpen] = useState(false);
+  const [confirmRefineOpen, setConfirmRefineOpen] = useState(false);
   const { toast } = useToast();
 
   const sections = useMemo(() => splitAnalysisBullets(diagnostico), [diagnostico]);
@@ -171,7 +172,7 @@ export const LeadAnalysis = ({
             <TooltipTrigger asChild>
               <span className="inline-flex w-full sm:w-auto">
                 <Button
-                  onClick={onReanalyze}
+                  onClick={requestRefine}
                   disabled={isReanalyzing}
                   variant="outline"
                   size="sm"
@@ -181,7 +182,7 @@ export const LeadAnalysis = ({
                   )}
                 >
                   <RefreshCw className={cn("h-4 w-4", isReanalyzing && "animate-spin")} />
-                  {isReanalyzing ? "Refinando..." : canAnalyzeAI ? "Refinar com IA" : "Liberar analises IA"}
+                  {isReanalyzing ? "Refinando..." : canAnalyzeAI ? (needsRefineConfirmation ? "Refinar novamente" : "Refinar com IA") : "Liberar analises IA"}
                 </Button>
               </span>
             </TooltipTrigger>
@@ -217,6 +218,12 @@ export const LeadAnalysis = ({
   const moreSummary = sections.resumo.slice(3);
   const subtitle = lead ? [lead.nicho, lead.cidade].filter(Boolean).join(" · ") : "";
   const origin = getAnalysisOrigin({ ai_analise_gerada_em: geradoEm, ai_used_fallback: lead?.ai_used_fallback });
+  // Já existe uma análise do Gemini salva: gerar outra é uma ação explícita, com aviso de consumo e confirmação.
+  const needsRefineConfirmation = origin === "gemini";
+  const requestRefine = () => {
+    if (needsRefineConfirmation) setConfirmRefineOpen(true);
+    else onReanalyze?.();
+  };
   const hasNextStep = !contactBlocked && (sections.proximoPasso.length > 0 || Boolean(recommendedDay));
 
   return (
@@ -230,11 +237,16 @@ export const LeadAnalysis = ({
           </p>
           {showCompanyName && lead?.nome && <h3 className="break-words text-xl font-semibold leading-tight text-foreground">{lead.nome}</h3>}
           {subtitle && <p className="break-words text-sm text-muted-foreground">{subtitle}</p>}
-          {geradoEm && <p className="text-xs text-muted-foreground">Gerado em {new Date(geradoEm).toLocaleDateString("pt-BR")}</p>}
+          {geradoEm && origin !== "gemini" && <p className="text-xs text-muted-foreground">Gerado em {new Date(geradoEm).toLocaleDateString("pt-BR")}</p>}
           {origin === "gemini" && (
-            <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" data-testid="analysis-origin">
-              Gerado pelo Gemini
-            </Badge>
+            <div className="space-y-1" data-testid="analysis-origin">
+              <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                Gerado pelo Gemini
+              </Badge>
+              <p className="text-xs text-muted-foreground" data-testid="refined-at">
+                Análise atualizada{formatRefinedAt(geradoEm) ? ` · último refinamento em ${formatRefinedAt(geradoEm)}` : ""}
+              </p>
+            </div>
           )}
           {origin === "not_generated" && (
             <Badge variant="outline" className="text-muted-foreground" data-testid="analysis-origin">
@@ -574,6 +586,36 @@ export const LeadAnalysis = ({
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={confirmRefineOpen} onOpenChange={setConfirmRefineOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Gerar uma nova análise com IA?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Esta análise já foi gerada pelo Gemini. Uma nova geração <strong>consome 1 análise de IA</strong> do seu plano e substitui
+                  o diagnóstico e as mensagens do plano de 7 dias, inclusive as que você editou.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Atualizar a página não consome créditos. Se a IA falhar, a análise atual é mantida e nada é cobrado.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmRefineOpen(false);
+                onReanalyze?.();
+              }}
+            >
+              Gerar nova análise (1 crédito)
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmCopiesOpen} onOpenChange={setConfirmCopiesOpen}>
         <AlertDialogContent className="max-h-[90vh] overflow-y-auto">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeRefineError } from "@/lib/refineObservability";
-import { buildRefineOutcomeError, classifyRefineResponse, getAnalysisOrigin } from "./refineOutcome";
+import { buildRefineOutcomeError, classifyRefineResponse, formatRefinedAt, getAnalysisOrigin, resolveUsedFallback } from "./refineOutcome";
 
 describe("classifyRefineResponse", () => {
   it("análise do Gemini: gerada", () => {
@@ -68,5 +68,46 @@ describe("getAnalysisOrigin", () => {
   });
   it("sem a informação: desconhecida (a tela não afirma nada)", () => {
     expect(getAnalysisOrigin({ ai_analise_gerada_em: "2026-10-27" })).toBe("unknown");
+  });
+});
+
+describe("estado do refinamento sobrevive ao recarregar (vem do que está salvo, não do React state)", () => {
+  // Formato devolvido pelas funções de leitura do banco: há plano_prospeccao e ai_analise_gerada_em, mas NÃO ai_used_fallback.
+  const savedByGemini = { plano_prospeccao: { model: "gemini-3.6-flash", debug: { fallback_used: false }, plano_prospeccao_7dias: [] } };
+  const savedFallback = { plano_prospeccao: { model: "contextual-fallback", debug: { fallback_used: true }, plano_prospeccao_7dias: [] } };
+
+  it("análise do Gemini salva é reconhecida depois do reload e do novo login (mesmos dados do banco)", () => {
+    expect(resolveUsedFallback(savedByGemini)).toBe(false);
+    expect(getAnalysisOrigin({ ai_analise_gerada_em: "2026-10-27T11:48:00Z", ai_used_fallback: resolveUsedFallback(savedByGemini) })).toBe("gemini");
+  });
+
+  it("texto de reserva salvo continua marcado como reserva depois do reload", () => {
+    expect(resolveUsedFallback(savedFallback)).toBe(true);
+    expect(getAnalysisOrigin({ ai_analise_gerada_em: "2026-10-27T11:48:00Z", ai_used_fallback: resolveUsedFallback(savedFallback) })).toBe("fallback");
+  });
+
+  it("a coluna ai_used_fallback, quando devolvida, prevalece", () => {
+    expect(resolveUsedFallback({ ai_used_fallback: true, ...savedByGemini })).toBe(true);
+    expect(resolveUsedFallback({ ai_used_fallback: false, ...savedFallback })).toBe(false);
+  });
+
+  it("lead antigo (plano em lista, sem model): origem desconhecida, nada é afirmado", () => {
+    expect(resolveUsedFallback({ plano_prospeccao: [{ dia: 1 }] })).toBeUndefined();
+    expect(resolveUsedFallback({ plano_prospeccao: null })).toBeUndefined();
+    expect(resolveUsedFallback(null)).toBeUndefined();
+  });
+});
+
+describe("classifyRefineResponse: duplicata reconhecida pelo backend", () => {
+  it("already_current é sucesso sem nova geração e fica identificado", () => {
+    expect(classifyRefineResponse({ success: true, already_current: true, used_fallback: false })).toMatchObject({ kind: "generated", alreadyCurrent: true });
+  });
+});
+
+describe("formatRefinedAt", () => {
+  it("formata data e hora e tolera valores inválidos", () => {
+    expect(formatRefinedAt("2026-10-27T15:30:00Z")).toMatch(/^27\/10\/2026 às \d{2}:\d{2}$/);
+    expect(formatRefinedAt("lixo")).toBe("");
+    expect(formatRefinedAt(null)).toBe("");
   });
 });

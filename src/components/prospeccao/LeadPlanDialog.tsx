@@ -28,7 +28,7 @@ import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { normalizeLeadForAI, normalizePlanoProspeccao, normalizeDiagnosticoBullets } from "@/utils/normalizeLead";
 import { buildIntelligentPlan, hasExplicitOptOut } from "@/services/intelligentSevenDayPlan";
 import { refineWithAI } from "@/services/refineWithAI";
-import { buildRefineOutcomeError, classifyRefineResponse } from "@/utils/refineOutcome";
+import { buildRefineOutcomeError, classifyRefineResponse, resolveUsedFallback } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
 // Função para sanitizar e padronizar número de telefone brasileiro
@@ -624,7 +624,7 @@ export const LeadPlanDialog = ({
           plano_prospecao_7dias: normalizePlanoProspeccao(updatedLead.plano_prospeccao),
           ai_analise_gerada_em: updatedLead.ai_analise_gerada_em,
           // As colunas existem no banco, mas ainda não estão nos tipos gerados do cliente.
-          ai_used_fallback: (updatedLead as { ai_used_fallback?: boolean | null }).ai_used_fallback ?? undefined,
+          ai_used_fallback: resolveUsedFallback(updatedLead as { ai_used_fallback?: unknown; plano_prospeccao?: unknown }),
           ai_fallback_reason: (updatedLead as { ai_fallback_reason?: string | null }).ai_fallback_reason ?? null,
         };
       } catch (fErr) {
@@ -632,6 +632,7 @@ export const LeadPlanDialog = ({
         if (outcome.kind !== "generated") throw buildRefineOutcomeError(outcome, requestId);
         console.warn("⚠️ Usando resposta direta do refineWithAI no LeadPlanDialog:", fErr);
         const resData = refineRes?.data || {};
+        if (outcome.alreadyCurrent) throw buildRefineOutcomeError({ ...outcome, kind: "failed" }, requestId);
         const probVal = Number(
           resData.probabilidade_conversao ??
           resData.diagnostico?.score ??
@@ -697,8 +698,10 @@ export const LeadPlanDialog = ({
       trackEvent("ai_analysis_completed", { lead_id: leadKey, lead_name: lead.nome, city: lead.cidade, niche: lead.nicho, source: "lead_dialog" });
 
       toast({
-        title: "Análise concluída",
-        description: "O lead foi reanalisado com sucesso pela IA",
+        title: "Análise atualizada",
+        description: refineRes?.data?.credit_warning
+          ? `O diagnóstico e o plano foram atualizados pelo Gemini e salvos. ${refineRes.data.credit_warning}`
+          : "O diagnóstico e o plano foram atualizados pelo Gemini e salvos.",
       });
     } catch (error: unknown) {
       const normalizedError = error instanceof RefineClientError

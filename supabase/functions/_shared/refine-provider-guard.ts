@@ -150,3 +150,22 @@ export function summarizeProviderError(body: string, max = 240): string {
     .replace(/\s+/g, " ")
     .slice(0, max);
 }
+
+/** Janela em que uma segunda solicitação para o mesmo lead é tratada como duplicata (clique duplo, duas abas). */
+export const DUPLICATE_REFINE_WINDOW_MS = 30_000;
+
+/**
+ * Já existe uma análise válida (não de reserva) gravada agora há pouco: a nova solicitação é duplicata e não deve
+ * chamar o Gemini nem cobrar outro crédito. Uma nova geração intencional continua possível fora da janela.
+ */
+export function isDuplicateRefine(
+  last: { generatedAt: string | null | undefined; usedFallback: boolean | null | undefined },
+  now = Date.now(),
+  windowMs = DUPLICATE_REFINE_WINDOW_MS,
+): boolean {
+  if (!last.generatedAt || last.usedFallback === true) return false;
+  const at = Date.parse(last.generatedAt);
+  if (!Number.isFinite(at)) return false;
+  const age = now - at;
+  return age >= 0 && age < windowMs;
+}

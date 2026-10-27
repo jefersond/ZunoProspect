@@ -4,6 +4,7 @@ import {
   GEMINI_JSON_MIME_TYPE,
   REFINE_MODELS,
   buildProviderFailure,
+  isDuplicateRefine,
   shouldChargeCredit,
   shouldPersistAnalysis,
   summarizeProviderError,
@@ -395,6 +396,26 @@ serve(async (req) => {
 
     if (lead.foco === "zuno_internal_prospecting" && !isAdmin) {
       return json({ success: false, request_id: requestId, error_code: "REFINE_PERMISSION_DENIED", error_message: "Este tipo de análise não está disponível para sua conta." }, 403);
+    }
+
+    // Duplicata (clique duplo ou duas abas): devolve a análise já salva, sem chamar o Gemini e sem novo crédito.
+    const { data: lastRun } = await admin
+      .from("leads")
+      .select("ai_analise_gerada_em, ai_used_fallback")
+      .eq("id", leadId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (isDuplicateRefine({ generatedAt: lastRun?.ai_analise_gerada_em, usedFallback: lastRun?.ai_used_fallback })) {
+      await logEvent(admin, user.id, "ai_analysis_duplicate_ignored", { request_id: requestId, leadId, deducted_credit: false });
+      return json({
+        success: true,
+        request_id: requestId,
+        already_current: true,
+        saved: true,
+        used_fallback: false,
+        credit_consumed: false,
+        generated_at: lastRun?.ai_analise_gerada_em,
+      });
     }
 
     const provider: ProviderResult = GEMINI_KEY

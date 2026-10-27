@@ -43,6 +43,7 @@ import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { trackEvent } from "@/lib/analytics";
 import { refineWithAI } from "@/services/refineWithAI";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
+import { buildRefineOutcomeError, classifyRefineResponse, resolveUsedFallback } from "@/utils/refineOutcome";
 
 const LeadsSalvos = () => {
   const navigate = useNavigate();
@@ -252,6 +253,7 @@ const LeadsSalvos = () => {
           status: lead.status || "novo",
           created_at: lead.created_at,
           ai_analise_gerada_em: lead.ai_analise_gerada_em,
+          ai_used_fallback: resolveUsedFallback(lead),
           salvo: lead.salvo || false,
           notas: lead.notas || null,
           // Campos CNPJ
@@ -372,6 +374,13 @@ const LeadsSalvos = () => {
         };
 
       const refineResponse = await refineWithAI<any>(invokeBody, token, requestId);
+      // HTTP 200 não basta: só vale como reanálise se a resposta for mesmo uma análise do Gemini.
+      const outcome = classifyRefineResponse(refineResponse?.data);
+      if (outcome.kind !== "generated") {
+        // O backend antigo pode ter gravado texto de reserva: relê o banco para a tela refletir o que está salvo.
+        if (user) await loadSavedLeads(user.id).catch(() => undefined);
+        throw buildRefineOutcomeError(outcome, requestId);
+      }
       setRefineError(null);
 
       const resData = refineResponse?.data || {};
@@ -379,7 +388,7 @@ const LeadsSalvos = () => {
         resData.probabilidade_conversao ??
         resData.diagnostico?.score ??
         resData.data?.analise?.probabilidade_conversao ??
-        85
+        0
       );
 
       const rawPlano = resData.plano_prospeccao_7dias ??
@@ -398,11 +407,12 @@ const LeadsSalvos = () => {
           item.id === leadId
             ? {
                 ...item,
-                probabilidade_conversao: probVal > 0 ? probVal : 85,
+                probabilidade_conversao: probVal > 0 ? probVal : item.probabilidade_conversao,
                 plano_prospecao_7dias: planoDias,
                 diagnostico_bullets: bullets,
                 status: "analisado",
                 ai_analise_gerada_em: new Date().toISOString(),
+                ai_used_fallback: false,
               }
             : item
         )
@@ -414,8 +424,8 @@ const LeadsSalvos = () => {
       }
 
       toast({
-        title: "Reanálise concluída",
-        description: "O lead foi reanalisado com sucesso",
+        title: "Análise atualizada",
+        description: "O diagnóstico e o plano foram atualizados pelo Gemini e salvos.",
       });
     } catch (error: unknown) {
       const normalizedError = error instanceof RefineClientError

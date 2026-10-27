@@ -32,7 +32,7 @@ import type { UpgradeSource } from "@/lib/funnelContext";
 import { normalizeLeadForAI } from "@/utils/normalizeLead";
 import { generateSmartProspectingCopy } from "@/utils/smartProspectingCopy";
 import { refineWithAI } from "@/services/refineWithAI";
-import { buildRefineOutcomeError, classifyRefineResponse } from "@/utils/refineOutcome";
+import { buildRefineOutcomeError, classifyRefineResponse, resolveUsedFallback } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
 const normalizeLeadsResponse = (response: any): any[] => {
@@ -319,7 +319,7 @@ export const LeadsList = () => {
       status: lead.status || 'novo',
       created_at: lead.created_at,
       ai_analise_gerada_em: lead.ai_analise_gerada_em,
-      ai_used_fallback: (lead as { ai_used_fallback?: boolean | null }).ai_used_fallback ?? undefined,
+      ai_used_fallback: resolveUsedFallback(lead),
       ai_fallback_reason: (lead as { ai_fallback_reason?: string | null }).ai_fallback_reason ?? null,
       salvo: lead.salvo || false,
       notas: lead.notas || null,
@@ -654,6 +654,7 @@ export const LeadsList = () => {
                   probabilidade_conversao: incomingProb > 0 ? incomingProb : lead.probabilidade_conversao,
                   plano_prospecao_7dias: incomingPlano.length > 0 ? incomingPlano : lead.plano_prospecao_7dias,
                   ai_analise_gerada_em: payload.new.ai_analise_gerada_em || lead.ai_analise_gerada_em,
+                  ai_used_fallback: resolveUsedFallback(payload.new) ?? lead.ai_used_fallback,
                   status: payload.new.status || lead.status,
                   salvo: payload.new.salvo ?? lead.salvo,
                 };
@@ -663,7 +664,8 @@ export const LeadsList = () => {
           );
           
           // Se a análise foi concluída agora, mostrar toast
-          if (payload.new.ai_analise_gerada_em && !payload.old?.ai_analise_gerada_em) {
+          // Texto de reserva gravado pelo backend antigo não é "análise IA concluída".
+          if (payload.new.ai_analise_gerada_em && !payload.old?.ai_analise_gerada_em && resolveUsedFallback(payload.new) !== true) {
             toast({
               title: "✨ Análise IA concluída",
               description: `Lead "${payload.new.nome}" foi analisado com sucesso`,
@@ -1153,8 +1155,8 @@ export const LeadsList = () => {
       updateLeadLocally(updatedLeadObj);
 
       toast({
-        title: "Análise concluída",
-        description: `Lead "${lead.nome}" foi analisado com sucesso`,
+        title: "Análise atualizada",
+        description: `Lead "${lead.nome}" foi analisado pelo Gemini e o resultado foi salvo.`,
       });
 
       const nextUsage = await refetchUsage();

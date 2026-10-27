@@ -34,4 +34,20 @@ describe("analisar-lead-ia: sem análise genérica disfarçada de IA", () => {
   it("não afirma ausência de pixel/tags enquanto a inspeção de HTML está suspensa", () => {
     expect(source).toContain("inspeção automática do HTML do site está suspensa");
   });
+
+  it("duplicata é resolvida antes de chamar o Gemini e antes de cobrar", () => {
+    const dupAt = source.indexOf("isDuplicateRefine(");
+    const geminiAt = source.indexOf("await callGemini(GEMINI_KEY");
+    const chargeAt = source.indexOf("increment_ai_usage");
+    expect(dupAt).toBeGreaterThan(0);
+    expect(dupAt).toBeLessThan(geminiAt);
+    expect(dupAt).toBeLessThan(chargeAt);
+  });
+
+  it("só cobra depois de confirmar a gravação (saved) da análise", () => {
+    const savedCheck = source.indexOf("if (saveError || !saved?.length)");
+    const chargeAt = source.indexOf("increment_ai_usage");
+    expect(savedCheck).toBeGreaterThan(0);
+    expect(savedCheck).toBeLessThan(chargeAt);
+  });
 });

@@ -7,6 +7,20 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import { refineWithAI, resetRefineRequestGateForTests } from "./refineWithAI";
+import {
+  configureSellerProfileStorage,
+  loadSellerProfileForUser,
+  resetSellerProfileStateForTests,
+  saveSellerProfile,
+} from "@/lib/sellerProfile";
+
+const completeProfile = {
+  display_name: "Marina Costa",
+  company_name: "Costa Digital",
+  service_offered: "Criação de sites para negócios locais",
+  offer_description: "Faço sites de uma página com serviços, horário, mapa e botão de WhatsApp para oficinas e lojas.",
+  target_audience: "",
+};
 
 const requestId = "8fd50939-bbef-4dc6-a337-aa8168cc25d1";
 
@@ -24,9 +38,17 @@ const structuredError = (status: number, errorCode: string, retryable: boolean) 
 });
 
 describe("refineWithAI retry policy", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetRefineRequestGateForTests();
     invokeMock.mockReset();
+    resetSellerProfileStateForTests();
+    const memory = new Map<string, unknown>();
+    configureSellerProfileStorage({
+      load: async (userId) => (memory.get(userId) as never) ?? null,
+      save: async (userId, profile) => { memory.set(userId, profile); },
+    });
+    await loadSellerProfileForUser("user-1");
+    await saveSellerProfile(completeProfile);
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -119,5 +141,21 @@ describe("refineWithAI retry policy", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("envia o perfil comercial do assinante junto com o lead (uma única chamada)", async () => {
+    invokeMock.mockResolvedValue({ data: { success: true }, error: null });
+    await refineWithAI({ leadId: "lead-1" }, "test-token", requestId);
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const sent = invokeMock.mock.calls[0][1].body;
+    expect(sent.seller_profile).toMatchObject({ display_name: "Marina Costa", service_offered: "Criação de sites para negócios locais" });
+  });
+
+  it("sem perfil comercial completo NÃO chama a função (sem rede, sem crédito)", async () => {
+    resetSellerProfileStateForTests();
+    await expect(refineWithAI({ leadId: "lead-1" }, "test-token", requestId)).rejects.toMatchObject({
+      payload: { error_code: "REFINE_PROFILE_REQUIRED", retryable: false, credit_consumed: false },
+    });
+    expect(invokeMock).not.toHaveBeenCalled();
   });
 });

@@ -17,9 +17,18 @@ export interface SinaisDigitais {
   has_gtm: boolean;
 }
 
+export type TipoDiaPlano = "mensagem" | "acompanhamento" | "tarefa" | "sem_mensagem";
+
 export interface PlanoProspeccaoDia {
   dia: number;
-  canal: "whatsapp" | "email" | "instagram";
+  /** Planos antigos não têm tipo_dia: dias com mensagem são tratados como "mensagem". */
+  tipo_dia?: TipoDiaPlano;
+  canal: "whatsapp" | "email" | "instagram" | "telefone" | "nenhum";
+  justificativa?: string;
+  condicao?: string;
+  copy_version?: string;
+  fonte?: "gemini" | "legado";
+  preserved_from_previous?: boolean;
   titulo?: string;
   titulo_dia?: string;
   assunto_email?: string;

@@ -42,10 +42,17 @@ import {
   type SdrProspectingStatus,
 } from "@/services/sdrProspectingService";
 import {
-  buildIntelligentPlan,
+  getHistoryStageLabel,
+  getRecommendedDay,
+  getSavedPlanDays,
+  getSdrMessageFromPlan,
   hasExplicitOptOut,
-  extractEmailSubjectAndBody,
+  isColdSequenceObsolete,
+  resolveDayType,
+  resolveLeadHistoryStage,
 } from "@/services/intelligentSevenDayPlan";
+import { savePlanDayEdit } from "@/services/planPersistence";
+import { NO_MESSAGE_LABEL } from "../../../supabase/functions/_shared/lead-analysis";
 import { supabase } from "@/integrations/supabase/client";
 
 interface SdrWhatsAppModalProps {
@@ -67,7 +74,6 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
 }) => {
   const { toast } = useToast();
 
-  const [userService, setUserService] = useState<string>("gestão de tráfego e presença digital");
   const [selectedDay, setSelectedDay] = useState<number>(initialDay || 1);
   const [customPhone, setCustomPhone] = useState<string>("");
   const [isEditingPhone, setIsEditingPhone] = useState<boolean>(false);
@@ -82,27 +88,9 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
   const [editedDaysMessage, setEditedDaysMessage] = useState<Record<number, string>>({});
   const [editedDaysSubject, setEditedDaysSubject] = useState<Record<number, string>>({});
 
-  // Recupera o serviço do contexto salvo
+  // Sincroniza o estado local da execução quando o lead muda (telefone, status, edições em memória)
   useEffect(() => {
     if (lead) {
-      try {
-        const savedCtx = localStorage.getItem("zuno_last_search_context");
-        if (savedCtx) {
-          const parsed = JSON.parse(savedCtx);
-          if (parsed.focus && parsed.focus !== "zuno_internal_prospecting") {
-            setUserService(parsed.focus);
-          } else if (lead.foco && lead.foco !== "zuno_internal_prospecting") {
-            setUserService(lead.foco);
-          }
-        } else if (lead.foco && lead.foco !== "zuno_internal_prospecting") {
-          setUserService(lead.foco);
-        }
-      } catch {
-        if (lead.foco && lead.foco !== "zuno_internal_prospecting") {
-          setUserService(lead.foco);
-        }
-      }
-
       const initialPhone = lead.whatsapp_number || lead.telefone || "";
       setCustomPhone(initialPhone);
       setCurrentStepStatus(
@@ -125,50 +113,45 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
     }
   }, [lead]);
 
-  // Constrói ou recupera o plano de 7 dias com base na fonte única de verdade
-  const planResult = useMemo(() => {
-    if (!lead) return null;
-    return buildIntelligentPlan({
-      lead,
-      userServiceName: userService,
-      existingPlan: lead.plano_prospecao_7dias,
-    });
-  }, [lead, userService]);
+  // O plano exibido e executado é SEMPRE o que está salvo no lead. Nenhuma geração (IA ou local) acontece aqui.
+  const days = useMemo(() => getSavedPlanDays(lead), [lead]);
+  const stage = useMemo(() => (lead ? resolveLeadHistoryStage(lead) : "nao_contatado"), [lead]);
+  const recommendedDay = useMemo(() => getRecommendedDay(days), [days]);
 
   // Atualiza o dia selecionado quando abre o modal ou muda o lead
   useEffect(() => {
-    if (open && planResult) {
+    if (open && days.length) {
       if (initialDay && initialDay >= 1 && initialDay <= 7) {
         setSelectedDay(initialDay);
-      } else if (planResult.currentRecommendedDay) {
-        setSelectedDay(planResult.currentRecommendedDay);
+      } else if (recommendedDay) {
+        setSelectedDay(recommendedDay);
       } else {
         setSelectedDay(1);
       }
     }
-  }, [open, lead?.id, initialDay, planResult?.currentRecommendedDay]);
+  }, [open, lead?.id, initialDay, recommendedDay, days.length]);
 
-  if (!lead || !planResult) return null;
+  if (!lead) return null;
 
-  const isOptedOut = hasExplicitOptOut(lead) || planResult.isOptedOutOrRefused;
-  const currentDayData = planResult.days.find((d) => d.dia === selectedDay) || planResult.days[0];
+  const isOptedOut = hasExplicitOptOut(lead) || stage === "recusa_ou_optout";
+  const currentDayData = days.find((d) => d.dia === selectedDay) || null;
   const phoneSanitized = sanitizeBrazilianPhoneNumber(customPhone);
 
-  // Mensagem e assunto ativos (respeitando edições manuais salvas em memória)
-  const parsedEmail = extractEmailSubjectAndBody(currentDayData?.mensagem || "");
+  // Texto salvo no plano para o dia (e, se o assinante já editou nesta sessão, o texto em edição)
+  const savedForDay = getSdrMessageFromPlan(lead, selectedDay);
+  const dayHasMessage = savedForDay.hasMessage;
   const currentSubject = editedDaysSubject[selectedDay] !== undefined
     ? editedDaysSubject[selectedDay]
-    : (currentDayData?.assunto_email || parsedEmail.subject || `Contato comercial - ${lead.nome}`);
-
-  const rawMessageFromPlan = currentDayData?.canal === "email"
-    ? parsedEmail.body
-    : currentDayData?.mensagem || "";
-
+    : (savedForDay.assuntoEmail || `Contato comercial - ${lead.nome}`);
+  const rawMessageFromPlan = savedForDay.message;
   const activeMessage = editedDaysMessage[selectedDay] !== undefined
     ? editedDaysMessage[selectedDay]
     : rawMessageFromPlan;
+  const dayType = currentDayData ? resolveDayType(currentDayData) : "sem_mensagem";
+  const coldSequenceObsolete = isColdSequenceObsolete(stage);
+  const completedCount = days.filter((d) => d.status_dia === "concluido").length;
 
-  const currentChannel = currentDayData?.canal || "whatsapp";
+  const currentChannel = currentDayData?.canal && currentDayData.canal !== "nenhum" ? currentDayData.canal : "nenhum";
 
   const handleCopySubject = async () => {
     try {
@@ -271,63 +254,43 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
     });
   };
 
-  const handleResetDayToStandard = () => {
-    if (!lead) return;
-    const standardPlan = buildIntelligentPlan({
-      lead,
-      userServiceName: lead.foco,
-      forceUpdateOldCopies: true,
+  const handleRestoreSavedText = () => {
+    setEditedDaysMessage((prev) => {
+      const next = { ...prev };
+      delete next[selectedDay];
+      return next;
     });
-    const standardDay = standardPlan.days.find((d) => d.dia === selectedDay);
-    if (standardDay) {
-      setEditedDaysMessage((prev) => ({
-        ...prev,
-        [selectedDay]: standardDay.mensagem,
-      }));
-      if (standardDay.assunto_email) {
-        setEditedDaysSubject((prev) => ({
-          ...prev,
-          [selectedDay]: standardDay.assunto_email!,
-        }));
-      }
-      toast({
-        title: "Padrão restaurado",
-        description: `Mensagem do Dia ${selectedDay} redefinida para a copy padrão humana.`,
-      });
-    }
+    setEditedDaysSubject((prev) => {
+      const next = { ...prev };
+      delete next[selectedDay];
+      return next;
+    });
+    toast({
+      title: "Texto salvo restaurado",
+      description: `A mensagem do Dia ${selectedDay} voltou ao texto salvo no plano.`,
+    });
   };
 
   const handleSavePlanEdits = async () => {
-    if (!lead) return;
+    if (!lead || !dayHasMessage) return;
     setIsSavingPlan(true);
     try {
-      const updatedDays: PlanoProspeccaoDia[] = planResult.days.map((d) => {
-        if (d.dia === selectedDay) {
-          const finalMsg = d.canal === "email" && currentSubject
-            ? `Assunto: ${currentSubject}\n\n${activeMessage}`
-            : activeMessage;
-          return {
-            ...d,
-            mensagem: finalMsg,
-            assunto_email: d.canal === "email" ? currentSubject : d.assunto_email,
-          };
-        }
-        return d;
-      });
-
-      const { error } = await supabase
-        .from("leads")
-        .update({
-          plano_prospeccao: updatedDays,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", lead.id);
-
-      if (error) throw error;
+      // Grava só o dia editado, marcado como edição manual (inviolável em novas versões do plano).
+      await savePlanDayEdit(
+        supabase as never,
+        lead.id,
+        {
+          dia: selectedDay,
+          mensagem: activeMessage,
+          ...(currentDayData?.canal === "email" ? { assunto_email: currentSubject } : {}),
+          editedAt: new Date().toISOString(),
+        },
+        days,
+      );
 
       toast({
         title: "Mensagem salva no plano!",
-        description: `As edições do Dia ${selectedDay} foram salvas com sucesso.`,
+        description: `As edições do Dia ${selectedDay} foram salvas e não serão sobrescritas.`,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro ao salvar alterações no plano.";
@@ -407,6 +370,27 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
     }
   };
 
+  if (days.length === 0) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md bg-background border border-border">
+          <DialogHeader>
+            <DialogTitle>Este lead ainda não tem plano</DialogTitle>
+            <DialogDescription>
+              O SDR executa exatamente o texto salvo no plano do lead, e esse plano ainda não foi gerado.
+              Gerar a análise é uma ação sua e usa 1 análise de IA. Abrir o SDR nunca gera IA.
+            </DialogDescription>
+          </DialogHeader>
+          {onRequestRefine && (
+            <Button type="button" onClick={() => onRequestRefine(lead)} className="w-full">
+              Gerar análise com IA
+            </Button>
+          )}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 bg-background border border-border">
@@ -434,7 +418,7 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
                   : "border-emerald-500/30 text-emerald-500 bg-emerald-500/5"
               }`}
             >
-              {isOptedOut ? "Opt-out Ativo" : planResult.historyStageLabel}
+              {isOptedOut ? "Opt-out Ativo" : getHistoryStageLabel(stage)}
             </Badge>
           </div>
         </DialogHeader>
@@ -503,12 +487,12 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
               Etapa do Plano (7 Dias Progressivos)
             </Label>
             <span className="text-[11px] text-muted-foreground">
-              {planResult.resumoContinuidade}
+              {completedCount} de {days.length} etapas concluídas
             </span>
           </div>
 
           <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
-            {planResult.days.map((d) => {
+            {days.map((d) => {
               const isSelected = d.dia === selectedDay;
               const isBlocked = isOptedOut || d.status_dia === "bloqueado_optout";
               return (
@@ -528,7 +512,7 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
                 >
                   <span>Dia {d.dia}</span>
                   <span className="text-[9px] font-normal opacity-80">
-                    {d.canal === "whatsapp" ? "Wpp" : d.canal === "email" ? "E-mail" : "Direct"}
+                    {resolveDayType(d) === "tarefa" ? "Tarefa" : resolveDayType(d) === "sem_mensagem" ? "Sem msg" : d.canal === "whatsapp" ? "Wpp" : d.canal === "email" ? "E-mail" : d.canal === "telefone" ? "Ligar" : d.canal === "instagram" ? "Direct" : "—"}
                   </span>
                 </Button>
               );
@@ -558,12 +542,33 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
           )}
 
           {currentDayData?.acao_sugerida && (
+            <p className="text-muted-foreground whitespace-pre-wrap">
+              <span className="font-medium text-foreground">{dayType === "tarefa" ? "O que fazer:" : "Ação sugerida:"}</span> {currentDayData.acao_sugerida}
+            </p>
+          )}
+
+          {currentDayData?.condicao && (
             <p className="text-muted-foreground">
-              <span className="font-medium text-foreground">Ação sugerida:</span> {currentDayData.acao_sugerida}
+              <span className="font-medium text-foreground">Quando enviar:</span> {currentDayData.condicao}
+            </p>
+          )}
+
+          {currentDayData?.justificativa && (
+            <p className="text-muted-foreground">
+              <span className="font-medium text-foreground">Por que:</span> {currentDayData.justificativa}
             </p>
           )}
         </div>
 
+        {coldSequenceObsolete && !isOptedOut && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-600 dark:text-amber-400">
+            A empresa já respondeu ou avançou na conversa. As mensagens frias deste plano podem não fazer mais sentido:
+            leia a resposta dela antes de enviar qualquer texto.
+          </div>
+        )}
+
+        {dayHasMessage ? (
+          <>
         {/* Campo do Assunto de E-mail (quando canal = email) */}
         {currentChannel === "email" && (
           <div className="space-y-1.5">
@@ -637,9 +642,19 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
           <div className="flex items-center justify-between">
             <Label className="text-xs font-medium text-foreground flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-              Mensagem do Dia {selectedDay} (Edite e revise antes do contato)
+              Mensagem do Dia {selectedDay} (texto salvo no plano; edite e revise antes do contato)
             </Label>
             <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleRestoreSavedText}
+                className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                title="Descarta as alterações ainda não salvas e volta ao texto salvo no plano"
+              >
+                Restaurar texto salvo
+              </Button>
               <Button
                 type="button"
                 variant="ghost"
@@ -763,6 +778,13 @@ export const SdrWhatsAppModal: React.FC<SdrWhatsAppModalProps> = ({
             O Zuno não dispara mensagens automáticas. Você mantém o controle manual total do envio.
           </p>
         </div>
+
+          </>
+        ) : (
+          <div className="p-3.5 bg-muted/40 border border-border/60 rounded-lg text-sm text-muted-foreground" data-testid="sdr-no-message">
+            {NO_MESSAGE_LABEL}. Não há texto para enviar neste dia{dayType === "tarefa" ? ": faça a tarefa acima e registre o resultado abaixo" : ""}.
+          </div>
+        )}
 
         {/* Painel de Registro do Resultado Real no CRM */}
         <div className="mt-2 pt-3 border-t border-border space-y-2.5">

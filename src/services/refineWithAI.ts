@@ -1,7 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getSellerProfileForRequest } from "@/lib/sellerProfile";
 import {
   RefineClientError,
   buildRefineRequestBody,
+  createPublicErrorCode,
   createRefineRequestId,
   logRefineEvent,
   normalizeRefineError,
@@ -103,10 +105,28 @@ async function executeRefine<T>(
 }
 
 export async function refineWithAI<T>(
-  body: Record<string, unknown>,
+  inputBody: Record<string, unknown>,
   accessToken: string,
   requestId = createRefineRequestId(),
 ): Promise<{ data: T; requestId: string }> {
+  // Perfil comercial do assinante: sem ele não há mensagem honesta a gerar. Falha localmente, sem rede e sem crédito.
+  const sellerProfile = getSellerProfileForRequest();
+  if (!sellerProfile) {
+    const safeMessage = "Antes de gerar mensagens, informe seu nome, o serviço que você oferece e uma descrição concreta da oferta. Nenhum crédito foi consumido.";
+    throw new RefineClientError({
+      success: false,
+      request_id: requestId,
+      public_error_code: createPublicErrorCode(requestId),
+      category: "validation_error",
+      safe_message: safeMessage,
+      retryable: false,
+      error_code: "REFINE_PROFILE_REQUIRED",
+      error_message: safeMessage,
+      credit_consumed: false,
+    }, 422, true);
+  }
+  const body = { ...inputBody, seller_profile: sellerProfile };
+
   const logicalLeadKey = getLogicalLeadKey(body, requestId);
   const cooldown = cooldownByLead.get(logicalLeadKey);
   if (cooldown) {

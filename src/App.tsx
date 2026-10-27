@@ -11,6 +11,7 @@ import { AdminErrorBoundary } from "@/components/AdminErrorBoundary";
 import { useOAuthCallback } from "@/hooks/useOAuthCallback";
 import LandingProspeccaoIA from "./pages/LandingProspeccaoIA";
 import { AuthProvider } from "@/hooks/useAuth";
+import { SellerProfileHost } from "@/components/profile/SellerProfileDialog";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminRoute } from "@/components/AdminRoute";
 import { initTracking } from "@/lib/tracking";
@@ -130,6 +131,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <AuthProvider>
+            <SellerProfileHost />
             <BrowserRouter>
               <AppContent />
             </BrowserRouter>

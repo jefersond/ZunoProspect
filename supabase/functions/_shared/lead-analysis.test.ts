@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   ANALYSIS_PROMPT_VERSION,
+  DEFAULT_MODELS,
+  MAX_HTTP_ATTEMPTS,
+  MAX_OUTPUT_TOKENS,
+  classifyHttpStatus,
   COPY_VERSION,
   buildAnalysisPrompt,
   buildDiagnosticoBullets,
@@ -17,61 +21,10 @@ import {
   toStoredDay,
   validateAnalysis,
   type DayChannel,
-  type SellerProfile,
 } from "./lead-analysis";
+import { GEMINI_CONTRACT_REVISION, createFakeGeminiFetch, validateGenerateContentBody } from "./gemini-contract";
 
-// FIXTURES escritos à mão para exercitar o validador. NÃO são saídas do Gemini.
-const profile: SellerProfile = {
-  display_name: "Marina Costa",
-  company_name: "Costa Digital",
-  service_offered: "Criação de sites para negócios locais",
-  offer_description: "Faço sites de uma página com serviços, horário, mapa e botão de WhatsApp para oficinas e lojas.",
-  target_audience: "Oficinas e comércio local",
-};
-
-const lead = {
-  nome: "Auto Mecânica Irmãos Lima",
-  nicho: "oficina mecânica",
-  cidade: "Serra",
-  endereco: "Av. Principal, 100 - Serra, ES",
-  website: null,
-  instagram: null,
-  email: null,
-  phone: "27996543210",
-  rating: 4.7,
-  reviews: 46,
-  status: "novo",
-  notas: null,
-};
-
-const day = (dia: number, over: Record<string, unknown> = {}) => ({
-  dia, tipo: "sem_mensagem", canal: "nenhum", titulo: `Dia ${dia}`, objetivo: "Aguardar", acao: "Aguardar resposta",
-  mensagem: "", assunto_email: "", justificativa: "Sem fato novo para justificar contato.", condicao: "",
-  objecao_provavel: "", resposta_sugerida: "", ...over,
-});
-
-const goodRaw = () => ({
-  diagnostico: {
-    observado: ["Oficina em Serra com 46 avaliações no Google (nota 4,7) e celular cadastrado; nenhum site no perfil."],
-    permite_concluir: "Há reputação construída e um canal direto por celular.",
-    nao_permite_concluir: "Não permite concluir se existe site fora do perfil nem se o dono quer um.",
-    hipotese_comercial: "Uma página única com serviços e horário pode complementar o perfil do Google, se o dono sentir falta disso.",
-    pergunta_de_validacao: "Vocês já têm site ou preferem usar só o Google e o WhatsApp?",
-  },
-  resumo_estrategia: "Abrir com uma pergunta factual sobre site e só depois falar da página.",
-  plano: [
-    day(1, { tipo: "mensagem", canal: "whatsapp", acao: "Enviar a abertura", objetivo: "Abrir conversa",
-      mensagem: "Oi, tudo bem? Aqui é a Marina, da Costa Digital. Faço sites simples para oficinas: serviços, horário e WhatsApp numa página só. A Irmãos Lima tem 46 avaliações no Google, mas não achei site no perfil. Vocês já têm um?",
-      objecao_provavel: "Já temos Instagram.", resposta_sugerida: "O site complementa; ele reúne serviços e horário num só lugar." }),
-    day(2, { tipo: "tarefa", acao: "Pesquise o nome da oficina e confirme se existe site ou Facebook fora do perfil do Google." }),
-    day(3),
-    day(4, { tipo: "acompanhamento", canal: "whatsapp", condicao: "Só se o Dia 1 foi enviado e não houve resposta há 3 dias, e o Dia 2 confirmou que não há site.",
-      mensagem: "Oi, aqui é a Marina de novo. Confirmei que o Google mostra as avaliações e o telefone da Irmãos Lima, mas não há uma página com serviços e horário. Posso te explicar como ficaria, em 5 minutos?" }),
-    day(5),
-    day(6),
-    day(7, { acao: "Registrar o resultado e encerrar a sequência sem insistência." }),
-  ],
-});
+import { day, goodRaw, lead, profile } from "./test-fixtures";
 
 const ctx = { channels: ["whatsapp", "telefone"] as DayChannel[], profile, stage: "nao_contatado" as const };
 
@@ -255,16 +208,18 @@ describe("saída salva", () => {
     expect(stored[2].acao_sugerida).toBeTruthy();
   });
 
-  it("payload registra 1 chamada, versão do prompt e não contém score", () => {
+  it("payload registra tentativas, versão do prompt e não contém score", () => {
     const r = validateAnalysis(goodRaw(), ctx);
     if (!r.ok) throw new Error("fixture inválida");
     const payload = buildPersistedPayload({
       leadId: "l1", requestId: "r1", model: "gemini-x", generatedAt: "2026-10-27T00:00:00Z",
       facts: buildVerifiedFacts(lead), profile, analysis: r.analysis, days: r.analysis.plano.map(toStoredDay),
-      history: [], warnings: r.warnings, usage: null,
+      history: [], warnings: r.warnings,
+      telemetry: { attempts: [], http_attempts: 1, generations_with_content: 1, model_used: "gemini-x", finish_reason: "STOP", usage: null, billing: "billed" },
     });
     expect(payload.prompt_version).toBe(ANALYSIS_PROMPT_VERSION);
-    expect(payload.debug.gemini_calls).toBe(1);
+    expect(payload.debug.http_attempts).toBe(1);
+    expect(payload.debug.generations_with_content).toBe(1);
     expect(JSON.stringify(payload)).not.toMatch(/probabilidade|fit_level|score/);
     expect(payload.plano_prospeccao_7dias).toHaveLength(7);
   });
@@ -307,52 +262,136 @@ describe("regeneração preserva edições e histórico", () => {
   });
 });
 
-describe("custo: uma chamada Gemini por análise", () => {
+describe("contrato HTTP oficial do generateContent (sem chamadas reais)", () => {
   const prompt = buildAnalysisPrompt(buildVerifiedFacts(lead), profile);
-  const ok = (text: string, usage = { promptTokenCount: 900, candidatesTokenCount: 700, totalTokenCount: 1600 }) => ({
-    ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text }] } }], usageMetadata: usage }),
-  });
-  const http = (status: number) => ({ ok: false, status, json: async () => ({}) });
+  const goodJson = JSON.stringify(goodRaw());
 
-  it("sucesso: exatamente 1 chamada e uso registrado", async () => {
-    let calls = 0;
-    const r = await runGeminiAnalysis({ apiKey: "k", prompt, fetchFn: async () => { calls++; return ok(JSON.stringify(goodRaw())); } });
-    expect(calls).toBe(1);
-    expect(r).toMatchObject({ ok: true, billed_calls: 1, usage: { prompt_tokens: 900, output_tokens: 700 } });
+  it(`o corpo enviado respeita o contrato oficial (revisão ${GEMINI_CONTRACT_REVISION})`, () => {
+    expect(validateGenerateContentBody(buildGeminiRequestBody(prompt))).toEqual([]);
+    for (const level of ["MINIMAL", "LOW", "MEDIUM", "HIGH"] as const) {
+      expect(validateGenerateContentBody(buildGeminiRequestBody(prompt, { thinkingLevel: level }))).toEqual([]);
+    }
+    expect(validateGenerateContentBody(buildGeminiRequestBody(prompt, { thinkingLevel: null }))).toEqual([]);
   });
 
-  it("JSON inválido NÃO tenta outro modelo (evita segunda geração cobrada)", async () => {
-    let calls = 0;
-    const r = await runGeminiAnalysis({ apiKey: "k", prompt, fetchFn: async () => { calls++; return ok("{não é json"); } });
-    expect(calls).toBe(1);
-    expect(r).toMatchObject({ ok: false, kind: "invalid_output", billed_calls: 1 });
+  it("usa responseFormat.text com mimeType em ENUM (APPLICATION_JSON) e não o campo obsoleto", () => {
+    const body = buildGeminiRequestBody(prompt) as { generationConfig: Record<string, unknown> };
+    expect(body.generationConfig.responseFormat).toMatchObject({ text: { mimeType: "APPLICATION_JSON" } });
+    expect(body.generationConfig).not.toHaveProperty("responseSchema");
+    expect(body.generationConfig).not.toHaveProperty("responseMimeType");
+    expect(body.generationConfig).not.toHaveProperty("temperature"); // ignorado no Gemini 3.6 Flash e posteriores
   });
 
-  it("erro HTTP antes de gerar conteúdo passa ao próximo modelo e só 1 é efetivamente gerado", async () => {
-    const seen: string[] = [];
-    const r = await runGeminiAnalysis({
-      apiKey: "k", prompt,
-      fetchFn: async (url) => { seen.push(url); return seen.length === 1 ? http(503) : ok(JSON.stringify(goodRaw())); },
-    });
-    expect(seen).toHaveLength(2);
-    expect(r).toMatchObject({ ok: true, billed_calls: 1 });
+  it("REGRESSÃO: o formato anterior ('application/json') é recusado pelo contrato (seria HTTP 400)", () => {
+    const old = buildGeminiRequestBody(prompt) as { generationConfig: { responseFormat: { text: { mimeType: string } } } };
+    old.generationConfig.responseFormat.text.mimeType = "application/json";
+    const errors = validateGenerateContentBody(old);
+    expect(errors.join(" ")).toMatch(/mime_type: Invalid value "application\/json"/);
   });
 
-  it("401/403 interrompe a cadeia; tudo indisponível não cobra", async () => {
-    let calls = 0;
-    const denied = await runGeminiAnalysis({ apiKey: "k", prompt, fetchFn: async () => { calls++; return http(403); } });
-    expect(calls).toBe(1);
-    expect(denied).toMatchObject({ ok: false, kind: "provider_unavailable", billed_calls: 0 });
-    calls = 0;
-    const down = await runGeminiAnalysis({ apiKey: "k", prompt, fetchFn: async () => { calls++; throw new Error("boom"); } });
-    expect(calls).toBe(3);
-    expect(down).toMatchObject({ ok: false, billed_calls: 0 });
+  type Mutable = { foo?: number; generationConfig: { responseMimeTyp?: string; responseSchema?: unknown; thinkingConfig: { thinkingLevel: string }; responseFormat: { text: { mimeType: string; schema: { properties: { resumo_estrategia: { pattern?: string } } } } } } };
+  it.each([
+    ["campo desconhecido no generationConfig", (b: Mutable) => { b.generationConfig.responseMimeTyp = "x"; }, /Unknown name "responseMimeTyp"/],
+    ["thinkingLevel inválido", (b: Mutable) => { b.generationConfig.thinkingConfig.thinkingLevel = "low"; }, /thinking_level/],
+    ["palavra-chave de schema sem suporte (pattern)", (b: Mutable) => { b.generationConfig.responseFormat.text.schema.properties.resumo_estrategia.pattern = "^a"; }, /não suportada "pattern"/],
+    ["campos obsoletos de formato", (b: Mutable) => { b.generationConfig.responseSchema = {}; }, /obsoletos/],
+    ["schema sem mimeType JSON", (b: Mutable) => { b.generationConfig.responseFormat.text.mimeType = "TEXT_PLAIN"; }, /só se aplica com mime_type APPLICATION_JSON/],
+    ["campo desconhecido no topo", (b: Mutable) => { b.foo = 1; }, /Unknown name "foo"/],
+  ])("o contrato recusa: %s", (_n, mutate, expected) => {
+    const body = JSON.parse(JSON.stringify(buildGeminiRequestBody(prompt))) as Mutable;
+    mutate(body);
+    expect(validateGenerateContentBody(body).join(" ")).toMatch(expected);
   });
 
-  it("o corpo da requisição usa o schema estruturado e limita a saída", () => {
-    const body = buildGeminiRequestBody(prompt) as { generationConfig: { maxOutputTokens: number; responseFormat: { text: { mimeType: string; schema: { required: string[] } } } } };
-    expect(body.generationConfig.maxOutputTokens).toBeLessThanOrEqual(5000);
-    expect(body.generationConfig.responseFormat.text.mimeType).toBe("application/json");
-    expect(body.generationConfig.responseFormat.text.schema.required).toEqual(["diagnostico", "resumo_estrategia", "plano"]);
+  it("o schema usa só palavras-chave suportadas e todo 'required' existe em 'properties'", () => {
+    // validateGenerateContentBody já percorre o schema; garante que nosso schema real passa sem erros.
+    expect(validateGenerateContentBody(buildGeminiRequestBody("x"))).toEqual([]);
+  });
+
+  it("cadeia de modelos: sem o alias aposentado gemini-3.5-flash e sem repetição", () => {
+    expect(DEFAULT_MODELS).toEqual(["gemini-3.6-flash", "gemini-3.5-flash-lite"]);
+    expect(DEFAULT_MODELS).not.toContain("gemini-3.5-flash");
+    expect(new Set(DEFAULT_MODELS).size).toBe(DEFAULT_MODELS.length);
+  });
+});
+
+describe("custo: tentativas, tokens e cobrança (servidor falso que valida o contrato)", () => {
+  const prompt = buildAnalysisPrompt(buildVerifiedFacts(lead), profile);
+  const good = JSON.stringify(goodRaw());
+  const run = (script: Parameters<typeof createFakeGeminiFetch>[0]["script"], extra: Partial<Parameters<typeof runGeminiAnalysis>[0]> = {}) => {
+    const fake = createFakeGeminiFetch({ script });
+    return runGeminiAnalysis({ apiKey: "k", prompt, fetchFn: fake.fetchFn as never, ...extra }).then((result) => ({ result, calls: fake.calls }));
+  };
+
+  it("caminho normal: UMA requisição, UMA geração, tokens separados (inclui raciocínio) e modelo usado", async () => {
+    const { result, calls } = await run([{ status: 200, text: good, thoughtText: "raciocínio interno", usage: { promptTokenCount: 1600, candidatesTokenCount: 1400, thoughtsTokenCount: 700, totalTokenCount: 3700 } }]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].contractErrors).toEqual([]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.raw).toEqual(JSON.parse(good)); // a parte "thought" não entra na resposta
+    expect(result.usage).toEqual({ prompt_tokens: 1600, output_tokens: 1400, thoughts_tokens: 700, total_tokens: 3700, cached_tokens: null });
+    expect(result.telemetry).toMatchObject({ http_attempts: 1, generations_with_content: 1, model_used: "gemini-3.6-flash", finish_reason: "STOP", billing: "billed" });
+  });
+
+  it("HTTP 400 (configuração inválida): encerra na hora, 1 tentativa, não faturada, sem tentar outro modelo", async () => {
+    const fake = createFakeGeminiFetch({ script: [{ status: 200, text: good }] });
+    // força um corpo inválido: modelo recebe thinkingLevel fora do enum
+    const result = await runGeminiAnalysis({ apiKey: "k", prompt, fetchFn: fake.fetchFn as never, request: { thinkingLevel: "invalido" as never } });
+    expect(fake.calls).toHaveLength(1);
+    expect(result).toMatchObject({ ok: false, kind: "invalid_request", telemetry: { http_attempts: 1, billing: "not_billed", generations_with_content: 0 } });
+    expect(fake.calls[0].contractErrors.join(" ")).toMatch(/thinking_level/);
+  });
+
+  it("401/403 encerram (chave/permissão) sem repetir", async () => {
+    for (const status of [401, 403]) {
+      const { result, calls } = await run([{ status }]);
+      expect(calls).toHaveLength(1);
+      expect(result).toMatchObject({ ok: false, kind: "auth_error", telemetry: { billing: "not_billed" } });
+    }
+  });
+
+  it("429 passa ao modelo de reserva, dentro do teto de tentativas", async () => {
+    const { result, calls } = await run([{ status: 429 }, { status: 200, text: good }]);
+    expect(calls.map((c) => c.model)).toEqual(["gemini-3.6-flash", "gemini-3.5-flash-lite"]);
+    expect(result).toMatchObject({ ok: true, model: "gemini-3.5-flash-lite", telemetry: { http_attempts: 2, generations_with_content: 1, billing: "billed" } });
+  });
+
+  it(`teto: nunca mais que ${MAX_HTTP_ATTEMPTS} requisições HTTP, mesmo se todas falharem`, async () => {
+    const { result, calls } = await run([{ status: 503 }], { models: ["a", "b", "c", "d"] });
+    expect(calls).toHaveLength(MAX_HTTP_ATTEMPTS);
+    expect(result).toMatchObject({ ok: false, kind: "provider_unavailable", telemetry: { http_attempts: MAX_HTTP_ATTEMPTS } });
+  });
+
+  it("5xx e timeout têm consumo DESCONHECIDO (não é o mesmo que 'não faturada')", async () => {
+    const down = await run([{ status: 503 }]);
+    expect(down.result.telemetry.billing).toBe("unknown");
+    const slow = await run([{ throws: "timeout" }]);
+    expect(slow.result.telemetry).toMatchObject({ billing: "unknown", attempts: expect.arrayContaining([expect.objectContaining({ outcome: "timeout" })]) });
+    const rateLimited = await run([{ status: 429 }]);
+    expect(rateLimited.result.telemetry.billing).toBe("not_billed");
+  });
+
+  it.each([
+    ["JSON inválido", { status: 200 as const, text: "{não é json" }, "invalid_json", "billed"],
+    ["resposta vazia", { status: 200 as const, text: null }, "empty", "unknown"],
+    ["truncada por limite de tokens", { status: 200 as const, text: '{"diagnostico":', finishReason: "MAX_TOKENS" }, "truncated", "billed"],
+  ])("200 com %s: NUNCA dispara nova requisição", async (_n, step, outcome, billing) => {
+    const { result, calls } = await run([step, { status: 200, text: good }]);
+    expect(calls).toHaveLength(1);
+    expect(result).toMatchObject({ ok: false, kind: "invalid_output" });
+    expect(result.telemetry.attempts[0]).toMatchObject({ outcome, billing });
+  });
+
+  it("limite de saída explícito no pedido", async () => {
+    const { calls } = await run([{ status: 200, text: good }]);
+    expect((calls[0].body as { generationConfig: { maxOutputTokens: number } }).generationConfig.maxOutputTokens).toBe(MAX_OUTPUT_TOKENS);
+  });
+
+  it.each([
+    [400, "not_billed", false], [401, "not_billed", false], [403, "not_billed", false],
+    [404, "not_billed", true], [429, "not_billed", true], [500, "unknown", true], [503, "unknown", true], [504, "unknown", true],
+  ])("classificação do HTTP %i: %s, próximo modelo=%s", (status, billing, next) => {
+    expect(classifyHttpStatus(status)).toMatchObject({ billing, nextModel: next });
   });
 });

@@ -240,6 +240,11 @@ describe("Gerar análise/nova versão: somente por ação explícita, com perfil
     fireEvent.click(within(dialog).getByText("Gerar análise com IA"));
     await waitFor(() => expect(refineSpy).toHaveBeenCalledTimes(1));
     expect(refineSpy.mock.calls[0][0]).toMatchObject({ replace_existing: false });
+    // Campos que a Edge Function ANTIGA lê continuam sendo enviados (compatibilidade na transição)
+    const sent = refineSpy.mock.calls[0][0] as Record<string, unknown>;
+    for (const key of ["leadId", "lead_id", "lead", "search_context", "analysis_context", "foco", "nome", "cidade", "nicho"]) {
+      expect(sent).toHaveProperty(key);
+    }
   });
 
   it("lead com plano: pede confirmação; cancelar não chama IA; confirmar chama uma vez pedindo substituição", async () => {

@@ -31,7 +31,8 @@ export class AppError extends Error {
   readonly occurredAt = new Date().toISOString();
 
   constructor(options: AppErrorOptions) {
-    super(options.safeMessage, { cause: options.cause });
+    super(options.safeMessage);
+    if (options.cause !== undefined) (this as { cause?: unknown }).cause = options.cause;
     this.name = "AppError";
     this.internalCode = options.internalCode;
     this.publicCode = createPublicErrorCode(options.requestId);

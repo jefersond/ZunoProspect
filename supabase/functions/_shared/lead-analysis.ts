@@ -639,7 +639,7 @@ export function buildPersistedPayload(input: {
   days: StoredDay[];
   history: Record<string, unknown>[];
   warnings: string[];
-  usage: GeminiUsage | null;
+  telemetry: GeminiTelemetry;
 }) {
   const { analysis } = input;
   return {
@@ -662,9 +662,12 @@ export function buildPersistedPayload(input: {
     history: input.history,
     debug: {
       request_id: input.requestId,
-      gemini_calls: 1,
+      http_attempts: input.telemetry.http_attempts,
+      generations_with_content: input.telemetry.generations_with_content,
+      model_used: input.telemetry.model_used,
+      finish_reason: input.telemetry.finish_reason,
       validation_warnings: input.warnings,
-      usage: input.usage,
+      usage: input.telemetry.usage,
     },
   };
 }
@@ -672,27 +675,98 @@ export function buildPersistedPayload(input: {
 // ───────────────────────── Chamada Gemini (uma por análise) ─────────────────────────
 
 export interface GeminiUsage {
+  /** promptTokenCount */
   prompt_tokens: number | null;
+  /** candidatesTokenCount (texto visível gerado) */
   output_tokens: number | null;
+  /** thoughtsTokenCount (raciocínio; cobrado como saída segundo as páginas de preço consultadas) */
+  thoughts_tokens: number | null;
+  /** totalTokenCount */
   total_tokens: number | null;
+  /** cachedContentTokenCount */
+  cached_tokens: number | null;
 }
 
-export const DEFAULT_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"];
-export const MAX_OUTPUT_TOKENS = 5000;
+/**
+ * Modelos, em ordem de preferência. `gemini-3.5-flash` NÃO entra: foi aposentado em 8/out/2026 e a API o roteia
+ * para `gemini-3.6-flash`, então usá-lo como "reserva" repetiria o mesmo modelo.
+ * Fonte: notas de versão do Gemini API (consultadas por busca; ai.google.dev não é acessível desta sessão).
+ */
+export const DEFAULT_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite"];
+/** Teto de requisições HTTP por análise, somando todos os modelos. */
+export const MAX_HTTP_ATTEMPTS = 2;
+/** Teto de tokens de saída. Inclui o raciocínio quando o modelo pensa, por isso fica acima do texto visível (~1.500). */
+export const MAX_OUTPUT_TOKENS = 6000;
+export type ThinkingLevel = "MINIMAL" | "LOW" | "MEDIUM" | "HIGH";
+export const DEFAULT_THINKING_LEVEL: ThinkingLevel = "LOW";
 
-export function buildGeminiRequestBody(prompt: string) {
+export interface GeminiRequestOptions {
+  /** null desliga o campo (usa o padrão do modelo). */
+  thinkingLevel?: ThinkingLevel | null;
+  maxOutputTokens?: number;
+  /** Só para testes de contrato baratos (schema mínimo). A análise real usa analysisResponseSchema. */
+  schema?: unknown;
+}
+
+/**
+ * Corpo de generateContent no formato atual da API (v1beta, revisão 20261026 do documento de descoberta):
+ * `generationConfig.responseFormat.text` com `mimeType` ENUM (`APPLICATION_JSON`, não "application/json") e `schema`.
+ * `responseSchema` está marcado como obsoleto ("Use response_format instead").
+ */
+export function buildGeminiRequestBody(prompt: string, options: GeminiRequestOptions = {}) {
+  const thinkingLevel = options.thinkingLevel === undefined ? DEFAULT_THINKING_LEVEL : options.thinkingLevel;
   return {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: {
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
-      responseFormat: { text: { mimeType: "application/json", schema: analysisResponseSchema } },
+      maxOutputTokens: options.maxOutputTokens ?? MAX_OUTPUT_TOKENS,
+      ...(thinkingLevel ? { thinkingConfig: { thinkingLevel } } : {}),
+      responseFormat: { text: { mimeType: "APPLICATION_JSON", schema: options.schema ?? analysisResponseSchema } },
     },
   };
 }
 
+/** "billed": a API devolveu conteúdo. "unknown": pode ter havido geração/raciocínio cobrado. "not_billed": rejeitada antes de gerar. */
+export type BillingCertainty = "not_billed" | "unknown" | "billed";
+
+export interface AttemptLog {
+  model: string;
+  http_status: number | null;
+  outcome: "ok" | "http_error" | "timeout" | "network_error" | "empty" | "invalid_json" | "truncated";
+  billing: BillingCertainty;
+}
+
+export interface GeminiTelemetry {
+  attempts: AttemptLog[];
+  http_attempts: number;
+  /** Respostas 200 com conteúdo gerado (é o que de fato gera custo previsível). */
+  generations_with_content: number;
+  model_used: string | null;
+  finish_reason: string | null;
+  usage: GeminiUsage | null;
+  /** Pior caso entre as tentativas. */
+  billing: BillingCertainty;
+}
+
+export type GeminiFailureKind = "provider_unavailable" | "invalid_output" | "invalid_request" | "auth_error";
+
 export type GeminiRunResult =
-  | { ok: true; raw: unknown; model: string; usage: GeminiUsage | null; billed_calls: number }
-  | { ok: false; kind: "provider_unavailable" | "invalid_output"; error: string; billed_calls: number };
+  | { ok: true; raw: unknown; model: string; usage: GeminiUsage | null; telemetry: GeminiTelemetry }
+  | { ok: false; kind: GeminiFailureKind; error: string; telemetry: GeminiTelemetry };
+
+/**
+ * Classificação de status HTTP (premissas a confirmar na página de faturamento do provedor, inacessível desta sessão):
+ *  - 400/401/403: configuração, chave ou permissão. Rejeitadas antes de gerar → não faturadas. NÃO repetir: o erro é nosso.
+ *  - 404: modelo inexistente → não faturada; pode tentar o próximo modelo.
+ *  - 429: limite de taxa/cota → não faturada; pode tentar o próximo modelo (dentro do teto de tentativas).
+ *  - 5xx: consumo DESCONHECIDO (o servidor pode ter começado a gerar).
+ */
+export function classifyHttpStatus(status: number): { billing: BillingCertainty; nextModel: boolean; kind: GeminiFailureKind } {
+  if (status === 400) return { billing: "not_billed", nextModel: false, kind: "invalid_request" };
+  if (status === 401 || status === 403) return { billing: "not_billed", nextModel: false, kind: "auth_error" };
+  if (status === 404 || status === 429) return { billing: "not_billed", nextModel: true, kind: "provider_unavailable" };
+  if (status >= 500 || status === 408) return { billing: "unknown", nextModel: true, kind: "provider_unavailable" };
+  return { billing: "not_billed", nextModel: false, kind: "invalid_request" };
+}
 
 type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{
   ok: boolean;
@@ -700,10 +774,15 @@ type FetchLike = (url: string, init: { method: string; headers: Record<string, s
   json: () => Promise<unknown>;
 }>;
 
+const worstBilling = (attempts: AttemptLog[]): BillingCertainty =>
+  attempts.some((a) => a.billing === "billed") ? "billed" : attempts.some((a) => a.billing === "unknown") ? "unknown" : "not_billed";
+
 /**
- * Faz no máximo UMA chamada que chega a gerar saída. Trocar de modelo só acontece quando a chamada falha
- * ANTES de gerar conteúdo (HTTP de erro, timeout, resposta vazia). Se o modelo respondeu com conteúdo que não
- * é JSON válido, NÃO tenta outro modelo: uma segunda geração seria cobrada de novo.
+ * UMA geração é o caminho normal. Regras de custo:
+ *  - no máximo `maxAttempts` requisições HTTP no total (padrão 2);
+ *  - 400/401/403 encerram na hora (erro de configuração não se resolve repetindo);
+ *  - resposta 200 (com conteúdo, vazia, truncada ou JSON inválido) NUNCA dispara outra requisição;
+ *  - só 404/429/5xx/timeout/erro de rede passam ao próximo modelo.
  */
 export async function runGeminiAnalysis(opts: {
   apiKey: string;
@@ -711,14 +790,30 @@ export async function runGeminiAnalysis(opts: {
   fetchFn: FetchLike;
   models?: string[];
   timeoutMs?: number;
+  maxAttempts?: number;
+  request?: GeminiRequestOptions;
 }): Promise<GeminiRunResult> {
   const models = opts.models?.length ? opts.models : DEFAULT_MODELS;
-  const body = JSON.stringify(buildGeminiRequestBody(opts.prompt));
+  const maxAttempts = Math.max(1, opts.maxAttempts ?? MAX_HTTP_ATTEMPTS);
+  const body = JSON.stringify(buildGeminiRequestBody(opts.prompt, opts.request));
+  const attempts: AttemptLog[] = [];
+  const telemetry = (extra: Partial<GeminiTelemetry> = {}): GeminiTelemetry => ({
+    attempts,
+    http_attempts: attempts.length,
+    generations_with_content: attempts.filter((a) => a.billing === "billed").length,
+    model_used: null,
+    finish_reason: null,
+    usage: null,
+    billing: worstBilling(attempts),
+    ...extra,
+  });
   let lastError = "";
+  let lastKind: GeminiFailureKind = "provider_unavailable";
 
   for (const model of models) {
+    if (attempts.length >= maxAttempts) break;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 18_000);
+    const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 30_000);
     try {
       const response = await opts.fetchFn(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: "POST",
@@ -729,36 +824,58 @@ export async function runGeminiAnalysis(opts: {
       clearTimeout(timer);
 
       if (!response.ok) {
+        const c = classifyHttpStatus(response.status);
+        attempts.push({ model, http_status: response.status, outcome: "http_error", billing: c.billing });
         lastError = `${model}:${response.status}`;
-        if ([401, 403].includes(response.status)) break;
+        lastKind = c.kind;
+        if (!c.nextModel) return { ok: false, kind: c.kind, error: lastError, telemetry: telemetry() };
         continue;
       }
 
       const data = (await response.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-        usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number };
+        candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>;
+        usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number; totalTokenCount?: number; cachedContentTokenCount?: number };
       };
-      const text = data?.candidates?.[0]?.content?.parts?.map((p) => p?.text || "").join("") || "";
-      if (!text) { lastError = `${model}:empty`; continue; }
-
+      const candidate = data?.candidates?.[0];
+      const finishReason = candidate?.finishReason ?? null;
       const usage: GeminiUsage | null = data.usageMetadata
         ? {
           prompt_tokens: data.usageMetadata.promptTokenCount ?? null,
           output_tokens: data.usageMetadata.candidatesTokenCount ?? null,
+          thoughts_tokens: data.usageMetadata.thoughtsTokenCount ?? null,
           total_tokens: data.usageMetadata.totalTokenCount ?? null,
+          cached_tokens: data.usageMetadata.cachedContentTokenCount ?? null,
         }
         : null;
+      // Partes marcadas como `thought` são raciocínio, não resposta.
+      const text = (candidate?.content?.parts ?? []).filter((p) => !p?.thought).map((p) => p?.text || "").join("");
+
+      if (!text) {
+        attempts.push({ model, http_status: 200, outcome: "empty", billing: "unknown" });
+        return { ok: false, kind: "invalid_output", error: `${model}:empty:${finishReason ?? "?"}`, telemetry: telemetry({ model_used: model, finish_reason: finishReason, usage }) };
+      }
+
+      if (finishReason === "MAX_TOKENS") {
+        attempts.push({ model, http_status: 200, outcome: "truncated", billing: "billed" });
+        return { ok: false, kind: "invalid_output", error: `${model}:max_tokens`, telemetry: telemetry({ model_used: model, finish_reason: finishReason, usage }) };
+      }
 
       try {
-        return { ok: true, raw: JSON.parse(text), model, usage, billed_calls: 1 };
+        const raw = JSON.parse(text);
+        attempts.push({ model, http_status: 200, outcome: "ok", billing: "billed" });
+        return { ok: true, raw, model, usage, telemetry: telemetry({ model_used: model, finish_reason: finishReason, usage }) };
       } catch {
-        return { ok: false, kind: "invalid_output", error: `${model}:invalid_json`, billed_calls: 1 };
+        attempts.push({ model, http_status: 200, outcome: "invalid_json", billing: "billed" });
+        return { ok: false, kind: "invalid_output", error: `${model}:invalid_json`, telemetry: telemetry({ model_used: model, finish_reason: finishReason, usage }) };
       }
     } catch (err) {
       clearTimeout(timer);
-      lastError = err instanceof Error ? `${model}:${err.name}` : `${model}:error`;
+      const aborted = controller.signal.aborted || (err instanceof Error && err.name === "AbortError");
+      attempts.push({ model, http_status: null, outcome: aborted ? "timeout" : "network_error", billing: "unknown" });
+      lastError = err instanceof Error ? `${model}:${aborted ? "timeout" : err.name}` : `${model}:error`;
+      lastKind = "provider_unavailable";
     }
   }
 
-  return { ok: false, kind: "provider_unavailable", error: lastError || "provider_unavailable", billed_calls: 0 };
+  return { ok: false, kind: lastKind, error: lastError || "provider_unavailable", telemetry: telemetry() };
 }

@@ -1,19 +1,8 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import {
-  ANALYSIS_PROMPT_VERSION,
-  buildAnalysisPrompt,
-  buildPersistedPayload,
-  buildVerifiedFacts,
-  evaluatePreconditions,
-  mergeWithPreviousPlan,
-  runGeminiAnalysis,
-  sanitizeSellerProfile,
-  toStoredDay,
-  validateAnalysis,
-  type RawLeadForAnalysis,
-} from "../_shared/lead-analysis.ts";
-import { AppError, toSafeErrorResponse, type ErrorCategory } from "../_shared/refine-observability.ts";
+import { ANALYSIS_PROMPT_VERSION, buildVerifiedFacts, sanitizeSellerProfile, type RawLeadForAnalysis } from "../_shared/lead-analysis.ts";
+import { runAnalysisPipeline } from "../_shared/analysis-pipeline.ts";
+import { buildRefineFailure } from "../_shared/refine-failure.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -36,28 +25,9 @@ function json(body: unknown, status = 200) {
 }
 
 
-const CATEGORY_BY_CODE: Record<string, { category: ErrorCategory; retryable: boolean }> = {
-  REFINE_CONFIGURATION_MISSING: { category: "configuration_error", retryable: true },
-  REFINE_SESSION_MISSING: { category: "authentication_error", retryable: false },
-  REFINE_SESSION_INVALID: { category: "authentication_error", retryable: false },
-  REFINE_INPUT_INVALID: { category: "validation_error", retryable: false },
-  REFINE_LEAD_REFERENCE_INVALID: { category: "validation_error", retryable: false },
-  REFINE_LEAD_NOT_FOUND: { category: "validation_error", retryable: false },
-  REFINE_PROFILE_REQUIRED: { category: "validation_error", retryable: false },
-  REFINE_PLAN_EXISTS: { category: "validation_error", retryable: false },
-  REFINE_LEAD_OPTED_OUT: { category: "validation_error", retryable: false },
-  REFINE_PERMISSION_DENIED: { category: "authorization_error", retryable: false },
-  REFINE_PROVIDER_INVALID_RESPONSE: { category: "unexpected_response", retryable: true },
-  REFINE_PROVIDER_UNAVAILABLE: { category: "provider_error", retryable: true },
-  REFINE_SAVE_FAILED: { category: "database_error", retryable: true },
-  REFINE_UNKNOWN_ERROR: { category: "unknown_error", retryable: true },
-};
-
-/** Erro no formato seguro que o cliente já entende (safe_message, retryable, category). Nunca consome crédito. */
 function fail(requestId: string, code: string, status: number, message: string, extra: Record<string, unknown> = {}) {
-  const meta = CATEGORY_BY_CODE[code] ?? { category: "unknown_error" as ErrorCategory, retryable: false };
-  const error = new AppError({ internalCode: code, category: meta.category, stage: "analyze", safeMessage: message, requestId, retryable: meta.retryable, httpStatus: status });
-  return json({ ...toSafeErrorResponse(error), credit_consumed: false, ...extra }, status);
+  const built = buildRefineFailure(requestId, code, status, message, extra);
+  return json(built.body, built.status);
 }
 
 function text(v: unknown, fallback = "") {
@@ -182,108 +152,88 @@ serve(async (req) => {
       return fail(requestId, "REFINE_PERMISSION_DENIED", 403, "Este tipo de análise não está disponível para sua conta.");
     }
 
-    const facts = buildVerifiedFacts(rawLead);
-
-    // 4) Opt-out e plano existente: nenhuma geração (e nenhum custo) sem confirmação explícita
-    const blocked = evaluatePreconditions({
-      profile,
-      stage: facts.etapa_do_historico,
-      existingPlan: row.plano_prospeccao,
-      replaceExisting: requestData.replace_existing === true,
-    });
-    if (blocked) {
-      return fail(requestId, blocked.code, blocked.status, blocked.message);
-    }
-
     if (!GEMINI_KEY) {
       return fail(requestId, "REFINE_CONFIGURATION_MISSING", 503, "O serviço de refinamento está temporariamente indisponível. Seu crédito não foi consumido.");
     }
 
-    // 5) UMA chamada Gemini: diagnóstico + plano
-    const prompt = buildAnalysisPrompt(facts, profile);
-    const run = await runGeminiAnalysis({ apiKey: GEMINI_KEY, prompt, fetchFn: fetch as never });
+    const facts = buildVerifiedFacts(rawLead);
+    const outcome = await runAnalysisPipeline(
+      {
+        apiKey: GEMINI_KEY,
+        fetchFn: fetch as never,
+        now: () => new Date().toISOString(),
+        persist: async (values) => {
+          const { data: saved, error: saveError } = await admin
+            .from("leads")
+            .update({
+              diagnostico_bullets: values.diagnostico_bullets,
+              probabilidade_conversao: null,
+              plano_prospeccao: values.plano_prospeccao,
+              ai_analise_gerada_em: values.ai_analise_gerada_em,
+              ai_used_fallback: false,
+              ai_fallback_reason: null,
+            })
+            .eq("id", leadId)
+            .eq("user_id", user.id)
+            .select("id, ai_analise_gerada_em");
+          return !saveError && Boolean(saved?.length);
+        },
+        consumeCredit: async () => {
+          const { data: ok, error } = await admin.rpc("increment_ai_usage", { p_user_id: user.id });
+          return !error && ok === true;
+        },
+      },
+      {
+        leadId,
+        requestId,
+        profile,
+        rawLead,
+        existingPlan: row.plano_prospeccao,
+        replaceExisting: requestData.replace_existing === true,
+        isAdmin,
+      },
+    );
 
-    if (!run.ok) {
-      console.warn(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "provider", kind: run.kind, error: run.error, billed_calls: run.billed_calls }));
-      await logEvent(admin, user.id, "ai_analysis_failed_handled", { request_id: requestId, stage: "provider", kind: run.kind, billed_calls: run.billed_calls, deducted_credit: false });
-      return run.kind === "invalid_output"
-        ? fail(requestId, "REFINE_PROVIDER_INVALID_RESPONSE", 502, "Não conseguimos gerar uma análise válida agora. Seu crédito não foi consumido. Tente novamente.")
-        : fail(requestId, "REFINE_PROVIDER_UNAVAILABLE", 503, "O serviço de IA está indisponível no momento. Seu crédito não foi consumido. Tente novamente em instantes.");
-    }
+    // Telemetria separa a cobrança do PROVEDOR (Gemini) do crédito INTERNO do assinante.
+    const billingLog = {
+      request_id: requestId,
+      leadId,
+      prompt_version: ANALYSIS_PROMPT_VERSION,
+      stage_of_lead: facts.etapa_do_historico,
+      http_attempts: outcome.telemetry?.http_attempts ?? 0,
+      generations_with_content: outcome.telemetry?.generations_with_content ?? 0,
+      model_used: outcome.telemetry?.model_used ?? null,
+      finish_reason: outcome.telemetry?.finish_reason ?? null,
+      usage: outcome.telemetry?.usage ?? null,
+      attempts: outcome.telemetry?.attempts ?? [],
+      provider_billing: outcome.ok ? outcome.telemetry.billing : outcome.providerBilling,
+      internal_credit_charged: outcome.internalCreditCharged,
+      duration_ms: Date.now() - started,
+    };
 
-    const validation = validateAnalysis(run.raw, { channels: facts.canais_disponiveis, profile, stage: facts.etapa_do_historico });
-    if (!validation.ok) {
-      console.warn(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "validate", issues: validation.issues.slice(0, 8), billed_calls: run.billed_calls }));
-      await logEvent(admin, user.id, "ai_analysis_failed_handled", { request_id: requestId, stage: "validate", issues: validation.issues.slice(0, 8), usage: run.usage, deducted_credit: false });
-      return fail(requestId, "REFINE_PROVIDER_INVALID_RESPONSE", 502, "A análise gerada não passou na verificação de qualidade. Seu crédito não foi consumido. Tente novamente.");
-    }
-
-    // 6) Persistência preservando edições manuais e versões anteriores
-    const now = new Date().toISOString();
-    const newDays = validation.analysis.plano.map(toStoredDay);
-    const hadPlan = Array.isArray(row.plano_prospeccao) ? row.plano_prospeccao.length > 0 : Boolean(row.plano_prospeccao);
-    const merged = hadPlan
-      ? mergeWithPreviousPlan(newDays, row.plano_prospeccao, now)
-      : { days: newDays, history: [], preserved_days: [] as number[] };
-
-    const responsePayload = buildPersistedPayload({
-      leadId, requestId, model: run.model, generatedAt: now, facts, profile,
-      analysis: validation.analysis, days: merged.days, history: merged.history,
-      warnings: validation.warnings, usage: run.usage,
-    });
-
-    const { data: saved, error: saveError } = await admin
-      .from("leads")
-      .update({
-        diagnostico_bullets: responsePayload.diagnostico_bullets,
-        probabilidade_conversao: null,
-        plano_prospeccao: responsePayload,
-        ai_analise_gerada_em: now,
-        ai_used_fallback: false,
-        ai_fallback_reason: null,
-      })
-      .eq("id", leadId)
-      .eq("user_id", user.id)
-      .select("id, ai_analise_gerada_em");
-
-    if (saveError || !saved?.length) {
-      await logEvent(admin, user.id, "ai_analysis_failed_handled", { request_id: requestId, stage: "persist_result", internal_code: "REFINE_SAVE_FAILED", deducted_credit: false });
-      return fail(requestId, "REFINE_SAVE_FAILED", 503, "A análise foi gerada, mas não pôde ser salva. Seu crédito não foi consumido.");
-    }
-
-    // 7) Crédito: regra existente (1 por análise concluída e salva; admin não consome)
-    let creditWarning: string | null = null;
-    if (!isAdmin) {
-      try {
-        const { data: ok, error } = await admin.rpc("increment_ai_usage", { p_user_id: user.id });
-        if (error || ok !== true) creditWarning = "Análise concluída, mas houve um erro ao registrar o consumo do crédito.";
-      } catch (_) {
-        creditWarning = "Análise concluída, mas houve um erro ao registrar o consumo do crédito.";
+    if (!outcome.ok) {
+      console.warn(JSON.stringify({ module: "analisar-lead-ia", stage: "pipeline", code: outcome.code, ...billingLog }));
+      if (outcome.providerBilling !== "not_called") {
+        await logEvent(admin, user.id, "ai_analysis_failed_handled", { ...billingLog, code: outcome.code });
       }
+      return fail(requestId, outcome.code, outcome.status, outcome.message, outcome.extra ?? {});
     }
 
     await logEvent(admin, user.id, "ai_analysis_completed", {
-      request_id: requestId,
-      leadId,
-      model: run.model,
-      prompt_version: ANALYSIS_PROMPT_VERSION,
-      gemini_calls: 1,
-      usage: run.usage,
-      replaced_existing_plan: hadPlan,
-      preserved_days: merged.preserved_days,
-      demoted_days: validation.demoted_days,
-      credit_consumed: !isAdmin,
-      duration_ms: Date.now() - started,
+      ...billingLog,
+      replaced_existing_plan: Boolean(row.plano_prospeccao),
+      preserved_days: outcome.preservedDays,
+      demoted_days: outcome.demotedDays,
     });
 
     return json({
-      ...responsePayload,
+      ...outcome.payload,
       success: true,
       request_id: requestId,
       used_fallback: false,
-      preserved_days: merged.preserved_days,
+      preserved_days: outcome.preservedDays,
       timing: { total_ms: Date.now() - started },
-      ...(creditWarning ? { credit_warning: creditWarning } : {}),
+      ...(outcome.creditWarning ? { credit_warning: outcome.creditWarning } : {}),
     });
   } catch (err) {
     console.error(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "global", error: err instanceof Error ? err.message : String(err) }));

@@ -137,24 +137,39 @@ export function configureSellerProfileStorage(next: SellerProfileStorage) {
 }
 
 export function resetSellerProfileStateForTests() {
+  loadSequence++;
   state = { userId: null, profile: EMPTY_SELLER_PROFILE, loaded: false, dialogOpen: false };
   storage = localSellerProfileStorage;
 }
 
+let loadSequence = 0;
+
+/**
+ * Troca o usuário ativo. O perfil do usuário anterior é descartado ANTES de qualquer leitura assíncrona,
+ * então nunca fica acessível a outra conta durante a carga; e uma leitura atrasada de um usuário antigo
+ * não sobrescreve o estado do usuário atual.
+ */
 export async function loadSellerProfileForUser(userId: string | null) {
-  if (!userId) {
-    setState({ userId: null, profile: EMPTY_SELLER_PROFILE, loaded: true });
-    return;
+  const sequence = ++loadSequence;
+  setState({ userId, profile: EMPTY_SELLER_PROFILE, loaded: !userId, dialogOpen: userId ? state.dialogOpen : false });
+  if (!userId) return;
+
+  let stored: SellerProfile | null = null;
+  try {
+    stored = await storage.load(userId);
+  } catch {
+    stored = null; // armazenamento indisponível: segue sem perfil, sem erro para o usuário
   }
-  const stored = await storage.load(userId);
+  if (sequence !== loadSequence) return;
   setState({ userId, profile: stored ?? EMPTY_SELLER_PROFILE, loaded: true });
 }
 
 export async function saveSellerProfile(input: unknown): Promise<SellerProfile> {
-  if (!state.userId) throw new Error("Entre na sua conta para salvar o perfil.");
+  const userId = state.userId;
+  if (!userId) throw new Error("Entre na sua conta para salvar o perfil.");
   const profile = sanitizeSellerProfile(input);
-  await storage.save(state.userId, profile);
-  setState({ profile });
+  await storage.save(userId, profile);
+  if (state.userId === userId) setState({ profile });
   return profile;
 }
 

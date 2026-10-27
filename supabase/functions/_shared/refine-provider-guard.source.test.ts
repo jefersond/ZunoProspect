@@ -57,4 +57,17 @@ describe("analisar-lead-ia: sem análise genérica disfarçada de IA", () => {
     expect(savedCheck).toBeGreaterThan(0);
     expect(savedCheck).toBeLessThan(chargeAt);
   });
+
+  it("a gravação compara status e análise lidos agora (compare-and-set) e trata o conflito sem cobrar", () => {
+    expect(source).toContain('update.is("status", null) : update.eq("status", ctx.expected.status)');
+    expect(source).toContain('update.eq("ai_analise_gerada_em", ctx.expected.generatedAt)');
+    expect(source).toContain('CONFLICT_BODY(requestId, key), 409');
+  });
+
+  it("o tempo limite do provedor cobre também a leitura do corpo da resposta", () => {
+    const body = source.indexOf("const data = await response.json()");
+    const clear = source.indexOf("clearTimeout(timeout);", body);
+    expect(body).toBeGreaterThan(0);
+    expect(clear).toBeGreaterThan(body);
+  });
 });

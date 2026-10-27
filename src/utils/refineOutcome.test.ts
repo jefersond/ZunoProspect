@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeRefineError } from "@/lib/refineObservability";
-import { describePreservedDays, readPreservedDays, shouldShowServerMessage, buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, formatRefinedAt, getAnalysisOrigin, resolveUsedFallback } from "./refineOutcome";
+import { sanitizeFallbackReason, describePreservedDays, readPreservedDays, shouldShowServerMessage, buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, formatRefinedAt, getAnalysisOrigin, resolveUsedFallback } from "./refineOutcome";
 
 describe("classifyRefineResponse", () => {
   it("análise do Gemini: gerada", () => {
@@ -184,5 +184,20 @@ describe("shouldShowServerMessage", () => {
     expect(shouldShowServerMessage({ category: "database_error" })).toBe(true);
     expect(shouldShowServerMessage({ category: "validation_error", error_code: "REFINE_IN_PROGRESS" })).toBe(true);
     expect(shouldShowServerMessage({ category: "unknown_error" })).toBe(false);
+  });
+});
+
+describe("sanitizeFallbackReason: o marcador da reserva nunca aparece como motivo de reserva", () => {
+  it("esconde refine_lock_* e mantém motivos reais", () => {
+    expect(sanitizeFallbackReason("refine_lock_abc_1793100000000")).toBeNull();
+    expect(sanitizeFallbackReason("gemini-3.6-flash:400")).toBe("gemini-3.6-flash:400");
+    expect(sanitizeFallbackReason(null)).toBeNull();
+    expect(sanitizeFallbackReason(undefined)).toBeNull();
+    expect(sanitizeFallbackReason("")).toBeNull();
+  });
+
+  it("conflitos e prazo vencido mostram a mensagem clara do servidor", () => {
+    expect(shouldShowServerMessage({ category: "validation_error", error_code: "REFINE_CONFLICT" })).toBe(true);
+    expect(shouldShowServerMessage({ category: "validation_error", error_code: "REFINE_LOCK_EXPIRED" })).toBe(true);
   });
 });

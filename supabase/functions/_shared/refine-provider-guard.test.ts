@@ -10,6 +10,13 @@ import {
   acquireRefineLock,
   REFINE_LOCK_TTL_MS,
   type LeadRefineRow,
+  buildLockValue,
+  classifyPlanShape,
+  isOptOutRow,
+  lockExpiry,
+  publicFallbackReason,
+  CONFLICT_BODY,
+  REFINE_WRITE_DEADLINE_MS,
   type RefineStore,
   shouldChargeCredit,
   shouldPersistAnalysis,
@@ -411,5 +418,289 @@ describe("exclusão mútua por lead: duas requisições simultâneas", () => {
     expect(c.persist).toBe(0);
     expect(c.charge).toBe(0);
     expect({ ...db.row, updatedAt: null }).toEqual({ ...JSON.parse(before), updatedAt: null });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Concorrência: alterações do assinante DURANTE a geração
+// ---------------------------------------------------------------------------------------------------------------------
+describe("alterações durante a geração: vale o estado mais recente do banco", () => {
+  const newAnalysis = () => {
+    const r = validateAnalysis(valid());
+    if (!r.ok) throw new Error("fixture");
+    return r.value;
+  };
+  const baseDays = () => [1, 2, 3, 4, 5, 6, 7].map((dia) => ({ dia, canal: "whatsapp", mensagem: `Antiga ${dia}`, acao_sugerida: "a" }));
+  type Written = { days: Array<Record<string, unknown>>; ctx: unknown } | null;
+
+  const setup = (initial: Partial<LeadRefineRow> = {}) => {
+    const db = makeDb({ plan: { plano_prospeccao_7dias: baseDays(), historico: ["contato anterior"] }, status: "em_contato", notas: "", ...initial });
+    const counters = { provider: 0, persist: 0, charge: 0 };
+    let written: Written = null;
+    const run = (duringProvider: () => void, over: Partial<Parameters<typeof runGuardedRefine>[0]> = {}) =>
+      runGuardedRefine({
+        requestId: "req",
+        isAdmin: false,
+        store: db.store,
+        callProvider: async () => { counters.provider++; duringProvider(); return { ok: true as const, analysis: newAnalysis(), model: "gemini-3.6-flash" }; },
+        persist: async (analysis, _m, ctx) => {
+          counters.persist++;
+          // mesmo contrato do UPDATE condicional de produção: reserva ainda nossa e escalares iguais aos lidos
+          if (db.row.reason !== ctx.lockValue || (db.row.status ?? null) !== ctx.expected.status || (db.row.generatedAt ?? null) !== ctx.expected.generatedAt) return false;
+          written = { days: analysis.plano_prospeccao_7dias as unknown as Array<Record<string, unknown>>, ctx };
+          db.row.plan = { ...(ctx.previousPlan as object), plano_prospeccao_7dias: written.days };
+          db.row.reason = null; db.row.generatedAt = "2026-10-27T12:00:00Z"; db.row.usedFallback = false;
+          return true;
+        },
+        charge: async () => { counters.charge++; return true; },
+        ...over,
+      });
+    return { db, counters, run, written: () => written };
+  };
+  const patchDay = (db: ReturnType<typeof makeDb>, dia: number, patch: Record<string, unknown>) => {
+    const plan = db.row.plan as { plano_prospeccao_7dias: Array<Record<string, unknown>> };
+    plan.plano_prospeccao_7dias = plan.plano_prospeccao_7dias.map((d) => (d.dia === dia ? { ...d, ...patch } : d));
+  };
+
+  it("usuário edita uma mensagem enquanto o Gemini processa: a edição NÃO é sobrescrita", async () => {
+    const { db, counters, run, written } = setup();
+    const result = await run(() => patchDay(db, 2, { mensagem: "EDITADA DURANTE A GERAÇÃO", is_custom_edited: true }));
+    expect(result.status).toBe("saved");
+    const w = written()!;
+    expect(w.days.find((d) => d.dia === 2)?.mensagem).toBe("EDITADA DURANTE A GERAÇÃO");
+    expect(w.days.find((d) => d.dia === 3)?.mensagem).toBe("Mensagem específica do dia 3");
+    expect(result.status === "saved" && result.preserved).toEqual([{ dia: 2, reason: "edited" }]);
+    expect(counters.charge).toBe(1);
+    expect((db.row.plan as { historico: string[] }).historico).toEqual(["contato anterior"]);
+  });
+
+  it("usuário conclui um dia durante a geração: o dia concluído é mantido", async () => {
+    const { db, run, written } = setup();
+    const result = await run(() => patchDay(db, 5, { status_dia: "concluido" }));
+    expect(result.status).toBe("saved");
+    expect(written()!.days.find((d) => d.dia === 5)).toMatchObject({ mensagem: "Antiga 5", status_dia: "concluido" });
+  });
+
+  it("lead registra opt-out durante a geração (status): recusa a atualização, nada gravado, nada cobrado, plano intacto", async () => {
+    const { db, counters, run } = setup();
+    const planBefore = JSON.stringify(db.row.plan);
+    const result = await run(() => { db.row.status = "recusou_optout"; });
+    expect(result).toEqual({ status: "conflict", reason: "opt_out" });
+    expect(counters.persist).toBe(0);
+    expect(counters.charge).toBe(0);
+    expect(JSON.stringify(db.row.plan)).toBe(planBefore);
+    expect(db.row.reason).toBeNull(); // reserva liberada
+  });
+
+  it("opt-out registrado nas anotações durante a geração também recusa", async () => {
+    const { db, counters, run } = setup();
+    const result = await run(() => { db.row.notas = "Cliente pediu para não contatar mais"; });
+    expect(result).toEqual({ status: "conflict", reason: "opt_out" });
+    expect(counters.charge).toBe(0);
+  });
+
+  it("outra análise gravada durante a geração (ex.: aprovação externa): recusa e preserva", async () => {
+    const { db, counters, run } = setup();
+    const result = await run(() => { db.row.generatedAt = "2026-10-27T11:59:59Z"; });
+    expect(result).toEqual({ status: "conflict", reason: "analysis_changed" });
+    expect(counters.persist).toBe(0);
+    expect(counters.charge).toBe(0);
+  });
+
+  it("a reserva foi perdida durante a geração: recusa", async () => {
+    const { db, counters, run } = setup();
+    const result = await run(() => { db.row.reason = "refine_lock_outra_9999999999999"; });
+    expect(result).toEqual({ status: "conflict", reason: "lock_lost" });
+    expect(counters.charge).toBe(0);
+  });
+
+  it("mudança de status entre a última leitura e a gravação: o compare-and-set falha, nada é sobrescrito e nada é cobrado", async () => {
+    const { db, counters, run } = setup();
+    const planBefore = JSON.stringify(db.row.plan);
+    const result = await run(() => undefined, {
+      persist: async (_a, _m, ctx) => {
+        counters.persist++;
+        db.row.status = "recusou_optout"; // chega depois da releitura, antes do UPDATE
+        return db.row.reason === ctx.lockValue && (db.row.status ?? null) === ctx.expected.status;
+      },
+    });
+    expect(result.status).toBe("save_failed");
+    expect(counters.charge).toBe(0);
+    expect(JSON.stringify(db.row.plan)).toBe(planBefore);
+  });
+
+  describe("plano antigo e novo com estruturas diferentes", () => {
+    const edited = { dia: 2, canal: "email", mensagem: "MINHA EDIÇÃO", is_custom_edited: true };
+    it.each([
+      ["lista de dias (motor local)", [edited, { dia: 3, mensagem: "x" }]],
+      ["objeto com plano_prospeccao_7dias", { plano_prospeccao_7dias: [edited] }],
+      ["objeto com plano_prospeccao aninhado", { plano_prospeccao: [edited] }],
+    ])("%s: edição preservada", async (_n, plan) => {
+      const { counters, run, written } = setup({ plan });
+      const result = await run(() => undefined);
+      expect(result.status).toBe("saved");
+      expect(written()!.days.find((d) => d.dia === 2)?.mensagem).toBe("MINHA EDIÇÃO");
+      expect(counters.charge).toBe(1);
+    });
+
+    it("plano só com 'copies' (sem marcas do assinante) e plano vazio: aceitam a análise nova", async () => {
+      for (const plan of [{ copies: { dia_1: "texto" } }, null, {}, []]) {
+        const { run } = setup({ plan });
+        expect((await run(() => undefined)).status).toBe("saved");
+      }
+    });
+
+    it("formato desconhecido e não vazio: recusa sem sobrescrever (não há como preservar com segurança)", async () => {
+      const { db, counters, run } = setup({ plan: { qualquer: "coisa", dados: [1, 2, 3] } });
+      const before = JSON.stringify(db.row.plan);
+      const result = await run(() => undefined);
+      expect(result).toEqual({ status: "conflict", reason: "plan_shape_unknown" });
+      expect(counters.persist).toBe(0);
+      expect(counters.charge).toBe(0);
+      expect(JSON.stringify(db.row.plan)).toBe(before);
+    });
+
+    it("classifyPlanShape", () => {
+      expect(classifyPlanShape(null)).toBe("empty");
+      expect(classifyPlanShape([])).toBe("empty");
+      expect(classifyPlanShape([{ dia: 1 }])).toBe("days");
+      expect(classifyPlanShape({ plano_prospeccao_7dias: [] })).toBe("days");
+      expect(classifyPlanShape({ copies: {} })).toBe("copies");
+      expect(classifyPlanShape("texto")).toBe("unknown");
+      expect(classifyPlanShape({ x: 1 })).toBe("unknown");
+    });
+  });
+
+  it("isOptOutRow usa as mesmas regras do cliente (hasExplicitOptOut)", async () => {
+    const { hasExplicitOptOut } = await import("../../../src/services/intelligentSevenDayPlan");
+    const cases: Array<{ status?: string; notas?: string }> = [
+      { status: "recusou_optout" }, { status: "OPT_OUT" }, { status: "recusa" }, { status: "bloqueado_optout" }, { status: "em_contato" },
+      { notas: "Não tenho interesse" }, { notas: "nao tenho interesse" }, { notas: "Pediu para não contatar" }, { notas: "optout" },
+      { notas: "número errado" }, { notas: "ligar amanhã" }, { notas: "" }, {},
+    ];
+    for (const c of cases) {
+      expect(isOptOutRow(c), JSON.stringify(c)).toBe(hasExplicitOptOut(c as never));
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Validade da reserva (90 s) e prazo seguro
+// ---------------------------------------------------------------------------------------------------------------------
+describe("reserva de 90 s: nunca duas gerações pagas do mesmo lead", () => {
+  const analysisOk = () => {
+    const r = validateAnalysis(valid());
+    if (!r.ok) throw new Error("fixture");
+    return r.value;
+  };
+  const harness = (db: ReturnType<typeof makeDb>, clock: { t: number }, counters: { provider: number; persist: number; charge: number }) =>
+    (requestId: string, providerMs: number) =>
+      runGuardedRefine({
+        requestId,
+        isAdmin: false,
+        store: db.store,
+        now: () => clock.t,
+        callProvider: async () => { counters.provider++; clock.t += providerMs; return { ok: true as const, analysis: analysisOk(), model: "gemini-3.6-flash" }; },
+        persist: async (_a, _m, ctx) => {
+          counters.persist++;
+          if (db.row.reason !== ctx.lockValue) return false;
+          db.row.reason = null; db.row.generatedAt = new Date(clock.t).toISOString(); db.row.usedFallback = false;
+          return true;
+        },
+        charge: async () => { counters.charge++; return true; },
+      });
+  const T0 = Date.parse("2026-10-27T12:00:00Z");
+
+  it("o valor da reserva carrega o próprio prazo e não revela detalhes ao assinante", () => {
+    const value = buildLockValue("req-1", T0);
+    expect(lockExpiry(value)).toBe(T0 + REFINE_LOCK_TTL_MS);
+    expect(publicFallbackReason(value)).toBeNull();
+    expect(publicFallbackReason("gemini-3.6-flash:400")).toBe("gemini-3.6-flash:400");
+    expect(JSON.stringify(CONFLICT_BODY("r", "opt_out"))).not.toMatch(/refine_lock/);
+    expect(JSON.stringify(buildProviderFailure("r", "x"))).not.toMatch(/refine_lock/);
+  });
+
+  it("o prazo seguro de escrita é menor que a reserva e maior que o pior caso do provedor (2 modelos x 18 s)", () => {
+    expect(REFINE_WRITE_DEADLINE_MS).toBeLessThan(REFINE_LOCK_TTL_MS);
+    expect(2 * 18_000).toBeLessThan(REFINE_WRITE_DEADLINE_MS);
+  });
+
+  it("geração que passa do prazo seguro: não grava e não cobra, mesmo que a reserva ainda não tenha sido tomada", async () => {
+    const db = makeDb();
+    const clock = { t: T0 };
+    const c = { provider: 0, persist: 0, charge: 0 };
+    const result = await harness(db, clock, c)("slow", REFINE_WRITE_DEADLINE_MS + 1_000);
+    expect(result.status).toBe("expired");
+    expect(c.persist).toBe(0);
+    expect(c.charge).toBe(0);
+    expect(db.row.reason).toBeNull();
+  });
+
+  it("geração que ultrapassa 90 s enquanto outra requisição assume a reserva expirada: só a nova grava e cobra", async () => {
+    const db = makeDb();
+    const clock = { t: T0 };
+    const c = { provider: 0, persist: 0, charge: 0 };
+    const go = harness(db, clock, c);
+
+    // A começa em T0 e o provedor "demora" 100 s; durante esse tempo B chega em T0+95 s (reserva de A já expirou)
+    let releaseA: () => void = () => undefined;
+    const gateA = new Promise<void>((r) => { releaseA = r; });
+    const runA = runGuardedRefine({
+      requestId: "A", isAdmin: false, store: db.store, now: () => clock.t,
+      callProvider: async () => { c.provider++; await gateA; return { ok: true as const, analysis: analysisOk(), model: "m" }; },
+      persist: async (_a, _m, ctx) => { c.persist++; if (db.row.reason !== ctx.lockValue) return false; db.row.reason = null; db.row.generatedAt = "x"; return true; },
+      charge: async () => { c.charge++; return true; },
+    });
+    await new Promise((r) => setTimeout(r, 20)); // A já reservou e está no provedor
+    clock.t = T0 + 95_000;
+    const resultB = await go("B", 1_000);
+    expect(resultB.status).toBe("saved");
+
+    clock.t = T0 + 100_000; // A finalmente recebe a resposta do Gemini (fora do prazo, reserva tomada por B)
+    releaseA();
+    const resultA = await runA;
+    expect(["expired", "conflict"]).toContain(resultA.status);
+    expect(c.charge).toBe(1); // só B cobrou
+    expect(c.persist).toBe(1);
+  });
+
+  it("outro campo do lead atualizado enquanto a reserva está ativa não libera nem estende a reserva", async () => {
+    const db = makeDb();
+    const clock = { t: T0 };
+    const lock = await acquireRefineLock(db.store, "holder", clock.t);
+    expect(lock.acquired).toBe(true);
+    db.row.updatedAt = new Date(T0 - 10 * 60_000).toISOString(); // alguém mexeu em outra coisa (data antiga ou nova)
+    expect(await acquireRefineLock(db.store, "other", T0 + 30_000)).toEqual({ acquired: false, reason: "in_progress" });
+    db.row.updatedAt = new Date(T0 + 29_000).toISOString();
+    expect(await acquireRefineLock(db.store, "other", T0 + REFINE_LOCK_TTL_MS + 1_000)).toMatchObject({ acquired: true }); // expira pelo prazo do próprio valor
+  });
+
+  it("função encerrada inesperadamente: bloqueia até expirar; depois uma nova tentativa assume e a reserva velha não é restaurada", async () => {
+    const db = makeDb({ reason: "gemini-3.1-flash-lite:400" });
+    const clock = { t: T0 };
+    const dead = await acquireRefineLock(db.store, "dead", clock.t); // nunca libera
+    expect(dead.acquired).toBe(true);
+    expect(await acquireRefineLock(db.store, "retry", T0 + 60_000)).toEqual({ acquired: false, reason: "in_progress" });
+
+    const afterExpiry = await acquireRefineLock(db.store, "retry", T0 + REFINE_LOCK_TTL_MS + 1);
+    expect(afterExpiry.acquired).toBe(true);
+    expect(afterExpiry.acquired && afterExpiry.restoreReason).toBeNull();
+  });
+
+  it("duas requisições disputam a reserva expirada: exatamente uma vence", async () => {
+    const db = makeDb({ reason: buildLockValue("dead", T0), updatedAt: new Date(T0).toISOString() });
+    const now = T0 + REFINE_LOCK_TTL_MS + 5_000;
+    const results = await Promise.all(Array.from({ length: 6 }, (_, i) => acquireRefineLock(db.store, `r${i}`, now)));
+    expect(results.filter((r) => r.acquired)).toHaveLength(1);
+    expect(results.filter((r) => !r.acquired)).toHaveLength(5);
+  });
+
+  it("reserva expirada + nova tentativa completa: gera, grava e cobra uma vez", async () => {
+    const db = makeDb({ reason: buildLockValue("dead", T0), updatedAt: new Date(T0).toISOString() });
+    const clock = { t: T0 + REFINE_LOCK_TTL_MS + 5_000 };
+    const c = { provider: 0, persist: 0, charge: 0 };
+    const result = await harness(db, clock, c)("retry", 1_000);
+    expect(result.status).toBe("saved");
+    expect(c).toEqual({ provider: 1, persist: 1, charge: 1 });
   });
 });

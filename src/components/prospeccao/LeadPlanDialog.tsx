@@ -28,7 +28,7 @@ import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { normalizeLeadForAI, normalizePlanoProspeccao, normalizeDiagnosticoBullets } from "@/utils/normalizeLead";
 import { buildIntelligentPlan, hasExplicitOptOut } from "@/services/intelligentSevenDayPlan";
 import { refineWithAI } from "@/services/refineWithAI";
-import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, describePreservedDays, readPreservedDays, shouldShowServerMessage } from "@/utils/refineOutcome";
+import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, describePreservedDays, readPreservedDays, shouldShowServerMessage, sanitizeFallbackReason } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
 // Função para sanitizar e padronizar número de telefone brasileiro
@@ -475,7 +475,7 @@ export const LeadPlanDialog = ({
     ai_analise_gerada_em: row.ai_analise_gerada_em,
     // As colunas existem no banco, mas ainda não estão nos tipos gerados do cliente.
     ai_used_fallback: usedFallback,
-    ai_fallback_reason: row.ai_fallback_reason ?? null,
+    ai_fallback_reason: sanitizeFallbackReason(row.ai_fallback_reason),
   });
 
   /** Relê o registro salvo sem gerar nova análise nem cobrar crédito. */

@@ -242,10 +242,28 @@ export interface PreservedDay { dia: number; reason: PreservedReason }
 
 const asObj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 
-/** Os 7 dias salvos, tanto no formato objeto (`plano_prospeccao_7dias`) quanto no formato lista. */
+/** Os dias salvos, em qualquer um dos formatos já gravados pelo Zuno (lista, objeto com `plano_prospeccao_7dias` ou `plano_prospeccao`). */
 export function extractPlanDays(plan: unknown): PlanDay[] {
-  const days = Array.isArray(plan) ? plan : asObj(plan).plano_prospeccao_7dias;
+  const obj = asObj(plan);
+  const days = Array.isArray(plan) ? plan : Array.isArray(obj.plano_prospeccao_7dias) ? obj.plano_prospeccao_7dias : obj.plano_prospeccao;
   return Array.isArray(days) ? (days.filter((d) => d && typeof d === "object") as PlanDay[]) : [];
+}
+
+export type PlanShape = "empty" | "days" | "copies" | "unknown";
+
+/**
+ * "days": há lista de dias (onde ficam edições e conclusões); "copies": só o resumo de mensagens, sem nenhuma marca do
+ * assinante; "empty": nada salvo; "unknown": há conteúdo que não sabemos ler. Em "unknown" a atualização é recusada.
+ */
+export function classifyPlanShape(plan: unknown): PlanShape {
+  if (plan === null || plan === undefined || plan === "") return "empty";
+  if (Array.isArray(plan)) return plan.length ? "days" : "empty";
+  if (typeof plan !== "object") return "unknown";
+  const obj = plan as Record<string, unknown>;
+  if (!Object.keys(obj).length) return "empty";
+  if (Array.isArray(obj.plano_prospeccao_7dias) || Array.isArray(obj.plano_prospeccao)) return "days";
+  if (obj.copies && typeof obj.copies === "object") return "copies";
+  return "unknown";
 }
 
 export function preservedReasonOf(day: PlanDay | undefined): PreservedReason | null {
@@ -280,6 +298,18 @@ export function mergePlanPreservingUser<T extends PlanDay>(previousPlan: unknown
   return { days, preserved };
 }
 
+/** Mesma regra do cliente (`hasExplicitOptOut`); um teste compara as duas para impedir divergência. */
+export function isOptOutRow(row: { status?: string | null; notas?: string | null }): boolean {
+  const status = String(row.status ?? "").toLowerCase().trim();
+  if (["recusou_optout", "opt_out", "optout", "recusa", "bloqueado_optout"].includes(status)) return true;
+  const notes = String(row.notas ?? "").toLowerCase();
+  return [
+    "não tenho interesse", "nao tenho interesse", "não mandar mensagem", "nao mandar mensagem", "remover da lista",
+    "pare de mandar", "opt-out", "optout", "solicitou descadastro", "pediu para nao contatar", "pediu para não contatar",
+    "número errado", "numero errado",
+  ].some((phrase) => notes.includes(phrase));
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Exclusão mútua por lead (sem migration)
 // ---------------------------------------------------------------------------------------------------------------------
@@ -291,8 +321,28 @@ export function mergePlanPreservingUser<T extends PlanDay>(previousPlan: unknown
 
 export const REFINE_LOCK_PREFIX = "refine_lock_";
 export const REFINE_LOCK_TTL_MS = 90_000;
+/**
+ * Prazo seguro de escrita: uma geração só grava/cobra até aqui. Fica bem abaixo do TTL da reserva para que, quando
+ * a reserva expirar e outra requisição puder começar, a anterior já tenha desistido de gravar e de cobrar.
+ */
+export const REFINE_WRITE_DEADLINE_MS = 70_000;
+
+/** O prazo de validade vai DENTRO do valor da reserva; assim outras atualizações da linha não o alteram. */
+export const buildLockValue = (requestId: string, now: number) => `${REFINE_LOCK_PREFIX}${requestId}_${now + REFINE_LOCK_TTL_MS}`;
+export function lockExpiry(reason: string | null | undefined): number | null {
+  if (!isRefineLock(reason)) return null;
+  const n = Number(String(reason).split("_").pop());
+  return Number.isFinite(n) && n > 1_000_000_000_000 ? n : null;
+}
+
+/** O que o assinante pode ver como motivo: nunca o marcador interno da reserva. */
+export const publicFallbackReason = (reason: string | null | undefined) => (isRefineLock(reason) ? null : reason ?? null);
+
+export const isRefineLock = (reason: string | null | undefined) => typeof reason === "string" && reason.startsWith(REFINE_LOCK_PREFIX);
 
 export interface LeadRefineRow {
+  status?: string | null;
+  notas?: string | null;
   reason: string | null;
   updatedAt: string | null;
   generatedAt: string | null;
@@ -308,8 +358,6 @@ export interface RefineStore {
   release(lockValue: string, restoreReason: string | null): Promise<void>;
 }
 
-export const isRefineLock = (reason: string | null | undefined) => typeof reason === "string" && reason.startsWith(REFINE_LOCK_PREFIX);
-
 export type AcquireResult =
   | { acquired: true; lockValue: string; restoreReason: string | null; row: LeadRefineRow }
   | { acquired: false; reason: "in_progress" | "lead_not_found" };
@@ -320,13 +368,14 @@ export async function acquireRefineLock(store: RefineStore, requestId: string, n
 
   let restoreReason: string | null = first.reason;
   if (isRefineLock(first.reason)) {
-    const at = first.updatedAt ? Date.parse(first.updatedAt) : NaN;
-    const fresh = Number.isFinite(at) && now - at < REFINE_LOCK_TTL_MS;
-    if (fresh) return { acquired: false, reason: "in_progress" };
-    restoreReason = null; // reserva abandonada (a função morreu): não restaura o marcador
+    const expiry = lockExpiry(first.reason);
+    const updatedAt = first.updatedAt ? Date.parse(first.updatedAt) : NaN;
+    const stillValid = expiry !== null ? now < expiry : Number.isFinite(updatedAt) && now - updatedAt < REFINE_LOCK_TTL_MS;
+    if (stillValid) return { acquired: false, reason: "in_progress" };
+    restoreReason = null; // reserva abandonada (a função morreu ou passou do prazo): não restaura o marcador
   }
 
-  const lockValue = `${REFINE_LOCK_PREFIX}${requestId}`;
+  const lockValue = buildLockValue(requestId, now);
   const won = await store.claim(first.reason, lockValue, new Date(now).toISOString());
   if (!won) return { acquired: false, reason: "in_progress" };
 
@@ -339,27 +388,43 @@ export async function acquireRefineLock(store: RefineStore, requestId: string, n
   return { acquired: true, lockValue, restoreReason, row };
 }
 
+export interface PersistContext {
+  lockValue: string;
+  preserved: PreservedDay[];
+  /** Plano relido imediatamente antes da gravação (não o do início da geração). */
+  previousPlan: unknown;
+  /** Valores lidos agora; a gravação só vale se continuarem iguais (compare-and-set nas colunas escalares). */
+  expected: { status: string | null; generatedAt: string | null };
+}
+
 export interface GuardedRefineDeps extends Omit<RefineDeps, "persist"> {
   store: RefineStore;
   now?: () => number;
   /** Grava com a reserva ainda ativa; deve limpar a reserva na mesma gravação e devolver true só se o banco confirmou. */
-  persist: (analysis: ValidAnalysis, model: string, ctx: { lockValue: string; preserved: PreservedDay[]; previousPlan: unknown }) => Promise<boolean>;
+  persist: (analysis: ValidAnalysis, model: string, ctx: PersistContext) => Promise<boolean>;
 }
+
+export type ConflictReason = "lead_gone" | "lock_lost" | "analysis_changed" | "opt_out" | "plan_shape_unknown";
 
 export type GuardedRefineRun =
   | { status: "in_progress" }
   | { status: "lead_not_found" }
   | { status: "already_current"; generatedAt: string | null }
+  | { status: "expired" }
+  | { status: "conflict"; reason: ConflictReason }
   | (Extract<RefineRun, { status: "provider_failed" | "save_failed" }>)
   | (Extract<RefineRun, { status: "saved" }> & { preserved: PreservedDay[] });
 
 /**
- * Operação completa e idempotente por lead: reserva → (duplicata recente?) → provedor → mescla preservando o trabalho
- * do assinante → gravação confirmada → cobrança → liberação. A cobrança acontece no máximo uma vez por reserva.
+ * Operação completa e idempotente por lead: reserva → (duplicata recente?) → provedor → releitura do estado MAIS
+ * RECENTE → mescla preservando o trabalho do assinante → gravação confirmada → cobrança → liberação.
+ * Qualquer conflito que não possa ser resolvido com segurança (edição/opt-out/mudança durante a geração, plano em
+ * formato desconhecido, prazo da reserva vencido) recusa a atualização: nada é sobrescrito e nada é cobrado.
  */
 export async function runGuardedRefine(deps: GuardedRefineDeps): Promise<GuardedRefineRun> {
   const now = deps.now ?? Date.now;
-  const lock = await acquireRefineLock(deps.store, deps.requestId, now());
+  const acquiredAt = now();
+  const lock = await acquireRefineLock(deps.store, deps.requestId, acquiredAt);
   if (!lock.acquired) return { status: lock.reason === "lead_not_found" ? "lead_not_found" : "in_progress" };
 
   let released = false;
@@ -377,16 +442,35 @@ export async function runGuardedRefine(deps: GuardedRefineDeps): Promise<Guarded
     }
 
     let preserved: PreservedDay[] = [];
+    let refused: { status: "expired" } | { status: "conflict"; reason: ConflictReason } | null = null;
+    const refuse = (r: NonNullable<typeof refused>) => { refused = r; return false; };
+
     const run = await runRefine({
       requestId: deps.requestId,
       isAdmin: deps.isAdmin,
       callProvider: deps.callProvider,
       charge: deps.charge,
       persist: async (analysis, model) => {
-        const merged = mergePlanPreservingUser(lock.row.plan, analysis.plano_prospeccao_7dias);
+        // 1) prazo seguro: depois dele outra requisição pode ter assumido a reserva expirada.
+        if (now() - acquiredAt > REFINE_WRITE_DEADLINE_MS) return refuse({ status: "expired" });
+
+        // 2) estado mais recente confirmado no banco (o do início da geração pode estar velho).
+        const fresh = await deps.store.read();
+        if (!fresh) return refuse({ status: "conflict", reason: "lead_gone" });
+        if (fresh.reason !== lock.lockValue) return refuse({ status: "conflict", reason: "lock_lost" });
+        if ((fresh.generatedAt ?? null) !== (lock.row.generatedAt ?? null)) return refuse({ status: "conflict", reason: "analysis_changed" });
+        if (isOptOutRow(fresh)) return refuse({ status: "conflict", reason: "opt_out" });
+        if (classifyPlanShape(fresh.plan) === "unknown") return refuse({ status: "conflict", reason: "plan_shape_unknown" });
+
+        const merged = mergePlanPreservingUser(fresh.plan, analysis.plano_prospeccao_7dias);
         preserved = merged.preserved;
         const finalAnalysis = { ...analysis, plano_prospeccao_7dias: merged.days as ValidAnalysis["plano_prospeccao_7dias"] };
-        const ok = await deps.persist(finalAnalysis, model, { lockValue: lock.lockValue, preserved, previousPlan: lock.row.plan });
+        const ok = await deps.persist(finalAnalysis, model, {
+          lockValue: lock.lockValue,
+          preserved,
+          previousPlan: fresh.plan,
+          expected: { status: fresh.status ?? null, generatedAt: fresh.generatedAt ?? null },
+        });
         if (ok) released = true; // a gravação confirmada já limpou a reserva
         return ok;
       },
@@ -394,12 +478,34 @@ export async function runGuardedRefine(deps: GuardedRefineDeps): Promise<Guarded
 
     if (run.status === "saved") return { ...run, preserved };
     await release();
+    if (run.status === "save_failed" && refused) return refused;
     return run;
   } catch (error) {
     await release();
     throw error;
   }
 }
+
+export const CONFLICT_MESSAGES: Record<ConflictReason | "expired", string> = {
+  lead_gone: "O lead não foi encontrado ao salvar. Nada foi alterado nem cobrado.",
+  lock_lost: "Outra atualização assumiu este lead durante a geração. Nada foi sobrescrito nem cobrado.",
+  analysis_changed: "Outra análise foi salva para este lead durante a geração. Nada foi sobrescrito nem cobrado.",
+  opt_out: "Este lead registrou recusa durante a geração. A análise e o plano anteriores foram mantidos e nada foi cobrado.",
+  plan_shape_unknown: "O plano salvo está em um formato que não conseguimos preservar com segurança. Ele foi mantido como está e nada foi cobrado.",
+  expired: "A geração demorou mais que o prazo seguro. A análise anterior foi mantida e nada foi cobrado. Tente novamente.",
+};
+
+export const CONFLICT_BODY = (requestId: string, key: ConflictReason | "expired") => ({
+  success: false as const,
+  request_id: requestId,
+  error_code: key === "expired" ? "REFINE_LOCK_EXPIRED" : "REFINE_CONFLICT",
+  category: "validation_error" as const,
+  retryable: key === "expired" || key === "analysis_changed",
+  safe_message: CONFLICT_MESSAGES[key],
+  error_message: CONFLICT_MESSAGES[key],
+  credit_consumed: false as const,
+  saved: false as const,
+});
 
 export const IN_PROGRESS_BODY = (requestId: string) => ({
   success: false as const,

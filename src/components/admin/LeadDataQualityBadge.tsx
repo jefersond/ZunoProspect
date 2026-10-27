@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertTriangle, CheckCircle, Info } from "lucide-react";
 import type { DataQualitySummary } from "@/types/lead";
+import { sanitizeFallbackReason } from "@/utils/refineOutcome";
 
 interface Props {
   quality: DataQualitySummary;
@@ -88,7 +89,7 @@ export function buildDataQualitySummary(lead: {
   return {
     level,
     usedFallback: lead.ai_used_fallback ?? false,
-    fallbackReason: lead.ai_fallback_reason ?? null,
+    fallbackReason: sanitizeFallbackReason(lead.ai_fallback_reason),
     sources,
   };
 }

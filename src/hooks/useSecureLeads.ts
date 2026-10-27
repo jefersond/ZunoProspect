@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { LeadProspeccao } from '@/types/lead';
 import { normalizePlanoProspeccao } from '@/utils/normalizeLead';
-import { resolveUsedFallback } from "@/utils/refineOutcome";
+import { resolveUsedFallback, sanitizeFallbackReason } from "@/utils/refineOutcome";
 
 interface RateLimitInfo {
   remaining: number;
@@ -110,7 +110,7 @@ export const transformSecureLead = (lead: any): LeadProspeccao => {
     created_at: lead.created_at,
     ai_analise_gerada_em: lead.ai_analise_gerada_em,
     ai_used_fallback: resolveUsedFallback(lead),
-    ai_fallback_reason: (lead as { ai_fallback_reason?: string | null }).ai_fallback_reason ?? null,
+    ai_fallback_reason: sanitizeFallbackReason((lead as { ai_fallback_reason?: string | null }).ai_fallback_reason),
     salvo: lead.salvo || false,
     notas: lead.notas || null,
     cnpj: lead.cnpj || null,

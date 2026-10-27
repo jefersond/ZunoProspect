@@ -168,8 +168,14 @@ export function shouldShowServerMessage(payload: { category?: string; error_code
     payload.category === "provider_error" ||
     payload.category === "database_error" ||
     payload.error_code === "REFINE_IN_PROGRESS" ||
+    payload.error_code === "REFINE_CONFLICT" ||
+    payload.error_code === "REFINE_LOCK_EXPIRED" ||
     payload.error_code === "REFINE_SAVE_FAILED"
   );
 }
 
 export const REFINE_PERSISTENCE_UNCONFIRMED = "REFINE_PERSISTENCE_UNCONFIRMED";
+
+/** Marcador interno da reserva de geração: nunca deve aparecer como "motivo de reserva" para ninguém. */
+export const sanitizeFallbackReason = (reason: unknown): string | null =>
+  typeof reason === "string" && reason && !reason.startsWith("refine_lock_") ? reason : null;

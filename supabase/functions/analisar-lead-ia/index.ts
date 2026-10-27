@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   GEMINI_JSON_MIME_TYPE,
   REFINE_MODELS,
+  CONFLICT_BODY,
   IN_PROGRESS_BODY,
   SAVE_FAILED_BODY,
   runGuardedRefine,
@@ -233,17 +234,17 @@ async function callGemini(apiKey: string, lead: any, requestData: any, requestId
         }),
         signal: controller.signal,
       });
-      clearTimeout(timeout);
-
       if (!response.ok) {
         lastError = `${model}:${response.status}`;
         const detail = summarizeProviderError(await response.text().catch(() => ""));
+        clearTimeout(timeout);
         console.warn(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "provider", model, status: response.status, detail, duration_ms: Date.now() - started }));
         if ([401, 403].includes(response.status)) break;
         continue;
       }
 
-      const data = await response.json();
+      const data = await response.json(); // ainda sob o mesmo limite de tempo (clearTimeout só depois)
+      clearTimeout(timeout);
       const rawText = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || "").join("") || "";
       if (!rawText) {
         lastError = `${model}:empty`;
@@ -407,12 +408,12 @@ serve(async (req) => {
       read: async () => {
         const { data } = await admin
           .from("leads")
-          .select("ai_fallback_reason, updated_at, ai_analise_gerada_em, ai_used_fallback, plano_prospeccao")
+          .select("status, notas, ai_fallback_reason, updated_at, ai_analise_gerada_em, ai_used_fallback, plano_prospeccao")
           .eq("id", leadId)
           .eq("user_id", user.id)
           .maybeSingle();
         return data
-          ? { reason: data.ai_fallback_reason ?? null, updatedAt: data.updated_at ?? null, generatedAt: data.ai_analise_gerada_em ?? null, usedFallback: data.ai_used_fallback ?? null, plan: data.plano_prospeccao ?? null }
+          ? { status: data.status ?? null, notas: data.notas ?? null, reason: data.ai_fallback_reason ?? null, updatedAt: data.updated_at ?? null, generatedAt: data.ai_analise_gerada_em ?? null, usedFallback: data.ai_used_fallback ?? null, plan: data.plano_prospeccao ?? null }
           : null;
       },
       claim: async (prevReason, lockValue, nowIso) => {
@@ -443,7 +444,7 @@ serve(async (req) => {
         // Mantém qualquer outro dado já guardado no plano (histórico) e sobrepõe só o que a nova análise define.
         const previousObject = ctx.previousPlan && typeof ctx.previousPlan === "object" && !Array.isArray(ctx.previousPlan) ? ctx.previousPlan as Record<string, unknown> : {};
         responsePayload = { ...previousObject, ...built } as ReturnType<typeof buildResponse>;
-        const { data: saved, error: saveError } = await admin
+        let update = admin
           .from("leads")
           .update({
             diagnostico_bullets: analysis.diagnostico_bullets,
@@ -455,8 +456,12 @@ serve(async (req) => {
           })
           .eq("id", leadId)
           .eq("user_id", user.id)
-          .eq("ai_fallback_reason", ctx.lockValue) // só grava se a reserva ainda for desta requisição
-          .select("id, ai_analise_gerada_em");
+          .eq("ai_fallback_reason", ctx.lockValue); // só grava se a reserva ainda for desta requisição
+        // Compare-and-set nas colunas escalares lidas agora: se o status (ex.: opt-out) ou a análise mudou entre a
+        // última leitura e a gravação, nenhuma linha é alterada e a atualização é recusada.
+        update = ctx.expected.status === null ? update.is("status", null) : update.eq("status", ctx.expected.status);
+        update = ctx.expected.generatedAt === null ? update.is("ai_analise_gerada_em", null) : update.eq("ai_analise_gerada_em", ctx.expected.generatedAt);
+        const { data: saved, error: saveError } = await update.select("id, ai_analise_gerada_em");
         return !saveError && Boolean(saved?.length);
       },
       charge: async () => {
@@ -468,6 +473,12 @@ serve(async (req) => {
     if (run.status === "in_progress") {
       await logEvent(admin, user.id, "ai_analysis_duplicate_ignored", { request_id: requestId, leadId, reason: "in_progress", deducted_credit: false });
       return json(IN_PROGRESS_BODY(requestId), 409);
+    }
+
+    if (run.status === "conflict" || run.status === "expired") {
+      const key = run.status === "expired" ? "expired" : run.reason;
+      await logEvent(admin, user.id, "ai_analysis_failed_handled", { request_id: requestId, leadId, stage: "conflict", reason: key, saved: false, deducted_credit: false });
+      return json(CONFLICT_BODY(requestId, key), 409);
     }
 
     if (run.status === "lead_not_found") {

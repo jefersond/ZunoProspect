@@ -38,8 +38,8 @@ describe("perfil do assinante", () => {
 
   it("não assume serviço: sem serviço e descrição concreta, a geração é bloqueada", () => {
     const empty = sanitizeSellerProfile({ display_name: "Ana" });
-    expect(missingSellerProfileFields(empty)).toEqual(["service_offered", "offer_description"]);
-    const vague = sanitizeSellerProfile({ display_name: "Ana", service_offered: "Tráfego", offer_description: "tráfego" });
+    expect(missingSellerProfileFields(empty)).toEqual(["service_category", "service_offered", "offer_description"]);
+    const vague = sanitizeSellerProfile({ display_name: "Ana", service_category: "trafego", service_offered: "Tráfego", offer_description: "tráfego" });
     expect(missingSellerProfileFields(vague)).toContain("offer_description");
     expect(missingSellerProfileFields(profile)).toEqual([]);
   });

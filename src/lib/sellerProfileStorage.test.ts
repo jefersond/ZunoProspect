@@ -14,12 +14,12 @@ import {
 } from "./sellerProfile";
 
 const profileA = {
-  display_name: "Ana Souza", company_name: "Souza Digital",
+  display_name: "Ana Souza", company_name: "Souza Digital", service_category: "social_media" as const,
   service_offered: "Gestão de Instagram para restaurantes",
   offer_description: "Cuido do Instagram de restaurantes: fotos dos pratos, cardápio nos destaques e 12 posts por mês.",
   target_audience: "",
 };
-const profileB = { ...profileA, display_name: "Bruno Lima", service_offered: "Criação de sites", offer_description: "Faço sites de uma página com serviços, horário, mapa e botão de WhatsApp para oficinas." };
+const profileB = { ...profileA, service_category: "sites" as const, display_name: "Bruno Lima", service_offered: "Criação de sites", offer_description: "Faço sites de uma página com serviços, horário, mapa e botão de WhatsApp para oficinas." };
 
 describe("perfil comercial em localStorage (navegador compartilhado)", () => {
   beforeEach(() => { localStorage.clear(); resetSellerProfileStateForTests(); });
@@ -62,7 +62,7 @@ describe("perfil comercial em localStorage (navegador compartilhado)", () => {
     let release!: () => void;
     const slow: SellerProfileStorage = {
       load: () => new Promise((resolve) => { release = () => resolve(null); }),
-      save: async () => undefined,
+      save: async (_id, p) => p,
     };
     configureSellerProfileStorage(slow);
     const pending = loadSellerProfileForUser("user-b");
@@ -76,7 +76,7 @@ describe("perfil comercial em localStorage (navegador compartilhado)", () => {
     const resolvers: Record<string, (v: unknown) => void> = {};
     configureSellerProfileStorage({
       load: (id) => new Promise((resolve) => { resolvers[id] = resolve as never; }),
-      save: async () => undefined,
+      save: async (_id, p) => p,
     });
     const first = loadSellerProfileForUser("user-a");
     const second = loadSellerProfileForUser("user-b");

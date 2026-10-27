@@ -51,6 +51,7 @@ import { getSellerProfileState, loadSellerProfileForUser, resetSellerProfileStat
 const SELLER = {
   display_name: "Marina Costa",
   company_name: "Costa Digital",
+  service_category: "sites" as const,
   service_offered: "Criação de sites para negócios locais",
   offer_description: "Faço sites de uma página com serviços, horário, mapa e botão de WhatsApp para oficinas e lojas.",
   target_audience: "Oficinas e comércio local",
@@ -374,16 +375,14 @@ describe("Refinar com IA: só anuncia sucesso quando há análise válida e vis�
     expect(refineWithAI).toHaveBeenCalledTimes(1);
   });
 
-  it("perfil comercial enviado junto da solicitação (nome, empresa, serviço e oferta do assinante)", async () => {
+  it("o corpo da solicitação NÃO carrega o perfil: o servidor usa o perfil salvo do próprio usuário", async () => {
     const lead = makeNewLead();
     dbRow = geminiRow(lead);
     refineWithAI.mockResolvedValue({ requestId: "r20", data: { success: true, model: "gemini-3.5-flash-lite", used_fallback: false } });
     renderDialog(lead);
     await clickRefine();
     await waitFor(() => expect(refineWithAI).toHaveBeenCalledTimes(1));
-    const body = refineWithAI.mock.calls[0][0] as { seller_profile: Record<string, string> };
-    expect(body.seller_profile).toMatchObject({ display_name: "Marina Costa", company_name: "Costa Digital", service_offered: SELLER.service_offered });
-    expect(body.seller_profile.offer_description).toBe(SELLER.offer_description);
+    expect(refineWithAI.mock.calls[0][0]).not.toHaveProperty("seller_profile");
   });
 
   it("sem perfil comercial: abre o formulário, não chama a IA e não consome crédito", async () => {

@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { COMMERCIAL_STATE_LABELS } from "../../supabase/functions/_shared/commercial-state";
 
 export interface UserExportData {
   id: string;
@@ -8,7 +9,18 @@ export interface UserExportData {
   empresa: string;
   avatar_url?: string;
   plan_name: string;
-  plan_status?: string;
+  plan_status?: string | null;
+  commercial_state?: string;
+  commercial_profile?: {
+    filled: boolean;
+    complete: boolean;
+    display_name: string;
+    company_name: string;
+    service_category_label: string;
+    service_offered: string;
+    offer_description: string;
+    target_audience: string;
+  };
   leads_limit: number;
   leads_used_this_month: number;
   leads_available_total?: number;
@@ -58,7 +70,12 @@ export const exportUsersToExcel = (users: UserExportData[]) => {
     Empresa: user.empresa || "-",
     Telefone: user.phone || "-",
     Plano: getPlanDisplayName(user.plan_name),
-    "Status Plano": user.plan_status || "-",
+    "Status Plano": user.plan_status || "Sem confirmação",
+    "Situação": user.commercial_state ? (COMMERCIAL_STATE_LABELS[user.commercial_state] ?? user.commercial_state) : "-",
+    "Categoria comercial": user.commercial_profile?.service_category_label || "Não informado",
+    "Serviço vendido": user.commercial_profile?.service_offered || "Não informado",
+    "Descrição da oferta": user.commercial_profile?.offer_description || "Não informado",
+    "Público-alvo": user.commercial_profile?.target_audience || "Não informado",
     "Leads Usados": user.leads_used_this_month,
     "Limite de Leads": user.leads_limit,
     "Leads Disponiveis": user.leads_available_total ?? "-",

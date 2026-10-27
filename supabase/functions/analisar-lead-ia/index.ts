@@ -18,7 +18,6 @@ import {
   evaluatePreconditions,
   nextHistory,
   runGeminiAnalysis,
-  sanitizeSellerProfile,
   toStoredDay,
   validateAnalysis,
   type GeminiTelemetry,
@@ -28,6 +27,7 @@ import {
   type ValidatedAnalysis,
   type VerifiedFacts,
 } from "../_shared/lead-analysis.ts";
+import { loadSellerProfileForUser } from "../_shared/seller-profile-store.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -212,7 +212,7 @@ serve(async (req) => {
     // Pré-condições ANTES de qualquer reserva, chamada de IA ou crédito: perfil comercial do assinante completo e lead sem recusa.
     const leadRow = leadFromRow(rows[0], requestData.search_context || requestData.context || {});
     const facts = buildVerifiedFacts(leadRow);
-    const profile = sanitizeSellerProfile(requestData.seller_profile);
+    const profile = await loadSellerProfileForUser(admin, user.id); // perfil salvo do próprio usuário; o corpo é ignorado
     const blocked = evaluatePreconditions({ profile, stage: facts.etapa_do_historico, existingPlan: null, replaceExisting: true });
     if (blocked) {
       return json({

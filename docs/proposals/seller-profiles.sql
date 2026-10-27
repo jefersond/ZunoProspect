@@ -3,16 +3,24 @@
 -- Perfil comercial do assinante (quem fala e o que vende), usado pela análise com Gemini.
 -- Uma linha por usuário, isolada por RLS (cada usuário só enxerga e altera a própria linha).
 --
--- Depois de aprovada e aplicada:
---   1) regenerar src/integrations/supabase/types.ts;
---   2) ligar SELLER_PROFILE_REMOTE_ENABLED em src/lib/sellerProfile.ts e configurar
---      createMigratingSellerProfileStorage(createRemoteSellerProfileStorage(supabase), localSellerProfileStorage)
---      (perfis já salvos no navegador sobem sozinhos na primeira carga).
+-- Leitura administrativa: NÃO há policy para admin. O painel lê pelo endpoint admin-get-users (service role),
+-- que só responde depois de verificar is_admin de verdade.
+--
+-- Sequência segura de publicação (não inverter):
+--   1) aplicar esta migration;
+--   2) publicar a Edge Function analisar-lead-ia e admin-get-users (verify_jwt=false restaurado e conferido);
+--   3) publicar o frontend com VITE_SELLER_PROFILE_REMOTE=true
+--      (perfis já salvos no navegador sobem sozinhos na primeira carga, sem sobrescrever o banco).
+-- Publicar a função antes da migration faria toda análise devolver REFINE_PROFILE_REQUIRED.
+--   4) regenerar src/integrations/supabase/types.ts.
 
 create table if not exists public.seller_profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
   display_name text not null default '' check (char_length(display_name) <= 60),
   company_name text not null default '' check (char_length(company_name) <= 80),
+  service_category text not null default '' check (
+    service_category in ('', 'trafego', 'social_media', 'sites', 'crm', 'automacao', 'seo', 'design', 'full_service', 'outro')
+  ),
   service_offered text not null default '' check (char_length(service_offered) <= 120),
   offer_description text not null default '' check (char_length(offer_description) <= 600),
   target_audience text not null default '' check (char_length(target_audience) <= 300),

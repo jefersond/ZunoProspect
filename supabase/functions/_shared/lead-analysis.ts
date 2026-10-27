@@ -21,15 +21,31 @@ export const NO_MESSAGE_LABEL = "Nenhuma mensagem necessária nesta etapa";
 
 // ───────────────────────── Perfil do assinante ─────────────────────────
 
+/** Categorias escolhidas PELO assinante (nunca deduzidas das pesquisas dele). Mesma lista da tabela `seller_profiles`. */
+export const SERVICE_CATEGORIES = ["trafego", "social_media", "sites", "crm", "automacao", "seo", "design", "full_service", "outro"] as const;
+export type ServiceCategory = (typeof SERVICE_CATEGORIES)[number] | "";
+export const SERVICE_CATEGORY_LABELS: Record<(typeof SERVICE_CATEGORIES)[number], string> = {
+  trafego: "Tráfego",
+  social_media: "Social Media",
+  sites: "Sites",
+  crm: "CRM",
+  automacao: "Automação",
+  seo: "SEO",
+  design: "Design",
+  full_service: "Full Service",
+  outro: "Outro",
+};
+
 export interface SellerProfile {
   display_name: string;
   company_name: string;
+  service_category: ServiceCategory;
   service_offered: string;
   offer_description: string;
   target_audience: string;
 }
 
-const PROFILE_LIMITS: Record<keyof SellerProfile, number> = {
+const PROFILE_LIMITS: Record<Exclude<keyof SellerProfile, "service_category">, number> = {
   display_name: 60,
   company_name: 80,
   service_offered: 120,
@@ -55,6 +71,7 @@ export function sanitizeSellerProfile(raw: unknown): SellerProfile {
   return {
     display_name: cleanProfileText(src.display_name, PROFILE_LIMITS.display_name),
     company_name: cleanProfileText(src.company_name, PROFILE_LIMITS.company_name),
+    service_category: (SERVICE_CATEGORIES as readonly string[]).includes(String(src.service_category)) ? (src.service_category as ServiceCategory) : "",
     service_offered: cleanProfileText(src.service_offered, PROFILE_LIMITS.service_offered),
     offer_description: cleanProfileText(src.offer_description, PROFILE_LIMITS.offer_description, true),
     target_audience: cleanProfileText(src.target_audience, PROFILE_LIMITS.target_audience, true),
@@ -67,6 +84,7 @@ export type SellerProfileField = keyof SellerProfile;
 export function missingSellerProfileFields(profile: SellerProfile): SellerProfileField[] {
   const missing: SellerProfileField[] = [];
   if (!profile.display_name) missing.push("display_name");
+  if (!profile.service_category) missing.push("service_category");
   if (!profile.service_offered) missing.push("service_offered");
   if (profile.offer_description.length < MIN_OFFER_DESCRIPTION_CHARS) missing.push("offer_description");
   return missing;
@@ -286,6 +304,7 @@ export function buildAnalysisPrompt(facts: VerifiedFacts, profile: SellerProfile
   const seller = {
     nome_de_apresentacao: profile.display_name,
     empresa: profile.company_name || null,
+    categoria_do_servico: profile.service_category ? SERVICE_CATEGORY_LABELS[profile.service_category] : null,
     servico_oferecido: profile.service_offered,
     descricao_da_oferta: profile.offer_description,
     publico_alvo: profile.target_audience || null,

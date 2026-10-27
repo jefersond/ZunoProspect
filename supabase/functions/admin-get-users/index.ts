@@ -1,5 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  classifyCommercialState,
+  normalizeSubscriptionStatus,
+  summarizeByCategory,
+  summarizeByState,
+  summarizeCommercialProfile,
+} from "../_shared/commercial-state.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -73,6 +80,7 @@ const buildUserSummary = (
   receivedReferral: any = null,
   emailById = new Map<string, string>(),
   userAddons: any[] = [],
+  sellerProfileRow: any = null,
 ) => {
   const planName = normalizePlan(subscription.plan_name);
   const leadsLimit = numberOrZero(subscription.leads_limit || (planName === "free" ? 20 : 0));
@@ -97,7 +105,9 @@ const buildUserSummary = (
     empresa: profile.empresa || "",
     avatar_url: profile.avatar_url || authUser.user_metadata?.avatar_url || "",
     plan_name: planName,
-    plan_status: subscription.status || subscription.subscription_status || "active",
+    plan_status: normalizeSubscriptionStatus(subscription), // sem informação = null; nunca assume "active"
+    commercial_state: classifyCommercialState({ planName, subscription, isAdmin: userIsAdmin }),
+    commercial_profile: summarizeCommercialProfile(sellerProfileRow),
     leads_limit: userIsAdmin ? 999999 : leadsLimit,
     leads_used_this_month: userIsAdmin ? 0 : leadsUsed,
     leads_available_total: userIsAdmin ? 999999 : Math.max(leadsLimit - leadsUsed, 0) + referralBonusAvailable,
@@ -256,6 +266,13 @@ serve(async (req) => {
       logStep("Referrals table unavailable", { error: referralsError.message });
     }
 
+    // Perfil comercial: leitura com service role, só depois da verificação is_admin acima.
+    const { data: sellerProfiles, error: sellerProfilesError } = await supabaseAdmin.from("seller_profiles").select("*");
+    if (sellerProfilesError) {
+      logStep("seller_profiles unavailable", { error: sellerProfilesError.message });
+    }
+    const sellerProfilesMap = new Map((sellerProfiles || []).map((row: any) => [row.user_id, row]));
+
     const { data: addons, error: addonsError } = await supabaseAdmin.from("user_addons").select("*");
     if (addonsError) {
       logStep("User addons table unavailable", { error: addonsError.message });
@@ -304,6 +321,7 @@ serve(async (req) => {
         receivedReferral,
         emailById,
         userAddons,
+        sellerProfilesMap.get(detailUserId) || null,
       );
 
       const leads = await safeSelect(
@@ -460,7 +478,7 @@ serve(async (req) => {
       const userReferrals = referralsMade.get(authUser.id) || [];
       const receivedReferral = referralsReceived.get(authUser.id);
       const userAddons = addonsByUser.get(authUser.id) || [];
-      return buildUserSummary(authUser, profile, subscription, userReferrals, receivedReferral, emailById, userAddons);
+      return buildUserSummary(authUser, profile, subscription, userReferrals, receivedReferral, emailById, userAddons, sellerProfilesMap.get(authUser.id) || null);
     });
 
     const filteredUsers = combinedUsers
@@ -472,6 +490,8 @@ serve(async (req) => {
           adminUser.empresa,
           adminUser.referral_code,
           adminUser.referred_by_email,
+          adminUser.commercial_profile.service_offered,
+          adminUser.commercial_profile.service_category_label,
         ].some((field) => String(field || "").toLowerCase().includes(query));
       })
       .filter((adminUser) => {
@@ -480,7 +500,9 @@ serve(async (req) => {
         if (planFilter === "referred") return Boolean(adminUser.referred_by);
         if (planFilter === "bonus") return adminUser.referral_bonus_available > 0;
         if (planFilter === "inactive") return !adminUser.last_sign_in_at;
-        if (planFilter === "paying") return ["starter", "iniciante", "pro", "agency", "agencia"].includes(adminUser.plan_name);
+        if (planFilter === "paying") return adminUser.commercial_state === "paid_active"; // nome do plano não basta
+        if (["paid_active", "trial", "free", "canceled", "past_due", "indefinido"].includes(planFilter)) return adminUser.commercial_state === planFilter;
+        if (planFilter === "profile_missing") return !adminUser.is_admin && !adminUser.commercial_profile.complete;
         return adminUser.plan_name === planFilter;
       })
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -495,6 +517,9 @@ serve(async (req) => {
         pro: combinedUsers.filter((adminUser) => adminUser.plan_name === "pro").length,
         agencia: combinedUsers.filter((adminUser) => adminUser.plan_name === "agencia").length,
       },
+      byCommercialState: summarizeByState(combinedUsers),
+      byServiceCategory: summarizeByCategory(combinedUsers),
+      profileComplete: combinedUsers.filter((adminUser) => !adminUser.is_admin && adminUser.commercial_profile.complete).length,
       annual: combinedUsers.filter((adminUser) => adminUser.is_annual).length,
       withUsaAddon: combinedUsers.filter((adminUser) => adminUser.usa_addon).length,
       admins: combinedUsers.filter((adminUser) => adminUser.is_admin).length,

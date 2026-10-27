@@ -1,3 +1,4 @@
+import { openSellerProfileDialog } from "@/lib/sellerProfile";
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -251,6 +252,15 @@ const Profile = () => {
       />
 
       <main className="container mx-auto px-4 py-8 max-w-2xl">
+        <Card className="mb-4 shadow-lg" data-testid="seller-profile-card">
+          <CardHeader>
+            <CardTitle>Perfil comercial</CardTitle>
+            <CardDescription>O que você vende. É usado para escrever mensagens em seu nome.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={openSellerProfileDialog}>Editar perfil comercial</Button>
+          </CardContent>
+        </Card>
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Informações do Perfil</CardTitle>

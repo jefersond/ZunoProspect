@@ -18,6 +18,7 @@ import type { LeadProspeccao } from "@/types/lead";
 import { LeadPlanDialog } from "./LeadPlanDialog";
 import { SdrWhatsAppModal } from "./SdrWhatsAppModal";
 import { RefineErrorPanel } from "./RefineErrorPanel";
+import { SellerProfileInvite } from "@/components/profile/SellerProfileInvite";
 import { LeadEditDialog } from "./LeadEditDialog";
 import { Progress } from "@/components/ui/progress";
 import { exportLeadsToExcel } from "@/utils/exportToExcel";
@@ -32,7 +33,7 @@ import type { UpgradeSource } from "@/lib/funnelContext";
 import { normalizeLeadForAI } from "@/utils/normalizeLead";
 import { generateSmartProspectingCopy } from "@/utils/smartProspectingCopy";
 import { refineWithAI } from "@/services/refineWithAI";
-import { ensureSellerProfileOrPrompt, getSellerProfileForRequest, openSellerProfileDialog } from "@/lib/sellerProfile";
+import { ensureSellerProfileOrPrompt, openSellerProfileDialog } from "@/lib/sellerProfile";
 import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, resolveUsedFallback, describePreservedDays, readPreservedDays, shouldShowServerMessage, sanitizeFallbackReason } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
@@ -1110,7 +1111,6 @@ export const LeadsList = () => {
       if (!token) throw new Error("Sessão expirada. Faça login novamente.");
 
       const invokeBody = {
-          seller_profile: getSellerProfileForRequest(),
           leadId: lead.id,
           lead_id: leadKey,
           user_id: user.id,
@@ -1364,6 +1364,7 @@ export const LeadsList = () => {
 
   return (
     <>
+      <SellerProfileInvite />
       {lastRefineError && (
         <RefineErrorPanel
           error={lastRefineError.error}
@@ -1876,15 +1877,17 @@ export const LeadsList = () => {
                     
                     <TableCell className="px-3 py-3 align-top">
                       <div className="flex flex-col gap-1.5">
-                        <Button
-                          size="sm"
-                          onClick={() => setSdrLead(lead)}
-                          className="h-8 w-full whitespace-nowrap px-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-sm flex items-center justify-center gap-1 transition-all active:scale-95"
-                          title="Iniciar primeira abordagem assistida pelo WhatsApp"
-                        >
-                          <MessageSquare className="h-3.5 w-3.5" />
-                          Abordar WhatsApp
-                        </Button>
+                        {isAdmin && (
+                          <Button
+                            size="sm"
+                            onClick={() => setSdrLead(lead)}
+                            className="h-8 w-full whitespace-nowrap px-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-sm flex items-center justify-center gap-1 transition-all active:scale-95"
+                            title="Iniciar primeira abordagem assistida pelo WhatsApp"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            Abordar WhatsApp
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -2075,9 +2078,9 @@ export const LeadsList = () => {
         />
       )}
 
-      <SdrWhatsAppModal
+      {isAdmin && <SdrWhatsAppModal
         lead={sdrLead}
-        open={!!sdrLead}
+        open={!!sdrLead && isAdmin}
         onOpenChange={(open) => !open && setSdrLead(null)}
         onStatusUpdated={(leadId, newStatus) => {
           if (sdrLead && sdrLead.id === leadId) {
@@ -2085,7 +2088,7 @@ export const LeadsList = () => {
           }
           refreshSingleLead(leadId);
         }}
-      />
+      />}
 
       <LeadPlanDialog
         lead={selectedLead}

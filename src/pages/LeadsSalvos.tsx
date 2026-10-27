@@ -42,7 +42,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { trackEvent } from "@/lib/analytics";
 import { refineWithAI } from "@/services/refineWithAI";
-import { ensureSellerProfileOrPrompt, getSellerProfileForRequest, openSellerProfileDialog } from "@/lib/sellerProfile";
+import { ensureSellerProfileOrPrompt, openSellerProfileDialog } from "@/lib/sellerProfile";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, resolveUsedFallback, describePreservedDays, readPreservedDays, shouldShowServerMessage } from "@/utils/refineOutcome";
 
@@ -375,7 +375,6 @@ const LeadsSalvos = () => {
       if (!token) throw new Error("Sessão expirada. Faça login novamente.");
 
       const invokeBody = {
-          seller_profile: getSellerProfileForRequest(),
           leadId,
           lead: normalizedLead,
           search_context: searchContext

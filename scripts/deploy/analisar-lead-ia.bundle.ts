@@ -321,6 +321,18 @@ var DAY_TYPES = ["mensagem", "acompanhamento", "tarefa", "sem_mensagem"];
 var DAY_CHANNELS = ["whatsapp", "instagram", "email", "telefone", "nenhum"];
 var SENDABLE_CHANNELS = ["whatsapp", "instagram", "email"];
 var NO_MESSAGE_LABEL = "Nenhuma mensagem necess\xE1ria nesta etapa";
+var SERVICE_CATEGORIES = ["trafego", "social_media", "sites", "crm", "automacao", "seo", "design", "full_service", "outro"];
+var SERVICE_CATEGORY_LABELS = {
+  trafego: "Tr\xE1fego",
+  social_media: "Social Media",
+  sites: "Sites",
+  crm: "CRM",
+  automacao: "Automa\xE7\xE3o",
+  seo: "SEO",
+  design: "Design",
+  full_service: "Full Service",
+  outro: "Outro"
+};
 var PROFILE_LIMITS = {
   display_name: 60,
   company_name: 80,
@@ -344,6 +356,7 @@ function sanitizeSellerProfile(raw) {
   return {
     display_name: cleanProfileText(src.display_name, PROFILE_LIMITS.display_name),
     company_name: cleanProfileText(src.company_name, PROFILE_LIMITS.company_name),
+    service_category: SERVICE_CATEGORIES.includes(String(src.service_category)) ? src.service_category : "",
     service_offered: cleanProfileText(src.service_offered, PROFILE_LIMITS.service_offered),
     offer_description: cleanProfileText(src.offer_description, PROFILE_LIMITS.offer_description, true),
     target_audience: cleanProfileText(src.target_audience, PROFILE_LIMITS.target_audience, true)
@@ -352,6 +365,7 @@ function sanitizeSellerProfile(raw) {
 function missingSellerProfileFields(profile) {
   const missing = [];
   if (!profile.display_name) missing.push("display_name");
+  if (!profile.service_category) missing.push("service_category");
   if (!profile.service_offered) missing.push("service_offered");
   if (profile.offer_description.length < MIN_OFFER_DESCRIPTION_CHARS) missing.push("offer_description");
   return missing;
@@ -503,6 +517,7 @@ function buildAnalysisPrompt(facts, profile) {
   const seller = {
     nome_de_apresentacao: profile.display_name,
     empresa: profile.company_name || null,
+    categoria_do_servico: profile.service_category ? SERVICE_CATEGORY_LABELS[profile.service_category] : null,
     servico_oferecido: profile.service_offered,
     descricao_da_oferta: profile.offer_description,
     publico_alvo: profile.target_audience || null
@@ -1005,6 +1020,17 @@ async function runGeminiAnalysis(opts) {
   return { ok: false, kind: lastKind, error: lastError || "provider_unavailable", telemetry: telemetry() };
 }
 
+// supabase/functions/_shared/seller-profile-store.ts
+async function loadSellerProfileForUser(admin, userId) {
+  try {
+    const { data, error } = await admin.from("seller_profiles").select("*").eq("user_id", userId).maybeSingle();
+    if (error || !data) return sanitizeSellerProfile(null);
+    return sanitizeSellerProfile(data);
+  } catch {
+    return sanitizeSellerProfile(null);
+  }
+}
+
 // supabase/functions/analisar-lead-ia/index.ts
 var cors = {
   "Access-Control-Allow-Origin": "*",
@@ -1148,7 +1174,7 @@ serve(async (req) => {
     }
     const leadRow = leadFromRow(rows[0], requestData.search_context || requestData.context || {});
     const facts = buildVerifiedFacts(leadRow);
-    const profile = sanitizeSellerProfile(requestData.seller_profile);
+    const profile = await loadSellerProfileForUser(admin, user.id);
     const blocked = evaluatePreconditions({ profile, stage: facts.etapa_do_historico, existingPlan: null, replaceExisting: true });
     if (blocked) {
       return json({

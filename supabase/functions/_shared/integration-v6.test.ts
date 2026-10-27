@@ -76,14 +76,14 @@ describe("perfil do assinante e pré-condições (antes de qualquer chamada)", (
     const caseF = cases.find((c) => c.id === "F")!;
     const blocked = evaluatePreconditions({ profile: caseF.seller, stage: "nao_contatado", existingPlan: null, replaceExisting: true });
     expect(blocked).toMatchObject({ code: "REFINE_PROFILE_REQUIRED", status: 422 });
-    expect(blocked && "missing" in blocked && blocked.missing).toEqual(["service_offered", "offer_description"]);
+    expect(blocked && "missing" in blocked && blocked.missing).toEqual(["service_category", "service_offered", "offer_description"]);
   });
 
   it("nenhum serviço é presumido (tráfego pago só se o assinante disser)", () => {
     const prompt = buildAnalysisPrompt(factsOf, sellers.social);
     expect(prompt).toContain(sellers.social.service_offered);
     expect(prompt).not.toMatch(/gestão de tráfego pago/i);
-    expect(evaluatePreconditions({ profile: sanitizeSellerProfile({ display_name: "Ana", service_offered: "Full Service", offer_description: "" }), stage: "nao_contatado", existingPlan: null, replaceExisting: true })?.code).toBe("REFINE_PROFILE_REQUIRED");
+    expect(evaluatePreconditions({ profile: sanitizeSellerProfile({ display_name: "Ana", service_category: "full_service", service_offered: "Full Service", offer_description: "" }), stage: "nao_contatado", existingPlan: null, replaceExisting: true })?.code).toBe("REFINE_PROFILE_REQUIRED");
   });
 
   it("lead com opt-out é bloqueado antes de qualquer chamada", () => {
@@ -224,5 +224,57 @@ describe("gravação protegida: edições, etapas concluídas, histórico e plan
     const days = (db.row.plan as { plano_prospeccao_7dias: Array<{ dia: number; mensagem: string }> }).plano_prospeccao_7dias;
     expect(days.find((d) => d.dia === 4)?.mensagem).toBe("Antiga 4");
     expect((db.row.plan as { history: unknown[] }).history).toHaveLength(1);
+  });
+});
+
+import { readFileSync as readSrc } from "node:fs";
+import { loadSellerProfileForUser as loadProfileFromDb } from "./seller-profile-store.ts";
+
+describe("perfil comercial lido no servidor (Gemini usa só o perfil salvo)", () => {
+  const dbWith = (row: Record<string, unknown> | null, error: { message: string } | null = null) => {
+    const eqCalls: Array<[string, string]> = [];
+    return {
+      eqCalls,
+      client: { from: (t: string) => ({ select: () => ({ eq: (c: string, v: string) => { eqCalls.push([`${t}.${c}`, v]); return { maybeSingle: async () => ({ data: row, error }) }; } }) }) },
+    };
+  };
+  const row = { user_id: "u1", display_name: "Ana", company_name: "", service_category: "sites", service_offered: "Sites para oficinas", offer_description: "Faço sites de uma página com serviços, horário, mapa e botão de WhatsApp para oficinas.", target_audience: "" };
+
+  it("consulta somente a linha do usuário autenticado", async () => {
+    const db = dbWith(row);
+    const profile = await loadProfileFromDb(db.client as never, "u1");
+    expect(db.eqCalls).toEqual([["seller_profiles.user_id", "u1"]]);
+    expect(profile.service_category).toBe("sites");
+  });
+
+  it("sem linha, erro ou tabela ausente: perfil vazio que as pré-condições barram (nada é cobrado)", async () => {
+    for (const db of [dbWith(null), dbWith(null, { message: "relation does not exist" })]) {
+      const profile = await loadProfileFromDb(db.client as never, "u1");
+      expect(evaluatePreconditions({ profile, stage: "nao_contatado", existingPlan: null, replaceExisting: true })?.code).toBe("REFINE_PROFILE_REQUIRED");
+    }
+  });
+
+  it("a função ignora seller_profile do corpo da requisição", () => {
+    const source = readSrc(new URL("../analisar-lead-ia/index.ts", import.meta.url), "utf8");
+    expect(source).not.toContain("requestData.seller_profile");
+    expect(source).toContain("loadSellerProfileForUser(admin, user.id)");
+  });
+});
+
+describe("proposta SQL de seller_profiles", () => {
+  const sql = readSrc(new URL("../../../docs/proposals/seller-profiles.sql", import.meta.url), "utf8");
+  it("RLS só do próprio perfil, anon revogado, uma linha por usuário, categoria fechada", () => {
+    expect(sql).toContain("enable row level security");
+    expect(sql).toContain("user_id uuid primary key");
+    expect(sql).toContain("revoke all on public.seller_profiles from anon, public");
+    const policies = sql.match(/create policy[\s\S]*?;/g) ?? [];
+    expect(policies).toHaveLength(4);
+    for (const p of policies) expect(p).toContain("(select auth.uid())");
+    expect(sql).not.toMatch(/using \(true\)|with check \(true\)/);
+    expect(sql).toContain("'full_service', 'outro'");
+  });
+  it("não está em supabase/migrations", async () => {
+    const { existsSync } = await import("node:fs");
+    expect(existsSync(new URL("../../migrations/seller-profiles.sql", import.meta.url))).toBe(false);
   });
 });

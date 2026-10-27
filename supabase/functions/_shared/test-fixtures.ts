@@ -4,6 +4,7 @@ import type { SellerProfile } from "./lead-analysis";
 export const profile: SellerProfile = {
   display_name: "Marina Costa",
   company_name: "Costa Digital",
+  service_category: "sites",
   service_offered: "Criação de sites para negócios locais",
   offer_description: "Faço sites de uma página com serviços, horário, mapa e botão de WhatsApp para oficinas e lojas.",
   target_audience: "Oficinas e comércio local",

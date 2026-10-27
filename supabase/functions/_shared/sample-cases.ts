@@ -4,31 +4,31 @@ import { sanitizeSellerProfile, type RawLeadForAnalysis } from "./lead-analysis"
 
 export const sellers = {
   trafego: sanitizeSellerProfile({
-    display_name: "Rafael Moura", company_name: "Moura Ads",
+    display_name: "Rafael Moura", company_name: "Moura Ads", service_category: "trafego",
     service_offered: "Gestão de tráfego pago para clínicas e consultórios",
     offer_description: "Crio e gerencio campanhas no Google Ads e Meta Ads para clínicas e consultórios receberem pacientes novos em procedimentos específicos, com relatório mensal de contatos e agendamentos.",
     target_audience: "Clínicas odontológicas e consultórios da Grande Vitória",
   }),
   social: sanitizeSellerProfile({
-    display_name: "Camila Duarte", company_name: "Duarte Conteúdo",
+    display_name: "Camila Duarte", company_name: "Duarte Conteúdo", service_category: "social_media",
     service_offered: "Gestão de Instagram para restaurantes",
     offer_description: "Cuido do Instagram de restaurantes: organização do perfil, fotos e vídeos dos pratos, cardápio nos destaques, 12 posts por mês e resposta aos comentários.",
     target_audience: "Restaurantes e lanchonetes",
   }),
   sites: sanitizeSellerProfile({
-    display_name: "Marina Costa", company_name: "Costa Digital",
+    display_name: "Marina Costa", company_name: "Costa Digital", service_category: "sites",
     service_offered: "Criação de sites para negócios locais",
     offer_description: "Faço sites de uma página com serviços, horário, mapa e botão de WhatsApp para oficinas e lojas.",
     target_audience: "Oficinas e comércio local",
   }),
   automacao: sanitizeSellerProfile({
-    display_name: "Paulo Nery", company_name: "Nery Automação",
+    display_name: "Paulo Nery", company_name: "Nery Automação", service_category: "automacao",
     service_offered: "Automação de atendimento no WhatsApp para lojas",
     offer_description: "Configuro WhatsApp Business com respostas rápidas, catálogo, etiquetas de clientes e lembrete de orçamentos pendentes para lojas pequenas.",
     target_audience: "Lojas e comércio local",
   }),
   agencia: sanitizeSellerProfile({
-    display_name: "Bianca Ramos", company_name: "Ramos Performance",
+    display_name: "Bianca Ramos", company_name: "Ramos Performance", service_category: "trafego",
     service_offered: "Google Ads e site para empresas de serviços",
     offer_description: "Agência que monta campanhas de busca no Google e uma página de captação de pedidos de orçamento para empresas de serviços para condomínios e empresas.",
     target_audience: "Prestadores de serviço B2B",

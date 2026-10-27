@@ -5,13 +5,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
   EMPTY_SELLER_PROFILE,
   MIN_OFFER_DESCRIPTION_CHARS,
   SELLER_PROFILE_FIELD_LABELS,
+  SELLER_PROFILE_REMOTE_ENABLED,
+  SERVICE_CATEGORIES,
+  SERVICE_CATEGORY_LABELS,
   closeSellerProfileDialog,
+  configureSellerProfileStorage,
+  createMigratingSellerProfileStorage,
+  createRemoteSellerProfileStorage,
   loadSellerProfileForUser,
+  localSellerProfileStorage,
   missingSellerProfileFields,
   saveSellerProfile,
   useSellerProfileState,
@@ -19,7 +27,7 @@ import {
 } from "@/lib/sellerProfile";
 
 export const SellerProfileDialog = () => {
-  const { dialogOpen, profile } = useSellerProfileState();
+  const { dialogOpen, profile, loadError } = useSellerProfileState();
   const { toast } = useToast();
   const [draft, setDraft] = useState<SellerProfile>(EMPTY_SELLER_PROFILE);
   const [saving, setSaving] = useState(false);
@@ -33,7 +41,7 @@ export const SellerProfileDialog = () => {
   }, [dialogOpen, profile]);
 
   const missing = missingSellerProfileFields(draft);
-  const update = (key: keyof SellerProfile) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+  const update = (key: keyof SellerProfile) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setDraft((prev) => ({ ...prev, [key]: event.target.value }));
 
   const handleSave = async () => {
@@ -70,6 +78,11 @@ export const SellerProfileDialog = () => {
           </DialogDescription>
         </DialogHeader>
 
+        {loadError && (
+          <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-xs text-destructive" data-testid="seller-profile-load-error">
+            {loadError} Se você já tinha um perfil salvo, ele não foi alterado; tente reabrir esta janela em instantes antes de salvar um novo.
+          </p>
+        )}
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="seller-display-name">{SELLER_PROFILE_FIELD_LABELS.display_name}</Label>
@@ -81,8 +94,23 @@ export const SellerProfileDialog = () => {
             <Input id="seller-company" value={draft.company_name} onChange={update("company_name")} placeholder="Nome da sua empresa ou agência" maxLength={80} />
           </div>
           <div className="space-y-1.5">
+            <Label htmlFor="seller-category">{SELLER_PROFILE_FIELD_LABELS.service_category}</Label>
+            <select
+              id="seller-category"
+              value={draft.service_category}
+              onChange={update("service_category")}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">Selecione o que você vende</option>
+              {SERVICE_CATEGORIES.map((key) => (
+                <option key={key} value={key}>{SERVICE_CATEGORY_LABELS[key]}</option>
+              ))}
+            </select>
+            {fieldError("service_category")}
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="seller-service">{SELLER_PROFILE_FIELD_LABELS.service_offered}</Label>
-            <Input id="seller-service" value={draft.service_offered} onChange={update("service_offered")} placeholder="Ex.: Criação de sites para negócios locais" maxLength={120} />
+            <Input id="seller-service" value={draft.service_offered} onChange={update("service_offered")} placeholder={draft.service_category === "outro" ? "Descreva o serviço (obrigatório em Outro)" : "Ex.: Criação de sites para negócios locais"} maxLength={120} />
             {fieldError("service_offered")}
           </div>
           <div className="space-y-1.5">
@@ -107,12 +135,17 @@ export const SellerProfileDialog = () => {
   );
 };
 
-/** Montado uma vez no App: carrega o perfil do usuário logado e hospeda o formulário. */
+/** Montado uma vez no App: escolhe o armazenamento, carrega o perfil do usuário logado e hospeda o formulário. */
 export const SellerProfileHost = () => {
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
   useEffect(() => {
+    configureSellerProfileStorage(
+      SELLER_PROFILE_REMOTE_ENABLED
+        ? createMigratingSellerProfileStorage(createRemoteSellerProfileStorage(supabase as never), localSellerProfileStorage)
+        : localSellerProfileStorage,
+    );
     void loadSellerProfileForUser(userId);
   }, [userId]);
 

@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import { Search, RefreshCw, ChevronLeft, ChevronRight, Loader2, Pencil } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
+import { sanitizeFallbackReason } from "@/utils/refineOutcome";
 
 const PAGE_SIZE = 50;
 
@@ -273,7 +274,7 @@ export default function AdminLeads() {
                   {selected.ai_used_fallback && (
                     <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
                       A IA usou fallback nesta análise
-                      {selected.ai_fallback_reason && `: ${selected.ai_fallback_reason}`}
+                      {sanitizeFallbackReason(selected.ai_fallback_reason) && `: ${sanitizeFallbackReason(selected.ai_fallback_reason)}`}
                     </p>
                   )}
                 </section>

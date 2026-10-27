@@ -201,6 +201,8 @@ describe("Refinar com IA: só anuncia sucesso quando há análise válida e vis�
     const confirm = await screen.findByRole("alertdialog");
     expect(within(confirm).getByText(/consome 1 análise de IA/i)).toBeTruthy();
     expect(within(confirm).getByText(/Atualizar a página não consome créditos/i)).toBeTruthy();
+    expect(within(confirm).getByText(/Seu trabalho é mantido/i)).toBeTruthy();
+    expect(within(confirm).queryByText(/inclusive as que você editou/i)).toBeNull();
     expect(refineWithAI).not.toHaveBeenCalled();
 
     fireEvent.click(within(confirm).getByText("Cancelar"));
@@ -284,5 +286,75 @@ describe("Refinar com IA: só anuncia sucesso quando há análise válida e vis�
     expect(within(dialog).getByText("Texto de reserva: não foi gerado pela IA")).toBeTruthy();
     expect(within(dialog).queryByText("Gerado pelo Gemini")).toBeNull();
     expect(within(dialog).queryByTestId("refined-at")).toBeNull();
+  });
+
+  it("duas abas: o servidor responde 409 'em andamento' e a tela mostra a mensagem clara, sem sucesso e sem alterar nada", async () => {
+    const lead = makeNewLead();
+    const body = {
+      success: false, request_id: "r11", error_code: "REFINE_IN_PROGRESS", category: "validation_error", retryable: true,
+      safe_message: "Já existe uma análise deste lead em andamento. Aguarde alguns segundos e atualize a página para ver o resultado. Nenhum crédito extra foi cobrado.",
+      credit_consumed: false,
+    };
+    refineWithAI.mockRejectedValue(await normalizeRefineError(
+      { message: "non-2xx", context: new Response(JSON.stringify(body), { status: 409, headers: { "Content-Type": "application/json" } }) }, "r11"));
+    const onRefined = renderDialog(lead);
+    await clickRefine();
+
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    expect(String(toast.mock.calls[0][0].description)).toMatch(/em andamento/);
+    expect(toast.mock.calls.map((c) => c[0].title)).not.toContain("Análise atualizada");
+    expect(onRefined).not.toHaveBeenCalled();
+  });
+
+  it("sucesso informa os dias preservados (edição manual e etapa concluída)", async () => {
+    const lead = makeNewLead();
+    dbRow = geminiRow(lead);
+    refineWithAI.mockResolvedValue({
+      requestId: "r12",
+      data: { success: true, model: "gemini-3.6-flash", used_fallback: false, preserved_days: [{ dia: 2, reason: "edited" }, { dia: 4, reason: "completed" }] },
+    });
+    renderDialog(lead);
+    await clickRefine();
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Análise atualizada" })));
+    expect(String(toast.mock.calls[0][0].description)).toMatch(/Mantivemos os dias 2 e 4/);
+  });
+
+  it("plano com mensagem editada mostra a marca 'Editada por você · mantida em novas análises'", async () => {
+    const lead = makeNewLead();
+    lead.plano_prospecao_7dias = lead.plano_prospecao_7dias.map((d) => (d.dia === 2 ? { ...d, is_custom_edited: true } : d));
+    renderDialog(lead);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByTestId("dia-2-edited").textContent).toMatch(/mantida em novas análises/);
+    expect(within(dialog).queryByTestId("dia-3-edited")).toBeNull();
+  });
+
+  it("gravação não confirmada: 'Verificar o que foi salvo' relê o banco SEM gerar de novo e recupera quando o registro aparece", async () => {
+    const lead = makeNewLead();
+    dbRow = null; // leitura falha logo depois da geração
+    refineWithAI.mockResolvedValue({ requestId: "r13", data: { success: true, model: "gemini-3.6-flash", used_fallback: false } });
+    const onRefined = renderDialog(lead);
+    await clickRefine();
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    expect(toast.mock.calls.map((c) => c[0].title)).not.toContain("Análise atualizada");
+
+    const recover = await screen.findByTestId("recover-saved-analysis");
+    toast.mockClear();
+
+    // 1ª verificação: o banco ainda não responde
+    fireEvent.click(recover);
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Ainda não foi possível confirmar" })));
+    expect(onRefined).not.toHaveBeenCalled();
+
+    // 2ª verificação: o registro salvo está disponível
+    dbRow = geminiRow(lead);
+    toast.mockClear();
+    fireEvent.click(await screen.findByTestId("recover-saved-analysis"));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Análise atualizada" })));
+    expect(onRefined).toHaveBeenCalledWith(expect.objectContaining({ ai_used_fallback: false }));
+    await waitFor(() => expect(screen.getByText("Mensagem Gemini dia 1")).toBeTruthy());
+    expect(screen.queryByTestId("recover-saved-analysis")).toBeNull();
+
+    // nenhuma nova geração (nem cobrança) aconteceu durante a recuperação
+    expect(refineWithAI).toHaveBeenCalledTimes(1);
   });
 });

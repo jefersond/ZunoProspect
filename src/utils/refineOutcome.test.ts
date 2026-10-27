@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeRefineError } from "@/lib/refineObservability";
-import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, formatRefinedAt, getAnalysisOrigin, resolveUsedFallback } from "./refineOutcome";
+import { sanitizeFallbackReason, describePreservedDays, readPreservedDays, shouldShowServerMessage, buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, formatRefinedAt, getAnalysisOrigin, resolveUsedFallback } from "./refineOutcome";
 
 describe("classifyRefineResponse", () => {
   it("análise do Gemini: gerada", () => {
@@ -160,5 +160,44 @@ describe("buildPersistenceUnconfirmedError", () => {
     expect(err.payload.safe_message).not.toMatch(/conclu[ií]da|atualizada com sucesso/i);
     expect(err.payload.category).toBe("database_error");
     expect(err.payload.credit_consumed).toBeUndefined();
+  });
+});
+
+describe("dias preservados", () => {
+  it("lê preserved_days do backend e ignora lixo", () => {
+    expect(readPreservedDays({ preserved_days: [{ dia: 2, reason: "edited" }, { dia: "x", reason: "edited" }, { dia: 4, reason: "outro" }, { dia: 5, reason: "completed" }] }))
+      .toEqual([{ dia: 2, reason: "edited" }, { dia: 5, reason: "completed" }]);
+    expect(readPreservedDays({})).toEqual([]);
+    expect(readPreservedDays(null)).toEqual([]);
+  });
+
+  it("explica o que foi mantido, sem texto quando nada foi preservado", () => {
+    expect(describePreservedDays([])).toBe("");
+    expect(describePreservedDays([{ dia: 2, reason: "edited" }])).toMatch(/Mantivemos o dia 2 exatamente como estava.*editados por você/);
+    expect(describePreservedDays([{ dia: 2, reason: "edited" }, { dia: 4, reason: "completed" }, { dia: 6, reason: "edited" }])).toMatch(/os dias 2, 4 e 6/);
+  });
+});
+
+describe("shouldShowServerMessage", () => {
+  it("mostra a mensagem do servidor para provedor, banco, limite, em andamento e falha de gravação", () => {
+    expect(shouldShowServerMessage({ category: "provider_error" })).toBe(true);
+    expect(shouldShowServerMessage({ category: "database_error" })).toBe(true);
+    expect(shouldShowServerMessage({ category: "validation_error", error_code: "REFINE_IN_PROGRESS" })).toBe(true);
+    expect(shouldShowServerMessage({ category: "unknown_error" })).toBe(false);
+  });
+});
+
+describe("sanitizeFallbackReason: o marcador da reserva nunca aparece como motivo de reserva", () => {
+  it("esconde refine_lock_* e mantém motivos reais", () => {
+    expect(sanitizeFallbackReason("refine_lock_abc_1793100000000")).toBeNull();
+    expect(sanitizeFallbackReason("gemini-3.6-flash:400")).toBe("gemini-3.6-flash:400");
+    expect(sanitizeFallbackReason(null)).toBeNull();
+    expect(sanitizeFallbackReason(undefined)).toBeNull();
+    expect(sanitizeFallbackReason("")).toBeNull();
+  });
+
+  it("conflitos e prazo vencido mostram a mensagem clara do servidor", () => {
+    expect(shouldShowServerMessage({ category: "validation_error", error_code: "REFINE_CONFLICT" })).toBe(true);
+    expect(shouldShowServerMessage({ category: "validation_error", error_code: "REFINE_LOCK_EXPIRED" })).toBe(true);
   });
 });

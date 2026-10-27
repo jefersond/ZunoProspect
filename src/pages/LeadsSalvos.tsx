@@ -43,7 +43,7 @@ import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { trackEvent } from "@/lib/analytics";
 import { refineWithAI } from "@/services/refineWithAI";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
-import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, resolveUsedFallback } from "@/utils/refineOutcome";
+import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, resolveUsedFallback, describePreservedDays, readPreservedDays, shouldShowServerMessage } from "@/utils/refineOutcome";
 
 const LeadsSalvos = () => {
   const navigate = useNavigate();
@@ -404,7 +404,7 @@ const LeadsSalvos = () => {
 
       toast({
         title: "Análise atualizada",
-        description: "O diagnóstico e o plano foram atualizados pelo Gemini e salvos.",
+        description: ["O diagnóstico e o plano foram atualizados pelo Gemini e salvos.", describePreservedDays(readPreservedDays(refineResponse?.data))].filter(Boolean).join(" "),
       });
     } catch (error: unknown) {
       const normalizedError = error instanceof RefineClientError
@@ -452,7 +452,7 @@ const LeadsSalvos = () => {
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
           ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
-          : errorPayload.category === "provider_error" || errorPayload.category === "database_error"
+          : shouldShowServerMessage(errorPayload)
           ? errorMsg
           : "Não conseguimos concluir a análise agora. Tente novamente em alguns instantes.",
         variant: "destructive",

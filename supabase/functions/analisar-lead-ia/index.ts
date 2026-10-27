@@ -3,10 +3,12 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   GEMINI_JSON_MIME_TYPE,
   REFINE_MODELS,
+  CONFLICT_BODY,
+  IN_PROGRESS_BODY,
   SAVE_FAILED_BODY,
-  isDuplicateRefine,
-  runRefine,
+  runGuardedRefine,
   summarizeProviderError,
+  type RefineStore,
   validateAnalysis,
 } from "../_shared/refine-provider-guard.ts";
 
@@ -232,17 +234,17 @@ async function callGemini(apiKey: string, lead: any, requestData: any, requestId
         }),
         signal: controller.signal,
       });
-      clearTimeout(timeout);
-
       if (!response.ok) {
         lastError = `${model}:${response.status}`;
         const detail = summarizeProviderError(await response.text().catch(() => ""));
+        clearTimeout(timeout);
         console.warn(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "provider", model, status: response.status, detail, duration_ms: Date.now() - started }));
         if ([401, 403].includes(response.status)) break;
         continue;
       }
 
-      const data = await response.json();
+      const data = await response.json(); // ainda sob o mesmo limite de tempo (clearTimeout só depois)
+      clearTimeout(timeout);
       const rawText = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || "").join("") || "";
       if (!rawText) {
         lastError = `${model}:empty`;
@@ -399,37 +401,50 @@ serve(async (req) => {
       return json({ success: false, request_id: requestId, error_code: "REFINE_PERMISSION_DENIED", error_message: "Este tipo de análise não está disponível para sua conta." }, 403);
     }
 
-    // Duplicata (clique duplo ou duas abas): devolve a análise já salva, sem chamar o Gemini e sem novo crédito.
-    const { data: lastRun } = await admin
-      .from("leads")
-      .select("ai_analise_gerada_em, ai_used_fallback")
-      .eq("id", leadId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (isDuplicateRefine({ generatedAt: lastRun?.ai_analise_gerada_em, usedFallback: lastRun?.ai_used_fallback })) {
-      await logEvent(admin, user.id, "ai_analysis_duplicate_ignored", { request_id: requestId, leadId, deducted_credit: false });
-      return json({
-        success: true,
-        request_id: requestId,
-        already_current: true,
-        saved: true,
-        used_fallback: false,
-        credit_consumed: false,
-        generated_at: lastRun?.ai_analise_gerada_em,
-      });
-    }
-
     let responsePayload: ReturnType<typeof buildResponse> | null = null;
 
-    const run = await runRefine({
+    // Exclusão mútua por lead: duas requisições simultâneas (duas abas, clique duplo) não geram nem cobram duas vezes.
+    const store: RefineStore = {
+      read: async () => {
+        const { data } = await admin
+          .from("leads")
+          .select("status, notas, ai_fallback_reason, updated_at, ai_analise_gerada_em, ai_used_fallback, plano_prospeccao")
+          .eq("id", leadId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        return data
+          ? { status: data.status ?? null, notas: data.notas ?? null, reason: data.ai_fallback_reason ?? null, updatedAt: data.updated_at ?? null, generatedAt: data.ai_analise_gerada_em ?? null, usedFallback: data.ai_used_fallback ?? null, plan: data.plano_prospeccao ?? null }
+          : null;
+      },
+      claim: async (prevReason, lockValue, nowIso) => {
+        let query = admin.from("leads").update({ ai_fallback_reason: lockValue, updated_at: nowIso }).eq("id", leadId).eq("user_id", user.id);
+        query = prevReason === null ? query.is("ai_fallback_reason", null) : query.eq("ai_fallback_reason", prevReason);
+        const { data, error } = await query.select("id");
+        return !error && data?.length === 1;
+      },
+      release: async (lockValue, restoreReason) => {
+        await admin
+          .from("leads")
+          .update({ ai_fallback_reason: restoreReason, updated_at: new Date().toISOString() })
+          .eq("id", leadId)
+          .eq("user_id", user.id)
+          .eq("ai_fallback_reason", lockValue);
+      },
+    };
+
+    const run = await runGuardedRefine({
       requestId,
       isAdmin,
+      store,
       callProvider: async () => GEMINI_KEY
         ? await callGemini(GEMINI_KEY, lead, requestData, requestId)
         : { ok: false, error: "gemini_key_missing" },
-      persist: async (analysis, model) => {
-        responsePayload = buildResponse(leadId, requestId, lead, analysis, requestData, model, false);
-        const { data: saved, error: saveError } = await admin
+      persist: async (analysis, model, ctx) => {
+        const built = buildResponse(leadId, requestId, lead, analysis, requestData, model, false);
+        // Mantém qualquer outro dado já guardado no plano (histórico) e sobrepõe só o que a nova análise define.
+        const previousObject = ctx.previousPlan && typeof ctx.previousPlan === "object" && !Array.isArray(ctx.previousPlan) ? ctx.previousPlan as Record<string, unknown> : {};
+        responsePayload = { ...previousObject, ...built } as ReturnType<typeof buildResponse>;
+        let update = admin
           .from("leads")
           .update({
             diagnostico_bullets: analysis.diagnostico_bullets,
@@ -437,11 +452,16 @@ serve(async (req) => {
             plano_prospeccao: responsePayload,
             ai_analise_gerada_em: new Date().toISOString(),
             ai_used_fallback: false,
-            ai_fallback_reason: null,
+            ai_fallback_reason: null, // limpa a reserva na mesma gravação
           })
           .eq("id", leadId)
           .eq("user_id", user.id)
-          .select("id, ai_analise_gerada_em");
+          .eq("ai_fallback_reason", ctx.lockValue); // só grava se a reserva ainda for desta requisição
+        // Compare-and-set nas colunas escalares lidas agora: se o status (ex.: opt-out) ou a análise mudou entre a
+        // última leitura e a gravação, nenhuma linha é alterada e a atualização é recusada.
+        update = ctx.expected.status === null ? update.is("status", null) : update.eq("status", ctx.expected.status);
+        update = ctx.expected.generatedAt === null ? update.is("ai_analise_gerada_em", null) : update.eq("ai_analise_gerada_em", ctx.expected.generatedAt);
+        const { data: saved, error: saveError } = await update.select("id, ai_analise_gerada_em");
         return !saveError && Boolean(saved?.length);
       },
       charge: async () => {
@@ -449,6 +469,34 @@ serve(async (req) => {
         return !error && ok === true;
       },
     });
+
+    if (run.status === "in_progress") {
+      await logEvent(admin, user.id, "ai_analysis_duplicate_ignored", { request_id: requestId, leadId, reason: "in_progress", deducted_credit: false });
+      return json(IN_PROGRESS_BODY(requestId), 409);
+    }
+
+    if (run.status === "conflict" || run.status === "expired") {
+      const key = run.status === "expired" ? "expired" : run.reason;
+      await logEvent(admin, user.id, "ai_analysis_failed_handled", { request_id: requestId, leadId, stage: "conflict", reason: key, saved: false, deducted_credit: false });
+      return json(CONFLICT_BODY(requestId, key), 409);
+    }
+
+    if (run.status === "lead_not_found") {
+      return json({ success: false, request_id: requestId, error_code: "REFINE_LEAD_NOT_FOUND", error_message: "O lead não foi encontrado na sua conta. Atualize a lista e tente novamente." }, 409);
+    }
+
+    if (run.status === "already_current") {
+      await logEvent(admin, user.id, "ai_analysis_duplicate_ignored", { request_id: requestId, leadId, reason: "recent_saved", deducted_credit: false });
+      return json({
+        success: true,
+        request_id: requestId,
+        already_current: true,
+        saved: true,
+        used_fallback: false,
+        credit_consumed: false,
+        generated_at: run.generatedAt,
+      });
+    }
 
     // Sem análise válida do Gemini: nada é gravado (a análise anterior permanece), nenhum crédito é cobrado e o
     // usuário recebe um erro claro. Antes, um texto genérico de reserva era gravado e anunciado como sucesso.
@@ -486,6 +534,7 @@ serve(async (req) => {
       used_fallback: false,
       fallback_reason: null,
       credit_consumed: run.charged,
+      preserved_days: run.preserved,
       timing: { total_ms: Date.now() - started },
       ...(run.creditWarning ? { credit_warning: run.creditWarning } : {}),
     });

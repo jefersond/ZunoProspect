@@ -32,7 +32,7 @@ import type { UpgradeSource } from "@/lib/funnelContext";
 import { normalizeLeadForAI } from "@/utils/normalizeLead";
 import { generateSmartProspectingCopy } from "@/utils/smartProspectingCopy";
 import { refineWithAI } from "@/services/refineWithAI";
-import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, resolveUsedFallback } from "@/utils/refineOutcome";
+import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, resolveUsedFallback, describePreservedDays, readPreservedDays, shouldShowServerMessage, sanitizeFallbackReason } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
 const normalizeLeadsResponse = (response: any): any[] => {
@@ -117,6 +117,8 @@ export const LeadsList = () => {
   const { usage, canAnalyzeAI, refetch: refetchUsage, isAdmin: usageIsAdmin } = useUsage();
   const isAdmin = subscriptionIsAdmin || usageIsAdmin;
   const [leads, setLeads] = useState<LeadProspeccao[]>([]);
+  const leadsRef = useRef<LeadProspeccao[]>([]);
+  leadsRef.current = leads;
   const [lockedLeads, setLockedLeads] = useState<LeadProspeccao[]>([]);
   const [totalLocked, setTotalLocked] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -320,7 +322,7 @@ export const LeadsList = () => {
       created_at: lead.created_at,
       ai_analise_gerada_em: lead.ai_analise_gerada_em,
       ai_used_fallback: resolveUsedFallback(lead),
-      ai_fallback_reason: (lead as { ai_fallback_reason?: string | null }).ai_fallback_reason ?? null,
+      ai_fallback_reason: sanitizeFallbackReason((lead as { ai_fallback_reason?: string | null }).ai_fallback_reason),
       salvo: lead.salvo || false,
       notas: lead.notas || null,
       // Campos CNPJ
@@ -664,8 +666,12 @@ export const LeadsList = () => {
           );
           
           // Se a análise foi concluída agora, mostrar toast
-          // Texto de reserva gravado pelo backend antigo não é "análise IA concluída".
-          if (payload.new.ai_analise_gerada_em && !payload.old?.ai_analise_gerada_em && resolveUsedFallback(payload.new) !== true) {
+          // Só avisa quando a análise salva realmente mudou: a reserva/liberação da geração em andamento (marcador
+          // refine_lock_) e o texto de reserva não são "análise IA concluída".
+          const previousLead = leadsRef.current.find((l) => l.id === payload.new.id || getLeadKey(l) === payload.new.id);
+          const isLockUpdate = String(payload.new.ai_fallback_reason || "").startsWith("refine_lock_");
+          const analysisChanged = Boolean(payload.new.ai_analise_gerada_em) && previousLead?.ai_analise_gerada_em !== payload.new.ai_analise_gerada_em;
+          if (!isLockUpdate && analysisChanged && resolveUsedFallback(payload.new) !== true) {
             toast({
               title: "✨ Análise IA concluída",
               description: `Lead "${payload.new.nome}" foi analisado com sucesso`,
@@ -1154,7 +1160,7 @@ export const LeadsList = () => {
 
       toast({
         title: "Análise atualizada",
-        description: `Lead "${lead.nome}" foi analisado pelo Gemini e o resultado foi salvo.`,
+        description: [`Lead "${lead.nome}" foi analisado pelo Gemini e o resultado foi salvo.`, describePreservedDays(readPreservedDays(refineResponse?.data))].filter(Boolean).join(" "),
       });
 
       const nextUsage = await refetchUsage();
@@ -1285,7 +1291,7 @@ export const LeadsList = () => {
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
           ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
-          : errorPayload.category === "rate_limit_error" || errorPayload.category === "provider_error" || errorPayload.category === "database_error"
+          : shouldShowServerMessage(errorPayload)
           ? errorMsg
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
       });

@@ -28,7 +28,7 @@ import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { normalizeLeadForAI, normalizePlanoProspeccao, normalizeDiagnosticoBullets } from "@/utils/normalizeLead";
 import { buildIntelligentPlan, hasExplicitOptOut } from "@/services/intelligentSevenDayPlan";
 import { refineWithAI } from "@/services/refineWithAI";
-import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine } from "@/utils/refineOutcome";
+import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, describePreservedDays, readPreservedDays, shouldShowServerMessage, sanitizeFallbackReason } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
 // Função para sanitizar e padronizar número de telefone brasileiro
@@ -103,6 +103,15 @@ interface LeadPlanDialogProps {
   onStatusChange?: (leadId: string, newStatus: string) => void;
 }
 
+type PersistedRow = {
+  diagnostico_bullets: unknown;
+  probabilidade_conversao?: number | null;
+  plano_prospeccao: unknown;
+  ai_analise_gerada_em: string | null;
+  ai_used_fallback?: unknown;
+  ai_fallback_reason?: string | null;
+};
+
 export const LeadPlanDialog = ({ 
   lead, 
   open, 
@@ -112,6 +121,7 @@ export const LeadPlanDialog = ({
   onStatusChange 
 }: LeadPlanDialogProps) => {
   const [isReanalyzing, setIsReanalyzing] = useState(false);
+  const [isRecovering, setIsRecovering] = useState(false);
   const [isUpdatingCopiesLocally, setIsUpdatingCopiesLocally] = useState(false);
 
   const handleUpdateCopiesLocally = async () => {
@@ -167,6 +177,8 @@ export const LeadPlanDialog = ({
 
   const [refineError, setRefineError] = useState<RefineErrorPayload | null>(null);
   const activeRequestRef = useRef(false);
+  // Data da análise exibida quando a última geração começou: base para reconhecer uma gravação nova ao reler o banco.
+  const refineBaselineRef = useRef<string | null>(null);
   const recentlyTrackedLimitBlockRef = useRef<Record<string, number>>({});
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [currentLead, setCurrentLead] = useState(lead);
@@ -454,6 +466,52 @@ export const LeadPlanDialog = ({
     }
   };
 
+  /** Monta o lead exibido SOMENTE a partir do registro lido do banco. */
+  const leadFromPersistedRow = (base: LeadProspeccao, row: PersistedRow, usedFallback: boolean | undefined): LeadProspeccao => ({
+    ...base,
+    diagnostico_bullets: row.diagnostico_bullets as string[],
+    probabilidade_conversao: row.probabilidade_conversao || 0,
+    plano_prospecao_7dias: normalizePlanoProspeccao(row.plano_prospeccao),
+    ai_analise_gerada_em: row.ai_analise_gerada_em,
+    // As colunas existem no banco, mas ainda não estão nos tipos gerados do cliente.
+    ai_used_fallback: usedFallback,
+    ai_fallback_reason: sanitizeFallbackReason(row.ai_fallback_reason),
+  });
+
+  /** Relê o registro salvo sem gerar nova análise nem cobrar crédito. */
+  const recoverSavedAnalysis = async () => {
+    if (!lead || isRecovering || activeRequestRef.current) return;
+    setIsRecovering(true);
+    try {
+      let row: PersistedRow | null = null;
+      try {
+        const read = await supabase.from('leads').select('*').eq('id', lead.id).single();
+        row = read.error ? null : (read.data as unknown as PersistedRow);
+      } catch {
+        row = null;
+      }
+      const check = confirmPersistedRefine(row, refineBaselineRef.current);
+      if (!check.ok || !row) {
+        toast({
+          variant: "destructive",
+          title: "Ainda não foi possível confirmar",
+          description: "O resultado salvo não pôde ser confirmado. Nenhuma nova análise foi gerada e nada foi cobrado por esta verificação. Tente novamente em instantes.",
+        });
+        return;
+      }
+      const recovered = leadFromPersistedRow(lead, row, check.usedFallback);
+      setCurrentLead(recovered);
+      onLeadRefined?.(recovered);
+      setRefineError(null);
+      await refetchUsage();
+      toast(check.usedFallback === true
+        ? { variant: "destructive", title: "O que está salvo é texto de reserva", description: "Não é uma análise de IA. Nenhuma nova geração foi feita." }
+        : { title: "Análise atualizada", description: "Recuperamos a análise salva no banco. Nenhuma nova geração foi feita." });
+    } finally {
+      setIsRecovering(false);
+    }
+  };
+
   const handleReanalyze = async () => {
     if (!lead) return;
     const leadKey = getLeadKey(lead);
@@ -530,6 +588,7 @@ export const LeadPlanDialog = ({
     }
 
     activeRequestRef.current = true;
+    refineBaselineRef.current = (currentLead || lead).ai_analise_gerada_em ?? null;
     setIsReanalyzing(true);
     trackMetaCustomEvent("AI_Analysis_Started", {
       lead_id: leadKey,
@@ -608,10 +667,10 @@ export const LeadPlanDialog = ({
       setRefineError(null);
 
       // Só vale o que o banco devolve numa nova leitura: nunca a resposta da função nem uma data local.
-      let updatedLead: any = null;
+      let updatedLead: PersistedRow | null = null;
       try {
         const read = await supabase.from('leads').select('*').eq('id', lead.id).single();
-        updatedLead = read.error ? null : read.data;
+        updatedLead = read.error ? null : (read.data as unknown as PersistedRow);
       } catch {
         updatedLead = null;
       }
@@ -625,16 +684,7 @@ export const LeadPlanDialog = ({
         throw buildPersistenceUnconfirmedError(requestId);
       }
 
-      const transformedLead: LeadProspeccao = {
-        ...lead,
-        diagnostico_bullets: updatedLead.diagnostico_bullets as string[],
-        probabilidade_conversao: updatedLead.probabilidade_conversao || 0,
-        plano_prospecao_7dias: normalizePlanoProspeccao(updatedLead.plano_prospeccao),
-        ai_analise_gerada_em: updatedLead.ai_analise_gerada_em,
-        // As colunas existem no banco, mas ainda não estão nos tipos gerados do cliente.
-        ai_used_fallback: persisted.usedFallback,
-        ai_fallback_reason: (updatedLead as { ai_fallback_reason?: string | null }).ai_fallback_reason ?? null,
-      };
+      const transformedLead = leadFromPersistedRow(lead, updatedLead, persisted.usedFallback);
 
       // Mostra o que está realmente salvo, inclusive quando é só o texto de reserva (sinalizado na tela).
       setCurrentLead(transformedLead);
@@ -674,9 +724,11 @@ export const LeadPlanDialog = ({
 
       toast({
         title: "Análise atualizada",
-        description: refineRes?.data?.credit_warning
-          ? `O diagnóstico e o plano foram atualizados pelo Gemini e salvos. ${refineRes.data.credit_warning}`
-          : "O diagnóstico e o plano foram atualizados pelo Gemini e salvos.",
+        description: [
+          "O diagnóstico e o plano foram atualizados pelo Gemini e salvos.",
+          describePreservedDays(readPreservedDays(refineRes?.data)),
+          refineRes?.data?.credit_warning,
+        ].filter(Boolean).join(" "),
       });
     } catch (error: unknown) {
       const normalizedError = error instanceof RefineClientError
@@ -730,7 +782,7 @@ export const LeadPlanDialog = ({
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
           ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
-          : errorPayload.category === "rate_limit_error" || errorPayload.category === "provider_error" || errorPayload.category === "database_error"
+          : shouldShowServerMessage(errorPayload)
           ? errorMsg
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
         variant: "destructive",
@@ -900,6 +952,8 @@ export const LeadPlanDialog = ({
                 error={refineError}
                 onRetry={handleReanalyze}
                 retrying={isReanalyzing}
+                onRecover={recoverSavedAnalysis}
+                recovering={isRecovering}
               />
             )}
             {isLoadingAnalysis ? (

@@ -157,7 +157,7 @@ export function splitAnalysisBullets(bullets: readonly string[] | null | undefin
 /** Primeiro dia ainda não concluído e que tem algo a enviar. Dado do próprio plano; nada é inventado. */
 export function getRecommendedPlanDay(plano: readonly PlanoProspeccaoDia[] | null | undefined): PlanoProspeccaoDia | null {
   const days = [...(plano ?? [])].sort((a, b) => a.dia - b.dia);
-  return days.find((d) => d.status_dia !== "concluido" && hasText(d.mensagem)) ?? null;
+  return days.find((d) => d.status_dia !== "concluido" && d.status_dia !== "bloqueado_optout" && hasText(d.mensagem)) ?? null;
 }
 
 // ───────────────────────── Pré-visualização do "Atualizar Cópias" ─────────────────────────

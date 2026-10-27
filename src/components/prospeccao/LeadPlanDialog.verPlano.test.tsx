@@ -100,7 +100,7 @@ describe("Ver Plano → LeadPlanDialog", () => {
     }
   });
 
-  it("Atualizar Cópias usa o handler local do dialog (sem IA), grava e preserva mensagem editada", async () => {
+  it("Atualizar Cópias está desativado na interface do diálogo, impedindo sobrescrita acidental", async () => {
     const lead = makeNewLead();
     const edited = { ...lead.plano_prospecao_7dias.find((d) => d.dia === 2)!, mensagem: "Minha mensagem editada manualmente.", is_custom_edited: true };
     lead.plano_prospecao_7dias = lead.plano_prospecao_7dias.map((d) => (d.dia === 2 ? edited : d));
@@ -109,28 +109,74 @@ describe("Ver Plano → LeadPlanDialog", () => {
     fireEvent.click(screen.getByText("Ver Plano"));
     const dialog = await screen.findByRole("dialog");
 
-    fireEvent.click(within(dialog).getByText(/Atualizar Cópias/));
-    expect(updateSpy).not.toHaveBeenCalled(); // nada acontece antes da confirmação
-    fireEvent.click(await screen.findByRole("button", { name: "Substituir mensagens" }));
+    const button = within(dialog).getByText(/Atualizar C[óo]pias/).closest("button") as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute("aria-disabled")).toBe("true");
 
-    await waitFor(() => expect(onRefined).toHaveBeenCalledTimes(1));
+    fireEvent.click(button);
+    expect(screen.queryByText("Substituir mensagens pelo modelo padrão?")).toBeNull();
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(onRefined).not.toHaveBeenCalled();
     expect(invokeSpy).not.toHaveBeenCalled();
-    const refined: LeadProspeccao = onRefined.mock.calls[0][0];
-    expect(refined.plano_prospecao_7dias).toHaveLength(7);
-    expect(refined.plano_prospecao_7dias.find((d) => d.dia === 2)!.mensagem).toBe("Minha mensagem editada manualmente.");
-    expect(updateSpy).toHaveBeenCalledTimes(1);
     expect(within(dialog).getByText("Minha mensagem editada manualmente.")).toBeTruthy();
   });
 
-  it("lead antigo com foco nulo: Atualizar Cópias não lança erro", async () => {
-    const onRefined = vi.fn();
-    render(<Harness lead={makeLegacyLead()} onRefined={onRefined} />);
+  it("Executar no SDR: nunca libera contato para leads com opt-out", async () => {
+    const lead = {
+      ...makeNewLead(),
+      status: "recusou_optout",
+    } as unknown as LeadProspeccao;
+    render(<Harness lead={lead} />);
     fireEvent.click(screen.getByText("Ver Plano"));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByText(/Atualizar Cópias/));
-    expect(updateSpy).not.toHaveBeenCalled(); // nada acontece antes da confirmação
-    fireEvent.click(await screen.findByRole("button", { name: "Substituir mensagens" }));
-    await waitFor(() => expect(onRefined).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(within(dialog).getAllByText("Executar no SDR")[0]);
+
+    await waitFor(() => expect(screen.getAllByRole("dialog", { hidden: true }).length).toBeGreaterThan(1));
+    expect(screen.getByText(/Bloqueio de Contato Comercial Ativo/i)).toBeTruthy();
+
+    const waButton = screen.getByText(/Contato Bloqueado \(Opt-out Registrado\)/i).closest("button") as HTMLButtonElement;
+    expect(waButton.disabled).toBe(true);
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it("Executar no SDR: usa exatamente a mensagem salva do dia, respeita o canal e não marca contato como enviado ao abrir", async () => {
+    const lead = makeNewLead();
+    render(<Harness lead={lead} />);
+    fireEvent.click(screen.getByText("Ver Plano"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.click(within(dialog).getAllByText("Executar no SDR")[1]); // Dia 2
+
+    const day2 = lead.plano_prospecao_7dias.find((d) => d.dia === 2)!;
+    await waitFor(() => expect(screen.getAllByRole("dialog", { hidden: true }).length).toBeGreaterThan(1));
+    const textareas = Array.from(document.querySelectorAll("textarea")).map((t) => (t as HTMLTextAreaElement).value);
+    expect(textareas).toContain(day2.mensagem);
+    expect(generateSdrFirstApproachMessage({ lead, dayNumber: 2 }).text).toBe(day2.mensagem);
+
+    // Canal correspondente respeitado
+    expect(screen.getByText(new RegExp(`Canal:\\s*${day2.canal}`, "i"))).toBeTruthy();
+
+    // Zero chamadas de IA e zero updates no banco ao apenas abrir o modal
+    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it("Executar no SDR: não inventa mensagens para dias sem texto", async () => {
+    const lead = makeNewLead();
+    lead.plano_prospecao_7dias = lead.plano_prospecao_7dias.map((d) =>
+      d.dia === 3 ? { ...d, mensagem: "" } : d
+    );
+    render(<Harness lead={lead} />);
+    fireEvent.click(screen.getByText("Ver Plano"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.click(within(dialog).getAllByText("Executar no SDR")[2]); // Dia 3
+
+    await waitFor(() => expect(screen.getAllByRole("dialog", { hidden: true }).length).toBeGreaterThan(1));
+    const textarea = document.querySelector("textarea") as HTMLTextAreaElement;
+    expect(textarea.value).toBe("");
+    expect(invokeSpy).not.toHaveBeenCalled();
   });
 
   it("copiar mensagem dentro do dialog copia o texto do dia; fechar o modal funciona", async () => {
@@ -146,21 +192,6 @@ describe("Ver Plano → LeadPlanDialog", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: /close|fechar/i }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  });
-
-  it("Executar no SDR abre o modal do SDR com a mesma mensagem do dia do plano", async () => {
-    const lead = makeNewLead();
-    render(<Harness lead={lead} />);
-    fireEvent.click(screen.getByText("Ver Plano"));
-    const dialog = await screen.findByRole("dialog");
-
-    fireEvent.click(within(dialog).getAllByText("Executar no SDR")[1]); // Dia 2
-
-    const day2 = lead.plano_prospecao_7dias.find((d) => d.dia === 2)!;
-    await waitFor(() => expect(screen.getAllByRole("dialog", { hidden: true }).length).toBeGreaterThan(1));
-    const textareas = Array.from(document.querySelectorAll("textarea")).map((t) => (t as HTMLTextAreaElement).value);
-    expect(textareas).toContain(day2.mensagem);
-    expect(generateSdrFirstApproachMessage({ lead, dayNumber: 2 }).text).toBe(day2.mensagem);
   });
 
   it("'Usar Template' continua disponível, porém como aba secundária; 'Análise IA' é a aba principal e a inicial", async () => {

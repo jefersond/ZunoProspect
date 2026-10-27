@@ -87,6 +87,8 @@ describe("getRecommendedPlanDay", () => {
   it("primeiro dia não concluído e com mensagem; nulo sem plano", () => {
     expect(getRecommendedPlanDay([day(2), day(1, { status_dia: "concluido" })])?.dia).toBe(2);
     expect(getRecommendedPlanDay([day(1, { mensagem: "" }), day(2)])?.dia).toBe(2);
+    expect(getRecommendedPlanDay([day(1, { status_dia: "bloqueado_optout" }), day(2)])?.dia).toBe(2);
+    expect(getRecommendedPlanDay([day(1, { status_dia: "bloqueado_optout" })])).toBeNull();
     expect(getRecommendedPlanDay([])).toBeNull();
     expect(getRecommendedPlanDay(null)).toBeNull();
   });

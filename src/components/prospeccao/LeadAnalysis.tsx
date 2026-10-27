@@ -479,27 +479,29 @@ export const LeadAnalysis = ({
             ))}
           </ol>
 
-          {/* Ação avançada: discreta, nunca recomendada, sempre com confirmação */}
+          {/* Ação avançada: desativada temporariamente na interface para proteger as cópias de IA contra sobrescrita acidental. O PR #60 removerá definitivamente este recurso. */}
           {onUpdateCopiesLocally && (
             <div
-              className="mt-5 flex flex-col gap-3 rounded-lg border border-dashed border-border/70 bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between"
+              className="mt-5 flex flex-col gap-3 rounded-lg border border-dashed border-border/70 bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between opacity-75"
               data-testid="advanced-copy-action"
             >
               <div className="min-w-0 space-y-0.5">
                 <p className="text-xs font-medium text-foreground">Ferramenta avançada · modelo padrão (sem IA)</p>
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  Substitui mensagens que você não editou por texto de modelo. Mensagens geradas pela IA podem ser trocadas. Você vê o que muda e confirma antes.
+                  Atualização em lote temporariamente desativada na interface para proteger as mensagens geradas por IA contra sobrescrita. Suas mensagens salvas estão seguras.
                 </p>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full shrink-0 gap-1.5 text-xs text-muted-foreground sm:w-auto"
-                disabled={isUpdatingCopiesLocally}
-                onClick={() => setConfirmCopiesOpen(true)}
+                className="w-full shrink-0 gap-1.5 text-xs text-muted-foreground sm:w-auto cursor-not-allowed opacity-60"
+                disabled={true}
+                aria-disabled="true"
+                title="Desativado temporariamente para proteger copies de IA contra sobrescrita."
+                tabIndex={-1}
               >
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                {isUpdatingCopiesLocally ? "Atualizando..." : "Atualizar Cópias"}
+                Atualizar Cópias (desativado)
               </Button>
             </div>
           )}

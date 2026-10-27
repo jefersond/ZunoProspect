@@ -260,52 +260,39 @@ describe("LeadAnalysis · botões", () => {
     expect((screen.getByText("Refinando...").closest("button") as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("Atualizar Cópias: só existe com handler, fica na área avançada, discreto, e NÃO executa sem confirmação", async () => {
+  it("Atualizar Cópias: só existe com handler, fica na área avançada e permanece desativado na interface", async () => {
     const onUpdate = vi.fn();
     const { unmount } = renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS });
-    expect(screen.queryByText("Atualizar Cópias")).toBeNull();
+    expect(screen.queryByText(/Atualizar C[óo]pias/)).toBeNull();
     unmount();
 
     renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS, onUpdateCopiesLocally: onUpdate });
     const advanced = screen.getByTestId("advanced-copy-action");
     expect(screen.getByTestId("analysis-plan").contains(advanced)).toBe(true);
-    const button = within(advanced).getByText("Atualizar Cópias").closest("button") as HTMLButtonElement;
+    const button = within(advanced).getByText(/Atualizar C[óo]pias/).closest("button") as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute("aria-disabled")).toBe("true");
     expect(button.className).not.toMatch(/bg-primary|bg-emerald-6/); // não é ação principal
     expect(screen.queryByTestId("analysis-header")!.textContent).not.toMatch(/Atualizar C[óo]pias/); // não disputa o topo
 
     fireEvent.click(button);
-    expect(await screen.findByText("Substituir mensagens pelo modelo padrão?")).toBeTruthy();
+    expect(screen.queryByText("Substituir mensagens pelo modelo padrão?")).toBeNull();
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
-  it("confirmação mostra o que muda (contagens e exemplo) e só então executa; cancelar não faz nada", async () => {
+  it("Atualizar Cópias: botão é inacessível na interface e protege copies geradas por IA contra sobrescrita", () => {
     const onUpdate = vi.fn();
     const lead = makeNewLead();
-    const plano = lead.plano_prospecao_7dias.map((d) => (d.dia === 2 ? { ...d, mensagem: "Minha mensagem editada.", is_custom_edited: true } : d));
-    renderAnalysis({ ...lead, plano_prospecao_7dias: plano } as LeadProspeccao, { diagnostico: TYPICAL_BULLETS, plano, onUpdateCopiesLocally: onUpdate });
+    renderAnalysis(lead, { diagnostico: TYPICAL_BULLETS, onUpdateCopiesLocally: onUpdate });
 
-    fireEvent.click(screen.getByText("Atualizar Cópias"));
-    const summary = await screen.findByTestId("copies-preview-summary");
-    expect(summary.textContent).toMatch(/\d+ de 7 mensagens seriam substituídas/);
-    expect(summary.textContent).toMatch(/1 mensagens editadas por você seriam mantidas/);
-    expect(screen.getByText(/não usa IA/)).toBeTruthy();
-    const example = screen.getByTestId("copies-preview-example");
-    expect(within(example).getByText("Hoje")).toBeTruthy();
-    expect(within(example).getByText("Depois")).toBeTruthy();
-    expect(screen.getByText(/o que for trocado não pode ser recuperado por aqui/)).toBeTruthy();
+    const advanced = screen.getByTestId("advanced-copy-action");
+    expect(within(advanced).getByText(/temporariamente desativada na interface para proteger as mensagens geradas por IA/)).toBeTruthy();
+    const button = within(advanced).getByText(/Atualizar C[óo]pias/).closest("button") as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
 
-    fireEvent.click(screen.getByText("Cancelar"));
-    await waitFor(() => expect(screen.queryByText("Substituir mensagens pelo modelo padrão?")).toBeNull());
+    fireEvent.click(button);
     expect(onUpdate).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByText("Atualizar Cópias"));
-    fireEvent.click(await screen.findByRole("button", { name: "Substituir mensagens" }));
-    expect(onUpdate).toHaveBeenCalledTimes(1);
-  });
-
-  it("enquanto atualiza, o botão fica desabilitado", () => {
-    renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS, onUpdateCopiesLocally: vi.fn(), isUpdatingCopiesLocally: true });
-    expect((screen.getByText("Atualizando...").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByText("Substituir mensagens pelo modelo padrão?")).toBeNull();
   });
 });
 
@@ -360,7 +347,7 @@ describe("LeadAnalysis · responsividade (contrato de layout)", () => {
     renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS, onReanalyze: vi.fn(), onUpdateCopiesLocally: vi.fn(), onExecuteInSdr: vi.fn() });
     const buttons = [
       screen.getByText("Refinar com IA").closest("button")!,
-      screen.getByText("Atualizar Cópias").closest("button")!,
+      screen.getByText(/Atualizar C[óo]pias/).closest("button")!,
       screen.getByText("Executar Dia 1 no SDR").closest("button")!,
       screen.getByText("Ver plano de 7 dias").closest("button")!,
     ];

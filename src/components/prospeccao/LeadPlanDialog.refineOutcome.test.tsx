@@ -225,4 +225,64 @@ describe("Refinar com IA: só anuncia sucesso quando há análise válida e vis�
     expect(screen.queryByRole("alertdialog")).toBeNull();
     await waitFor(() => expect(refineWithAI).toHaveBeenCalledTimes(1));
   });
+
+  it("Gemini válido, mas a leitura do banco falha: nenhum sucesso, sem data local, plano anterior intacto", async () => {
+    const lead = makeNewLead();
+    dbRow = null; // a leitura do registro devolve erro
+    refineWithAI.mockResolvedValue({ requestId: "r9", data: { success: true, model: "gemini-3.6-flash", used_fallback: false, plano_prospeccao_7dias: [{ dia: 1, mensagem: "NÃO DEVE APARECER" }] } });
+    const onRefined = renderDialog(lead);
+    await clickRefine();
+
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    expect(toast.mock.calls.map((c) => c[0].title)).not.toContain("Análise atualizada");
+    expect(String(toast.mock.calls[0][0].description)).toMatch(/não foi possível confirmar/i);
+    expect(onRefined).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toContain("NÃO DEVE APARECER");
+    expect(screen.queryByTestId("refined-at")).toBeNull();
+    const shown = Array.from(document.querySelectorAll("p.whitespace-pre-wrap")).map((n) => n.textContent);
+    expect(shown).toContain(lead.plano_prospecao_7dias[0].mensagem);
+  });
+
+  it("registro lido igual ao anterior (nada foi gravado): nenhum sucesso", async () => {
+    const lead = { ...makeNewLead(), ai_analise_gerada_em: "2026-10-27T12:00:00Z" } as LeadProspeccao;
+    dbRow = geminiRow(lead); // mesma data da análise que já estava na tela
+    refineWithAI.mockResolvedValue({ requestId: "r10", data: { success: true, model: "gemini-3.6-flash", used_fallback: false } });
+    const onRefined = renderDialog(lead);
+    await clickRefine();
+
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    expect(toast.mock.calls.map((c) => c[0].title)).not.toContain("Análise atualizada");
+    expect(onRefined).not.toHaveBeenCalled();
+  });
+
+  it("recarregar a página: o mesmo diagnóstico, o plano e a data salva voltam do banco, com o selo correto", async () => {
+    const lead = makeNewLead();
+    const saved = geminiRow(lead);
+    const { normalizePlanoProspeccao } = await import("@/utils/normalizeLead");
+    const { resolveUsedFallback } = await import("@/utils/refineOutcome");
+    // o lead remontado é exatamente o que a leitura do banco entrega depois de recarregar (sem a coluna ai_used_fallback)
+    const { ai_used_fallback: _omitted, ...rowAsRead } = saved;
+    const reloaded = {
+      ...lead,
+      diagnostico_bullets: rowAsRead.diagnostico_bullets,
+      plano_prospecao_7dias: normalizePlanoProspeccao({ model: "gemini-3.6-flash", plano_prospeccao_7dias: (saved.plano_prospeccao as { plano_prospeccao_7dias: unknown[] }).plano_prospeccao_7dias }),
+      ai_analise_gerada_em: rowAsRead.ai_analise_gerada_em,
+      ai_used_fallback: resolveUsedFallback({ plano_prospeccao: { model: "gemini-3.6-flash" } }),
+    } as LeadProspeccao;
+    renderDialog(reloaded);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Gerado pelo Gemini")).toBeTruthy();
+    expect(within(dialog).getByTestId("refined-at").textContent).toMatch(/27\/10\/2026/);
+    expect(within(dialog).getByText("Mensagem Gemini dia 1")).toBeTruthy();
+    expect(within(dialog).getByText("Resumo gerado pelo Gemini sobre a empresa.")).toBeTruthy();
+  });
+
+  it("resultado antigo de reserva (carregado do banco): identificado como reserva e sem confirmação extra", async () => {
+    const lead = { ...makeNewLead(), ai_analise_gerada_em: "2026-10-27T11:48:00Z", ai_used_fallback: true } as LeadProspeccao;
+    renderDialog(lead);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Texto de reserva: não foi gerado pela IA")).toBeTruthy();
+    expect(within(dialog).queryByText("Gerado pelo Gemini")).toBeNull();
+    expect(within(dialog).queryByTestId("refined-at")).toBeNull();
+  });
 });

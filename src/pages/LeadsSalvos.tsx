@@ -43,7 +43,7 @@ import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { trackEvent } from "@/lib/analytics";
 import { refineWithAI } from "@/services/refineWithAI";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
-import { buildRefineOutcomeError, classifyRefineResponse, resolveUsedFallback } from "@/utils/refineOutcome";
+import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, resolveUsedFallback } from "@/utils/refineOutcome";
 
 const LeadsSalvos = () => {
   const navigate = useNavigate();
@@ -383,40 +383,19 @@ const LeadsSalvos = () => {
       }
       setRefineError(null);
 
-      const resData = refineResponse?.data || {};
-      const probVal = Number(
-        resData.probabilidade_conversao ??
-        resData.diagnostico?.score ??
-        resData.data?.analise?.probabilidade_conversao ??
-        0
-      );
-
-      const rawPlano = resData.plano_prospeccao_7dias ??
-        resData.plano_prospeccao?.plano_prospeccao_7dias ??
-        resData.plano_prospeccao ??
-        resData.data?.analise?.plano_prospeccao_7dias ??
-        [];
-
-      const planoDias = Array.isArray(rawPlano) ? rawPlano : [];
-      const bullets = Array.isArray(resData.diagnostico_bullets)
-        ? resData.diagnostico_bullets
-        : (resData.data?.analise?.diagnostico_bullets || []);
-
-      setLeads((prevLeads) =>
-        prevLeads.map((item) =>
-          item.id === leadId
-            ? {
-                ...item,
-                probabilidade_conversao: probVal > 0 ? probVal : item.probabilidade_conversao,
-                plano_prospecao_7dias: planoDias,
-                diagnostico_bullets: bullets,
-                status: "analisado",
-                ai_analise_gerada_em: new Date().toISOString(),
-                ai_used_fallback: false,
-              }
-            : item
-        )
-      );
+      // Só vale o que o banco devolve numa nova leitura: nunca a resposta da função nem uma data local.
+      let persistedRow: any = null;
+      try {
+        const read = await supabase.from("leads").select("*").eq("id", leadId).single();
+        persistedRow = read.error ? null : read.data;
+      } catch {
+        persistedRow = null;
+      }
+      const persisted = confirmPersistedRefine(persistedRow, lead?.ai_analise_gerada_em, { alreadyCurrent: outcome.alreadyCurrent });
+      if (!persisted.ok || !persistedRow) {
+        console.warn("Refinamento não confirmado no banco:", "reason" in persisted ? persisted.reason : "empty_row");
+        throw buildPersistenceUnconfirmedError(requestId);
+      }
 
       // Recarrega os leads para obter a análise atualizada do banco
       if (user) {
@@ -473,7 +452,9 @@ const LeadsSalvos = () => {
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
           ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
-          : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
+          : errorPayload.category === "provider_error" || errorPayload.category === "database_error"
+          ? errorMsg
+          : "Não conseguimos concluir a análise agora. Tente novamente em alguns instantes.",
         variant: "destructive",
       });
     } finally {

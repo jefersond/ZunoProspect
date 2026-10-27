@@ -87,3 +87,53 @@ export function formatRefinedAt(iso: string | null | undefined): string {
   const time = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   return `${day} às ${time}`;
 }
+
+export type PersistenceCheck = { ok: true; usedFallback: boolean | undefined } | { ok: false; reason: string };
+
+/**
+ * Comprova, a partir do registro lido de novo no banco, que a análise anunciada foi mesmo gravada: tem data,
+ * é diferente da anterior (salvo duplicata reconhecida pelo backend), traz diagnóstico e os 7 dias com mensagem.
+ * Nunca usa a resposta da função nem a hora local como prova.
+ */
+export function confirmPersistedRefine(
+  row: ({ ai_analise_gerada_em?: unknown; diagnostico_bullets?: unknown; plano_prospeccao?: unknown; ai_used_fallback?: unknown }) | null | undefined,
+  previousGeneratedAt: string | null | undefined,
+  opts: { alreadyCurrent?: boolean } = {},
+): PersistenceCheck {
+  if (!row) return { ok: false, reason: "read_failed" };
+  const savedAt = typeof row.ai_analise_gerada_em === "string" ? Date.parse(row.ai_analise_gerada_em) : NaN;
+  if (!Number.isFinite(savedAt)) return { ok: false, reason: "no_timestamp" };
+  const previous = previousGeneratedAt ? Date.parse(previousGeneratedAt) : NaN;
+  if (!opts.alreadyCurrent && Number.isFinite(previous) && savedAt === previous) return { ok: false, reason: "not_updated" };
+
+  const bullets = Array.isArray(row.diagnostico_bullets)
+    ? row.diagnostico_bullets.filter((b) => typeof b === "string" && b.trim())
+    : [];
+  if (bullets.length < 3) return { ok: false, reason: "diagnostico_incomplete" };
+
+  const rawPlan = Array.isArray(row.plano_prospeccao) ? row.plano_prospeccao : asRecord(row.plano_prospeccao).plano_prospeccao_7dias;
+  const days = Array.isArray(rawPlan) ? rawPlan : [];
+  const complete = [1, 2, 3, 4, 5, 6, 7].every((n) => {
+    const day = days.find((d) => Number(asRecord(d).dia) === n);
+    const message = asRecord(day).mensagem;
+    return typeof message === "string" && message.trim().length > 0;
+  });
+  if (!complete) return { ok: false, reason: "plan_incomplete" };
+
+  return { ok: true, usedFallback: resolveUsedFallback(row) };
+}
+
+/** A IA respondeu, mas o banco não confirmou a gravação: nada é anunciado como concluído e nada é substituído. */
+export function buildPersistenceUnconfirmedError(requestId: string): RefineClientError {
+  const safeMessage = "A IA respondeu, mas não foi possível confirmar que a análise foi salva. A análise anterior foi mantida. Atualize a página para conferir; se a nova análise tiver sido gravada, ela aparecerá com a data do último refinamento.";
+  return new RefineClientError({
+    success: false,
+    request_id: requestId,
+    public_error_code: createPublicErrorCode(requestId),
+    category: "database_error",
+    safe_message: safeMessage,
+    retryable: false,
+    error_code: "REFINE_PERSISTENCE_UNCONFIRMED",
+    error_message: safeMessage,
+  }, 200, false);
+}

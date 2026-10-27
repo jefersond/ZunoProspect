@@ -3,13 +3,11 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   GEMINI_JSON_MIME_TYPE,
   REFINE_MODELS,
-  buildProviderFailure,
+  SAVE_FAILED_BODY,
   isDuplicateRefine,
-  shouldChargeCredit,
-  shouldPersistAnalysis,
+  runRefine,
   summarizeProviderError,
   validateAnalysis,
-  type AnalysisValidation,
 } from "../_shared/refine-provider-guard.ts";
 
 const cors = {
@@ -202,11 +200,14 @@ type ProviderResult =
   | { ok: false; error: string };
 
 async function callGemini(apiKey: string, lead: any, requestData: any, requestId: string): Promise<ProviderResult> {
+  // `max_provider_attempts` só pode REDUZIR as tentativas (ex.: 1 em verificações pontuais); nunca aumenta.
+  const requested = Math.trunc(Number(requestData?.max_provider_attempts));
+  const maxAttempts = Number.isFinite(requested) && requested >= 1 ? Math.min(requested, MODELS.length) : MODELS.length;
   const prompt = promptFor(lead, requestData);
   const defaultChannel = availableChannels(lead)[0] || "whatsapp";
   let lastError = "";
 
-  for (const model of MODELS) {
+  for (const model of MODELS.slice(0, maxAttempts)) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 18_000);
     const started = Date.now();
@@ -418,66 +419,62 @@ serve(async (req) => {
       });
     }
 
-    const provider: ProviderResult = GEMINI_KEY
-      ? await callGemini(GEMINI_KEY, lead, requestData, requestId)
-      : { ok: false, error: "gemini_key_missing" };
+    let responsePayload: ReturnType<typeof buildResponse> | null = null;
+
+    const run = await runRefine({
+      requestId,
+      isAdmin,
+      callProvider: async () => GEMINI_KEY
+        ? await callGemini(GEMINI_KEY, lead, requestData, requestId)
+        : { ok: false, error: "gemini_key_missing" },
+      persist: async (analysis, model) => {
+        responsePayload = buildResponse(leadId, requestId, lead, analysis, requestData, model, false);
+        const { data: saved, error: saveError } = await admin
+          .from("leads")
+          .update({
+            diagnostico_bullets: analysis.diagnostico_bullets,
+            probabilidade_conversao: analysis.probabilidade_conversao,
+            plano_prospeccao: responsePayload,
+            ai_analise_gerada_em: new Date().toISOString(),
+            ai_used_fallback: false,
+            ai_fallback_reason: null,
+          })
+          .eq("id", leadId)
+          .eq("user_id", user.id)
+          .select("id, ai_analise_gerada_em");
+        return !saveError && Boolean(saved?.length);
+      },
+      charge: async () => {
+        const { data: ok, error } = await admin.rpc("increment_ai_usage", { p_user_id: user.id });
+        return !error && ok === true;
+      },
+    });
 
     // Sem análise válida do Gemini: nada é gravado (a análise anterior permanece), nenhum crédito é cobrado e o
     // usuário recebe um erro claro. Antes, um texto genérico de reserva era gravado e anunciado como sucesso.
-    if (!provider.ok) {
-      const failure = buildProviderFailure(requestId, provider.error);
+    if (run.status === "provider_failed") {
       await logEvent(admin, user.id, "ai_analysis_failed_handled", {
         request_id: requestId,
         leadId,
         stage: "provider",
-        reason: provider.error,
+        reason: run.reason,
         saved: false,
         deducted_credit: false,
       });
-      return json(failure.body, failure.status);
+      return json(run.failure.body, run.failure.status);
     }
 
-    const usedFallback = false;
-    const validation: AnalysisValidation = { ok: true, value: provider.analysis };
-    const analysis = provider.analysis;
-    const responsePayload = buildResponse(leadId, requestId, lead, analysis, requestData, provider.model, usedFallback);
-    const now = new Date().toISOString();
-
-    const { data: saved, error: saveError } = await admin
-      .from("leads")
-      .update({
-        diagnostico_bullets: analysis.diagnostico_bullets,
-        probabilidade_conversao: analysis.probabilidade_conversao,
-        plano_prospeccao: responsePayload,
-        ai_analise_gerada_em: now,
-        ai_used_fallback: false,
-        ai_fallback_reason: null,
-      })
-      .eq("id", leadId)
-      .eq("user_id", user.id)
-      .select("id, ai_analise_gerada_em");
-
-    if (saveError || !saved?.length) {
+    if (run.status === "save_failed") {
       await logEvent(admin, user.id, "ai_analysis_failed_handled", { request_id: requestId, stage: "persist_result", internal_code: "REFINE_SAVE_FAILED", deducted_credit: false });
-      return json({ success: false, request_id: requestId, error_code: "REFINE_SAVE_FAILED", error_message: "A análise foi gerada, mas não pôde ser salva. Seu crédito não foi consumido." }, 503);
-    }
-
-    let creditWarning: string | null = null;
-    if (shouldPersistAnalysis(validation) && shouldChargeCredit(validation, isAdmin)) {
-      try {
-        const { data: ok, error } = await admin.rpc("increment_ai_usage", { p_user_id: user.id });
-        if (error || ok !== true) creditWarning = "Análise concluída, mas houve um erro ao registrar o consumo do crédito.";
-      } catch (_) {
-        creditWarning = "Análise concluída, mas houve um erro ao registrar o consumo do crédito.";
-      }
+      return json(SAVE_FAILED_BODY(requestId), 503);
     }
 
     await logEvent(admin, user.id, "ai_analysis_completed", {
       request_id: requestId,
       leadId,
-      model: provider.model,
-      fallback_used: usedFallback,
-      credit_consumed: shouldChargeCredit(validation, isAdmin),
+      model: run.model,
+      fallback_used: false,
+      credit_consumed: run.charged,
       duration_ms: Date.now() - started,
     });
 
@@ -485,10 +482,12 @@ serve(async (req) => {
       ...responsePayload,
       success: true,
       request_id: requestId,
+      saved: true,
       used_fallback: false,
       fallback_reason: null,
+      credit_consumed: run.charged,
       timing: { total_ms: Date.now() - started },
-      ...(creditWarning ? { credit_warning: creditWarning } : {}),
+      ...(run.creditWarning ? { credit_warning: run.creditWarning } : {}),
     });
   } catch (err) {
     console.error(JSON.stringify({ module: "analisar-lead-ia", request_id: requestId, stage: "global", error: err instanceof Error ? err.message : String(err) }));

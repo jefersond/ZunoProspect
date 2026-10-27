@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeRefineError } from "@/lib/refineObservability";
-import { buildRefineOutcomeError, classifyRefineResponse, formatRefinedAt, getAnalysisOrigin, resolveUsedFallback } from "./refineOutcome";
+import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, formatRefinedAt, getAnalysisOrigin, resolveUsedFallback } from "./refineOutcome";
 
 describe("classifyRefineResponse", () => {
   it("análise do Gemini: gerada", () => {
@@ -109,5 +109,56 @@ describe("formatRefinedAt", () => {
     expect(formatRefinedAt("2026-10-27T15:30:00Z")).toMatch(/^27\/10\/2026 às \d{2}:\d{2}$/);
     expect(formatRefinedAt("lixo")).toBe("");
     expect(formatRefinedAt(null)).toBe("");
+  });
+});
+
+describe("confirmPersistedRefine: só o registro lido do banco comprova a gravação", () => {
+  const days = [1, 2, 3, 4, 5, 6, 7].map((dia) => ({ dia, mensagem: `Mensagem ${dia}` }));
+  const row = (over: Record<string, unknown> = {}) => ({
+    ai_analise_gerada_em: "2026-10-27T12:00:00Z",
+    diagnostico_bullets: ["a", "b", "c"],
+    plano_prospeccao: { model: "gemini-3.6-flash", plano_prospeccao_7dias: days },
+    ...over,
+  });
+
+  it("registro novo, completo e do Gemini: confirmado", () => {
+    expect(confirmPersistedRefine(row(), "2026-07-01T10:00:00Z")).toEqual({ ok: true, usedFallback: false });
+  });
+
+  it("leitura falhou (sem registro): não confirmado", () => {
+    expect(confirmPersistedRefine(null, "2026-07-01T10:00:00Z")).toEqual({ ok: false, reason: "read_failed" });
+  });
+
+  it("sem data salva: não confirmado, e nunca se usa data local", () => {
+    expect(confirmPersistedRefine(row({ ai_analise_gerada_em: null }), null)).toEqual({ ok: false, reason: "no_timestamp" });
+  });
+
+  it("data igual à anterior: o banco não mudou, não confirmado", () => {
+    expect(confirmPersistedRefine(row(), "2026-10-27T12:00:00Z")).toEqual({ ok: false, reason: "not_updated" });
+  });
+
+  it("duplicata reconhecida pelo backend: confirma a análise já salva", () => {
+    expect(confirmPersistedRefine(row(), "2026-10-27T12:00:00Z", { alreadyCurrent: true }).ok).toBe(true);
+  });
+
+  it("diagnóstico ou plano incompleto no banco: não confirmado", () => {
+    expect(confirmPersistedRefine(row({ diagnostico_bullets: ["a"] }), null)).toEqual({ ok: false, reason: "diagnostico_incomplete" });
+    expect(confirmPersistedRefine(row({ plano_prospeccao: { plano_prospeccao_7dias: days.slice(0, 6) } }), null)).toEqual({ ok: false, reason: "plan_incomplete" });
+  });
+
+  it("texto de reserva salvo é confirmado como gravado, mas identificado como reserva", () => {
+    const fb = row({ plano_prospeccao: { model: "contextual-fallback", debug: { fallback_used: true }, plano_prospeccao_7dias: days } });
+    expect(confirmPersistedRefine(fb, null)).toEqual({ ok: true, usedFallback: true });
+  });
+});
+
+describe("buildPersistenceUnconfirmedError", () => {
+  it("diz que não foi possível confirmar, mantém a análise anterior e não promete nem nega crédito", () => {
+    const err = buildPersistenceUnconfirmedError("req-p");
+    expect(err.payload.safe_message).toMatch(/não foi possível confirmar/i);
+    expect(err.payload.safe_message).toMatch(/anterior foi mantida/i);
+    expect(err.payload.safe_message).not.toMatch(/conclu[ií]da|atualizada com sucesso/i);
+    expect(err.payload.category).toBe("database_error");
+    expect(err.payload.credit_consumed).toBeUndefined();
   });
 });

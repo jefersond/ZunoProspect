@@ -32,7 +32,7 @@ import type { UpgradeSource } from "@/lib/funnelContext";
 import { normalizeLeadForAI } from "@/utils/normalizeLead";
 import { generateSmartProspectingCopy } from "@/utils/smartProspectingCopy";
 import { refineWithAI } from "@/services/refineWithAI";
-import { buildRefineOutcomeError, classifyRefineResponse, resolveUsedFallback } from "@/utils/refineOutcome";
+import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, resolveUsedFallback } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
 const normalizeLeadsResponse = (response: any): any[] => {
@@ -1123,33 +1123,31 @@ export const LeadsList = () => {
       }
       setLastRefineError(null);
 
-      const resData = refineResponse?.data || {};
-      const probVal = Number(
-        resData.probabilidade_conversao ??
-        resData.diagnostico?.score ??
-        resData.data?.analise?.probabilidade_conversao ??
-        0
-      );
+      // Só vale o que o banco devolve numa nova leitura: nunca a resposta da função nem uma data local.
+      let persistedRow: any = null;
+      try {
+        const read = await supabase.from("leads").select("*").eq("id", lead.id).single();
+        persistedRow = read.error ? null : read.data;
+      } catch {
+        persistedRow = null;
+      }
+      const persisted = confirmPersistedRefine(persistedRow, lead.ai_analise_gerada_em, { alreadyCurrent: outcome.alreadyCurrent });
+      if (!persisted.ok || !persistedRow) {
+        console.warn("Refinamento não confirmado no banco:", "reason" in persisted ? persisted.reason : "empty_row");
+        throw buildPersistenceUnconfirmedError(requestId);
+      }
 
-      const rawPlano = resData.plano_prospeccao_7dias ??
-        resData.plano_prospeccao?.plano_prospeccao_7dias ??
-        resData.plano_prospeccao ??
-        resData.data?.analise?.plano_prospeccao_7dias ??
-        [];
-
-      const planoDias = Array.isArray(rawPlano) ? rawPlano : [];
-
-      const bullets = Array.isArray(resData.diagnostico_bullets)
-        ? resData.diagnostico_bullets
-        : (resData.data?.analise?.diagnostico_bullets || []);
-
+      // Atualiza apenas os campos da análise; os dados de contato continuam os já exibidos.
       const updatedLeadObj: LeadProspeccao = {
         ...lead,
-        probabilidade_conversao: probVal > 0 ? probVal : null,
-        plano_prospecao_7dias: planoDias,
-        diagnostico_bullets: bullets,
+        probabilidade_conversao: Number(persistedRow.probabilidade_conversao) > 0 ? Number(persistedRow.probabilidade_conversao) : lead.probabilidade_conversao,
+        plano_prospecao_7dias: Array.isArray(persistedRow.plano_prospeccao)
+          ? persistedRow.plano_prospeccao
+          : (persistedRow.plano_prospeccao?.plano_prospeccao_7dias || []),
+        diagnostico_bullets: persistedRow.diagnostico_bullets as string[],
         status: "analisado",
-        ai_analise_gerada_em: new Date().toISOString(),
+        ai_analise_gerada_em: persistedRow.ai_analise_gerada_em,
+        ai_used_fallback: persisted.usedFallback,
       };
 
       updateLeadLocally(updatedLeadObj);
@@ -1287,7 +1285,7 @@ export const LeadsList = () => {
           ? "Você não tem análises IA disponíveis." 
           : isPayloadError
           ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
-          : errorPayload.category === "rate_limit_error" || errorPayload.category === "provider_error"
+          : errorPayload.category === "rate_limit_error" || errorPayload.category === "provider_error" || errorPayload.category === "database_error"
           ? errorMsg
           : "Não conseguimos concluir a análise agora. Seu crédito de IA não foi consumido. Tente novamente em alguns instantes.",
       });

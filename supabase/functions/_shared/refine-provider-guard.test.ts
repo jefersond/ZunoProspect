@@ -4,6 +4,7 @@ import {
   REFINE_MODELS,
   buildProviderFailure,
   isDuplicateRefine,
+  runRefine,
   shouldChargeCredit,
   shouldPersistAnalysis,
   summarizeProviderError,
@@ -152,5 +153,75 @@ describe("isDuplicateRefine: clique duplo/duas abas não geram nem cobram duas v
   it("sem análise anterior ou data inválida não é duplicata", () => {
     expect(isDuplicateRefine({ generatedAt: null, usedFallback: null }, now)).toBe(false);
     expect(isDuplicateRefine({ generatedAt: "lixo", usedFallback: false }, now)).toBe(false);
+  });
+});
+
+describe("runRefine: ordem provedor → gravação confirmada → cobrança", () => {
+  const analysis = () => {
+    const r = validateAnalysis(valid());
+    if (!r.ok) throw new Error("fixture inválida");
+    return r.value;
+  };
+  const deps = (over: Partial<Parameters<typeof runRefine>[0]> = {}) => {
+    const calls: string[] = [];
+    const base = {
+      requestId: "req",
+      isAdmin: false,
+      callProvider: async () => { calls.push("provider"); return { ok: true as const, analysis: analysis(), model: "gemini-3.6-flash" }; },
+      persist: async () => { calls.push("persist"); return true; },
+      charge: async () => { calls.push("charge"); return true; },
+    };
+    return { calls, deps: { ...base, ...over } };
+  };
+
+  it("Gemini válido + gravação confirmada: grava e cobra 1 vez, nessa ordem", async () => {
+    const { calls, deps: d } = deps();
+    const run = await runRefine(d);
+    expect(run).toMatchObject({ status: "saved", charged: true, creditWarning: null, model: "gemini-3.6-flash" });
+    expect(calls).toEqual(["provider", "persist", "charge"]);
+  });
+
+  it("Gemini HTTP 400 (todos os modelos): nada gravado, nada cobrado, erro 502 claro", async () => {
+    const { calls, deps: d } = deps({ callProvider: async () => { calls.push("provider"); return { ok: false as const, error: "gemini-3.5-flash-lite:400" }; } });
+    const run = await runRefine(d);
+    expect(run.status).toBe("provider_failed");
+    expect(run.status === "provider_failed" && run.failure.status).toBe(502);
+    expect(calls).toEqual(["provider"]);
+  });
+
+  it("Gemini devolve análise inválida: não grava e não cobra", async () => {
+    const { calls, deps: d } = deps({ callProvider: async () => ({ ok: true as const, analysis: { diagnostico_bullets: ["a"] } as never, model: "gemini-3.6-flash" }) });
+    const run = await runRefine(d);
+    expect(run.status).toBe("provider_failed");
+    expect(calls).toEqual([]);
+  });
+
+  it("falha ao gravar: não cobra e informa save_failed", async () => {
+    const { calls, deps: d } = deps({ persist: async () => { calls.push("persist"); return false; } });
+    const run = await runRefine(d);
+    expect(run.status).toBe("save_failed");
+    expect(calls).toEqual(["provider", "persist"]);
+  });
+
+  it("administrador não é cobrado", async () => {
+    const { calls, deps: d } = deps({ isAdmin: true });
+    const run = await runRefine(d);
+    expect(run).toMatchObject({ status: "saved", charged: false });
+    expect(calls).not.toContain("charge");
+  });
+
+  it("falha ao descontar o crédito não desfaz a análise gravada e gera aviso (sem cobrança duplicada)", async () => {
+    const { calls, deps: d } = deps({ charge: async () => { calls.push("charge"); throw new Error("rpc"); } });
+    const run = await runRefine(d);
+    expect(run).toMatchObject({ status: "saved", charged: false });
+    expect(run.status === "saved" && run.creditWarning).toMatch(/consumo do crédito/);
+    expect(calls.filter((c) => c === "charge")).toHaveLength(1);
+  });
+
+  it("não há segunda rodada de provedor nem de cobrança", async () => {
+    const { calls, deps: d } = deps();
+    await runRefine(d);
+    expect(calls.filter((c) => c === "provider")).toHaveLength(1);
+    expect(calls.filter((c) => c === "charge")).toHaveLength(1);
   });
 });

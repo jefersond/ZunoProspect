@@ -169,3 +169,64 @@ export function isDuplicateRefine(
   const age = now - at;
   return age >= 0 && age < windowMs;
 }
+
+export type ProviderOutcome =
+  | { ok: true; analysis: ValidAnalysis; model: string }
+  | { ok: false; error: string };
+
+export interface RefineDeps {
+  requestId: string;
+  isAdmin: boolean;
+  /** Uma única rodada de chamadas ao provedor (cada modelo no máximo uma vez). */
+  callProvider: () => Promise<ProviderOutcome>;
+  /** Grava a análise; deve devolver true somente quando o banco confirmou a linha gravada. */
+  persist: (analysis: ValidAnalysis, model: string) => Promise<boolean>;
+  /** Desconta 1 crédito interno; true somente se o desconto foi registrado. */
+  charge: () => Promise<boolean>;
+}
+
+export type RefineRun =
+  | { status: "provider_failed"; reason: string; failure: ProviderFailure }
+  | { status: "save_failed" }
+  | { status: "saved"; model: string; analysis: ValidAnalysis; charged: boolean; creditWarning: string | null };
+
+export const SAVE_FAILED_BODY = (requestId: string) => ({
+  success: false as const,
+  request_id: requestId,
+  error_code: "REFINE_SAVE_FAILED",
+  category: "database_error" as const,
+  retryable: true,
+  safe_message: "A análise foi gerada, mas não pôde ser salva. Seu crédito não foi consumido e a análise anterior foi mantida.",
+  error_message: "A análise foi gerada, mas não pôde ser salva. Seu crédito não foi consumido e a análise anterior foi mantida.",
+  credit_consumed: false as const,
+  saved: false as const,
+});
+
+/**
+ * Ordem obrigatória: provedor → gravação confirmada → cobrança. Falha do provedor ou da gravação nunca cobra;
+ * cobrança só existe para análise válida já persistida, e administradores não são cobrados.
+ */
+export async function runRefine(deps: RefineDeps): Promise<RefineRun> {
+  const provider = await deps.callProvider();
+  if (!provider.ok) {
+    return { status: "provider_failed", reason: provider.error, failure: buildProviderFailure(deps.requestId, provider.error) };
+  }
+  const validation = validateAnalysis(provider.analysis);
+  if (!validation.ok) {
+    return { status: "provider_failed", reason: `invalid_output:${validation.reason}`, failure: buildProviderFailure(deps.requestId, `invalid_output:${validation.reason}`) };
+  }
+  const saved = await deps.persist(validation.value, provider.model);
+  if (!saved) return { status: "save_failed" };
+
+  let charged = false;
+  let creditWarning: string | null = null;
+  if (shouldChargeCredit(validation, deps.isAdmin)) {
+    try {
+      charged = await deps.charge();
+    } catch {
+      charged = false;
+    }
+    if (!charged) creditWarning = "Análise atualizada, mas houve um erro ao registrar o consumo do crédito.";
+  }
+  return { status: "saved", model: provider.model, analysis: validation.value, charged, creditWarning };
+}

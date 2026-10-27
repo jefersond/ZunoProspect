@@ -16,19 +16,22 @@ describe("analisar-lead-ia: sem análise genérica disfarçada de IA", () => {
     expect(source).not.toContain("contextual-fallback");
   });
 
-  it("falha do provedor devolve erro antes de qualquer gravação ou cobrança", () => {
-    const failureAt = source.indexOf("buildProviderFailure(requestId, provider.error)");
-    const updateAt = source.indexOf('.from("leads")\n      .update(');
-    const chargeAt = source.indexOf("increment_ai_usage");
-    expect(failureAt).toBeGreaterThan(0);
-    expect(failureAt).toBeLessThan(updateAt);
-    expect(failureAt).toBeLessThan(chargeAt);
+  it("gravação e cobrança acontecem somente dentro de runRefine (provedor → gravação → cobrança)", () => {
+    expect(source).toContain("await runRefine({");
+    const runAt = source.indexOf("await runRefine({");
+    expect(source.indexOf('.update({')).toBeGreaterThan(runAt);
+    expect(source.indexOf("increment_ai_usage")).toBeGreaterThan(runAt);
+    expect(source.match(/increment_ai_usage/g)).toHaveLength(1);
   });
 
-  it("cobra crédito somente por meio da regra validada e nunca marca a análise como reserva", () => {
-    expect(source).toContain("shouldChargeCredit(validation, isAdmin)");
+  it("nunca marca a análise como reserva", () => {
     expect(source).toContain("ai_used_fallback: false");
     expect(source).not.toMatch(/ai_used_fallback:\s*usedFallback/);
+  });
+
+  it("max_provider_attempts só reduz as tentativas ao provedor", () => {
+    expect(source).toContain("Math.min(requested, MODELS.length)");
+    expect(source).toContain("MODELS.slice(0, maxAttempts)");
   });
 
   it("não afirma ausência de pixel/tags enquanto a inspeção de HTML está suspensa", () => {
@@ -45,7 +48,7 @@ describe("analisar-lead-ia: sem análise genérica disfarçada de IA", () => {
   });
 
   it("só cobra depois de confirmar a gravação (saved) da análise", () => {
-    const savedCheck = source.indexOf("if (saveError || !saved?.length)");
+    const savedCheck = source.indexOf("return !saveError && Boolean(saved?.length)");
     const chargeAt = source.indexOf("increment_ai_usage");
     expect(savedCheck).toBeGreaterThan(0);
     expect(savedCheck).toBeLessThan(chargeAt);

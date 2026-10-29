@@ -257,7 +257,7 @@ export const LeadAnalysis = ({
         <div className="min-w-0 space-y-1">
           <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
             <Brain className="h-4 w-4 shrink-0" />
-            Diagnostico Comercial IA
+            {origin === "gemini" ? "Diagnostico Estrategico IA (Gemini)" : "Roteiro Comercial Base (Inicial)"}
           </p>
           {showCompanyName && lead?.nome && <h3 className="break-words text-xl font-semibold leading-tight text-foreground">{lead.nome}</h3>}
           {subtitle && <p className="break-words text-sm text-muted-foreground">{subtitle}</p>}
@@ -273,9 +273,14 @@ export const LeadAnalysis = ({
             </div>
           )}
           {origin === "not_generated" && (
-            <Badge variant="outline" className="text-muted-foreground" data-testid="analysis-origin">
-              Análise com IA não gerada
-            </Badge>
+            <div className="space-y-0.5" data-testid="analysis-origin">
+              <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400">
+                Roteiro Base Local (Prévia)
+              </Badge>
+              <p className="text-xs text-muted-foreground">
+                Sugestão determinística inicial. Clique em <strong>Refinar com IA</strong> para análise estratégica profunda com Gemini.
+              </p>
+            </div>
           )}
           {origin === "fallback" && (
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300" role="alert" data-testid="analysis-origin">

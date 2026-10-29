@@ -138,7 +138,7 @@ export function resolveServiceArgumentProfile(
       directObjectiveLine: hasWebsite
         ? `Atuo com criação de sites e páginas rápidas em ${cityLabel}. Quem cuida da presença digital aí na empresa?`
         : `Ajudo negócios de ${niche} em ${cityLabel} a terem uma página própria de contato no Google. Quem é o responsável?`,
-      practicalExampleLine: `Estruturei 3 ajustes objetivos que tornam a página da empresa mais clara e rápida para converter visitas em conversas no WhatsApp.`,
+      practicalExampleLine: `Separei um ponto prático sobre como organizar a apresentação da empresa no celular para facilitar conversas diretas no WhatsApp.`,
       lowFrictionQuestion: hasWebsite
         ? "Posso te enviar uma observação prática sobre como tornar o contato da página mais direto?"
         : "Faz sentido avaliar uma página simples para vocês receberem contatos do Google?",
@@ -152,7 +152,7 @@ export function resolveServiceArgumentProfile(
       coreAngle: "comunicação clara dos diferenciais do negócio e facilidade para transformar seguidores em contatos comerciais",
       consultativeValueLine: `Acompanho a movimentação de ${niche} em ${cityLabel} e ajudo empresas a comunicarem com clareza seus serviços para atrair novos clientes locais.`,
       directObjectiveLine: `Trabalho com comunicação e redes sociais para ${niche} em ${cityLabel}. Quem responde pela divulgação da empresa?`,
-      practicalExampleLine: `Separei 3 ideias simples de apresentação dos serviços de vocês que costumam gerar perguntas reais no direct.`,
+      practicalExampleLine: `Tenho um exemplo prático de como apresentar os diferenciais dos serviços no perfil para gerar dúvidas reais no direct.`,
       lowFrictionQuestion: "Faz sentido eu te mandar essas 3 ideias de comunicação aplicadas ao seu segmento?",
     };
   }
@@ -164,7 +164,7 @@ export function resolveServiceArgumentProfile(
       coreAngle: "organização do atendimento para responder rápido sem deixar oportunidades sem retorno",
       consultativeValueLine: `Ajudo empresas de ${niche} em ${cityLabel} a organizarem o fluxo de mensagens no WhatsApp para que nenhum contato de cliente fique sem resposta ou acompanhamento.`,
       directObjectiveLine: `Atuo com organização de atendimento e processos comerciais em ${cityLabel}. Quem é a pessoa responsável por vendas ou atendimento aí?`,
-      practicalExampleLine: `Desenvolvi um roteiro simples de triagem de contatos no WhatsApp que organiza quem está pronto para comprar e quem precisa de acompanhamento.`,
+      practicalExampleLine: `Estruturei uma rotina simples de triagem no WhatsApp que ajuda a responder rápido sem deixar contatos sem retorno nos horários de pico.`,
       lowFrictionQuestion: "Vale uma conversa rápida de 5 minutos sobre como vocês organizam o fluxo de mensagens hoje?",
     };
   }
@@ -176,7 +176,7 @@ export function resolveServiceArgumentProfile(
       coreAngle: "captação ativa de clientes que já pesquisam pelos serviços da empresa na região",
       consultativeValueLine: `Trabalho com anúncios locais para ${niche} em ${cityLabel}, ajudando a posicionar a empresa diretamente para quem busca pelo serviço no momento da decisão.`,
       directObjectiveLine: `Trabalho com captação de clientes locais via anúncios em ${cityLabel}. Vocês têm interesse em atrair novas demandas além das indicações?`,
-      practicalExampleLine: `Mapeei os termos e regiões mais buscados em ${cityLabel} para o segmento de vocês e preparei um resumo objetivo.`,
+      practicalExampleLine: `Apresento uma visão direta de como posicionar a empresa para quem já pesquisa pelo serviço na região no momento de contratação.`,
       lowFrictionQuestion: "Posso te mandar os termos de busca mais pesquisados da sua região por aqui?",
     };
   }
@@ -188,7 +188,7 @@ export function resolveServiceArgumentProfile(
     coreAngle: "estruturação de um canal ativo e previsível de novos contatos comerciais",
     consultativeValueLine: `Auxilio negócios de ${niche} em ${cityLabel} a estruturarem uma rotina de prospecção direta com empresas e clientes qualificados.`,
     directObjectiveLine: `Atuo com prospecção e novos negócios em ${cityLabel}. Quem responde pela área comercial aí na empresa?`,
-    practicalExampleLine: `Organizei um panorama de 3 etapas que ajuda empresas locais a gerarem conversas comerciais todas as semanas de forma organizada.`,
+    practicalExampleLine: `Organizei um roteiro simples em 3 passos para estruturar conversas comerciais ativas todas as semanas de forma organizada.`,
     lowFrictionQuestion: "Faz sentido batermos um papo rápido de 5 minutos sobre como vocês captam clientes hoje?",
   };
 }
@@ -494,6 +494,66 @@ export function buildIntelligentPlan({
     }
   }
 
+  // Helpers determinísticos de alta qualidade para mensagens naturais
+  const day1Message = (() => {
+    if (hasIncompleteData) {
+      return `Oi, pessoal da ${companyName}! Tudo bem?\n\nAtuo com ${service} em ${city}. Vocês atendem novos clientes de ${niche} por este número ou o contato comercial fica em outro canal?`;
+    }
+    if (serviceProfile.category === "automacao_crm") {
+      return `Oi, pessoal da ${companyName}! Tudo bem?\n\nLocalizei o contato de vocês na busca de ${niche} em ${city}. Trabalho com organização de atendimento no WhatsApp.\n\nUma pergunta rápida: as mensagens e pedidos de orçamento são atendidos diretamente por este número aí na equipe?`;
+    }
+    if (serviceProfile.category === "social_media") {
+      return `Oi, equipe da ${companyName}! Tudo bem?\n\nEncontrei o contato de vocês pesquisando ${niche} em ${city}. Trabalho com comunicação e apresentação visual para redes sociais.\n\nQueria te fazer uma pergunta simples: quem cuida da divulgação e do Instagram de vocês hoje?`;
+    }
+    if (serviceProfile.category === "criacao_sites") {
+      return hasWebsite
+        ? `Oi, equipe da ${companyName}! Tudo bem?\n\nLocalizei o contato de vocês pesquisando ${niche} em ${city}. Trabalho com páginas rápidas de conversão para negócios locais.\n\nVi o site de vocês e queria saber: quem cuida da presença digital e da página da empresa hoje?`
+        : `Oi, pessoal da ${companyName}! Tudo bem?\n\nLocalizei o perfil de vocês pesquisando ${niche} em ${city}. Trabalho com criação de páginas rápidas para negócios locais.\n\nVi que no Google não há link de site cadastrado. Vocês já possuem uma página própria para orçamentos ou atendem só pelo WhatsApp?`;
+    }
+    if (serviceProfile.category === "gestao_trafego") {
+      return `Oi, equipe da ${companyName}! Tudo bem?\n\nEncontrei o contato público de vocês pesquisando empresas de ${niche} em ${city}.\n\nTrabalho com campanhas no Google para negócios locais. Queria saber: vocês já anunciam para quem pesquisa pelo serviço na região ou atendem mais por indicação?`;
+    }
+    return `Oi, pessoal da ${companyName}! Tudo bem?\n\nLocalizei o contato público de vocês pesquisando empresas de ${niche} em ${city}. Atuo com organização comercial e captação de clientes.\n\nUma pergunta rápida: quem é a pessoa responsável por novos negócios ou parcerias comerciais aí na empresa?`;
+  })();
+
+  const day2Message = (() => {
+    if (serviceProfile.category === "social_media") {
+      return `Oi, equipe da ${companyName}! Tudo bem?\n\nEstava olhando o perfil de vocês e o mercado de ${niche} aqui em ${city}. Em redes sociais, costumo notar que muitas empresas têm ótimo atendimento, mas poderiam transformar mais visualizações em conversas reais no WhatsApp.\n\nFaz sentido conversarmos 5 minutos sobre uma ideia simples para o perfil de vocês?`;
+    }
+    if (serviceProfile.category === "automacao_crm") {
+      return `Oi, pessoal da ${companyName}! Tudo bem?\n\nEstava acompanhando negócios de ${niche} em ${city}. Uma dificuldade comum que vejo é responder a tempo quem chega pelo Instagram e pelo WhatsApp sem acumular mensagens pendentes.\n\nVocês têm interesse em avaliar como organizar essa triagem?`;
+    }
+    if (serviceProfile.category === "criacao_sites") {
+      return `Oi, equipe da ${companyName}! Tudo bem?\n\nEstava analisando empresas de ${niche} em ${city}. Para quem pesquisa no celular, ter uma página rápida com serviços e botão direto para o WhatsApp facilita muito o contato imediato.\n\nFaz sentido avaliar como ficaria uma página simples para vocês?`;
+    }
+    return `Oi, equipe da ${companyName}! Tudo bem?\n\nEstava analisando o mercado de ${niche} aqui em ${city}. Em ${service}, costumo notar que muitas empresas têm boa reputação na região, mas poderiam receber mais contatos diretos de pessoas que já procuram pelo serviço na internet.\n\nVocês têm interesse em avaliar como estruturar essa captação local?`;
+  })();
+
+  const day5Data = (() => {
+    if (serviceProfile.category === "automacao_crm") {
+      return {
+        assunto: `Organização do fluxo de mensagens - ${companyName}`,
+        corpo: `Olá!\n\nPara ser bem direto sobre como ajudo empresas de ${niche} em ${city} a organizarem o atendimento:\n\n1. Criamos uma triagem rápida para direcionar novos orçamentos imediatamente.\n2. Evitamos que contatos fiquem sem retorno nos horários de maior movimento.\n3. Acompanhamos o histórico para facilitar o follow-up de orçamentos pendentes.\n\nPosso te mostrar como isso funcionaria na rotina da ${companyName}?`,
+      };
+    }
+    if (serviceProfile.category === "social_media") {
+      return {
+        assunto: `Comunicação e apresentação digital - ${companyName}`,
+        corpo: `Olá!\n\nPara ser bem direto sobre como atuo com redes sociais para ${niche} em ${city}:\n\n1. Destacamos os principais diferenciais e fotos reais dos serviços da empresa.\n2. Tornamos o perfil claro e atrativo para quem pesquisa indicações locais.\n3. Direcionamos quem interage com o conteúdo diretamente para o canal de atendimento.\n\nPosso te mostrar como isso se aplicaria no perfil da ${companyName}?`,
+      };
+    }
+    if (serviceProfile.category === "criacao_sites") {
+      return {
+        assunto: `Página rápida de contato - ${companyName}`,
+        corpo: `Olá!\n\nPara ser bem direto sobre como atuo com presença no Google para ${niche} em ${city}:\n\n1. Estruturamos uma página rápida e leve, pensada para quem acessa pelo celular.\n2. Exibimos serviços, endereço, horários e botão de WhatsApp em 1 clique.\n3. Facilitamos que pessoas da região peçam orçamento sem atrito.\n\nPosso te mostrar um modelo de como ficaria para a ${companyName}?`,
+      };
+    }
+    return {
+      assunto: `3 pontos práticos sobre captação local - ${companyName}`,
+      corpo: `Olá!\n\nPara ser bem direto e transparente sobre como atuo com ${service} para ${niche} em ${city}:\n\n1. Mapeamos os termos e serviços que os clientes mais procuram na região.\n2. Organizamos o canal de contato para que a pessoa fale diretamente com vocês com o mínimo de atrito.\n3. Acompanhamos semanalmente quais canais trazem contatos reais de orçamento.\n\nPosso te mostrar como isso se aplicaria no cenário da ${companyName}?`,
+    };
+  })();
+
   // Definição estruturada dos 7 dias preservando a sequência de 7 etapas
   const blueprints: Array<{
     dia: number;
@@ -519,9 +579,7 @@ export function buildIntelligentPlan({
       explicacao_tarefa: hasIncompleteData
         ? "Como os dados públicos são reduzidos, confirme educadamente se este é o canal certo antes de aprofundar."
         : "Envie uma mensagem curta com pergunta simples sobre a rotina de captação de clientes da empresa.",
-      defaultMessage: hasIncompleteData
-        ? `Oi, pessoal da ${companyName}! Tudo bem?\n\nAtuo com ${service} em ${city}. Vocês atendem novos clientes de ${niche} por este número ou o contato comercial fica em outro canal?`
-        : `Oi, ${companyName}! Tudo bem?\n\nEncontrei o contato público de vocês pesquisando empresas de ${niche} em ${city}.\n\nTrabalho com ${service} e queria te fazer uma pergunta rápida: hoje a entrada de novos clientes aí acontece de forma constante ou oscila bastante ao longo do mês?\n\nSe preferirem não receber contato, sem problemas.`,
+      defaultMessage: day1Message,
       objecao_provavel: "Quem é você e como conseguiu nosso número?",
       resposta_sugerida: `Atuo com ${service} para negócios de ${niche} e localizei o contato público da ${companyName} na pesquisa local de ${city}.`,
       cta: serviceProfile.lowFrictionQuestion,
@@ -533,7 +591,7 @@ export function buildIntelligentPlan({
       objetivo: "Compartilhar observação real sobre o segmento local sem fingir que acompanha a empresa há tempos",
       acao_sugerida: "Enviar Direct ou mensagem no canal secundário comentando a demanda local",
       explicacao_tarefa: "Regra: jamais diga 'acompanho vocês há muito tempo'. Fale apenas sobre o que realmente observou no segmento local.",
-      defaultMessage: `Oi, equipe da ${companyName}! Tudo bem?\n\nEstava analisando o mercado de ${niche} aqui em ${city}. Em ${service}, costumo notar que muitas empresas têm boa reputação na região, mas poderiam receber mais contatos diretos de pessoas que já procuram pelo serviço na internet.\n\nVocês têm interesse em avaliar como estruturar essa captação local?`,
+      defaultMessage: day2Message,
       objecao_provavel: "Não temos interesse no momento.",
       resposta_sugerida: "Compreendo perfeitamente! Fico à disposição se em algum momento isso for prioridade para vocês.",
       cta: "Faz sentido avaliarmos isso em 5 minutos?",
@@ -570,8 +628,8 @@ export function buildIntelligentPlan({
       objetivo: "Compartilhar uma estrutura simples de captação que a empresa possa entender imediatamente",
       acao_sugerida: "Apresentar a lógica do serviço em 3 pontos curtos e objetivos",
       explicacao_tarefa: "Não invente estudos de caso nem métricas de outros clientes. Seja transparente sobre o método de trabalho.",
-      assunto_email: `3 pontos práticos sobre captação local - ${companyName}`,
-      defaultMessage: `Olá!\n\nPara ser bem direto e transparente sobre como atuo com ${service} para ${niche} em ${city}:\n\n1. Mapeamos os termos e serviços que os clientes mais procuram na região.\n2. Organizamos o canal de contato para que a pessoa fale diretamente com vocês com o mínimo de atrito.\n3. Acompanhamos semanalmente quais canais trazem contatos reais de orçamento.\n\nPosso te mostrar como isso se aplicaria no cenário da ${companyName}?`,
+      assunto_email: day5Data.assunto,
+      defaultMessage: day5Data.corpo,
       objecao_provavel: "Já temos alguém que cuida disso.",
       resposta_sugerida: "Excelente! Nesse caso, nossa proposta é somar ao trabalho atual ou trazer dados de demanda que vocês ainda não estejam explorando.",
       cta: "Quer que eu envie esse resumo por aqui?",

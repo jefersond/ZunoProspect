@@ -92,6 +92,13 @@ describe("fatos verificados e prompt", () => {
     expect(prompt).not.toMatch(/gestão de tráfego/i);
   });
 
+  it("incorpora o foco da prospecção nos fatos e no prompt quando especificado", () => {
+    const factsWithFocus = buildVerifiedFacts({ ...lead, foco: "Automação de WhatsApp" });
+    expect(factsWithFocus.foco_prospeccao).toBe("Automação de WhatsApp");
+    const prompt = buildAnalysisPrompt(factsWithFocus, profile);
+    expect(prompt).toContain('FOCO DA PROSPECÇÃO: O assinante selecionou o foco "Automação de WhatsApp"');
+  });
+
   it("resolve o estágio do histórico", () => {
     expect(resolveHistoryStage({ status: "novo", notas: "" })).toBe("nao_contatado");
     expect(resolveHistoryStage({ status: "respondeu", notas: "" })).toBe("respondeu");

@@ -116,6 +116,7 @@ export interface RawLeadForAnalysis {
   reviews?: number | null;
   status?: string | null;
   notas?: string | null;
+  foco?: string | null;
 }
 
 export type PhoneKind = "celular" | "fixo" | "desconhecido" | "ausente";
@@ -164,6 +165,7 @@ export interface VerifiedFacts {
   canais_disponiveis: DayChannel[];
   etapa_do_historico: HistoryStage;
   anotacoes_do_assinante: string | null;
+  foco_prospeccao: string | null;
 }
 
 const cleanFact = (v: unknown, max = 160) =>
@@ -200,6 +202,7 @@ export function buildVerifiedFacts(lead: RawLeadForAnalysis): VerifiedFacts {
     canais_disponiveis: availableChannelsFor(lead),
     etapa_do_historico: resolveHistoryStage(lead),
     anotacoes_do_assinante: notes || null,
+    foco_prospeccao: cleanFact(lead.foco, 80) || null,
   };
 }
 
@@ -321,7 +324,7 @@ LEAD (fatos do cadastro público; nada mais foi verificado):
 ${JSON.stringify(facts)}
 
 COMO PENSAR
-Uma mensagem só é boa se responder: quem está falando; qual serviço essa pessoa realmente oferece; por que procurou ESTA empresa; qual o assunto comercial concreto; qual o menor próximo passo razoável.
+${facts.foco_prospeccao ? `FOCO DA PROSPECÇÃO: O assinante selecionou o foco "${facts.foco_prospeccao}" para este lead. Direcione o diagnóstico comercial e cada abordagem especificamente para a dor e oportunidade deste foco, articulando com a oferta do assinante.\n` : ""}Uma mensagem só é boa se responder: quem está falando; qual serviço essa pessoa realmente oferece; por que procurou ESTA empresa; qual o assunto comercial concreto; qual o menor próximo passo razoável.
 Use o serviço e a descrição do assinante com as palavras dele. Adapte o assunto ao serviço de verdade (anúncios: buscas locais, divulgação de serviços ou produtos, agendamentos ou pedidos; redes sociais: apresentação dos produtos, conteúdo e comunicação; sites: apresentação dos serviços e facilidade de contato; automação/CRM: atendimento, organização de contatos, orçamentos e acompanhamento; outros serviços: interprete o que foi descrito). Não force o assunto para "captação de clientes".
 
 REGRAS DE VERDADE

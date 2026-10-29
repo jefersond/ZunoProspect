@@ -76,6 +76,7 @@ function leadFromRow(raw: any, context: any = {}): RawLeadForAnalysis {
     reviews: num(raw?.total_reviews ?? raw?.reviews ?? raw?.user_ratings_total ?? raw?.review_count),
     status: str(raw?.status) || "novo",
     notas: str(raw?.notas) || null,
+    foco: str(raw?.foco || raw?.focus || context?.foco || context?.focus || "") || null,
   };
 }
 

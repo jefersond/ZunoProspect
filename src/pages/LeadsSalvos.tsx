@@ -24,7 +24,9 @@ import {
 } from "lucide-react";
 import { CommercialPerformanceDashboard } from "@/components/prospeccao/CommercialPerformanceDashboard";
 import { ConfirmContactModal } from "@/components/prospeccao/ConfirmContactModal";
+import { CommercialMissionGuide } from "@/components/prospeccao/CommercialMissionGuide";
 import { useCommercialPerformance } from "@/hooks/useCommercialPerformance";
+import { useCommercialMission } from "@/hooks/useCommercialMission";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { LeadPlanDialog } from "@/components/prospeccao/LeadPlanDialog";
 import type { LeadProspeccao } from "@/types/lead";
@@ -99,6 +101,7 @@ const LeadsSalvos = () => {
   const [numberStatus, setNumberStatus] = useState<Record<string, 'valid' | 'invalid' | 'checking'>>({});
   const [isAdmin, setIsAdmin] = useState(false);
   const commercialPerformance = useCommercialPerformance({ leads });
+  const commercialMission = useCommercialMission();
   const [quickContactLead, setQuickContactLead] = useState<LeadProspeccao | null>(null);
 
   // Função para validar telefone brasileiro
@@ -724,6 +727,20 @@ const LeadsSalvos = () => {
           }}
         />
       )}
+      <CommercialMissionGuide
+        phase={commercialMission.phase}
+        currentStep={commercialMission.step}
+        onStartMission={commercialMission.startMission}
+        onStepChange={(newStep) => {
+          if (newStep > commercialMission.step) {
+            commercialMission.nextStep();
+          } else {
+            commercialMission.prevStep();
+          }
+        }}
+        onDismiss={commercialMission.dismissMission}
+        onComplete={() => commercialMission.nextStep(7)}
+      />
       <FloatingWhatsAppButton />
     </div>
   );

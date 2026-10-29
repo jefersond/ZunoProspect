@@ -26,6 +26,9 @@ import { COUNTRIES, getStatesByCountry, getCityPlaceholder, type Country } from 
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { isAdminUser } from "@/config/admin";
+import { useAuth } from "@/hooks/useAuth";
+import { FirstSearchGuide } from "./FirstSearchGuide";
+import { useCommercialMission } from "@/hooks/useCommercialMission";
 
 const ZUNO_INTERNAL_PROSPECTING_FOCUS = "zuno_internal_prospecting";
 const SEARCH_TIMEOUT_MS = 60_000;
@@ -145,6 +148,149 @@ export const ProspeccaoForm = () => {
 
   // Selected country
   const [selectedCountry, setSelectedCountry] = useState<Country>("BR");
+
+  const { user } = useAuth();
+  const { triggerMissionInvite, startMission } = useCommercialMission();
+  const [showGuide, setShowGuide] = useState(false);
+  const [guideStep, setGuideStep] = useState(1);
+  const activeGuideUserRef = useRef<string | null>(null);
+  const [guideSearchResultStatus, setGuideSearchResultStatus] = useState<
+    "idle" | "searching" | "success" | "zero_leads" | "error"
+  >("idle");
+  const [guideSearchLeadsCount, setGuideSearchLeadsCount] = useState(0);
+
+  useEffect(() => {
+    const onVisible = (event: Event) => {
+      const count = (event as CustomEvent<{ count: number }>).detail?.count ?? 0;
+      if (count > 0) {
+        setGuideSearchResultStatus("success");
+        setGuideSearchLeadsCount(count);
+        setGuideStep((current) => {
+          if (current !== 6) return current;
+          if (user?.id) {
+            localStorage.setItem(`zuno_first_search_guide_step_${user.id}`, "7");
+            localStorage.setItem(`zuno_first_search_guide_version_${user.id}`, "2");
+          }
+          return 7;
+        });
+      }
+    };
+    window.addEventListener("zuno:search-results-visible", onVisible);
+    return () => window.removeEventListener("zuno:search-results-visible", onVisible);
+  }, [user?.id]);
+
+  // Identificação confiável de primeiro acesso por usuário
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkFirstAccess = async () => {
+      const currentUserId = user?.id;
+      if (!currentUserId) return;
+      if (activeGuideUserRef.current === currentUserId) return;
+
+      const userDismissedKey = `zuno_first_search_guide_dismissed_${currentUserId}`;
+      const userUsefulKey = `zuno_first_search_useful_${currentUserId}`;
+
+      const isDismissed = localStorage.getItem(userDismissedKey) === "true";
+      const hasLocalUseful = Boolean(localStorage.getItem(userUsefulKey));
+
+      if (isDismissed || hasLocalUseful) {
+        if (isMounted) setShowGuide(false);
+        return;
+      }
+
+      try {
+        const { count, error } = await supabase
+          .from("leads")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", currentUserId);
+
+        const hasExistingLeadsInDb = !error && typeof count === "number" && count > 0;
+        const hasExistingUsage = Boolean(usage && (usage.leads_used > 0 || ((usage as any).leads_used_this_month > 0)));
+
+        if (hasExistingLeadsInDb || hasExistingUsage) {
+          localStorage.setItem(`zuno_first_search_started_${currentUserId}`, new Date().toISOString());
+          localStorage.setItem(`zuno_first_search_completed_${currentUserId}`, new Date().toISOString());
+          localStorage.setItem(userUsefulKey, new Date().toISOString());
+          if (isMounted) setShowGuide(false);
+          return;
+        }
+
+        if (isMounted) {
+          activeGuideUserRef.current = currentUserId;
+          setShowGuide(true);
+          const savedStep = localStorage.getItem(`zuno_first_search_guide_step_${currentUserId}`);
+          const guideVersion = localStorage.getItem(`zuno_first_search_guide_version_${currentUserId}`);
+          const legacySteps: Record<string, number> = { "1": 1, "2": 1, "3": 1, "4": 2, "5": 4, "6": 3, "7": 5, "8": 5, "9": 6 };
+          const restoredStep = guideVersion === "2" ? Number(savedStep) : legacySteps[savedStep || "1"];
+          const firstStep = Number.isInteger(restoredStep) ? Math.max(1, Math.min(6, restoredStep)) : 1;
+          setGuideStep(firstStep);
+          localStorage.setItem(`zuno_first_search_guide_version_${currentUserId}`, "2");
+          localStorage.setItem(`zuno_first_search_guide_step_${currentUserId}`, String(firstStep));
+          safeTrackEvent("first_search_guide_started", {
+            step: firstStep,
+            source: "first_access",
+          });
+        }
+      } catch (err) {
+        console.warn("[Onboarding] Erro ao verificar histórico de buscas:", err);
+        if (isMounted) setShowGuide(false);
+      }
+    };
+
+    checkFirstAccess();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, usage]);
+
+  const handleStepChange = (newStep: number) => {
+    setGuideStep(newStep);
+    if (user?.id) {
+      localStorage.setItem(`zuno_first_search_guide_step_${user.id}`, String(newStep));
+      localStorage.setItem(`zuno_first_search_guide_version_${user.id}`, "2");
+    }
+  };
+
+  const handleDismissGuide = () => {
+    setShowGuide(false);
+    if (user?.id) {
+      localStorage.setItem(`zuno_first_search_guide_dismissed_${user.id}`, "true");
+    }
+    safeTrackEvent("first_search_guide_skipped", {
+      step: guideStep,
+    });
+  };
+
+  const handleCompleteGuide = () => {
+    setShowGuide(false);
+    if (user?.id) {
+      localStorage.setItem(`zuno_first_search_guide_dismissed_${user.id}`, "true");
+      localStorage.setItem(`zuno_first_search_guide_step_${user.id}`, "7");
+      localStorage.setItem(`zuno_first_search_guide_version_${user.id}`, "2");
+    }
+    safeTrackEvent("first_search_guide_completed", {
+      step: 7,
+      leads_found: guideSearchLeadsCount,
+    });
+  };
+
+  const handleStartCommercialMissionFromGuide = () => {
+    handleCompleteGuide();
+    startMission();
+  };
+
+  const handleReopenGuide = () => {
+    if (user?.id) {
+      localStorage.removeItem(`zuno_first_search_guide_dismissed_${user.id}`);
+      localStorage.setItem(`zuno_first_search_guide_step_${user.id}`, "1");
+      localStorage.setItem(`zuno_first_search_guide_version_${user.id}`, "2");
+    }
+    setGuideStep(1);
+    setShowGuide(true);
+    safeTrackEvent("first_search_guide_reopened", { source: "reopen_button" });
+  };
 
   const {
     register,
@@ -618,6 +764,18 @@ export const ProspeccaoForm = () => {
       setCurrentStep(0);
       setShowRepeatButton(true);
 
+      if (leadsCount > 0) {
+        setGuideSearchResultStatus("success");
+        setGuideSearchLeadsCount(leadsCount);
+        if (showGuide) {
+          setGuideStep(7);
+        } else {
+          triggerMissionInvite();
+        }
+      } else {
+        setGuideSearchResultStatus("zero_leads");
+      }
+
       console.log(`[Busca] Concluída! ${leadsCount} leads processados (${newLeadsCount} novos, ${updatedLeadsCount} atualizados)`);
 
       safeTrackEvent("search_completed", {
@@ -750,6 +908,7 @@ export const ProspeccaoForm = () => {
 
     } catch (error: any) {
       console.error("[Busca] Erro:", error);
+      setGuideSearchResultStatus("error");
       
       // Para o polling
       if (pollIntervalRef.current) {
@@ -853,10 +1012,40 @@ export const ProspeccaoForm = () => {
               </span>
             </CardDescription>
           </div>
-          <UsageIndicator compact />
+          <div className="flex items-center gap-3">
+            {!showGuide && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleReopenGuide}
+                className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground border-primary/20 hover:border-primary/50"
+                aria-label="Ver guia de início novamente"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <span>Ver guia novamente</span>
+              </Button>
+            )}
+            <UsageIndicator compact />
+          </div>
         </div>
       </CardHeader>
       <CardContent>
+        {showGuide && (
+          <FirstSearchGuide
+            currentStep={guideStep}
+            onStepChange={handleStepChange}
+            onDismiss={handleDismissGuide}
+            onComplete={handleCompleteGuide}
+            searchResultStatus={guideSearchResultStatus}
+            searchResultLeadsCount={guideSearchLeadsCount}
+            onViewResults={() => {
+              const el = document.getElementById("leads-table-container") || document.getElementById("tour-leads-container");
+              el?.scrollIntoView({ behavior: "smooth" });
+            }}
+            onRequestCommercialMission={handleStartCommercialMissionFromGuide}
+          />
+        )}
         {(subscriptionLoading || usageLoading) && (
           <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground flex items-center gap-3">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -923,7 +1112,7 @@ export const ProspeccaoForm = () => {
         
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Linha 1: País (destaque) */}
-          <div className="p-4 rounded-lg border border-primary/30 bg-primary/5">
+          <div id="tour-pais" className="p-4 rounded-lg border border-primary/30 bg-primary/5">
             <div className="space-y-2">
               <Label htmlFor="pais" className="flex items-center gap-2 text-base font-semibold flex-wrap">
                 <Globe className="h-5 w-5 text-primary" />
@@ -1012,7 +1201,7 @@ export const ProspeccaoForm = () => {
 
           {/* Linha 2: Cidade, Estado, Nicho */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
+            <div id="tour-cidade" className="space-y-2">
               <Label htmlFor="cidade">Cidade</Label>
               <Input
                 id="cidade"
@@ -1024,7 +1213,7 @@ export const ProspeccaoForm = () => {
               )}
             </div>
 
-            <div className="space-y-2">
+            <div id="tour-estado" className="space-y-2">
               <Label htmlFor="estado">Estado</Label>
               <Select onValueChange={(value) => setValue("estado", value)} value={watch("estado")}>
                 <SelectTrigger>
@@ -1043,7 +1232,7 @@ export const ProspeccaoForm = () => {
               )}
             </div>
 
-            <div className="space-y-2">
+            <div id="tour-nicho" className="space-y-2">
               <Label htmlFor="nicho">Nicho</Label>
               <Input
                 id="nicho"
@@ -1061,7 +1250,7 @@ export const ProspeccaoForm = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-            <div className="space-y-2">
+            <div id="tour-quantidade" className="space-y-2">
               <Label htmlFor="quantidade">
                 Quantidade de leads
                 {quantityAvailabilityText && (
@@ -1083,7 +1272,7 @@ export const ProspeccaoForm = () => {
               )}
             </div>
 
-            <div className="space-y-2">
+            <div id="tour-foco" className="space-y-2">
               <Label htmlFor="foco">Foco</Label>
               <Select onValueChange={(value) => setValue("foco", value)} value={foco}>
                 <SelectTrigger>
@@ -1103,7 +1292,7 @@ export const ProspeccaoForm = () => {
             </div>
           </div>
 
-          <div className="space-y-4 p-4 bg-secondary/20 rounded-lg border border-border">
+          <div id="tour-proximidade" className="space-y-4 p-4 bg-secondary/20 rounded-lg border border-border">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label htmlFor="proximidade" className="text-base">
@@ -1141,7 +1330,7 @@ export const ProspeccaoForm = () => {
             )}
           </div>
 
-          <div className="space-y-4 p-4 bg-secondary/20 rounded-lg border border-border">
+          <div id="tour-canais" className="space-y-4 p-4 bg-secondary/20 rounded-lg border border-border">
             <div className="space-y-2">
               <Label className="text-base">Canais de comunicação</Label>
               <p className="text-sm text-muted-foreground">
@@ -1222,6 +1411,7 @@ export const ProspeccaoForm = () => {
 
               <Button
                 type="submit"
+                id="btn-buscar-leads"
                 className="min-h-11 w-full max-w-sm bg-emerald-600 text-white shadow-sm shadow-emerald-950/20 hover:bg-emerald-500"
                 disabled={loading || subscriptionLoading || usageLoading || isAtLimit}
               >

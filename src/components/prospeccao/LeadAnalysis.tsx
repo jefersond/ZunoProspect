@@ -251,7 +251,7 @@ export const LeadAnalysis = ({
   const hasNextStep = !contactBlocked && (sections.proximoPasso.length > 0 || Boolean(recommendedDay));
 
   return (
-    <div className="mt-4 space-y-5" data-testid="analysis-panel">
+    <div id="tour-diagnostico-ia" className="mt-4 space-y-5" data-testid="analysis-panel">
       {/* 1. Cabeçalho */}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between" data-testid="analysis-header">
         <div className="min-w-0 space-y-1">
@@ -438,7 +438,8 @@ export const LeadAnalysis = ({
       )}
 
       {/* 6. Plano de sete dias */}
-      <Card id={PLAN_ANCHOR_ID} data-testid="analysis-plan">
+      <div id="tour-plano-copies" className="contents">
+        <Card id={PLAN_ANCHOR_ID} data-testid="analysis-plan">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <MessageSquare className="h-4 w-4 shrink-0 text-primary" />
@@ -641,6 +642,7 @@ export const LeadAnalysis = ({
           )}
         </CardContent>
       </Card>
+      </div>
 
       <AlertDialog open={confirmRefineOpen} onOpenChange={setConfirmRefineOpen}>
         <AlertDialogContent>

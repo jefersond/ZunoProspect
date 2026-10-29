@@ -16,6 +16,8 @@ import { getFunnelContext } from "@/lib/funnelContext";
 import { AppHeader } from "@/components/AppHeader";
 import { PaymentRecoveryBanner } from "@/components/subscription/PaymentRecoveryBanner";
 import { TrialActivationPanel } from "@/components/subscription/TrialActivationPanel";
+import { CommercialMissionGuide } from "@/components/prospeccao/CommercialMissionGuide";
+import { useCommercialMission } from "@/hooks/useCommercialMission";
 
 const Prospeccao = () => {
   const navigate = useNavigate();
@@ -23,6 +25,7 @@ const Prospeccao = () => {
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const { subscription, loading: subscriptionLoading, error: subscriptionError, isAdmin } = useSubscription();
   const { user } = useAuth();
+  const commercialMission = useCommercialMission();
 
   // Handle checkout success/cancel and Google OAuth checkout
   useEffect(() => {
@@ -184,6 +187,21 @@ const Prospeccao = () => {
         onOpenChange={setShowUpgradeDialog}
         currentPlanName={subscription?.plan_name}
         source="navbar"
+      />
+
+      <CommercialMissionGuide
+        phase={commercialMission.phase}
+        currentStep={commercialMission.step}
+        onStartMission={commercialMission.startMission}
+        onStepChange={(newStep) => {
+          if (newStep > commercialMission.step) {
+            commercialMission.nextStep();
+          } else {
+            commercialMission.prevStep();
+          }
+        }}
+        onDismiss={commercialMission.dismissMission}
+        onComplete={() => commercialMission.nextStep(7)}
       />
     </div>
   );

@@ -127,6 +127,12 @@ export const LeadsList = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchCompleted, setSearchCompleted] = useState(false);
   const [searchErrorState, setSearchErrorState] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (searchCompleted && leads.length > 0 && !searchErrorState) {
+      window.dispatchEvent(new CustomEvent("zuno:search-results-visible", { detail: { count: leads.length } }));
+    }
+  }, [searchCompleted, leads.length, searchErrorState]);
   const [selectedLead, setSelectedLead] = useState<LeadProspeccao | null>(null);
   const [sdrLead, setSdrLead] = useState<LeadProspeccao | null>(null);
   const [leadBeingEdited, setLeadBeingEdited] = useState<LeadProspeccao | null>(null);
@@ -1372,7 +1378,8 @@ export const LeadsList = () => {
           retrying={reanalyzingLeads.has(getLeadKey(lastRefineError.lead))}
         />
       )}
-      <Card id="leads-table-container" className="w-full overflow-hidden shadow-lg">
+      <Card id="tour-leads-container" data-testid="leads-container" className="w-full overflow-hidden shadow-lg">
+        <div id="leads-table-container" className="contents">
         <CardHeader className="border-b bg-muted/20">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-xl">Leads Encontrados ({leads.length})</CardTitle>
@@ -1394,7 +1401,7 @@ export const LeadsList = () => {
                     Buscar mais leads
                   </Button>
                 )}
-                <Button onClick={handleSaveLeads} variant="default" size="sm" className="h-9">
+                <Button id="tour-btn-salvar-leads-all" onClick={handleSaveLeads} variant="default" size="sm" className="h-9">
                   <Save className="h-4 w-4 mr-2" />
                   Salvar Leads
                 </Button>
@@ -1616,7 +1623,7 @@ export const LeadsList = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {leads.map((lead) => (
+                {leads.map((lead, index) => (
                   <TableRow key={lead.id} className="align-top">
                     <TableCell className="px-3 py-3 align-top">
                       <div className="min-w-0 space-y-1.5">
@@ -1891,6 +1898,7 @@ export const LeadsList = () => {
                         <Button
                           variant="outline"
                           size="sm"
+                          id={index === 0 ? "tour-btn-ver-plano" : undefined}
                           onClick={() => openPlanDialog(lead)}
                           className="h-8 w-full whitespace-nowrap px-2"
                         >
@@ -1903,6 +1911,7 @@ export const LeadsList = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
+                                id={index === 0 ? "tour-btn-salvar-lead" : undefined}
                                 onClick={() => toggleSaveLead(lead)}
                                 className="h-8 w-full px-2 text-emerald-600 border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20"
                               >
@@ -1913,6 +1922,7 @@ export const LeadsList = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
+                                id={index === 0 ? "tour-btn-salvar-lead" : undefined}
                                 onClick={() => approveLead(lead)}
                                 className="h-8 w-full px-2 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/60"
                               >
@@ -1935,6 +1945,7 @@ export const LeadsList = () => {
                             <Button
                               variant={lead.salvo ? "default" : "ghost"}
                               size="sm"
+                              id={index === 0 ? "tour-btn-salvar-lead" : undefined}
                               onClick={() => toggleSaveLead(lead)}
                               title={lead.salvo ? "Desmarcar lead" : "Salvar lead"}
                               className="h-8 w-8 p-0"
@@ -2065,6 +2076,7 @@ export const LeadsList = () => {
             </div>
           </div>
         </CardContent>
+        </div>
       </Card>
 
       {/* Card de Upsell por Quantidade Real */}

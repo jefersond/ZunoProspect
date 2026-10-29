@@ -77,7 +77,7 @@ export function CommercialPerformanceDashboard({
 
   return (
     <>
-      <Card className="mb-6 border-zinc-800 bg-zinc-950/80 shadow-md backdrop-blur-sm">
+      <Card id="tour-painel-metas" className="mb-6 border-zinc-800 bg-zinc-950/80 shadow-md backdrop-blur-sm">
         <CardHeader className="pb-3 pt-4 px-4 sm:px-6 border-b border-zinc-800/60">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">

@@ -917,7 +917,7 @@ export const LeadPlanDialog = ({
         </div>
 
         {/* Registro Comercial de Contato */}
-        <div className="mt-2 mb-4 p-4 bg-muted/30 rounded-lg border border-border/50">
+        <div id="tour-bloco-registro-comercial" className="mt-2 mb-4 p-4 bg-muted/30 rounded-lg border border-border/50">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div className="space-y-1">
               <div className="flex items-center gap-1.5 font-medium text-sm text-foreground">
@@ -940,7 +940,7 @@ export const LeadPlanDialog = ({
         </div>
 
         {/* Seção de Anotações - apenas para planos Iniciante+ */}
-        <div className="mt-2 p-4 bg-muted/30 rounded-lg border border-border/50">
+        <div id="tour-campo-anotacoes-followup" className="mt-2 p-4 bg-muted/30 rounded-lg border border-border/50">
           <div className="flex items-center gap-2 mb-3">
             <StickyNote className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium text-foreground">Anotações</span>

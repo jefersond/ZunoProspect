@@ -16,9 +16,11 @@ import {
   MessageSquare,
   Phone,
   RefreshCw,
+  Sparkles,
   Target,
 } from "lucide-react";
 import { buildStructuredDiagnosis, hasExplicitOptOut, type ExplorableCompatibility } from "@/services/intelligentSevenDayPlan";
+import { useSellerProfileState, isSellerProfileComplete, openSellerProfileDialog } from "@/lib/sellerProfile";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -148,6 +150,7 @@ export const LeadAnalysis = ({
   const [confirmCopiesOpen, setConfirmCopiesOpen] = useState(false);
   const [confirmRefineOpen, setConfirmRefineOpen] = useState(false);
   const { toast } = useToast();
+  const sellerProfileState = useSellerProfileState();
 
   const sections = useMemo(() => splitAnalysisBullets(diagnostico), [diagnostico]);
   const facts = useMemo(() => (lead ? buildCompanyFacts(lead) : []), [lead]);
@@ -264,22 +267,25 @@ export const LeadAnalysis = ({
           {geradoEm && origin !== "gemini" && <p className="text-xs text-muted-foreground">Gerado em {new Date(geradoEm).toLocaleDateString("pt-BR")}</p>}
           {origin === "gemini" && (
             <div className="space-y-1" data-testid="analysis-origin">
-              <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                Gerado pelo Gemini
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium">
+                  Personalizado com IA
+                </Badge>
+                <span className="text-[11px] text-muted-foreground">Gerado pelo Gemini</span>
+              </div>
               <p className="text-xs text-muted-foreground" data-testid="refined-at">
                 Análise atualizada{formatRefinedAt(geradoEm) ? ` · último refinamento em ${formatRefinedAt(geradoEm)}` : ""}
               </p>
             </div>
           )}
           {origin === "not_generated" && (
-            <div className="space-y-0.5" data-testid="analysis-origin">
-              <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400">
-                Roteiro Base Local (Prévia)
+            <div className="flex items-center gap-2 pt-0.5" data-testid="analysis-origin">
+              <Badge variant="outline" className="border-border/60 bg-muted/40 text-muted-foreground text-[11px] font-normal" data-testid="initial-suggestion-badge">
+                Sugestão inicial
               </Badge>
-              <p className="text-xs text-muted-foreground">
-                Sugestão determinística inicial. Clique em <strong>Refinar com IA</strong> para análise estratégica profunda com Gemini.
-              </p>
+              <span className="text-xs text-muted-foreground">
+                Roteiro determinístico base
+              </span>
             </div>
           )}
           {origin === "fallback" && (
@@ -297,10 +303,21 @@ export const LeadAnalysis = ({
       {/* 2. Resumo comercial */}
       <Card className="border-primary/30 bg-primary/5" data-testid="analysis-summary">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Target className="h-4 w-4 shrink-0 text-primary" />
-            Resumo comercial
-          </CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Target className="h-4 w-4 shrink-0 text-primary" />
+              Resumo comercial
+            </CardTitle>
+            {origin !== "gemini" ? (
+              <Badge variant="outline" className="border-border/60 bg-muted/30 text-muted-foreground text-[11px] font-normal" data-testid="summary-initial-badge">
+                Sugestão inicial
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-medium" data-testid="summary-gemini-badge">
+                Personalizado com IA
+              </Badge>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-2 pt-0">
           {headline.map((text, idx) => (
@@ -324,6 +341,91 @@ export const LeadAnalysis = ({
           )}
         </CardContent>
       </Card>
+
+      {/* Bloco de Destaque da Personalização com IA (Identidade Zuno Dark / Neon) */}
+      {origin !== "gemini" && onReanalyze && (
+        <Card
+          data-testid="refine-highlight-card"
+          className="border-primary/40 bg-gradient-to-br from-[#111816] via-[#111816] to-[#12231d] text-card-foreground shadow-[0_0_20px_rgba(16,217,138,0.06)]"
+        >
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1.5 max-w-xl">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/20 text-primary">
+                    <Sparkles className="h-3.5 w-3.5" />
+                  </span>
+                  <h4 className="text-sm font-semibold text-foreground">
+                    Deseja personalizar a abordagem para este lead?
+                  </h4>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Gere uma análise comercial e mensagens mais personalizadas usando as informações disponíveis desta empresa e o serviço que você oferece.
+                </p>
+                {sellerProfileState && !isSellerProfileComplete(sellerProfileState.profile) && (
+                  <div className="flex flex-wrap items-center gap-2 pt-0.5" data-testid="profile-incomplete-warning">
+                    <span className="text-[11px] text-amber-500/90">
+                      Seu perfil comercial ainda não está completo.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openSellerProfileDialog();
+                      }}
+                      className="text-[11px] font-semibold text-[#10d98a] underline underline-offset-2 hover:text-[#10d98a]/80"
+                    >
+                      Completar perfil agora
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5 sm:items-end shrink-0">
+                <Button
+                  onClick={requestRefine}
+                  disabled={isReanalyzing}
+                  data-testid="btn-refinar-abordagem-ia"
+                  className={cn(
+                    "h-10 px-4 text-xs font-semibold gap-2 shadow-sm transition-all w-full sm:w-auto",
+                    canAnalyzeAI
+                      ? "bg-[#10d98a] text-[#0b0f0e] hover:bg-[#10d98a]/90 hover:shadow-[0_0_15px_rgba(16,217,138,0.3)]"
+                      : "border-amber-500 bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-slate-950"
+                  )}
+                >
+                  <Sparkles className={cn("h-3.5 w-3.5", isReanalyzing && "animate-spin")} />
+                  {isReanalyzing
+                    ? "Refinando abordagem..."
+                    : canAnalyzeAI
+                    ? "Refinar abordagem com IA"
+                    : "Liberar análises IA"}
+                </Button>
+                <span className="text-[11px] text-muted-foreground">
+                  {canAnalyzeAI
+                    ? "Consome 1 análise de IA do seu plano."
+                    : "Limite de análises IA atingido neste ciclo."}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Bloco de Confirmação quando o refinamento foi concluído */}
+      {origin === "gemini" && (
+        <div
+          data-testid="refined-success-block"
+          className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 sm:p-3.5 flex items-center gap-2.5"
+        >
+          <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold gap-1 text-[11px] shrink-0">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Personalizado com IA
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            Abordagem e plano gerados com inteligência artificial para este lead.
+          </span>
+        </div>
+      )}
 
       {/* 3. Dados da empresa */}
       {(facts.length > 0 || effectiveCompat) && (

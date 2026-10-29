@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { LeadAnalysis } from "./LeadAnalysis";
 import { SdrWhatsAppModal } from "./SdrWhatsAppModal";
+import { ConfirmContactModal } from "./ConfirmContactModal";
 import { RefineErrorPanel } from "./RefineErrorPanel";
 import { CopyableField } from "./CopyableField";
 import { TemplateSelector } from "@/components/templates/TemplateSelector";
@@ -21,7 +22,7 @@ import { useUsage } from "@/hooks/useUsage";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { Textarea } from "@/components/ui/textarea";
-import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe, StickyNote, Loader2, Lock } from "lucide-react";
+import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe, StickyNote, Loader2, Lock, CheckCircle2 } from "lucide-react";
 import type { LeadProspeccao } from "@/types/lead";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
@@ -216,6 +217,7 @@ export const LeadPlanDialog = ({
     return savedPlan.find((d) => String(d.mensagem || "").trim())?.dia ?? null;
   };
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [confirmContactModalOpen, setConfirmContactModalOpen] = useState(false);
   const [notes, setNotes] = useState(lead?.notas || "");
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const { toast } = useToast();
@@ -914,6 +916,29 @@ export const LeadPlanDialog = ({
           />
         </div>
 
+        {/* Registro Comercial de Contato */}
+        <div className="mt-2 mb-4 p-4 bg-muted/30 rounded-lg border border-border/50">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 font-medium text-sm text-foreground">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                <span>Registro Comercial de Contato</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Realizou uma abordagem ou follow-up com este lead? Confirme para contabilizar na sua meta comercial.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setConfirmContactModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shrink-0 gap-1.5"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>Registrar Contato</span>
+            </Button>
+          </div>
+        </div>
+
         {/* Seção de Anotações - apenas para planos Iniciante+ */}
         <div className="mt-2 p-4 bg-muted/30 rounded-lg border border-border/50">
           <div className="flex items-center gap-2 mb-3">
@@ -1064,6 +1089,43 @@ export const LeadPlanDialog = ({
           </TabsContent>
         </Tabs>
       </DialogContent>
+      {currentLead && (
+        <ConfirmContactModal
+          open={confirmContactModalOpen}
+          onOpenChange={setConfirmContactModalOpen}
+          leadId={currentLead.id}
+          leadNome={currentLead.nome}
+          defaultType={currentLead.status === "novo" ? "primeira_abordagem" : "follow_up"}
+          onConfirm={async ({ leadId, leadNome, tipo, conteudo }) => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+              toast({ title: "Erro", description: "Faça login para registrar contatos.", variant: "destructive" });
+              return false;
+            }
+            const { error } = await supabase.from("interacoes").insert({
+              user_id: user.id,
+              lead_id: leadId,
+              tipo,
+              conteudo,
+              data_interacao: new Date().toISOString(),
+            });
+            if (error) {
+              toast({ title: "Erro ao registrar contato", description: error.message, variant: "destructive" });
+              return false;
+            }
+            toast({
+              title: "Contato registrado!",
+              description: "Ação contabilizada na sua meta comercial.",
+            });
+            if (currentLead.status === "novo") {
+              handleStatusChange("em_contato");
+            }
+            onLeadUpdate?.();
+            return true;
+          }}
+        />
+      )}
+
       {isAdmin && <SdrWhatsAppModal
         lead={displayLead}
         open={isSdrModalOpen}

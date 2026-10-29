@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
-import { Loader2, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink, Mail } from "lucide-react";
+import { Loader2, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink, Mail, Clock } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SUPPORTED_TIMEZONES, DEFAULT_TIMEZONE } from "@/utils/timezoneDateUtils";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { UsageIndicator } from "@/components/subscription/UsageIndicator";
@@ -34,6 +36,7 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
+  const [timezone, setTimezone] = useState<string>(DEFAULT_TIMEZONE);
   const [profile, setProfile] = useState({
     nome_completo: "",
     empresa: "",
@@ -135,6 +138,13 @@ const Profile = () => {
         });
 
       if (error) throw error;
+
+      await supabase.auth.updateUser({
+        data: { timezone },
+      });
+      try {
+        localStorage.setItem("zuno_commercial_timezone", timezone);
+      } catch {}
 
       toast({
         title: "Perfil atualizado!",
@@ -307,6 +317,28 @@ const Profile = () => {
                     setProfile({ ...profile, whatsapp: e.target.value })
                   }
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="timezone" className="flex items-center gap-1.5">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span>Fuso Horário Comercial</span>
+                </Label>
+                <Select value={timezone} onValueChange={setTimezone}>
+                  <SelectTrigger id="timezone" className="w-full">
+                    <SelectValue placeholder="Selecione seu fuso de trabalho" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUPPORTED_TIMEZONES.map((tz) => (
+                      <SelectItem key={tz.value} value={tz.value}>
+                        {tz.label} ({tz.offsetLabel})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Usado para calcular os limites da sua meta comercial diária e sincronizar follow-ups.
+                </p>
               </div>
 
               <Button

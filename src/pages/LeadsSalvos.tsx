@@ -20,7 +20,11 @@ import {
   RefreshCw,
   Mail as MailIcon,
   StickyNote,
+  CheckCircle2,
 } from "lucide-react";
+import { CommercialPerformanceDashboard } from "@/components/prospeccao/CommercialPerformanceDashboard";
+import { ConfirmContactModal } from "@/components/prospeccao/ConfirmContactModal";
+import { useCommercialPerformance } from "@/hooks/useCommercialPerformance";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
 import { LeadPlanDialog } from "@/components/prospeccao/LeadPlanDialog";
 import type { LeadProspeccao } from "@/types/lead";
@@ -94,6 +98,8 @@ const LeadsSalvos = () => {
   const [verifyingNumbers, setVerifyingNumbers] = useState<Set<string>>(new Set());
   const [numberStatus, setNumberStatus] = useState<Record<string, 'valid' | 'invalid' | 'checking'>>({});
   const [isAdmin, setIsAdmin] = useState(false);
+  const commercialPerformance = useCommercialPerformance({ leads });
+  const [quickContactLead, setQuickContactLead] = useState<LeadProspeccao | null>(null);
 
   // Função para validar telefone brasileiro
   const isValidBrazilianPhone = (phone: string): boolean => {
@@ -477,6 +483,19 @@ const LeadsSalvos = () => {
       <AppHeader isAdmin={isAdmin} />
 
       <main className="container mx-auto px-4 py-8">
+        {/* Painel de Metas e Desempenho Comercial */}
+        <CommercialPerformanceDashboard
+          daily={commercialPerformance.daily}
+          weekly={commercialPerformance.weekly}
+          monthly={commercialPerformance.monthly}
+          activeGoal={commercialPerformance.activeGoal}
+          timezone={commercialPerformance.timezone}
+          leads={leads}
+          loading={commercialPerformance.loading}
+          onSaveGoals={commercialPerformance.saveGoals}
+          onSaveTimezone={commercialPerformance.saveTimezone}
+          onRegisterContact={commercialPerformance.registerExplicitContact}
+        />
         {/* Barra de busca */}
         <div className="mb-6">
           <div className="relative max-w-md">
@@ -631,6 +650,15 @@ const LeadsSalvos = () => {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => setQuickContactLead(lead)}
+                      title="Registrar contato realizado"
+                      className="gap-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border-zinc-700"
+                    >
+                      <CheckCircle2 className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleReanalyze(lead.id)}
                       disabled={reanalyzingLeadId === lead.id}
                       className="gap-1"
@@ -674,7 +702,28 @@ const LeadsSalvos = () => {
         lead={selectedLead}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        onLeadUpdate={() => commercialPerformance.refresh()}
       />
+      {quickContactLead && (
+        <ConfirmContactModal
+          open={!!quickContactLead}
+          onOpenChange={(isOpen) => !isOpen && setQuickContactLead(null)}
+          leadId={quickContactLead.id}
+          leadNome={quickContactLead.nome}
+          defaultType={quickContactLead.status === "novo" ? "primeira_abordagem" : "follow_up"}
+          onConfirm={async (data) => {
+            const ok = await commercialPerformance.registerExplicitContact(data);
+            if (ok) {
+              setQuickContactLead(null);
+              if (quickContactLead.status === "novo") {
+                await supabase.from("leads").update({ status: "em_contato" }).eq("id", quickContactLead.id);
+                setLeads((prev) => prev.map((l) => l.id === quickContactLead.id ? { ...l, status: "em_contato" } : l));
+              }
+            }
+            return ok;
+          }}
+        />
+      )}
       <FloatingWhatsAppButton />
     </div>
   );

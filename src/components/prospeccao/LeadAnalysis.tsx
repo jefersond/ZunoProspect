@@ -8,6 +8,7 @@ import {
   Check,
   CheckCircle2,
   Copy,
+  HelpCircle,
   Info,
   Instagram,
   Lightbulb,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { buildStructuredDiagnosis, hasExplicitOptOut, type ExplorableCompatibility } from "@/services/intelligentSevenDayPlan";
 import { useSellerProfileState, isSellerProfileComplete, openSellerProfileDialog } from "@/lib/sellerProfile";
+import { buildCommercialContingencies } from "@/utils/commercialContingencies";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -147,10 +149,12 @@ export const LeadAnalysis = ({
   showCompanyName = true,
 }: LeadAnalysisProps) => {
   const [copiedDia, setCopiedDia] = useState<number | null>(null);
+  const [copiedContingency, setCopiedContingency] = useState<string | null>(null);
   const [confirmCopiesOpen, setConfirmCopiesOpen] = useState(false);
   const [confirmRefineOpen, setConfirmRefineOpen] = useState(false);
   const { toast } = useToast();
   const sellerProfileState = useSellerProfileState();
+  const contingencies = useMemo(() => buildCommercialContingencies({ lead, sellerProfile: sellerProfileState?.profile, foco: lead?.foco }), [lead, sellerProfileState?.profile]);
 
   const sections = useMemo(() => splitAnalysisBullets(diagnostico), [diagnostico]);
   const facts = useMemo(() => (lead ? buildCompanyFacts(lead) : []), [lead]);
@@ -169,6 +173,18 @@ export const LeadAnalysis = ({
     // Etapas de tarefa ou sem mensagem não têm texto: nada é aberto nem inventado.
     if (!String(plano?.find((d) => d.dia === dayNumber)?.mensagem || "").trim()) return;
     onExecuteInSdr?.(dayNumber);
+  };
+
+  const handleCopyContingency = async (id: string, text: string) => {
+    if (contactBlocked) return;
+    const success = await copyToClipboard(text);
+    if (!success) return;
+    setCopiedContingency(id);
+    toast({
+      title: "Copiado!",
+      description: "Resposta de contingência copiada",
+    });
+    setTimeout(() => setCopiedContingency(null), 2000);
   };
 
   const handleCopyMessage = async (dia: number, mensagem: string, channel: PlanoProspeccaoDia["canal"]) => {
@@ -356,11 +372,11 @@ export const LeadAnalysis = ({
                     <Sparkles className="h-3.5 w-3.5" />
                   </span>
                   <h4 className="text-sm font-semibold text-foreground">
-                    Deseja personalizar a abordagem para este lead?
+                    Deseja gerar o plano comercial completo para este lead?
                   </h4>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Gere uma análise comercial e mensagens mais personalizadas usando as informações disponíveis desta empresa e o serviço que você oferece.
+                  Receba uma análise aprofundada, mensagens personalizadas e uma estratégia de acompanhamento para esta empresa.
                 </p>
                 {sellerProfileState && !isSellerProfileComplete(sellerProfileState.profile) && (
                   <div className="flex flex-wrap items-center gap-2 pt-0.5" data-testid="profile-incomplete-warning">
@@ -395,9 +411,9 @@ export const LeadAnalysis = ({
                 >
                   <Sparkles className={cn("h-3.5 w-3.5", isReanalyzing && "animate-spin")} />
                   {isReanalyzing
-                    ? "Refinando abordagem..."
+                    ? "Gerando plano comercial completo..."
                     : canAnalyzeAI
-                    ? "Refinar abordagem com IA"
+                    ? "Gerar plano comercial completo com IA"
                     : "Liberar análises IA"}
                 </Button>
                 <span className="text-[11px] text-muted-foreground">
@@ -422,7 +438,7 @@ export const LeadAnalysis = ({
             Personalizado com IA
           </Badge>
           <span className="text-xs text-muted-foreground">
-            Abordagem e plano gerados com inteligência artificial para este lead.
+            Plano comercial completo e estratégia de acompanhamento gerados com inteligência artificial.
           </span>
         </div>
       )}
@@ -567,13 +583,23 @@ export const LeadAnalysis = ({
             {plano.map((dia) => (
               <li
                 key={dia.dia}
-                className="min-w-0 space-y-3 rounded-xl border border-border/60 bg-background/30 p-3 sm:p-4"
+                className={cn(
+                  "min-w-0 space-y-3 rounded-xl p-3 sm:p-4",
+                  dia.dia === 1
+                    ? "border border-primary/40 bg-gradient-to-br from-[#111816] via-[#111816] to-[#12231d] shadow-sm"
+                    : "border border-border/60 bg-background/30"
+                )}
                 data-testid={`dia-${dia.dia}`}
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="font-semibold">
                     Dia {dia.dia}
                   </Badge>
+                  {dia.dia === 1 && (
+                    <Badge variant="default" className="bg-[#10d98a] text-[#0b0f0e] font-bold text-[11px] hover:bg-[#10d98a]">
+                      Primeira Abordagem
+                    </Badge>
+                  )}
                   <Badge variant={dia.canal === "whatsapp" ? "default" : dia.canal === "instagram" ? "outline" : "secondary"} className="gap-1">
                     <ChannelIcon channel={dia.canal} />
                     {CHANNEL_LABEL[dia.canal] ?? "Email"}
@@ -750,6 +776,84 @@ export const LeadAnalysis = ({
         </CardContent>
       </Card>
       </div>
+
+      {/* 5. Objeções e Respostas / Guia Tático de Contingências */}
+      <Card data-testid="analysis-contingencies" className="border-border/70 bg-card/60">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <HelpCircle className="h-4 w-4 shrink-0 text-primary" />
+                Objeções e Respostas Rápidas
+              </CardTitle>
+              <CardDescription className="text-xs mt-1">
+                Como responder com naturalidade aos 7 cenários comerciais mais frequentes de retorno e silêncio.
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="text-xs text-muted-foreground hidden sm:inline-flex">
+              7 Cenários Táticos
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2.5 pt-0">
+          <div className="grid grid-cols-1 gap-2.5">
+            {contingencies.items.map((item) => (
+              <details
+                key={item.id}
+                className="group rounded-lg border border-border/60 bg-muted/20 p-3 transition-colors hover:border-border"
+                data-testid={`contingency-${item.id}`}
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-foreground">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-[11px] font-bold text-primary">
+                      ✓
+                    </span>
+                    <span>{item.cenario}</span>
+                  </div>
+                  <span className="text-xs font-normal text-muted-foreground group-open:rotate-180 transition-transform">
+                    ▼
+                  </span>
+                </summary>
+                <div className="mt-3 space-y-2.5 border-t border-border/40 pt-2.5 text-xs">
+                  <p className="text-muted-foreground">
+                    <span className="font-semibold text-foreground/80">Quando ocorre: </span>
+                    {item.situacao}
+                  </p>
+                  <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <span className="text-xs font-semibold text-primary">Resposta sugerida:</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleCopyContingency(item.id, item.respostaSugerida);
+                        }}
+                        disabled={contactBlocked}
+                        className="-mr-1 -mt-1 h-6 w-6 shrink-0 p-0 hover:bg-primary/10"
+                        aria-label={`Copiar resposta para ${item.cenario}`}
+                      >
+                        {copiedContingency === item.id ? (
+                          <Check className="h-3.5 w-3.5 text-green-600" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </div>
+                    <p className="whitespace-pre-wrap break-words text-foreground/90 font-normal text-xs sm:text-sm leading-relaxed">
+                      {item.respostaSugerida}
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-muted-foreground pt-0.5">
+                    <span><strong>No CRM:</strong> {item.orientacaoCrm}</span>
+                    <span className="text-primary/90 font-medium">{item.proximaAcao}</span>
+                  </div>
+                </div>
+              </details>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <AlertDialog open={confirmRefineOpen} onOpenChange={setConfirmRefineOpen}>
         <AlertDialogContent>

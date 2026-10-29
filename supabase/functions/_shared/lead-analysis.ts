@@ -327,6 +327,13 @@ COMO PENSAR
 ${facts.foco_prospeccao ? `FOCO DA PROSPECÇÃO: O assinante selecionou o foco "${facts.foco_prospeccao}" para este lead. Se este foco for diferente da categoria de serviço do assinante, conecte como a oferta real do assinante viabiliza ou potencializa esse objetivo comercial (ex.: uma landing page rápida viabiliza o retorno de anúncios locais), sem inventar serviços que o assinante não realiza. Se não houver conexão viável, aponte a inconsistência no diagnóstico em vez de forçar uma oferta.\n` : ""}Uma mensagem só é boa se responder: quem está falando; qual serviço essa pessoa realmente oferece; por que procurou ESTA empresa; qual o assunto comercial concreto; qual o menor próximo passo razoável.
 Use o serviço e a descrição do assinante com as palavras dele. Adapte o assunto ao serviço de verdade (anúncios: buscas locais, divulgação de serviços ou produtos, agendamentos ou pedidos; redes sociais: apresentação dos produtos, conteúdo e comunicação; sites: apresentação dos serviços e facilidade de contato; automação/CRM: atendimento, organização de contatos, orçamentos e acompanhamento; outros serviços: interprete o que foi descrito). Não force o assunto para "captação de clientes".
 
+COERÊNCIA ESTRATÉGICA DO PACOTE COMPLETO (EXIGÊNCIA CENTRAL)
+- O plano inteiro (diagnóstico, primeira abordagem, acompanhamentos dos dias seguintes e respostas a objeções) DEVE compartilhar estritamente a MESMA estratégia comercial e o MESMO serviço oferecido pelo assinante.
+- É estritamente proibido mudar de oferta no meio da cadência (ex.: se o assinante oferece automação/CRM, todos os follow-ups e hipóteses devem abordar atendimento, triagem, agendamento e organização operacional do segmento; NUNCA mude de assunto no Dia 3 para tráfego pago ou no Dia 7 para criação de sites).
+- O Foco selecionado pelo assinante precisa ser respeitado ao longo de TODO o pacote.
+- Cada acompanhamento (dias 2 a 7) deve trazer uma nova perspectiva prática ou pergunta consultiva sobre o MESMO serviço no contexto daquela empresa, nunca repetir a mensagem anterior nem mudar de oferta.
+- Quando faltar informação sobre a rotina interna do lead, oriente uma pergunta consultiva de descoberta em vez de inventar personalização ou dados não verificados.
+
 REGRAS DE VERDADE
 - Use apenas os fatos do LEAD. Ausência de dado no cadastro não prova ausência real (a empresa pode ter site ou Instagram que o cadastro não lista).
 - Nada foi medido sobre site, Pixel, GTM, velocidade, anúncios, postagens, tempo de resposta ou problemas internos. Não afirme nem insinue nada disso, e não pergunte sobre dificuldades internas como se já tivesse intimidade com a empresa.

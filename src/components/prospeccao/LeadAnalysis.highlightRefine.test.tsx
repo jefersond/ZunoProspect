@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const toast = vi.fn();
+const copyToClipboardMock = vi.fn(async () => true);
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 vi.mock("@/lib/metaPixel", () => ({ trackMetaCustomEvent: vi.fn() }));
-vi.mock("@/utils/templateUtils", () => ({ copyToClipboard: vi.fn(async () => true) }));
+vi.mock("@/utils/templateUtils", () => ({ copyToClipboard: (...a: unknown[]) => copyToClipboardMock(...a) }));
 
 const openSellerProfileMock = vi.fn();
 vi.mock("@/lib/sellerProfile", async (importOriginal) => {
@@ -41,9 +42,10 @@ const renderComponent = (lead: LeadProspeccao, extra: Partial<React.ComponentPro
     />
   );
 
-describe("LeadAnalysis · Destaque do Refinamento com IA e Identificação de Origem", () => {
+describe("LeadAnalysis · Pacote Comercial Completo, Contingências e Identificação de Origem", () => {
   beforeEach(async () => {
     toast.mockClear();
+    copyToClipboardMock.mockClear();
     openSellerProfileMock.mockClear();
     resetSellerProfileStateForTests();
     await loadSellerProfileForUser("user-1");
@@ -69,34 +71,34 @@ describe("LeadAnalysis · Destaque do Refinamento com IA e Identificação de Or
     const highlightCard = screen.getByTestId("refine-highlight-card");
     const companyData = screen.getByTestId("company-data");
 
-    // Verifica que o card existe e está posicionado entre o resumo e os dados da empresa
+    // Verifica posicionamento relativo
     expect(summary.compareDocumentPosition(highlightCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(highlightCard.compareDocumentPosition(companyData) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-    // Título convidativo
-    expect(within(highlightCard).getByText("Deseja personalizar a abordagem para este lead?")).toBeTruthy();
+    // Título convidativo do plano comercial completo
+    expect(within(highlightCard).getByText("Deseja gerar o plano comercial completo para este lead?")).toBeTruthy();
   });
 
-  it("3. Utiliza o botão principal 'Refinar abordagem com IA' e dispara a ação ao clicar", () => {
+  it("3. Utiliza o botão principal 'Gerar plano comercial completo com IA' e dispara a ação ao clicar", () => {
     const onReanalyze = vi.fn();
     const lead = makeNewLead();
     renderComponent(lead, { diagnostico: SAMPLE_BULLETS, onReanalyze, canAnalyzeAI: true });
 
     const button = screen.getByTestId("btn-refinar-abordagem-ia");
-    expect(button.textContent).toContain("Refinar abordagem com IA");
+    expect(button.textContent).toContain("Gerar plano comercial completo com IA");
 
     fireEvent.click(button);
     expect(onReanalyze).toHaveBeenCalledTimes(1);
   });
 
-  it("4. Inclui a explicação breve exata sobre personalização de abordagem", () => {
+  it("4. Inclui a explicação breve exata sobre o plano comercial completo e acompanhamento", () => {
     const lead = makeNewLead();
     renderComponent(lead, { diagnostico: SAMPLE_BULLETS, onReanalyze: vi.fn() });
 
     const highlightCard = screen.getByTestId("refine-highlight-card");
     expect(
       within(highlightCard).getByText(
-        "Gere uma análise comercial e mensagens mais personalizadas usando as informações disponíveis desta empresa e o serviço que você oferece."
+        "Receba uma análise aprofundada, mensagens personalizadas e uma estratégia de acompanhamento para esta empresa."
       )
     ).toBeTruthy();
   });
@@ -116,7 +118,7 @@ describe("LeadAnalysis · Destaque do Refinamento com IA e Identificação de Or
     // Bloco de confirmação com IA visível
     const successBlock = screen.getByTestId("refined-success-block");
     expect(within(successBlock).getByText("Personalizado com IA")).toBeTruthy();
-    expect(within(successBlock).getByText(/Abordagem e plano gerados com inteligência artificial/)).toBeTruthy();
+    expect(within(successBlock).getByText(/Plano comercial completo e estratégia de acompanhamento/)).toBeTruthy();
 
     // Badges no cabeçalho e resumo atualizados
     expect(screen.getByTestId("summary-gemini-badge").textContent).toContain("Personalizado com IA");
@@ -124,7 +126,6 @@ describe("LeadAnalysis · Destaque do Refinamento com IA e Identificação de Or
   });
 
   it("6. Alerta de perfil comercial incompleto orienta o usuário e oferece acesso direto via modal", async () => {
-    // Perfil vazio/incompleto
     const lead = makeNewLead();
     renderComponent(lead, { diagnostico: SAMPLE_BULLETS, onReanalyze: vi.fn() });
 
@@ -167,5 +168,47 @@ describe("LeadAnalysis · Destaque do Refinamento com IA e Identificação de Or
     const highlightCard = screen.getByTestId("refine-highlight-card");
     expect(within(highlightCard).getByText("Limite de análises IA atingido neste ciclo.")).toBeTruthy();
     expect(within(highlightCard).getByText("Liberar análises IA")).toBeTruthy();
+  });
+
+  it("10. Primeira abordagem em destaque no Dia 1 possui badge visual e botão de cópia", () => {
+    const lead = makeNewLead();
+    renderComponent(lead, { diagnostico: SAMPLE_BULLETS });
+
+    const day1Item = screen.getByTestId("dia-1");
+    expect(within(day1Item).getByText("Primeira Abordagem")).toBeTruthy();
+    expect(within(day1Item).getByLabelText("Copiar mensagem do Dia 1")).toBeTruthy();
+  });
+
+  it("11. Renderiza o Guia de Objeções e Respostas com os 7 cenários comerciais táticos", () => {
+    const lead = makeNewLead();
+    renderComponent(lead, { diagnostico: SAMPLE_BULLETS });
+
+    const contingenciesCard = screen.getByTestId("analysis-contingencies");
+    expect(within(contingenciesCard).getByText("Objeções e Respostas Rápidas")).toBeTruthy();
+
+    const expectedScenarios = [
+      "contingency-interesse",
+      "contingency-mais_informacoes",
+      "contingency-ja_possui_fornecedor",
+      "contingency-nao_e_o_momento",
+      "contingency-contato_nao_e_responsavel",
+      "contingency-nao_respondeu",
+      "contingency-pediu_para_parar",
+    ];
+
+    for (const testId of expectedScenarios) {
+      expect(screen.getByTestId(testId)).toBeTruthy();
+    }
+  });
+
+  it("12. Copiar resposta de contingência invoca copyToClipboard sem computar contatos", async () => {
+    const lead = makeNewLead();
+    renderComponent(lead, { diagnostico: SAMPLE_BULLETS });
+
+    const copyBtn = screen.getByLabelText("Copiar resposta para O lead demonstrou interesse");
+    fireEvent.click(copyBtn);
+
+    expect(copyToClipboardMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Copiado!" })));
   });
 });

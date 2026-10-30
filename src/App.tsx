@@ -43,6 +43,7 @@ const AdminMarketing = lazy(() => import("./pages/AdminMarketing"));
 const AdminFunnel = lazy(() => import("./pages/AdminFunnel"));
 const Precos = lazy(() => import("./pages/Precos"));
 const DesignTokens = lazy(() => import("./pages/DesignTokens"));
+const DemoPlanoIA = lazy(() => import("./pages/DemoPlanoIA"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -108,6 +109,7 @@ const AppContent = () => {
           <Route path="/precos" element={<Precos />} />
           <Route path="/preco" element={<Navigate to="/precos" replace />} />
           <Route path="/design-tokens" element={<DesignTokens />} />
+          {import.meta.env.DEV && <Route path="/demo-plano-ia" element={<DemoPlanoIA />} />}
           
           {/* Legacy Redirect Routes for Emails Retrocompatibility */}
           <Route path="/app/prospectar" element={<LegacyRedirect to="/prospeccao" />} />

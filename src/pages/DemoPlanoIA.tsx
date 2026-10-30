@@ -280,9 +280,9 @@ export default function DemoPlanoIA() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0f0e] text-[#f4f4f5] pb-16">
+    <div className="dark min-h-screen bg-[#0b0f0e] text-[#f4f4f5] pb-16 font-sans antialiased">
       {/* Barra de Segurança e Demonstração */}
-      <div className="border-b border-[#1f2d29] bg-[#111816]/90 backdrop-blur sticky top-0 z-50 px-4 py-3">
+      <div className="border-b border-[#1f2d29] bg-[#111816]/95 backdrop-blur sticky top-0 z-50 px-4 py-3">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
@@ -309,7 +309,7 @@ export default function DemoPlanoIA() {
                 variant="outline"
                 size="sm"
                 onClick={handleReset}
-                className="h-8 text-xs border-[#1f2d29] text-zinc-300 hover:text-white hover:bg-[#1f2d29]"
+                className="h-8 text-xs border-[#1f2d29] bg-[#111816] text-zinc-300 hover:text-white hover:bg-[#1f2d29]"
               >
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                 Ver Sugestão Inicial
@@ -324,7 +324,7 @@ export default function DemoPlanoIA() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 text-xs text-zinc-400 hover:text-white"
+                className="h-8 text-xs text-zinc-400 hover:text-white hover:bg-zinc-800/50"
               >
                 <ArrowLeft className="mr-1 h-3.5 w-3.5" />
                 Voltar à Zuno
@@ -337,14 +337,14 @@ export default function DemoPlanoIA() {
       {/* Conteúdo Central */}
       <main className="max-w-4xl mx-auto px-4 pt-6 space-y-6">
         {/* Banner Explicativo */}
-        <Card className="border-[#1f2d29] bg-[#111816] text-[#f4f4f5]">
+        <Card className="border-[#1f2d29] bg-[#111816] text-[#f4f4f5] shadow-lg">
           <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="space-y-1">
-              <h2 className="text-sm font-semibold flex items-center gap-2 text-[#f4f4f5]">
+              <h2 className="text-sm font-semibold flex items-center gap-2 text-white">
                 <Sparkles className="h-4 w-4 text-[#10d98a]" />
                 Demonstração Rápida do Pacote Comercial com IA
               </h2>
-              <p className="text-xs text-zinc-400 leading-relaxed max-w-2xl">
+              <p className="text-xs text-zinc-300 leading-relaxed max-w-2xl">
                 {isRefined
                   ? "Você está visualizando o resultado pós-refinamento: o diagnóstico, a primeira abordagem em destaque, a cadência de 7 dias com o mesmo fio condutor e as 7 objeções táticas."
                   : "Abaixo está o lead fictício em seu estado inicial. Observe o badge 'Sugestão inicial' e o card de alto impacto com o botão verde 'Gerar plano comercial completo com IA'."}
@@ -357,8 +357,8 @@ export default function DemoPlanoIA() {
                 variant="outline"
                 className={
                   isRefined
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-semibold"
-                    : "border-zinc-700 bg-zinc-800/60 text-zinc-300"
+                    ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-400 font-semibold"
+                    : "border-zinc-700 bg-zinc-800/80 text-zinc-300 font-medium"
                 }
               >
                 {isRefined ? "Personalizado com IA" : "Sugestão Inicial"}
@@ -368,14 +368,14 @@ export default function DemoPlanoIA() {
         </Card>
 
         {/* Componente Real do LeadAnalysis com o Lead Simulado */}
-        <div className="rounded-xl border border-[#1f2d29] bg-[#111816]/70 p-4 sm:p-6 shadow-xl">
+        <div className="rounded-xl border border-[#1f2d29] bg-[#111816] p-4 sm:p-6 shadow-2xl">
           <LeadAnalysis
             lead={displayLead}
             diagnostico={displayLead.diagnostico_bullets}
             plano={displayLead.plano_prospecao_7dias}
             geradoEm={displayLead.ai_analise_gerada_em}
             probabilidade={null}
-            onReanalyze={isRefined ? handleReset : handleSimulateRefine}
+            onReanalyze={handleSimulateRefine}
             isReanalyzing={isSimulating}
             canAnalyzeAI={true}
             showCompanyName={true}

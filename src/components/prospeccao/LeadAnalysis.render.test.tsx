@@ -241,22 +241,32 @@ describe("LeadAnalysis · botões", () => {
   beforeEach(() => { copyToClipboard.mockClear(); toast.mockClear(); });
   afterEach(cleanup);
 
-  it("Refinar com IA fica no cabeçalho, ao lado e não por cima do conteúdo, e avisa que pode consumir crédito", () => {
+  it("Antes da geração, não há botão duplicado no cabeçalho; após o Gemini, exibe 'Refinar novamente' com aviso de crédito", () => {
     const onReanalyze = vi.fn();
-    renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS, onReanalyze });
+    // 1. Antes da geração: cabeçalho limpo, único CTA é o card destacado
+    const { unmount } = renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS, onReanalyze });
+    expect(screen.queryByTestId("refine-action")).toBeNull();
+    const highlightBtn = screen.getByTestId("btn-refinar-abordagem-ia");
+    expect(highlightBtn.textContent).toContain("Gerar plano comercial completo com IA");
+    unmount();
+
+    // 2. Após geração do Gemini: cabeçalho exibe 'Refinar novamente' com aviso e modal
+    const refinedLead = { ...makeNewLead(), ai_used_fallback: false };
+    renderAnalysis(refinedLead, { diagnostico: TYPICAL_BULLETS, onReanalyze, geradoEm: "2026-10-29T10:00:00Z" });
     const header = screen.getByTestId("analysis-header");
     const action = within(header).getByTestId("refine-action");
-    fireEvent.click(within(action).getByText("Refinar com IA"));
-    expect(onReanalyze).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(action).getByText("Refinar novamente"));
+    expect(screen.getByText("Gerar uma nova análise com IA?")).toBeTruthy();
     expect(within(action).getByText(/Pode consumir 1 análise de IA/)).toBeTruthy();
   });
 
   it("sem saldo: texto de upgrade e aviso de limite; durante a execução fica desabilitado", () => {
-    const { unmount } = renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS, onReanalyze: vi.fn(), canAnalyzeAI: false });
-    expect(screen.getByText("Liberar analises IA")).toBeTruthy();
+    const refinedLead = { ...makeNewLead(), ai_used_fallback: false };
+    const { unmount } = renderAnalysis(refinedLead, { diagnostico: TYPICAL_BULLETS, onReanalyze: vi.fn(), canAnalyzeAI: false, geradoEm: "2026-10-29T10:00:00Z" });
+    expect(screen.getByText("Liberar análises IA")).toBeTruthy();
     expect(screen.getByText(/limite de análises de IA foi atingido/)).toBeTruthy();
     unmount();
-    renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS, onReanalyze: vi.fn(), isReanalyzing: true });
+    renderAnalysis(refinedLead, { diagnostico: TYPICAL_BULLETS, onReanalyze: vi.fn(), isReanalyzing: true, geradoEm: "2026-10-29T10:00:00Z" });
     expect((screen.getByText("Refinando...").closest("button") as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -346,7 +356,7 @@ describe("LeadAnalysis · responsividade (contrato de layout)", () => {
   it("botões ocupam a largura no celular e encolhem no desktop; ações nunca ficam em posição absoluta", () => {
     renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS, onReanalyze: vi.fn(), onUpdateCopiesLocally: vi.fn(), onExecuteInSdr: vi.fn() });
     const buttons = [
-      screen.getByText("Refinar com IA").closest("button")!,
+      screen.getByTestId("btn-refinar-abordagem-ia"),
       screen.getByText(/Atualizar C[óo]pias/).closest("button")!,
       screen.getByText("Executar Dia 1 no SDR").closest("button")!,
       screen.getByText("Ver plano de 7 dias").closest("button")!,

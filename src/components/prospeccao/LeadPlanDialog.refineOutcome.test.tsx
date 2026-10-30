@@ -72,7 +72,7 @@ const renderDialog = (lead: LeadProspeccao, onLeadRefined = vi.fn()) => {
 
 const clickRefine = async () => {
   const dialog = await screen.findByRole("dialog");
-  fireEvent.click(within(dialog).getAllByText("Refinar com IA")[0].closest("button") as HTMLButtonElement);
+  fireEvent.click(within(dialog).getByTestId("btn-refinar-abordagem-ia"));
 };
 
 const geminiRow = (lead: LeadProspeccao) => ({
@@ -193,13 +193,13 @@ describe("Refinar com IA: só anuncia sucesso quando há análise válida e vis�
     refineWithAI.mockImplementation(() => new Promise((resolve) => { resolveRefine = resolve; }));
     renderDialog(lead);
     const dialog = await screen.findByRole("dialog");
-    const button = within(dialog).getAllByText("Refinar com IA")[0].closest("button") as HTMLButtonElement;
+    const button = within(dialog).getByTestId("btn-refinar-abordagem-ia");
 
     fireEvent.click(button);
     fireEvent.click(button);
     fireEvent.click(button);
     await waitFor(() => expect(refineWithAI).toHaveBeenCalledTimes(1));
-    expect(within(dialog).getByText("Refinando...")).toBeTruthy();
+    expect(within(dialog).getByText(/Gerando plano comercial completo...|Refinando.../)).toBeTruthy();
 
     dbRow = geminiRow(lead);
     resolveRefine({ requestId: "r6", data: { success: true, model: "gemini-3.6-flash", used_fallback: false } });
@@ -240,7 +240,7 @@ describe("Refinar com IA: só anuncia sucesso quando há análise válida e vis�
     expect(within(dialog).queryByText("Texto de reserva: não foi gerado pela IA")).toBeNull();
     dbRow = geminiRow(lead);
     refineWithAI.mockResolvedValue({ requestId: "r8", data: { success: true, model: "gemini-3.6-flash", used_fallback: false } });
-    fireEvent.click(within(dialog).getAllByText("Refinar com IA")[0].closest("button") as HTMLButtonElement);
+    fireEvent.click(within(dialog).getByTestId("btn-refinar-abordagem-ia"));
     expect(screen.queryByRole("alertdialog")).toBeNull();
     await waitFor(() => expect(refineWithAI).toHaveBeenCalledTimes(1));
   });

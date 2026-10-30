@@ -73,10 +73,10 @@ interface LeadAnalysisProps {
 const PLAN_ANCHOR_ID = "plano-7-dias";
 
 const STATUS_STYLE: Record<FactStatus, string> = {
-  confirmado: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-  informado: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400",
-  nao_verificado: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
-  indisponivel: "border-border bg-muted/50 text-muted-foreground",
+  confirmado: "border-emerald-500/40 bg-emerald-500/15 text-emerald-400 font-semibold",
+  informado: "border-sky-500/30 bg-sky-500/15 text-sky-300 font-semibold",
+  nao_verificado: "border-amber-500/40 bg-amber-500/15 text-amber-300 font-semibold",
+  indisponivel: "border-zinc-700 bg-zinc-800/60 text-zinc-400",
 };
 
 const StatusBadge = ({ status }: { status: FactStatus }) => (
@@ -89,21 +89,21 @@ const StatusBadge = ({ status }: { status: FactStatus }) => (
 );
 
 const FactCard = ({ fact }: { fact: CompanyFact }) => (
-  <div className="min-w-0 rounded-lg border border-border/60 bg-background/40 p-3" data-testid={`fact-${fact.key}`}>
+  <div className="min-w-0 rounded-lg border border-[#1f2d29] bg-[#111816] p-3 shadow-sm" data-testid={`fact-${fact.key}`}>
     <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-      <p className="text-xs font-medium text-muted-foreground">{fact.label}</p>
+      <p className="text-xs font-medium text-zinc-400">{fact.label}</p>
       <div className="flex flex-wrap gap-1">
         <StatusBadge status={fact.status} />
         {fact.secondaryStatus && <StatusBadge status={fact.secondaryStatus} />}
       </div>
     </div>
     {fact.value ? (
-      <p className="mt-1.5 break-words text-sm font-medium text-foreground">{fact.value}</p>
+      <p className="mt-1.5 break-words text-sm font-semibold text-white">{fact.value}</p>
     ) : (
-      <p className="mt-1.5 text-sm text-muted-foreground">—</p>
+      <p className="mt-1.5 text-sm text-zinc-500">—</p>
     )}
-    {fact.note && <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground">{fact.note}</p>}
-    {fact.secondaryNote && <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground">{fact.secondaryNote}</p>}
+    {fact.note && <p className="mt-1 break-words text-xs leading-relaxed text-zinc-300">{fact.note}</p>}
+    {fact.secondaryNote && <p className="mt-1 break-words text-xs leading-relaxed text-zinc-300">{fact.secondaryNote}</p>}
   </div>
 );
 
@@ -205,9 +205,13 @@ export const LeadAnalysis = ({
     document.getElementById(PLAN_ANCHOR_ID)?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   };
 
-  /** Ação de IA: deixa claro que pode consumir crédito e não se sobrepõe ao conteúdo. */
+  /** Ação de IA no topo: só aparece APÓS a geração pelo Gemini ("Refinar novamente").
+   * Antes da geração, o único CTA deve ser o card destacado "Gerar plano comercial completo com IA". */
   const renderRefineAction = (align: "start" | "end" = "end") => {
     if (!onReanalyze) return null;
+    // Antes da geração pelo Gemini, não exibe botão concorrente no cabeçalho
+    if (origin !== "gemini") return null;
+
     return (
       <div className={cn("flex flex-col gap-1", align === "end" ? "sm:items-end" : "items-start")} data-testid="refine-action">
         <TooltipProvider>
@@ -220,23 +224,23 @@ export const LeadAnalysis = ({
                   variant="outline"
                   size="sm"
                   className={cn(
-                    "w-full gap-2 sm:w-auto",
-                    !canAnalyzeAI && "border-emerald-500 bg-emerald-500/10 font-semibold text-emerald-600 hover:bg-emerald-500 hover:text-slate-950 dark:text-emerald-400",
+                    "w-full gap-2 sm:w-auto border-[#1f2d29] bg-[#111816] text-zinc-200 hover:bg-[#1f2d29] hover:text-white transition-colors",
+                    !canAnalyzeAI && "border-amber-500/50 bg-amber-500/10 text-amber-400 font-semibold hover:bg-amber-500/20",
                   )}
                 >
-                  <RefreshCw className={cn("h-4 w-4", isReanalyzing && "animate-spin")} />
-                  {isReanalyzing ? "Refinando..." : canAnalyzeAI ? (needsRefineConfirmation ? "Refinar novamente" : "Refinar com IA") : "Liberar analises IA"}
+                  <RefreshCw className={cn("h-4 w-4", isReanalyzing && "animate-spin text-emerald-400")} />
+                  {isReanalyzing ? "Refinando..." : canAnalyzeAI ? "Refinar novamente" : "Liberar análises IA"}
                 </Button>
               </span>
             </TooltipTrigger>
             {!canAnalyzeAI && (
               <TooltipContent>
-                <p>Voce usou todas as analises IA gratis. Escolha um plano para continuar gerando abordagens.</p>
+                <p>Você usou todas as análises de IA grátis. Escolha um plano para continuar gerando abordagens.</p>
               </TooltipContent>
             )}
           </Tooltip>
         </TooltipProvider>
-        <p className="text-[11px] leading-tight text-muted-foreground">
+        <p className="text-[11px] leading-tight text-zinc-400">
           {canAnalyzeAI ? "Pode consumir 1 análise de IA do seu plano." : "Seu limite de análises de IA foi atingido."}
         </p>
       </div>
@@ -270,45 +274,45 @@ export const LeadAnalysis = ({
   const hasNextStep = !contactBlocked && (sections.proximoPasso.length > 0 || Boolean(recommendedDay));
 
   return (
-    <div id="tour-diagnostico-ia" className="mt-4 space-y-5" data-testid="analysis-panel">
+    <div id="tour-diagnostico-ia" className="mt-4 space-y-5 text-[#f4f4f5]" data-testid="analysis-panel">
       {/* 1. Cabeçalho */}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between" data-testid="analysis-header">
         <div className="min-w-0 space-y-1">
-          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#10d98a]">
             <Brain className="h-4 w-4 shrink-0" />
-            {origin === "gemini" ? "Diagnostico Estrategico IA (Gemini)" : "Roteiro Comercial Base (Inicial)"}
+            {origin === "gemini" ? "Diagnóstico Estratégico IA (Gemini)" : "Roteiro Comercial Base (Inicial)"}
           </p>
-          {showCompanyName && lead?.nome && <h3 className="break-words text-xl font-semibold leading-tight text-foreground">{lead.nome}</h3>}
-          {subtitle && <p className="break-words text-sm text-muted-foreground">{subtitle}</p>}
-          {geradoEm && origin !== "gemini" && <p className="text-xs text-muted-foreground">Gerado em {new Date(geradoEm).toLocaleDateString("pt-BR")}</p>}
+          {showCompanyName && lead?.nome && <h3 className="break-words text-2xl font-bold leading-tight text-white">{lead.nome}</h3>}
+          {subtitle && <p className="break-words text-sm font-medium text-zinc-300">{subtitle}</p>}
+          {geradoEm && origin !== "gemini" && <p className="text-xs text-zinc-400">Gerado em {new Date(geradoEm).toLocaleDateString("pt-BR")}</p>}
           {origin === "gemini" && (
             <div className="space-y-1" data-testid="analysis-origin">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium">
+                <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/15 text-emerald-400 font-semibold">
                   Personalizado com IA
                 </Badge>
-                <span className="text-[11px] text-muted-foreground">Gerado pelo Gemini</span>
+                <span className="text-[11px] text-zinc-400">Gerado pelo Gemini</span>
               </div>
-              <p className="text-xs text-muted-foreground" data-testid="refined-at">
+              <p className="text-xs text-zinc-400" data-testid="refined-at">
                 Análise atualizada{formatRefinedAt(geradoEm) ? ` · último refinamento em ${formatRefinedAt(geradoEm)}` : ""}
               </p>
             </div>
           )}
           {origin === "not_generated" && (
             <div className="flex items-center gap-2 pt-0.5" data-testid="analysis-origin">
-              <Badge variant="outline" className="border-border/60 bg-muted/40 text-muted-foreground text-[11px] font-normal" data-testid="initial-suggestion-badge">
+              <Badge variant="outline" className="border-zinc-700 bg-zinc-800/80 text-zinc-300 text-[11px] font-normal" data-testid="initial-suggestion-badge">
                 Sugestão inicial
               </Badge>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-zinc-400">
                 Roteiro determinístico base
               </span>
             </div>
           )}
           {origin === "fallback" && (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300" role="alert" data-testid="analysis-origin">
-              <p className="font-semibold">Texto de reserva: não foi gerado pela IA</p>
-              <p className="mt-0.5">
-                A IA não respondeu na última tentativa e este conteúdo é genérico. Use "Refinar com IA" para tentar novamente.
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-300" role="alert" data-testid="analysis-origin">
+              <p className="font-semibold text-amber-200">Texto de reserva: não foi gerado pela IA</p>
+              <p className="mt-0.5 text-amber-300/90">
+                A IA não respondeu na última tentativa e este conteúdo é genérico. Use "Gerar plano comercial completo com IA" para tentar novamente.
               </p>
             </div>
           )}
@@ -317,19 +321,19 @@ export const LeadAnalysis = ({
       </header>
 
       {/* 2. Resumo comercial */}
-      <Card className="border-primary/30 bg-primary/5" data-testid="analysis-summary">
+      <Card className="border-[#10d98a]/30 bg-[#10d98a]/5 shadow-sm" data-testid="analysis-summary">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between gap-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Target className="h-4 w-4 shrink-0 text-primary" />
+            <CardTitle className="flex items-center gap-2 text-base font-semibold text-white">
+              <Target className="h-4 w-4 shrink-0 text-[#10d98a]" />
               Resumo comercial
             </CardTitle>
             {origin !== "gemini" ? (
-              <Badge variant="outline" className="border-border/60 bg-muted/30 text-muted-foreground text-[11px] font-normal" data-testid="summary-initial-badge">
+              <Badge variant="outline" className="border-zinc-700 bg-zinc-800/80 text-zinc-300 text-[11px] font-normal" data-testid="summary-initial-badge">
                 Sugestão inicial
               </Badge>
             ) : (
-              <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-medium" data-testid="summary-gemini-badge">
+              <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400 text-[11px] font-medium" data-testid="summary-gemini-badge">
                 Personalizado com IA
               </Badge>
             )}
@@ -337,18 +341,18 @@ export const LeadAnalysis = ({
         </CardHeader>
         <CardContent className="space-y-2 pt-0">
           {headline.map((text, idx) => (
-            <p key={idx} className="break-words text-sm leading-relaxed text-foreground/90">
+            <p key={idx} className="break-words text-sm leading-relaxed text-zinc-100 font-normal">
               {text}
             </p>
           ))}
           {moreSummary.length > 0 && (
             <details className="group text-sm">
-              <summary className="cursor-pointer text-xs font-medium text-primary hover:underline">
+              <summary className="cursor-pointer text-xs font-semibold text-[#10d98a] hover:underline">
                 Ver mais detalhes da análise ({moreSummary.length})
               </summary>
-              <div className="mt-2 space-y-2 border-l-2 border-primary/20 pl-3">
+              <div className="mt-2 space-y-2 border-l-2 border-[#10d98a]/30 pl-3">
                 {moreSummary.map((text, idx) => (
-                  <p key={idx} className="break-words text-sm leading-relaxed text-muted-foreground">
+                  <p key={idx} className="break-words text-sm leading-relaxed text-zinc-300">
                     {text}
                   </p>
                 ))}
@@ -362,25 +366,25 @@ export const LeadAnalysis = ({
       {origin !== "gemini" && onReanalyze && (
         <Card
           data-testid="refine-highlight-card"
-          className="border-primary/40 bg-gradient-to-br from-[#111816] via-[#111816] to-[#12231d] text-card-foreground shadow-[0_0_20px_rgba(16,217,138,0.06)]"
+          className="border-[#10d98a]/40 bg-gradient-to-br from-[#111816] via-[#111816] to-[#0d221a] shadow-[0_0_25px_rgba(16,217,138,0.08)]"
         >
           <CardContent className="p-4 sm:p-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1.5 max-w-xl">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/20 text-primary">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#10d98a]/20 text-[#10d98a]">
                     <Sparkles className="h-3.5 w-3.5" />
                   </span>
-                  <h4 className="text-sm font-semibold text-foreground">
+                  <h4 className="text-sm font-semibold text-white">
                     Deseja gerar o plano comercial completo para este lead?
                   </h4>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+                <p className="text-xs text-zinc-300 leading-relaxed">
                   Receba uma análise aprofundada, mensagens personalizadas e uma estratégia de acompanhamento para esta empresa.
                 </p>
                 {sellerProfileState && !isSellerProfileComplete(sellerProfileState.profile) && (
                   <div className="flex flex-wrap items-center gap-2 pt-0.5" data-testid="profile-incomplete-warning">
-                    <span className="text-[11px] text-amber-500/90">
+                    <span className="text-[11px] text-amber-400 font-medium">
                       Seu perfil comercial ainda não está completo.
                     </span>
                     <button
@@ -403,10 +407,10 @@ export const LeadAnalysis = ({
                   disabled={isReanalyzing}
                   data-testid="btn-refinar-abordagem-ia"
                   className={cn(
-                    "h-10 px-4 text-xs font-semibold gap-2 shadow-sm transition-all w-full sm:w-auto",
+                    "h-10 px-5 text-xs font-semibold gap-2 shadow-md transition-all w-full sm:w-auto",
                     canAnalyzeAI
-                      ? "bg-[#10d98a] text-[#0b0f0e] hover:bg-[#10d98a]/90 hover:shadow-[0_0_15px_rgba(16,217,138,0.3)]"
-                      : "border-amber-500 bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-slate-950"
+                      ? "bg-[#10d98a] text-[#0b0f0e] hover:bg-[#10d98a]/90 hover:shadow-[0_0_20px_rgba(16,217,138,0.4)]"
+                      : "border-amber-500 bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-950"
                   )}
                 >
                   <Sparkles className={cn("h-3.5 w-3.5", isReanalyzing && "animate-spin")} />
@@ -416,7 +420,7 @@ export const LeadAnalysis = ({
                     ? "Gerar plano comercial completo com IA"
                     : "Liberar análises IA"}
                 </Button>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-[11px] text-zinc-400 font-medium">
                   {canAnalyzeAI
                     ? "Consome 1 análise de IA do seu plano."
                     : "Limite de análises IA atingido neste ciclo."}
@@ -431,13 +435,13 @@ export const LeadAnalysis = ({
       {origin === "gemini" && (
         <div
           data-testid="refined-success-block"
-          className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 sm:p-3.5 flex items-center gap-2.5"
+          className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 sm:p-3.5 flex items-center gap-2.5"
         >
-          <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold gap-1 text-[11px] shrink-0">
+          <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/20 text-emerald-400 font-semibold gap-1 text-[11px] shrink-0">
             <CheckCircle2 className="h-3.5 w-3.5" />
             Personalizado com IA
           </Badge>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-zinc-300">
             Plano comercial completo e estratégia de acompanhamento gerados com inteligência artificial.
           </span>
         </div>
@@ -447,25 +451,25 @@ export const LeadAnalysis = ({
       {(facts.length > 0 || effectiveCompat) && (
         <section className="space-y-3" aria-labelledby="dados-empresa" data-testid="company-data">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h4 id="dados-empresa" className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <Building2 className="h-4 w-4 shrink-0 text-primary" />
+            <h4 id="dados-empresa" className="flex items-center gap-2 text-sm font-semibold text-white">
+              <Building2 className="h-4 w-4 shrink-0 text-[#10d98a]" />
               Dados da empresa
             </h4>
             {effectiveCompat && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="inline-flex max-w-full items-center gap-1.5 text-xs text-muted-foreground">
-                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="inline-flex max-w-full items-center gap-1.5 text-xs text-zinc-300">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[#10d98a]" />
                       <span>Alinhamento cadastral para abordagem:</span>
                       <Badge variant="outline" className={cn("font-medium", compatibilityBadgeClass(effectiveCompat.level))}>
                         {effectiveCompat.label || "Compatibilidade não determinada"}
                       </Badge>
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
+                  <TooltipContent className="max-w-xs bg-[#111816] border-[#1f2d29] text-zinc-200">
                     <p>{effectiveCompat.description}</p>
-                    <p className="mt-1 text-muted-foreground">Critérios observáveis em dados públicos. Não é percentual de fechamento.</p>
+                    <p className="mt-1 text-zinc-400">Critérios observáveis em dados públicos. Não é percentual de fechamento.</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -476,7 +480,7 @@ export const LeadAnalysis = ({
               <FactCard key={fact.key} fact={fact} />
             ))}
           </div>
-          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+          <p className="flex items-start gap-1.5 text-xs text-zinc-400">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               “Indisponível” quer dizer que o dado não está no cadastro, não que a empresa não o tenha. “Não verificado” é algo que o Zuno não testou.
@@ -487,17 +491,17 @@ export const LeadAnalysis = ({
 
       {/* 4. Oportunidade comercial */}
       {sections.oportunidade.length > 0 && (
-        <Card data-testid="analysis-opportunity">
+        <Card className="border-[#1f2d29] bg-[#111816]" data-testid="analysis-opportunity">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Lightbulb className="h-4 w-4 shrink-0 text-primary" />
+            <CardTitle className="flex items-center gap-2 text-base font-semibold text-white">
+              <Lightbulb className="h-4 w-4 shrink-0 text-[#10d98a]" />
               Oportunidade comercial
             </CardTitle>
-            <CardDescription className="text-xs">Hipótese ligada ao serviço que você oferece. Não é um fato confirmado sobre a empresa.</CardDescription>
+            <CardDescription className="text-xs text-zinc-400">Hipótese ligada ao serviço que você oferece. Não é um fato confirmado sobre a empresa.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 pt-0">
             {sections.oportunidade.map((text, idx) => (
-              <p key={idx} className="break-words text-sm leading-relaxed text-foreground/90">
+              <p key={idx} className="break-words text-sm leading-relaxed text-zinc-200">
                 {text}
               </p>
             ))}
@@ -515,10 +519,10 @@ export const LeadAnalysis = ({
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <p className="break-words text-sm leading-relaxed text-foreground/90">
+            <p className="break-words text-sm leading-relaxed text-zinc-200">
               Esta empresa pediu para não ser contatada (recusa registrada no status ou nas anotações). O plano abaixo fica apenas para consulta: não é possível executar novas abordagens por aqui.
             </p>
-            <Button size="sm" variant="outline" className="mt-3 w-full sm:w-auto" onClick={scrollToPlan}>
+            <Button size="sm" variant="outline" className="mt-3 w-full sm:w-auto border-[#1f2d29] text-zinc-200 hover:bg-[#1f2d29]" onClick={scrollToPlan}>
               Consultar plano de 7 dias
             </Button>
           </CardContent>
@@ -526,33 +530,33 @@ export const LeadAnalysis = ({
       )}
 
       {hasNextStep && (
-        <Card className="border-primary/50 bg-primary/10" data-testid="analysis-next-step">
+        <Card className="border-[#10d98a]/40 bg-[#10d98a]/10" data-testid="analysis-next-step">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ArrowRight className="h-4 w-4 shrink-0 text-primary" />
+            <CardTitle className="flex items-center gap-2 text-base font-semibold text-white">
+              <ArrowRight className="h-4 w-4 shrink-0 text-[#10d98a]" />
               Próximo passo
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
             {sections.proximoPasso.map((text, idx) => (
-              <p key={idx} className="break-words text-sm font-medium leading-relaxed text-foreground">
+              <p key={idx} className="break-words text-sm font-medium leading-relaxed text-zinc-100">
                 {text}
               </p>
             ))}
             {recommendedDay && (
-              <p className="break-words text-sm text-foreground/90" data-testid="next-step-day">
-                <span className="font-semibold">Dia {recommendedDay.dia}</span>
+              <p className="break-words text-sm text-zinc-200" data-testid="next-step-day">
+                <span className="font-semibold text-white">Dia {recommendedDay.dia}</span>
                 {recommendedDay.acao_sugerida ? `: ${recommendedDay.acao_sugerida}` : recommendedDay.objetivo ? `: ${recommendedDay.objetivo}` : ""}
               </p>
             )}
             <div className="flex flex-col gap-2 sm:flex-row">
               {recommendedDay && onExecuteInSdr && (
-                <Button size="sm" className="w-full gap-1.5 sm:w-auto" onClick={() => executeInSdr(recommendedDay.dia)}>
+                <Button size="sm" className="w-full gap-1.5 sm:w-auto bg-[#10d98a] text-[#0b0f0e] hover:bg-[#10d98a]/90 font-semibold" onClick={() => executeInSdr(recommendedDay.dia)}>
                   <MessageSquare className="h-3.5 w-3.5" />
                   Executar Dia {recommendedDay.dia} no SDR
                 </Button>
               )}
-              <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={scrollToPlan}>
+              <Button size="sm" variant="outline" className="w-full sm:w-auto border-[#1f2d29] text-zinc-200 hover:bg-[#1f2d29]" onClick={scrollToPlan}>
                 Ver plano de 7 dias
               </Button>
             </div>
@@ -562,19 +566,19 @@ export const LeadAnalysis = ({
 
       {/* 6. Plano de sete dias */}
       <div id="tour-plano-copies" className="contents">
-        <Card id={PLAN_ANCHOR_ID} data-testid="analysis-plan">
+        <Card id={PLAN_ANCHOR_ID} className="border-[#1f2d29] bg-[#111816]" data-testid="analysis-plan">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <MessageSquare className="h-4 w-4 shrink-0 text-primary" />
+          <CardTitle className="flex items-center gap-2 text-base font-semibold text-white">
+            <MessageSquare className="h-4 w-4 shrink-0 text-[#10d98a]" />
             Plano de 7 dias
           </CardTitle>
-          <CardDescription>
-            WhatsApp, Instagram, e-mail, follow-up e resposta para objecao gerados na mesma chamada de IA
+          <CardDescription className="text-xs text-zinc-400">
+            WhatsApp, Instagram, e-mail, follow-up e resposta para objeção gerados na mesma chamada de IA
           </CardDescription>
         </CardHeader>
         <CardContent>
           {contactBlocked && (
-            <p className="mb-4 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs leading-relaxed text-foreground/90" data-testid="plan-read-only">
+            <p className="mb-4 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs leading-relaxed text-zinc-200" data-testid="plan-read-only">
               <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
               <span>Somente consulta: contato bloqueado por recusa registrada. As mensagens abaixo não foram alteradas nem apagadas, mas não podem ser executadas.</span>
             </p>
@@ -586,13 +590,13 @@ export const LeadAnalysis = ({
                 className={cn(
                   "min-w-0 space-y-3 rounded-xl p-3 sm:p-4",
                   dia.dia === 1
-                    ? "border border-primary/40 bg-gradient-to-br from-[#111816] via-[#111816] to-[#12231d] shadow-sm"
-                    : "border border-border/60 bg-background/30"
+                    ? "border border-[#10d98a]/40 bg-gradient-to-br from-[#111816] via-[#111816] to-[#0d221a] shadow-sm"
+                    : "border border-[#1f2d29] bg-[#0d1311]"
                 )}
                 data-testid={`dia-${dia.dia}`}
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="font-semibold">
+                  <Badge variant="outline" className="border-zinc-700 bg-zinc-800/80 text-zinc-200 font-semibold">
                     Dia {dia.dia}
                   </Badge>
                   {dia.dia === 1 && (
@@ -605,17 +609,17 @@ export const LeadAnalysis = ({
                     {CHANNEL_LABEL[dia.canal] ?? "Email"}
                   </Badge>
                   {dia.tipo_dia && DAY_TYPE_LABEL[dia.tipo_dia] && (
-                    <Badge variant="outline" className="text-muted-foreground" data-testid={`dia-${dia.dia}-tipo`}>
+                    <Badge variant="outline" className="text-zinc-400 border-zinc-800" data-testid={`dia-${dia.dia}-tipo`}>
                       {DAY_TYPE_LABEL[dia.tipo_dia]}
                     </Badge>
                   )}
                   {dia.is_custom_edited && (
-                    <Badge variant="outline" className="border-primary/40 text-primary" data-testid={`dia-${dia.dia}-edited`}>
+                    <Badge variant="outline" className="border-[#10d98a]/40 text-[#10d98a]" data-testid={`dia-${dia.dia}-edited`}>
                       Editada por você · mantida em novas análises
                     </Badge>
                   )}
                   {dia.status_dia === "concluido" && (
-                    <Badge variant="outline" className="border-emerald-500/40 text-emerald-700 dark:text-emerald-400">
+                    <Badge variant="outline" className="border-emerald-500/40 text-emerald-400">
                       Concluída · mantida
                     </Badge>
                   )}
@@ -633,7 +637,7 @@ export const LeadAnalysis = ({
                       disabled={contactBlocked || !String(dia.mensagem || "").trim()}
                       aria-disabled={contactBlocked || !String(dia.mensagem || "").trim()}
                       title={contactBlocked ? "Contato bloqueado por recusa registrada" : !String(dia.mensagem || "").trim() ? "Esta etapa não tem mensagem para enviar" : undefined}
-                      className="h-7 w-full border-emerald-500/30 text-xs text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-500 dark:text-emerald-400 sm:ml-auto sm:w-auto"
+                      className="h-7 w-full border-emerald-500/30 text-xs text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 sm:ml-auto sm:w-auto"
                     >
                       <MessageSquare className="mr-1 h-3 w-3" />
                       Executar no SDR
@@ -643,81 +647,81 @@ export const LeadAnalysis = ({
 
                 <div className="space-y-2 text-sm sm:pl-2">
                   {(dia.objetivo || dia.goal) && (
-                    <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                      <p className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <div className="rounded-md border border-[#1f2d29] bg-[#16201c] p-3">
+                      <p className="mb-1 text-xs font-semibold text-zinc-400">
                         Objetivo do dia:
                       </p>
-                      <p className="break-words text-sm font-medium text-slate-900 dark:text-slate-200">
+                      <p className="break-words text-sm font-medium text-zinc-100">
                         {dia.objetivo || dia.goal}
                       </p>
                     </div>
                   )}
 
                   {dia.acao_sugerida && (
-                    <div className="rounded-md border border-purple-200 bg-purple-50 p-3 dark:border-purple-800 dark:bg-purple-950/30">
-                      <p className="mb-1 text-xs font-semibold text-purple-700 dark:text-purple-400">
-                        {contactBlocked ? "Ação registrada no plano (bloqueada):" : "Acao sugerida:"}
+                    <div className="rounded-md border border-purple-500/30 bg-purple-950/20 p-3">
+                      <p className="mb-1 text-xs font-semibold text-purple-300">
+                        {contactBlocked ? "Ação registrada no plano (bloqueada):" : "Ação sugerida:"}
                       </p>
-                      <p className="break-words text-sm font-medium text-purple-900 dark:text-purple-300">
+                      <p className="break-words text-sm font-medium text-purple-200">
                         {dia.acao_sugerida}
                       </p>
                     </div>
                   )}
 
                   {dia.assunto_email && (
-                    <div className="rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-900">
-                      <span className="font-semibold text-slate-700 dark:text-slate-300">Assunto sugerido: </span>
-                      <span className="break-words font-medium text-slate-900 dark:text-slate-200">{dia.assunto_email}</span>
+                    <div className="rounded-md border border-[#1f2d29] bg-[#16201c] px-3 py-2 text-xs">
+                      <span className="font-semibold text-zinc-400">Assunto sugerido: </span>
+                      <span className="break-words font-medium text-zinc-100">{dia.assunto_email}</span>
                     </div>
                   )}
 
                   {dia.condicao && (
-                    <div className="rounded-md border border-amber-300/60 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/20" data-testid={`dia-${dia.dia}-condicao`}>
-                      <p className="mb-1 text-xs font-semibold text-amber-800 dark:text-amber-400">Quando fazer:</p>
-                      <p className="break-words text-sm text-amber-950 dark:text-amber-200">{dia.condicao}</p>
+                    <div className="rounded-md border border-amber-500/30 bg-amber-950/20 p-3" data-testid={`dia-${dia.dia}-condicao`}>
+                      <p className="mb-1 text-xs font-semibold text-amber-300">Quando fazer:</p>
+                      <p className="break-words text-sm text-amber-200">{dia.condicao}</p>
                     </div>
                   )}
 
                   {String(dia.mensagem || "").trim() ? (
                   <>
-                  <div className="relative rounded-md border border-primary/10 bg-primary/5 p-3">
+                  <div className="relative rounded-md border border-[#10d98a]/30 bg-[#10d98a]/5 p-3">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="mb-1 font-medium text-primary">Mensagem:</p>
+                      <p className="mb-1 font-semibold text-[#10d98a] text-xs">Mensagem:</p>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleCopyMessage(dia.dia, dia.mensagem, dia.canal)}
                         disabled={contactBlocked}
                         title={contactBlocked ? "Cópia desativada: contato bloqueado por recusa registrada" : undefined}
-                        className="-mr-1 -mt-1 h-7 w-7 shrink-0 p-0"
+                        className="-mr-1 -mt-1 h-7 w-7 shrink-0 p-0 text-zinc-400 hover:text-white hover:bg-[#10d98a]/10"
                         aria-label={`Copiar mensagem do Dia ${dia.dia}`}
                       >
                         {copiedDia === dia.dia ? (
-                          <Check className="h-4 w-4 text-green-600" />
+                          <Check className="h-4 w-4 text-[#10d98a]" />
                         ) : (
                           <Copy className="h-4 w-4" />
                         )}
                       </Button>
                     </div>
-                    <p className="whitespace-pre-wrap break-words">{dia.mensagem}</p>
+                    <p className="whitespace-pre-wrap break-words text-zinc-100 font-sans leading-relaxed text-sm">{dia.mensagem}</p>
                   </div>
 
                   {(dia.objecao_provavel || dia.resposta_sugerida) && (
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                    <div className="rounded border border-orange-200 bg-orange-50 p-2 dark:border-orange-800 dark:bg-orange-950/20">
-                      <p className="mb-1 text-xs font-medium text-orange-700 dark:text-orange-400">
-                        Objecao provavel:
+                    <div className="rounded border border-orange-500/30 bg-orange-950/20 p-2.5">
+                      <p className="mb-1 text-xs font-semibold text-orange-400">
+                        Objeção provável:
                       </p>
-                      <p className="break-words text-xs text-orange-900 dark:text-orange-300">
+                      <p className="break-words text-xs text-orange-200 leading-relaxed">
                         {dia.objecao_provavel}
                       </p>
                     </div>
 
-                    <div className="rounded border border-green-200 bg-green-50 p-2 dark:border-green-800 dark:bg-green-950/20">
-                      <p className="mb-1 text-xs font-medium text-green-700 dark:text-green-400">
+                    <div className="rounded border border-emerald-500/30 bg-emerald-950/20 p-2.5">
+                      <p className="mb-1 text-xs font-semibold text-emerald-400">
                         Resposta sugerida:
                       </p>
-                      <p className="break-words text-xs text-green-900 dark:text-green-300">
+                      <p className="break-words text-xs text-emerald-200 leading-relaxed">
                         {dia.resposta_sugerida}
                       </p>
                     </div>
@@ -725,21 +729,21 @@ export const LeadAnalysis = ({
                   )}
                   </>
                   ) : (
-                    <p className="rounded-md border border-dashed border-border/70 p-3 text-xs text-muted-foreground" data-testid={`dia-${dia.dia}-sem-mensagem`}>
+                    <p className="rounded-md border border-dashed border-[#1f2d29] p-3 text-xs text-zinc-400" data-testid={`dia-${dia.dia}-sem-mensagem`}>
                       Nenhuma mensagem necessária nesta etapa.
                     </p>
                   )}
 
                   {dia.justificativa && (
-                    <p className="break-words text-xs text-muted-foreground">
-                      <span className="font-semibold">Por que: </span>{dia.justificativa}
+                    <p className="break-words text-xs text-zinc-400">
+                      <span className="font-semibold text-zinc-300">Por que: </span>{dia.justificativa}
                     </p>
                   )}
 
                   {dia.cta && (
-                  <div className="rounded border border-blue-200 bg-blue-50 p-2 dark:border-blue-800 dark:bg-blue-950/20">
-                    <p className="mb-1 text-xs font-medium text-blue-700 dark:text-blue-400">CTA:</p>
-                    <p className="break-words text-xs text-blue-900 dark:text-blue-300">{dia.cta}</p>
+                  <div className="rounded border border-blue-500/30 bg-blue-950/20 p-2">
+                    <p className="mb-1 text-xs font-medium text-blue-400">CTA:</p>
+                    <p className="break-words text-xs text-blue-200">{dia.cta}</p>
                   </div>
                   )}
                 </div>
@@ -778,19 +782,19 @@ export const LeadAnalysis = ({
       </div>
 
       {/* 5. Objeções e Respostas / Guia Tático de Contingências */}
-      <Card data-testid="analysis-contingencies" className="border-border/70 bg-card/60">
+      <Card data-testid="analysis-contingencies" className="border-[#1f2d29] bg-[#111816]">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <HelpCircle className="h-4 w-4 shrink-0 text-primary" />
+              <CardTitle className="flex items-center gap-2 text-base font-semibold text-white">
+                <HelpCircle className="h-4 w-4 shrink-0 text-[#10d98a]" />
                 Objeções e Respostas Rápidas
               </CardTitle>
-              <CardDescription className="text-xs mt-1">
+              <CardDescription className="text-xs text-zinc-400 mt-1">
                 Como responder com naturalidade aos 7 cenários comerciais mais frequentes de retorno e silêncio.
               </CardDescription>
             </div>
-            <Badge variant="outline" className="text-xs text-muted-foreground hidden sm:inline-flex">
+            <Badge variant="outline" className="text-xs border-zinc-700 bg-zinc-800/80 text-zinc-300 hidden sm:inline-flex">
               7 Cenários Táticos
             </Badge>
           </div>
@@ -800,28 +804,28 @@ export const LeadAnalysis = ({
             {contingencies.items.map((item) => (
               <details
                 key={item.id}
-                className="group rounded-lg border border-border/60 bg-muted/20 p-3 transition-colors hover:border-border"
+                className="group rounded-lg border border-[#1f2d29] bg-[#0e1412] p-3 transition-colors hover:border-[#2a3c37]"
                 data-testid={`contingency-${item.id}`}
               >
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-foreground">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-white">
                   <div className="flex items-center gap-2">
-                    <span className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-[11px] font-bold text-primary">
+                    <span className="flex h-5 w-5 items-center justify-center rounded bg-[#10d98a]/20 text-[11px] font-bold text-[#10d98a]">
                       ✓
                     </span>
                     <span>{item.cenario}</span>
                   </div>
-                  <span className="text-xs font-normal text-muted-foreground group-open:rotate-180 transition-transform">
+                  <span className="text-xs font-normal text-zinc-400 group-open:rotate-180 transition-transform">
                     ▼
                   </span>
                 </summary>
-                <div className="mt-3 space-y-2.5 border-t border-border/40 pt-2.5 text-xs">
-                  <p className="text-muted-foreground">
-                    <span className="font-semibold text-foreground/80">Quando ocorre: </span>
+                <div className="mt-3 space-y-2.5 border-t border-[#1f2d29] pt-2.5 text-xs">
+                  <p className="text-zinc-400">
+                    <span className="font-semibold text-zinc-300">Quando ocorre: </span>
                     {item.situacao}
                   </p>
-                  <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+                  <div className="rounded-md border border-[#10d98a]/30 bg-[#10d98a]/5 p-3 text-sm">
                     <div className="flex items-start justify-between gap-2 mb-1.5">
-                      <span className="text-xs font-semibold text-primary">Resposta sugerida:</span>
+                      <span className="text-xs font-semibold text-[#10d98a]">Resposta sugerida:</span>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -830,23 +834,23 @@ export const LeadAnalysis = ({
                           handleCopyContingency(item.id, item.respostaSugerida);
                         }}
                         disabled={contactBlocked}
-                        className="-mr-1 -mt-1 h-6 w-6 shrink-0 p-0 hover:bg-primary/10"
+                        className="-mr-1 -mt-1 h-6 w-6 shrink-0 p-0 hover:bg-[#10d98a]/10 text-zinc-400 hover:text-white"
                         aria-label={`Copiar resposta para ${item.cenario}`}
                       >
                         {copiedContingency === item.id ? (
-                          <Check className="h-3.5 w-3.5 text-green-600" />
+                          <Check className="h-3.5 w-3.5 text-[#10d98a]" />
                         ) : (
                           <Copy className="h-3.5 w-3.5" />
                         )}
                       </Button>
                     </div>
-                    <p className="whitespace-pre-wrap break-words text-foreground/90 font-normal text-xs sm:text-sm leading-relaxed">
+                    <p className="whitespace-pre-wrap break-words text-zinc-100 font-normal text-xs sm:text-sm leading-relaxed">
                       {item.respostaSugerida}
                     </p>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-muted-foreground pt-0.5">
-                    <span><strong>No CRM:</strong> {item.orientacaoCrm}</span>
-                    <span className="text-primary/90 font-medium">{item.proximaAcao}</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-zinc-400 pt-0.5">
+                    <span><strong className="text-zinc-300">No CRM:</strong> {item.orientacaoCrm}</span>
+                    <span className="text-[#10d98a] font-medium">{item.proximaAcao}</span>
                   </div>
                 </div>
               </details>

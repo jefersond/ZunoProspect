@@ -824,10 +824,10 @@ export const LeadPlanDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto scrollbar-zuno">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto scrollbar-zuno dark bg-[#111816] text-[#f4f4f5] border-[#1f2d29]">
         <DialogHeader>
-          <DialogTitle className="text-2xl">{displayLead.nome}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-2xl font-bold text-white">{displayLead.nome}</DialogTitle>
+          <DialogDescription className="text-zinc-400">
             {displayLead.nicho} • {displayLead.cidade} • Foco: {displayLead.foco === "zuno_internal_prospecting" ? "Oportunidade comercial" : displayLead.foco}
           </DialogDescription>
         </DialogHeader>

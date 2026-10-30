@@ -82,14 +82,14 @@ export function PipelineCard({ lead, onViewDetails }: PipelineCardProps) {
         >
           {lead.nome}
         </h4>
-        {lead.probabilidade_conversao && (
+        {lead.probabilidade_conversao ? (
           <Badge 
             variant="outline" 
             className={`text-xs shrink-0 ${getProbabilidadeColor(lead.probabilidade_conversao)}`}
           >
-            {lead.probabilidade_conversao}%
+            {lead.probabilidade_conversao >= 70 ? "Potencial Alto" : lead.probabilidade_conversao >= 40 ? "Potencial Médio" : "Potencial Básico"}
           </Badge>
-        )}
+        ) : null}
       </div>
 
       {/* Info */}

@@ -1617,7 +1617,7 @@ export const LeadsList = () => {
                   <TableHead className="px-3 text-xs font-semibold uppercase tracking-wide">Empresa</TableHead>
                   <TableHead className="px-3 text-xs font-semibold uppercase tracking-wide">Contato</TableHead>
                   <TableHead className="px-3 text-xs font-semibold uppercase tracking-wide">Sinais Digitais</TableHead>
-                  <TableHead className="px-3 text-center text-xs font-semibold uppercase tracking-wide">Prob. Conversão</TableHead>
+                  <TableHead className="px-3 text-center text-xs font-semibold uppercase tracking-wide">Potencial / Status</TableHead>
                   <TableHead className="px-3 text-xs font-semibold uppercase tracking-wide">Preview Plano</TableHead>
                   <TableHead className="px-3 text-center text-xs font-semibold uppercase tracking-wide">Ações</TableHead>
                 </TableRow>
@@ -1792,15 +1792,23 @@ export const LeadsList = () => {
                     <TableCell className="px-3 py-3 align-top">
                       <div className="flex min-w-0 flex-col items-center gap-2">
                         {lead.probabilidade_conversao > 0 ? (
-                          <>
-                            <div className={`text-xl font-bold ${getProbabilidadeColor(lead.probabilidade_conversao)}`}>
-                              {lead.probabilidade_conversao}%
-                            </div>
-                            <Progress 
-                              value={lead.probabilidade_conversao} 
-                              className="h-2 w-24"
-                            />
-                          </>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "px-2 py-0.5 text-xs font-medium",
+                              lead.probabilidade_conversao >= 70
+                                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                                : lead.probabilidade_conversao >= 40
+                                ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                                : "border-border bg-muted/30 text-muted-foreground"
+                            )}
+                          >
+                            {lead.probabilidade_conversao >= 70
+                              ? "Potencial Alto"
+                              : lead.probabilidade_conversao >= 40
+                              ? "Potencial Médio"
+                              : "Potencial Básico"}
+                          </Badge>
                         ) : lead.ai_analise_gerada_em || lead.plano_prospecao_7dias.length > 0 ? (
                           // Análise sem nota de fechamento (o prompt atual não inventa porcentagem): mostra o estado real.
                           <Badge variant="outline" className="px-2 py-0.5 text-xs text-emerald-700 border-emerald-500/30 bg-emerald-500/10" data-testid="analysis-ready">

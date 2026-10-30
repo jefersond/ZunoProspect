@@ -224,22 +224,26 @@ export const LeadCard = ({ lead }: LeadCardProps) => {
           </div>
         )}
 
-        {/* Análise IA */}
+        {/* Potencial de Abordagem */}
         {lead.probabilidade_conversao > 0 && (
           <div className="pt-2 border-t">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Probabilidade de Conversão:</span>
+              <span className="text-sm font-medium">Potencial de Abordagem:</span>
               <Badge
                 className={
                   lead.probabilidade_conversao >= 70
-                    ? "bg-green-100 text-green-700 border-green-200"
+                    ? "bg-green-100 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-400"
                     : lead.probabilidade_conversao >= 40
-                    ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                    : "bg-red-100 text-red-700 border-red-200"
+                    ? "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-950/40 dark:text-yellow-400"
+                    : "bg-muted text-muted-foreground border-border"
                 }
                 variant="outline"
               >
-                {lead.probabilidade_conversao}%
+                {lead.probabilidade_conversao >= 70
+                  ? "Potencial Alto"
+                  : lead.probabilidade_conversao >= 40
+                  ? "Potencial Médio"
+                  : "Potencial Básico"}
               </Badge>
             </div>
           </div>

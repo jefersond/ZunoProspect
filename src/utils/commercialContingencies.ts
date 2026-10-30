@@ -38,6 +38,42 @@ const resolveServiceLabel = (options: BuildContingencyOptions): string => {
   return "soluções comerciais";
 };
 
+const resolveCategory = (options: BuildContingencyOptions): string => {
+  if (options.sellerProfile?.service_category) {
+    return options.sellerProfile.service_category;
+  }
+  const foco = (options.foco || options.lead?.foco || "").toLowerCase();
+  if (foco.includes("crm")) return "crm";
+  if (foco.includes("auto")) return "automacao";
+  if (foco.includes("site") || foco.includes("landing")) return "sites";
+  if (foco.includes("tráfego") || foco.includes("trafego")) return "trafego";
+  if (foco.includes("social") || foco.includes("instagram")) return "social_media";
+  if (foco.includes("profissionais")) return "servicos_profissionais";
+  return "outro";
+};
+
+/**
+ * Constrói as etapas metodológicas para a resposta de "mais informações" de acordo com
+ * o serviço real prestado pelo vendedor, evitando jargões de marketing quando a oferta
+ * for de processos, CRM, sites ou automação operacional.
+ */
+function buildMethodologySteps(category: string, servico: string, nicho: string, localSuffix: string): string {
+  switch (category) {
+    case "crm":
+      return `1. Mapeamos como os orçamentos e solicitações chegam hoje na empresa e onde ocorrem perdas ou atrasos no retorno.\n2. Estruturamos o funil de atendimento e acompanhamento para que nenhum contato de ${nicho} fique sem resposta.\n3. Acompanhamos a agilidade de retorno e o controle das negociações.`;
+    case "automacao":
+      return `1. Mapeamos as dúvidas e perguntas mais frequentes que chegam no atendimento de ${nicho}${localSuffix}.\n2. Implementamos triagem rápida, confirmações e respostas automáticas para que os clientes não fiquem esperando.\n3. Acompanhamos a redução no tempo de espera e a organização das conversas.`;
+    case "sites":
+      return `1. Analisamos como a empresa e seus produtos/serviços são apresentados hoje para quem pesquisa ou recebe indicação.\n2. Desenvolvemos uma página rápida, clara e adaptada para celular, com botão direto de contato e apresentação clara.\n3. Facilitamos para que quem se interessar consiga tirar dúvidas ou pedir orçamento em poucos segundos.`;
+    case "social_media":
+      return `1. Alinhamos a comunicação e os destaques visuais para valorizar a imagem de ${nicho}${localSuffix}.\n2. Estruturamos postagens e orientações visuais pensadas para despertar interesse e gerar conversas reais.\n3. Organizamos os canais para transformar visualizações em contatos comerciais diretos.`;
+    case "trafego":
+      return `1. Mapeamos os termos e intenções reais de compra de quem procura por ${nicho}${localSuffix}.\n2. Estruturamos campanhas direcionadas para pessoas com necessidade ativa no momento exato da busca.\n3. Acompanhamos semanalmente os contatos e pedidos de orçamento gerados.`;
+    default:
+      return `1. Mapeamos as demandas e necessidades práticas de clientes de ${nicho}${localSuffix}.\n2. Ajustamos o processo para que os contatos cheguem direto ao atendimento com o menor atrito possível.\n3. Acompanhamos semanalmente as oportunidades reais geradas.`;
+  }
+}
+
 /**
  * Constrói as 7 respostas de contingência tática personalizadas com base nos dados reais do lead
  * e no serviço/oferta do assinante, cobrindo os cenários mais frequentes de resposta e silêncio.
@@ -48,10 +84,11 @@ export function buildCommercialContingencies(options: BuildContingencyOptions): 
   const nicho = (lead?.nicho || "o segmento").trim();
   const cidade = (lead?.cidade || "").trim();
   const servico = resolveServiceLabel(options);
+  const category = resolveCategory(options);
   const sellerName = options.sellerProfile?.display_name?.trim() || "";
 
   const localSuffix = cidade ? ` em ${cidade}` : "";
-  const greeting = sellerName ? `Sou ${sellerName}` : "Atuo";
+  const steps = buildMethodologySteps(category, servico, nicho, localSuffix);
 
   const items: CommercialContingencyItem[] = [
     {
@@ -67,7 +104,7 @@ export function buildCommercialContingencies(options: BuildContingencyOptions): 
       id: "mais_informacoes",
       cenario: "O lead pediu mais informações",
       situacao: "A empresa quer entender o método de trabalho, etapas ou formato antes de se comprometer com uma reunião.",
-      respostaSugerida: `Com certeza! Nosso trabalho com ${servico} é bem direto:\n1. Mapeamos as dúvidas e termos que os clientes de ${nicho} mais pesquisam${localSuffix}.\n2. Ajustamos o canal para que os contatos cheguem direto ao atendimento com o menor atrito possível.\n3. Acompanhamos semanalmente as oportunidades reais geradas.\n\nFaz sentido avaliarmos como isso se aplicaria na rotina de vocês?`,
+      respostaSugerida: `Com certeza! Nosso trabalho com ${servico} é bem direto:\n${steps}\n\nFaz sentido avaliarmos como isso se aplicaria na rotina de vocês?`,
       orientacaoCrm: "Registrar a explicação no histórico e aguardar retorno por até 48h.",
       proximaAcao: "Aguardar retorno; se houver silêncio, enviar pergunta de validação em 2 dias.",
       canalRecomendado: "whatsapp",

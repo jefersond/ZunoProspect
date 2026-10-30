@@ -621,10 +621,10 @@ const LeadsSalvos = () => {
                     </div>
                   )}
 
-                  {/* Probabilidade */}
+                  {/* Potencial de Abordagem (Qualitativo) */}
                   {lead.probabilidade_conversao > 0 && (
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Probabilidade:</span>
+                      <span className="text-muted-foreground">Potencial:</span>
                       <Badge
                         variant={
                           lead.probabilidade_conversao >= 70
@@ -634,7 +634,11 @@ const LeadsSalvos = () => {
                             : "outline"
                         }
                       >
-                        {lead.probabilidade_conversao}%
+                        {lead.probabilidade_conversao >= 70
+                          ? "Alto"
+                          : lead.probabilidade_conversao >= 40
+                          ? "Médio"
+                          : "Básico"}
                       </Badge>
                     </div>
                   )}

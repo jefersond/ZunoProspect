@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ShieldCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -27,7 +28,7 @@ import {
 } from "@/lib/sellerProfile";
 
 export const SellerProfileDialog = () => {
-  const { dialogOpen, profile, loadError } = useSellerProfileState();
+  const { dialogOpen, profile, loadError, isDemoMode } = useSellerProfileState();
   const { toast } = useToast();
   const [draft, setDraft] = useState<SellerProfile>(EMPTY_SELLER_PROFILE);
   const [saving, setSaving] = useState(false);
@@ -50,7 +51,17 @@ export const SellerProfileDialog = () => {
     setSaving(true);
     try {
       await saveSellerProfile(draft);
-      toast({ title: "Perfil comercial salvo", description: "As próximas análises vão usar o que você descreveu." });
+      toast(
+        isDemoMode
+          ? {
+              title: "Perfil comercial salvo (Demonstração)",
+              description: "Alterações mantidas em memória para esta sessão. Nenhuma gravação feita no servidor.",
+            }
+          : {
+              title: "Perfil comercial salvo",
+              description: "As próximas análises vão usar o que você descreveu.",
+            }
+      );
       closeSellerProfileDialog();
     } catch (error) {
       toast({ variant: "destructive", title: "Não foi possível salvar", description: error instanceof Error ? error.message : "Tente novamente." });
@@ -77,6 +88,18 @@ export const SellerProfileDialog = () => {
             O Zuno usa estas informações para escrever mensagens em seu nome. Sem elas, ele não gera mensagens comerciais, para não inventar o que você vende.
           </DialogDescription>
         </DialogHeader>
+
+        {isDemoMode && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 flex items-start gap-2.5 text-xs text-amber-300">
+            <ShieldCheck className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-300">Modo de Homologação Local (isDemoMode)</p>
+              <p className="text-zinc-300 mt-0.5">
+                Alterações neste perfil comercial são simuladas exclusivamente em memória. Nenhuma informação será gravada no banco ou consumirá créditos.
+              </p>
+            </div>
+          </div>
+        )}
 
         {loadError && (
           <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-xs text-destructive" data-testid="seller-profile-load-error">
@@ -128,7 +151,7 @@ export const SellerProfileDialog = () => {
 
         <DialogFooter>
           <Button variant="outline" onClick={closeSellerProfileDialog} disabled={saving}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar perfil"}</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : isDemoMode ? "Salvar em memória (Demo)" : "Salvar perfil"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

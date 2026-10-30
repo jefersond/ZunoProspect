@@ -138,9 +138,20 @@ interface SellerProfileState {
   dialogOpen: boolean;
   /** Mensagem quando o perfil salvo não pôde ser lido (o usuário é avisado e nada é sobrescrito automaticamente). */
   loadError: string | null;
+  /** Modo demonstração local: alterações mantidas exclusivamente em memória sem persistência remota */
+  isDemoMode?: boolean;
 }
 
-let state: SellerProfileState = { userId: null, profile: EMPTY_SELLER_PROFILE, loaded: false, dialogOpen: false, loadError: null };
+export const DEMO_SELLER_PROFILE: SellerProfile = {
+  display_name: "Rodrigo Silva",
+  company_name: "AutoAtende Soluções",
+  service_category: "automacao",
+  service_offered: "Automação de atendimento no WhatsApp para clínicas",
+  offer_description: "Implantamos triagem automática e confirmação de consultas no WhatsApp para clínicas odontológicas e médicas, reduzindo faltas e liberando a recepção de tarefas repetitivas.",
+  target_audience: "Clínicas odontológicas e consultórios médicos em Curitiba e região",
+};
+
+let state: SellerProfileState = { userId: null, profile: EMPTY_SELLER_PROFILE, loaded: false, dialogOpen: false, loadError: null, isDemoMode: false };
 let storage: SellerProfileStorage = localSellerProfileStorage;
 const listeners = new Set<() => void>();
 
@@ -148,6 +159,32 @@ const setState = (next: Partial<SellerProfileState>) => {
   state = { ...state, ...next };
   listeners.forEach((listener) => listener());
 };
+
+export function enableDemoSellerProfile(customProfile?: Partial<SellerProfile>) {
+  const profile: SellerProfile = sanitizeSellerProfile({
+    ...DEMO_SELLER_PROFILE,
+    ...customProfile,
+  });
+  setState({
+    userId: "demo-user-session",
+    profile,
+    loaded: true,
+    dialogOpen: false,
+    loadError: null,
+    isDemoMode: true,
+  });
+}
+
+export function disableDemoSellerProfile() {
+  setState({
+    userId: null,
+    profile: EMPTY_SELLER_PROFILE,
+    loaded: false,
+    dialogOpen: false,
+    loadError: null,
+    isDemoMode: false,
+  });
+}
 
 export const subscribeSellerProfile = (listener: () => void) => {
   listeners.add(listener);
@@ -162,7 +199,7 @@ export function configureSellerProfileStorage(next: SellerProfileStorage) {
 
 export function resetSellerProfileStateForTests() {
   loadSequence++;
-  state = { userId: null, profile: EMPTY_SELLER_PROFILE, loaded: false, dialogOpen: false, loadError: null };
+  state = { userId: null, profile: EMPTY_SELLER_PROFILE, loaded: false, dialogOpen: false, loadError: null, isDemoMode: false };
   storage = localSellerProfileStorage;
 }
 
@@ -174,6 +211,7 @@ let loadSequence = 0;
  * não sobrescreve o estado do usuário atual.
  */
 export async function loadSellerProfileForUser(userId: string | null) {
+  if (state.isDemoMode) return;
   const sequence = ++loadSequence;
   setState({ userId, profile: EMPTY_SELLER_PROFILE, loaded: !userId, dialogOpen: userId ? state.dialogOpen : false, loadError: null });
   if (!userId) return;
@@ -190,6 +228,12 @@ export async function loadSellerProfileForUser(userId: string | null) {
 }
 
 export async function saveSellerProfile(input: unknown): Promise<SellerProfile> {
+  if (state.isDemoMode) {
+    // No modo demonstração: simula salvamento estritamente em memória sem rede nem Supabase
+    const profile = sanitizeSellerProfile(input);
+    setState({ profile, loadError: null });
+    return profile;
+  }
   const userId = state.userId;
   if (!userId) throw new Error("Entre na sua conta para salvar o perfil.");
   const profile = sanitizeSellerProfile(input);

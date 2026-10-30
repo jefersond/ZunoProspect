@@ -4,6 +4,8 @@ import {
   configureSellerProfileStorage,
   createMigratingSellerProfileStorage,
   createRemoteSellerProfileStorage,
+  disableDemoSellerProfile,
+  enableDemoSellerProfile,
   ensureSellerProfileOrPrompt,
   getSellerProfileForRequest,
   getSellerProfileState,
@@ -135,5 +137,36 @@ describe("perfil comercial do assinante", () => {
     expect(remote.saveIfAbsent).toHaveBeenCalledTimes(1);
     await migrating.save("u1", complete);
     expect(local.save).not.toHaveBeenCalled();
+  });
+
+  describe("modo demonstração (isDemoMode)", () => {
+    it("habilita perfil fictício completo sem exigir login e salva em memória sem disparar storage", async () => {
+      const { storage } = memoryStorage();
+      configureSellerProfileStorage(storage);
+
+      // Antes: sem login lança erro
+      await expect(saveSellerProfile(complete)).rejects.toThrow(/Entre na sua conta/);
+
+      // Habilita demo
+      enableDemoSellerProfile();
+      expect(getSellerProfileState().isDemoMode).toBe(true);
+      expect(getSellerProfileForRequest()).not.toBeNull();
+      expect(ensureSellerProfileOrPrompt()).toBe(true);
+
+      // Salva alteração no demo: salva em memória sem chamar storage
+      const updated = await saveSellerProfile({
+        ...complete,
+        display_name: "Consultor Demo",
+      });
+      expect(updated.display_name).toBe("Consultor Demo");
+      expect(getSellerProfileForRequest()?.display_name).toBe("Consultor Demo");
+      expect(storage.save).not.toHaveBeenCalled();
+
+      // Desabilita demo: volta ao isolamento seguro padrão
+      disableDemoSellerProfile();
+      expect(getSellerProfileState().isDemoMode).toBe(false);
+      expect(getSellerProfileForRequest()).toBeNull();
+      await expect(saveSellerProfile(complete)).rejects.toThrow(/Entre na sua conta/);
+    });
   });
 });

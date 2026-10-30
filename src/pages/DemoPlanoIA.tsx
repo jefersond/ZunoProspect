@@ -1,11 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ShieldCheck, Sparkles, RefreshCw, CheckCircle2, Eye, MapPin, Phone, MessageSquare, Globe } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Sparkles, RefreshCw, CheckCircle2, Eye, MapPin, Phone, MessageSquare, Globe, Bookmark, UserCheck } from "lucide-react";
 import { LeadPlanDialog } from "@/components/prospeccao/LeadPlanDialog";
+import { ConfirmContactModal } from "@/components/prospeccao/ConfirmContactModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { enableDemoSellerProfile, disableDemoSellerProfile, openSellerProfileDialog } from "@/lib/sellerProfile";
 import type { LeadProspeccao, PlanoProspeccaoDia } from "@/types/lead";
 
 const SIMULATED_LEAD: LeadProspeccao = {
@@ -250,11 +252,19 @@ const SIMULATED_REFINED_DAYS: PlanoProspeccaoDia[] = [
 export default function DemoPlanoIA() {
   const [isRefined, setIsRefined] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(true);
+  const [quickContactOpen, setQuickContactOpen] = useState(false);
   const [leadState, setLeadState] = useState<LeadProspeccao>({
     ...SIMULATED_LEAD,
     plano_prospecao_7dias: SIMULATED_INITIAL_DAYS,
   });
   const { toast } = useToast();
+
+  useEffect(() => {
+    enableDemoSellerProfile();
+    return () => {
+      disableDemoSellerProfile();
+    };
+  }, []);
 
   const handleDemoReanalyze = async (): Promise<LeadProspeccao> => {
     await new Promise((resolve) => setTimeout(resolve, 600));
@@ -279,6 +289,17 @@ export default function DemoPlanoIA() {
     toast({
       title: "Sugestão Inicial Restaurada",
       description: "Você voltou para a visão determinística com o botão verde 'Gerar plano comercial completo com IA'.",
+    });
+  };
+
+  const handleToggleSaveLead = () => {
+    const next = !leadState.salvo;
+    setLeadState((prev) => ({ ...prev, salvo: next }));
+    toast({
+      title: next ? "Lead salvo com sucesso! (Demonstração)" : "Lead removido dos salvos (Demonstração)",
+      description: next
+        ? "Lead marcado como salvo em memória (zero chamadas ao Supabase)."
+        : "Lead desmarcado em memória.",
     });
   };
 
@@ -331,6 +352,17 @@ export default function DemoPlanoIA() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openSellerProfileDialog}
+              className="h-8 text-xs border-[#1f2d29] bg-[#111816] text-zinc-300 hover:text-white hover:bg-[#1f2d29]"
+              title="Visualizar ou editar o perfil comercial simulado em memória"
+            >
+              <UserCheck className="mr-1.5 h-3.5 w-3.5 text-emerald-400" />
+              Perfil Comercial (Demo)
+            </Button>
+
             <Button
               variant="outline"
               size="sm"
@@ -443,21 +475,54 @@ export default function DemoPlanoIA() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-[#1f2d29]">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#1f2d29]">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-zinc-400">Status CRM:</span>
                   <Badge className="bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs uppercase font-medium">
                     {displayLead.status || "novo"}
                   </Badge>
+                  <span className="text-xs text-zinc-500">•</span>
+                  <span className="text-xs text-zinc-400">Salvo:</span>
+                  <Badge className={leadState.salvo ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs" : "bg-zinc-800 text-zinc-400 border-zinc-700 text-xs"}>
+                    {leadState.salvo ? "Sim" : "Não"}
+                  </Badge>
                 </div>
 
-                <Button
-                  onClick={() => setDialogOpen(true)}
-                  className="bg-[#10d98a] hover:bg-[#0eb875] text-[#0b0f0e] font-bold text-xs gap-1.5 shadow-lg shadow-[#10d98a]/10"
-                >
-                  <Eye className="h-4 w-4" />
-                  Ver Plano
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleToggleSaveLead}
+                    className={
+                      leadState.salvo
+                        ? "h-8 text-xs border-emerald-500/40 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 gap-1.5"
+                        : "h-8 text-xs border-[#1f2d29] text-zinc-300 hover:text-white hover:bg-zinc-800 gap-1.5"
+                    }
+                    title="Alternar estado salvo do lead em memória"
+                  >
+                    <Bookmark className="h-3.5 w-3.5" />
+                    {leadState.salvo ? "Lead Salvo" : "Salvar Lead"}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setQuickContactOpen(true)}
+                    className="h-8 text-xs border-zinc-700 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 gap-1.5"
+                    title="Registrar contato comercial realizado"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Registrar Contato
+                  </Button>
+
+                  <Button
+                    onClick={() => setDialogOpen(true)}
+                    className="h-8 bg-[#10d98a] hover:bg-[#0eb875] text-[#0b0f0e] font-bold text-xs gap-1.5 shadow-lg shadow-[#10d98a]/10"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Ver Plano
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -479,6 +544,27 @@ export default function DemoPlanoIA() {
           setLeadState((prev) => ({ ...prev, status: newStatus }));
         }}
       />
+
+      {quickContactOpen && (
+        <ConfirmContactModal
+          open={quickContactOpen}
+          onOpenChange={setQuickContactOpen}
+          leadId={displayLead.id}
+          leadNome={displayLead.nome}
+          defaultType={displayLead.status === "novo" ? "primeira_abordagem" : "follow_up"}
+          onConfirm={async () => {
+            setLeadState((prev) => ({
+              ...prev,
+              status: prev.status === "novo" ? "em_contato" : prev.status,
+            }));
+            toast({
+              title: "Contato registrado! (Demonstração)",
+              description: "Ação contabilizada na sua meta comercial simulada (zero chamadas ao Supabase).",
+            });
+            return true;
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -103,6 +103,10 @@ interface LeadPlanDialogProps {
   onLeadUpdate?: () => void;
   onLeadRefined?: (lead: LeadProspeccao) => void;
   onStatusChange?: (leadId: string, newStatus: string) => void;
+  /** Modo demonstração/homologação local (não grava no Supabase e simula refinamento seguro) */
+  isDemoMode?: boolean;
+  /** Callback opcional chamado na demonstração ao refinar com IA */
+  onDemoReanalyze?: () => Promise<LeadProspeccao> | LeadProspeccao;
 }
 
 type PersistedRow = {
@@ -120,7 +124,9 @@ export const LeadPlanDialog = ({
   onOpenChange, 
   onLeadUpdate,
   onLeadRefined,
-  onStatusChange 
+  onStatusChange,
+  isDemoMode = false,
+  onDemoReanalyze,
 }: LeadPlanDialogProps) => {
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
@@ -259,15 +265,16 @@ export const LeadPlanDialog = ({
   const normalizedPlanName = String(subscription?.plan_name || usage.plan_name || "free").toLowerCase();
   
   // Planos que têm acesso às anotações
-  const hasNotesAccess = isAdmin || (subscription && 
+  const hasNotesAccess = isDemoMode || isAdmin || (subscription && 
     ['starter', 'iniciante', 'pro', 'agencia', 'admin'].includes(subscription.plan_name));
-  const canAnalyzeLead = isAdmin || canAnalyzeAI;
+  const canAnalyzeLead = isDemoMode || isAdmin || canAnalyzeAI;
 
   const [pendingAnalysis, setPendingAnalysis] = useState<any | null>(null);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [isProcessingApproval, setIsProcessingApproval] = useState(false);
 
   const loadPendingAnalysis = useCallback(async (leadId: string) => {
+    if (isDemoMode) return;
     setIsLoadingAnalysis(true);
     try {
       const { data, error } = await supabase
@@ -408,6 +415,12 @@ export const LeadPlanDialog = ({
     if (!currentLead) return;
     
     setIsSavingNotes(true);
+    if (isDemoMode) {
+      setCurrentLead(prev => prev ? { ...prev, notas: notesValue } : prev);
+      onLeadUpdate?.();
+      setIsSavingNotes(false);
+      return;
+    }
     try {
       const { error } = await supabase
         .from('leads')
@@ -453,6 +466,18 @@ export const LeadPlanDialog = ({
 
     // Optimistic update
     setCurrentLead(prev => prev ? { ...prev, status: newStatus } : prev);
+
+    if (isDemoMode) {
+      setIsUpdatingStatus(false);
+      const statusLabel = PIPELINE_STATUSES.find(s => s.id === newStatus)?.label;
+      toast({
+        title: "Status atualizado (Demonstração)",
+        description: `Lead movido para "${statusLabel}"`,
+      });
+      onStatusChange?.(currentLead.id, newStatus);
+      onLeadUpdate?.();
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -534,6 +559,36 @@ export const LeadPlanDialog = ({
     if (!lead) return;
     const leadKey = getLeadKey(lead);
     const requestId = createRefineRequestId();
+
+    if (isDemoMode) {
+      setIsReanalyzing(true);
+      try {
+        if (onDemoReanalyze) {
+          const refined = await onDemoReanalyze();
+          setCurrentLead(refined);
+          onLeadRefined?.(refined);
+          onLeadUpdate?.();
+        } else {
+          const refined: LeadProspeccao = {
+            ...displayLead,
+            ai_analise_gerada_em: new Date().toISOString(),
+            ai_used_fallback: false,
+          };
+          setCurrentLead(refined);
+          onLeadRefined?.(refined);
+          onLeadUpdate?.();
+        }
+        toast({
+          title: "Plano comercial refinado com IA!",
+          description: "Demonstração concluída: análise completa e cadência personalizada geradas com sucesso (zero créditos consumidos).",
+        });
+      } catch (err: any) {
+        console.error("Erro na simulação do refinamento:", err);
+      } finally {
+        setIsReanalyzing(false);
+      }
+      return;
+    }
     
     if (!canUsePaidFeatures(null, subscription)) {
       toast({
@@ -833,11 +888,11 @@ export const LeadPlanDialog = ({
         </DialogHeader>
 
         {/* Contatos com opção de copiar */}
-        <div className="flex flex-wrap gap-3 text-sm py-2 px-3 bg-muted/20 rounded-lg border border-border/30">
+        <div className="flex flex-wrap gap-3 text-sm py-2 px-3 bg-[#0b0f0e] rounded-lg border border-[#1f2d29] text-zinc-300">
           {displayLead.telefone && (
             <CopyableField value={displayLead.telefone} displayValue={formatPhoneNumber(displayLead.telefone)}>
-              <a href={`tel:${displayLead.telefone}`} className="flex items-center gap-1 text-primary hover:underline">
-                <Phone className="h-3 w-3" />
+              <a href={`tel:${displayLead.telefone}`} className="flex items-center gap-1 text-zinc-200 hover:text-white transition-colors">
+                <Phone className="h-3 w-3 text-zinc-400" />
                 {formatPhoneNumber(displayLead.telefone)}
               </a>
             </CopyableField>
@@ -850,9 +905,9 @@ export const LeadPlanDialog = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => trackMetaCustomEvent("WhatsApp_Message_Click", { source: "lead_card" })}
-                className="flex items-center gap-1 text-green-600 hover:underline"
+                className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 transition-colors font-medium"
               >
-                <MessageSquare className="h-3 w-3" />
+                <MessageSquare className="h-3 w-3 text-emerald-400" />
                 {formatPhoneNumber(whatsappNumber)}
               </a>
             </CopyableField>
@@ -860,16 +915,16 @@ export const LeadPlanDialog = ({
 
           {displayLead.email && (
             <CopyableField value={displayLead.email}>
-              <a href={`mailto:${displayLead.email}`} className="flex items-center gap-1 text-blue-600 hover:underline">
-                <Mail className="h-3 w-3" />
+              <a href={`mailto:${displayLead.email}`} className="flex items-center gap-1 text-sky-400 hover:text-sky-300 transition-colors">
+                <Mail className="h-3 w-3 text-sky-400" />
                 {displayLead.email}
               </a>
             </CopyableField>
           )}
 
           {displayLead.website && (
-            <a href={displayLead.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
-              <Globe className="h-3 w-3" />
+            <a href={displayLead.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 transition-colors">
+              <Globe className="h-3 w-3 text-emerald-400" />
               Website
             </a>
           )}
@@ -904,10 +959,10 @@ export const LeadPlanDialog = ({
         )}
 
         {/* Status Selector */}
-        <div className="mt-2 mb-4 p-4 bg-muted/30 rounded-lg border border-border/50">
+        <div className="mt-2 mb-4 p-4 bg-[#0e1412] rounded-lg border border-[#1f2d29]">
           <div className="flex items-center gap-2 mb-3">
-            <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-foreground">Alterar Status</span>
+            <ArrowRightLeft className="h-4 w-4 text-emerald-400" />
+            <span className="text-sm font-semibold text-white">Alterar Status</span>
           </div>
           <StatusSelector
             currentStatus={displayLead.status || 'novo'}
@@ -917,21 +972,21 @@ export const LeadPlanDialog = ({
         </div>
 
         {/* Registro Comercial de Contato */}
-        <div id="tour-bloco-registro-comercial" className="mt-2 mb-4 p-4 bg-muted/30 rounded-lg border border-border/50">
+        <div id="tour-bloco-registro-comercial" className="mt-2 mb-4 p-4 bg-[#0e1412] rounded-lg border border-[#1f2d29]">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div className="space-y-1">
-              <div className="flex items-center gap-1.5 font-medium text-sm text-foreground">
+              <div className="flex items-center gap-1.5 font-semibold text-sm text-white">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                 <span>Registro Comercial de Contato</span>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-zinc-400">
                 Realizou uma abordagem ou follow-up com este lead? Confirme para contabilizar na sua meta comercial.
               </p>
             </div>
             <Button
               size="sm"
               onClick={() => setConfirmContactModalOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shrink-0 gap-1.5"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shrink-0 gap-1.5 shadow-sm"
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
               <span>Registrar Contato</span>
@@ -940,13 +995,13 @@ export const LeadPlanDialog = ({
         </div>
 
         {/* Seção de Anotações - apenas para planos Iniciante+ */}
-        <div id="tour-campo-anotacoes-followup" className="mt-2 p-4 bg-muted/30 rounded-lg border border-border/50">
+        <div id="tour-campo-anotacoes-followup" className="mt-2 p-4 bg-[#0e1412] rounded-lg border border-[#1f2d29]">
           <div className="flex items-center gap-2 mb-3">
-            <StickyNote className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-foreground">Anotações</span>
+            <StickyNote className="h-4 w-4 text-emerald-400" />
+            <span className="text-sm font-semibold text-white">Anotações</span>
             {isSavingNotes && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
+              <div className="flex items-center gap-1 text-xs text-zinc-400">
+                <Loader2 className="h-3 w-3 animate-spin text-emerald-400" />
                 Salvando...
               </div>
             )}
@@ -954,24 +1009,24 @@ export const LeadPlanDialog = ({
           
           {subscriptionLoading ? (
             <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
             </div>
           ) : hasNotesAccess ? (
             <Textarea
               placeholder="Adicione notas sobre este lead... (salva automaticamente)"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="min-h-[100px] resize-none bg-[#0b0f0e] border-[#1f2d29] focus-visible:border-[#10d98a]/50 focus-visible:ring-[#10d98a]/20"
+              className="min-h-[100px] resize-none bg-[#0b0f0e] border-[#1f2d29] text-zinc-100 placeholder:text-zinc-500 focus-visible:border-[#10d98a]/50 focus-visible:ring-[#10d98a]/20"
             />
           ) : (
-            <div className="flex flex-col items-center justify-center py-4 text-center bg-muted/50 rounded-lg border border-dashed border-border">
-              <Lock className="h-5 w-5 text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">
+            <div className="flex flex-col items-center justify-center py-4 text-center bg-[#0b0f0e]/50 rounded-lg border border-dashed border-[#1f2d29]">
+              <Lock className="h-5 w-5 text-zinc-500 mb-2" />
+              <p className="text-sm text-zinc-400">
                 Anotações disponíveis nos planos Iniciante, Pro e Agência
               </p>
               <a 
                 href="/precos" 
-                className="text-xs text-primary hover:underline mt-1"
+                className="text-xs text-emerald-400 hover:underline mt-1"
               >
                 Fazer upgrade
               </a>
@@ -981,14 +1036,17 @@ export const LeadPlanDialog = ({
 
         <Tabs defaultValue="analise" className="mt-2">
           {/* A Análise IA é o fluxo principal; "Usar Template" continua disponível, mas como opção secundária. */}
-          <TabsList className="grid h-auto w-full grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-            <TabsTrigger value="analise" className="gap-2">
+          <TabsList className="grid h-auto w-full grid-cols-[minmax(0,2fr)_minmax(0,1fr)] bg-[#0e1412] border border-[#1f2d29] p-1 rounded-lg">
+            <TabsTrigger
+              value="analise"
+              className="gap-2 text-sm text-zinc-300 font-semibold data-[state=active]:bg-[#10d98a] data-[state=active]:text-[#0b0f0e] transition-colors rounded-md py-1.5"
+            >
               <Brain className="h-4 w-4 shrink-0" />
               Análise IA
             </TabsTrigger>
             <TabsTrigger
               value="templates"
-              className="gap-2 text-xs text-muted-foreground data-[state=active]:text-foreground"
+              className="gap-2 text-xs text-muted-foreground data-[state=active]:text-[#0b0f0e] data-[state=active]:bg-[#10d98a] transition-colors rounded-md py-1.5"
               title="Modelos de mensagem que você salvou, com os dados da empresa preenchidos"
             >
               <FileText className="h-3.5 w-3.5 shrink-0" />
@@ -1097,6 +1155,17 @@ export const LeadPlanDialog = ({
           leadNome={currentLead.nome}
           defaultType={currentLead.status === "novo" ? "primeira_abordagem" : "follow_up"}
           onConfirm={async ({ leadId, leadNome, tipo, conteudo }) => {
+            if (isDemoMode) {
+              toast({
+                title: "Contato registrado! (Demonstração)",
+                description: "Ação contabilizada na sua meta comercial simulada.",
+              });
+              if (currentLead.status === "novo") {
+                handleStatusChange("em_contato");
+              }
+              onLeadUpdate?.();
+              return true;
+            }
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) {
               toast({ title: "Erro", description: "Faça login para registrar contatos.", variant: "destructive" });

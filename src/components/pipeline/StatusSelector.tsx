@@ -94,8 +94,8 @@ export function StatusSelector({ currentStatus, onStatusChange, disabled }: Stat
               "px-3 py-2 rounded-lg text-sm font-medium transition-all border",
               "focus:outline-none focus:ring-2 focus:ring-primary/50",
               isSelected
-                ? `${status.color} text-white border-transparent shadow-md`
-                : `bg-card/50 text-muted-foreground border-border/50 hover:bg-muted hover:text-foreground`,
+                ? `${status.color} text-white border-transparent shadow-md font-semibold`
+                : `bg-[#0b0f0e] text-zinc-300 border-[#1f2d29] hover:bg-[#1a2622] hover:text-white hover:border-[#10d98a]/30`,
               disabled && "opacity-50 cursor-not-allowed"
             )}
             title={status.description}

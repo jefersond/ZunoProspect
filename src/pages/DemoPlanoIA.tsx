@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ShieldCheck, Sparkles, RefreshCw, CheckCircle2 } from "lucide-react";
-import { LeadAnalysis } from "@/components/prospeccao/LeadAnalysis";
+import { ArrowLeft, ShieldCheck, Sparkles, RefreshCw, CheckCircle2, Eye, MapPin, Phone, MessageSquare, Globe } from "lucide-react";
+import { LeadPlanDialog } from "@/components/prospeccao/LeadPlanDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import type { LeadProspeccao, PlanoProspeccaoDia } from "@/types/lead";
 
@@ -249,33 +249,60 @@ const SIMULATED_REFINED_DAYS: PlanoProspeccaoDia[] = [
 
 export default function DemoPlanoIA() {
   const [isRefined, setIsRefined] = useState(false);
-  const [isSimulating, setIsSimulating] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(true);
+  const [leadState, setLeadState] = useState<LeadProspeccao>({
+    ...SIMULATED_LEAD,
+    plano_prospecao_7dias: SIMULATED_INITIAL_DAYS,
+  });
   const { toast } = useToast();
 
-  const handleSimulateRefine = () => {
-    setIsSimulating(true);
-    setTimeout(() => {
-      setIsRefined(true);
-      setIsSimulating(false);
-      toast({
-        title: "Plano Comercial Completo Gerado!",
-        description: "Simulação do Gemini concluída com sucesso (Zero chamadas de API reais / Zero créditos consumidos).",
-      });
-    }, 600);
+  const handleDemoReanalyze = async (): Promise<LeadProspeccao> => {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const refined: LeadProspeccao = {
+      ...leadState,
+      ai_analise_gerada_em: new Date().toISOString(),
+      ai_used_fallback: false,
+      plano_prospecao_7dias: SIMULATED_REFINED_DAYS,
+    };
+    setIsRefined(true);
+    setLeadState(refined);
+    return refined;
   };
 
   const handleReset = () => {
     setIsRefined(false);
+    setLeadState({
+      ...SIMULATED_LEAD,
+      plano_prospecao_7dias: SIMULATED_INITIAL_DAYS,
+      ai_analise_gerada_em: null,
+    });
     toast({
       title: "Sugestão Inicial Restaurada",
-      description: "Você voltou para a visão inicial determinística com o botão verde pronto.",
+      description: "Você voltou para a visão determinística com o botão verde 'Gerar plano comercial completo com IA'.",
     });
   };
 
+  const handleDirectToggleRefine = () => {
+    if (isRefined) {
+      handleReset();
+    } else {
+      setIsRefined(true);
+      setLeadState({
+        ...SIMULATED_LEAD,
+        ai_analise_gerada_em: new Date().toISOString(),
+        ai_used_fallback: false,
+        plano_prospecao_7dias: SIMULATED_REFINED_DAYS,
+      });
+      toast({
+        title: "Alternado para Plano Refinado IA",
+        description: "Visualizando a análise completa e cadência do Gemini 2.5 Flash.",
+      });
+    }
+  };
+
   const displayLead: LeadProspeccao = {
-    ...SIMULATED_LEAD,
-    ai_analise_gerada_em: isRefined ? new Date().toISOString() : null,
-    ai_used_fallback: false,
+    ...leadState,
+    ai_analise_gerada_em: isRefined ? (leadState.ai_analise_gerada_em || new Date().toISOString()) : null,
     plano_prospecao_7dias: isRefined ? SIMULATED_REFINED_DAYS : SIMULATED_INITIAL_DAYS,
   };
 
@@ -303,21 +330,26 @@ export default function DemoPlanoIA() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {isRefined ? (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDirectToggleRefine}
+              className="h-8 text-xs border-[#1f2d29] bg-[#111816] text-zinc-300 hover:text-white hover:bg-[#1f2d29]"
+            >
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              {isRefined ? "Ver Sugestão Inicial" : "Ver Refinado com IA"}
+            </Button>
+
+            {!dialogOpen && (
               <Button
-                variant="outline"
                 size="sm"
-                onClick={handleReset}
-                className="h-8 text-xs border-[#1f2d29] bg-[#111816] text-zinc-300 hover:text-white hover:bg-[#1f2d29]"
+                onClick={() => setDialogOpen(true)}
+                className="h-8 text-xs bg-[#10d98a] hover:bg-[#0eb875] text-[#0b0f0e] font-semibold"
               >
-                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                Ver Sugestão Inicial
+                <Eye className="mr-1.5 h-3.5 w-3.5" />
+                Abrir Modal "Ver Plano"
               </Button>
-            ) : (
-              <Badge className="bg-[#10d98a]/10 text-[#10d98a] border border-[#10d98a]/30 text-xs px-2.5 py-1">
-                Visualizando Sugestão Inicial
-              </Badge>
             )}
 
             <Link to="/">
@@ -342,17 +374,16 @@ export default function DemoPlanoIA() {
             <div className="space-y-1">
               <h2 className="text-sm font-semibold flex items-center gap-2 text-white">
                 <Sparkles className="h-4 w-4 text-[#10d98a]" />
-                Demonstração Rápida do Pacote Comercial com IA
+                Experiência Oficial da Zuno: Modal "Ver Plano"
               </h2>
               <p className="text-xs text-zinc-300 leading-relaxed max-w-2xl">
-                {isRefined
-                  ? "Você está visualizando o resultado pós-refinamento: o diagnóstico, a primeira abordagem em destaque, a cadência de 7 dias com o mesmo fio condutor e as 7 objeções táticas."
-                  : "Abaixo está o lead fictício em seu estado inicial. Observe o badge 'Sugestão inicial' e o card de alto impacto com o botão verde 'Gerar plano comercial completo com IA'."}
+                Na Zuno oficial, o usuário navega em <strong>Buscar Leads</strong> ou <strong>Leads Salvos</strong> e clica em <strong>"Ver Plano"</strong>.
+                O modal <code className="bg-[#0b0f0e] px-1.5 py-0.5 rounded text-emerald-400">LeadPlanDialog</code> abre com contatos, CRM, anotações e a Análise Comercial completa.
               </p>
             </div>
 
             <div className="shrink-0 flex items-center gap-2">
-              <span className="text-xs text-zinc-400 font-medium">Estado atual:</span>
+              <span className="text-xs text-zinc-400 font-medium">Estado do modal:</span>
               <Badge
                 variant="outline"
                 className={
@@ -367,21 +398,87 @@ export default function DemoPlanoIA() {
           </CardContent>
         </Card>
 
-        {/* Componente Real do LeadAnalysis com o Lead Simulado */}
-        <div className="rounded-xl border border-[#1f2d29] bg-[#111816] p-4 sm:p-6 shadow-2xl">
-          <LeadAnalysis
-            lead={displayLead}
-            diagnostico={displayLead.diagnostico_bullets}
-            plano={displayLead.plano_prospecao_7dias}
-            geradoEm={displayLead.ai_analise_gerada_em}
-            probabilidade={null}
-            onReanalyze={handleSimulateRefine}
-            isReanalyzing={isSimulating}
-            canAnalyzeAI={true}
-            showCompanyName={true}
-          />
+        {/* Card do Lead que Simula o Card em 'Buscar Leads' / 'Leads Salvos' */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              Lead Simulado em "Leads Salvos"
+            </h3>
+            <span className="text-xs text-zinc-500">Clique em "Ver Plano" para abrir o diálogo oficial</span>
+          </div>
+
+          <Card className="border-[#1f2d29] bg-[#111816] text-[#f4f4f5] hover:border-[#10d98a]/40 transition-all shadow-xl">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <CardTitle className="text-xl text-white font-bold">{displayLead.nome}</CardTitle>
+                  <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+                    <MapPin className="h-3.5 w-3.5 text-zinc-500" />
+                    <span>Curitiba, PR • Google Rating 4.8 (142 avaliações)</span>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1.5">
+                  <Badge variant="outline" className="border-[#1f2d29] bg-[#0e1412] text-zinc-300 text-xs">
+                    {displayLead.nicho}
+                  </Badge>
+                  <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-medium">
+                    Foco: {displayLead.foco}
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-4 text-xs text-zinc-300">
+                <div className="flex items-center gap-1.5">
+                  <Phone className="h-3.5 w-3.5 text-zinc-400" />
+                  <span>(41) 9988-7766</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-emerald-400">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  <span>WhatsApp no site verificado</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-zinc-400">
+                  <Globe className="h-3.5 w-3.5" />
+                  <span>sorrisoprime.com.br</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-[#1f2d29]">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-400">Status CRM:</span>
+                  <Badge className="bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs uppercase font-medium">
+                    {displayLead.status || "novo"}
+                  </Badge>
+                </div>
+
+                <Button
+                  onClick={() => setDialogOpen(true)}
+                  className="bg-[#10d98a] hover:bg-[#0eb875] text-[#0b0f0e] font-bold text-xs gap-1.5 shadow-lg shadow-[#10d98a]/10"
+                >
+                  <Eye className="h-4 w-4" />
+                  Ver Plano
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </main>
+
+      {/* Modal Oficial LeadPlanDialog no Modo Demonstração */}
+      <LeadPlanDialog
+        lead={displayLead}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        isDemoMode={true}
+        onDemoReanalyze={handleDemoReanalyze}
+        onLeadRefined={(refined) => {
+          setIsRefined(true);
+          setLeadState(refined);
+        }}
+        onStatusChange={(leadId, newStatus) => {
+          setLeadState((prev) => ({ ...prev, status: newStatus }));
+        }}
+      />
     </div>
   );
 }

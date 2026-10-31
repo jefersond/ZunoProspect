@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
     const accessToken = Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN") || "";
     if (!accessToken) return json({ error: "mercado_pago_credentials_missing" }, 503);
 
-    const appUrl = (Deno.env.get("APP_URL") || "https://www.zunopropect.com.br").replace(/\/$/, "");
+    const appUrl = (Deno.env.get("APP_URL") || "https://www.zunoprospect.com.br").replace(/\/$/, "");
     const relationStatus = String(subscription?.subscription_status || subscription?.status || "").toLowerCase();
     if (
       subscription?.mercado_pago_subscription_id

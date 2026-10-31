@@ -56,6 +56,9 @@ verify_jwt = true
 [functions.stripe-webhook]
 verify_jwt = false
 
+[functions.mercado-pago-webhook]
+verify_jwt = false
+
 [functions.create-stripe-addon-checkout]
 verify_jwt = true
 

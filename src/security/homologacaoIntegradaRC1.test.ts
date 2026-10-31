@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from "react";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -543,6 +543,40 @@ describe("Homologação Integrada RC-1 — Validação Isolada (Sem Produção)"
         expect(content, `Grafia incorreta encontrada em ${file}`).not.toMatch(/Zuno\s+Propect\b/i);
         expect(content, `Logo incorreta encontrada em ${file}`).not.toMatch(/>\s*Propect\s*</i);
       }
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // ETAPA 9: Desacoplamento de Produção e Compatibilidade de Migrations Locais
+  // ──────────────────────────────────────────────────────────────────────────
+  describe("Desacoplamento de Produção e Compatibilidade de Migrations Locais", () => {
+    it("supabase/config.toml usa project_id local e não referencia o banco de produção (ihtltqxxlvbsxbiacbpr)", () => {
+      const configToml = readRepoFile("supabase/config.toml");
+      expect(configToml).toContain('project_id = "zuno-prospect-local"');
+      expect(configToml).not.toContain("ihtltqxxlvbsxbiacbpr");
+    });
+
+    it("arquivos de vínculo remoto (.temp/linked-project.json e .temp/project-ref) estão removidos", () => {
+      expect(existsSync(resolve(process.cwd(), "supabase/.temp/linked-project.json"))).toBe(false);
+      expect(existsSync(resolve(process.cwd(), "supabase/.temp/project-ref"))).toBe(false);
+      expect(existsSync(resolve(process.cwd(), "supabase/.temp/pooler-url"))).toBe(false);
+    });
+
+    it("AdminSystemHealth.tsx e migrations de cron não possuem URL hardcoded para produção (ihtltqxxlvbsxbiacbpr)", () => {
+      const adminHealth = readRepoFile("src/pages/AdminSystemHealth.tsx");
+      expect(adminHealth).not.toContain("ihtltqxxlvbsxbiacbpr");
+      expect(adminHealth).toContain("VITE_SUPABASE_URL");
+
+      const cronMigration = readRepoFile("supabase/migrations/20260629112200_enable_cron_net_job.sql");
+      expect(cronMigration).not.toContain("ihtltqxxlvbsxbiacbpr");
+    });
+
+    it("migration 20260525141000_retroactive_plan_activation.sql não aborta banco local limpo quando email placeholder não existe", () => {
+      const retroSql = readRepoFile("supabase/migrations/20260525141000_retroactive_plan_activation.sql");
+      expect(retroSql).toContain("IF v_user_id IS NULL THEN");
+      expect(retroSql).toContain("RAISE NOTICE");
+      expect(retroSql).toContain("RETURN;");
+      expect(retroSql).not.toContain("RAISE EXCEPTION 'Usuário com o e-mail % não foi encontrado");
     });
   });
 });

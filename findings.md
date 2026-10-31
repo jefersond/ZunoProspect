@@ -167,3 +167,18 @@ Este arquivo centraliza o mapeamento de descobertas, limitações de plataforma,
 - **Impedimento de Infraestrutura para Staging Remoto/Docker:**
   - O arquivo `supabase/config.toml` referencia o `project_id = "ihtltqxxlvbsxbiacbpr"` (produção), não há `.env.staging` com projeto Supabase/Stripe de homologação separado e o daemon do Docker Desktop (`//./pipe/dockerDesktopLinuxEngine`) está desligado na máquina local. Em cumprimento estrito à regra de segurança, o ambiente de produção jamais foi usado como substituto.
 
+
+
+---
+
+## Descobertas da Preparação de Homologação Local Isolada (31/10/2026)
+
+1. **Docker Desktop Parado no Windows (`dockerDesktopLinuxEngine`):**
+   - O binário do Docker CLI (`v29.6.2`) está instalado, mas o serviço/daemon do Docker Desktop no Windows não está em execução (`open //./pipe/dockerDesktopLinuxEngine: O sistema não pode encontrar o arquivo especificado`). Sem o daemon ativo, `npx supabase start` não consegue subir os containers locais.
+2. **Acoplamentos Ocultos com Produção Encontrados e Eliminados:**
+   - `supabase/.temp/linked-project.json`, `project-ref` e `pooler-url` estavam vinculados ao projeto de produção (`ihtltqxxlvbsxbiacbpr`). Foram removidos.
+   - `supabase/config.toml` continha `project_id = "ihtltqxxlvbsxbiacbpr"`. Alterado para `"zuno-prospect-local"`.
+   - `src/pages/AdminSystemHealth.tsx:190` fazia `fetch("https://ihtltqxxlvbsxbiacbpr.supabase.co/functions/v1/stripe-webhook")` hardcoded. Corrigido para usar `import.meta.env.VITE_SUPABASE_URL`.
+   - `supabase/migrations/20260629112200_enable_cron_net_job.sql` agendava um cron apontando para `https://ihtltqxxlvbsxbiacbpr.supabase.co/functions/v1/process-email-queue`. Neutralizado para não disparar requisições externas a partir de bancos locais/staging.
+3. **Bloqueio em Migration Histórica (`20260525141000_retroactive_plan_activation.sql`):**
+   - Essa migration buscava `v_email := 'email_do_cliente@exemplo.com'` e disparava `RAISE EXCEPTION` quando `v_user_id IS NULL`. Em qualquer banco limpo (`npx supabase start`), isso abortaria a inicialização das migrations na metade do histórico. Ajustado para `RAISE NOTICE ... RETURN;`.

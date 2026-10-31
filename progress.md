@@ -336,3 +336,13 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
 - **Revisão das 3 Migrations:** Reforçados grants para `service_role`, idempotência de políticas/colunas e documentação de rollback em `20261031120000_create_seller_profiles.sql`, `20261031130000_disable_legacy_cron_process_emails.sql` e `20261031140000_sdr_lead_guard.sql`.
 - **Suíte `homologacaoIntegradaRC1.test.ts`:** 61 suítes e 779 testes aprovados (`npx tsc --noEmit` com 0 erros).
 - **Impedimento de Ambiente Staging Remoto:** Verificado que não há credenciais de staging separadas (`.env.staging` ausente e `supabase/config.toml` aponta para `ihtltqxxlvbsxbiacbpr` de produção) nem daemon Docker ativo para Supabase local. Produção NÃO foi utilizada como substituto.
+
+
+---
+
+## Progresso da Homologação Local Isolada (31/10/2026)
+- **Verificação do Docker Desktop:** Executado `docker info` -> identificado que o Docker Desktop precisa ser iniciado no Windows pelo usuário.
+- **Desacoplamento Completo da Produção:** Removidos arquivos `supabase/.temp/*`, atualizado `supabase/config.toml` (`zuno-prospect-local`), corrigido `src/pages/AdminSystemHealth.tsx` e neutralizada URL de produção em `20260629112200_enable_cron_net_job.sql`.
+- **Correção de Migration Histórica:** Ajustada `20260525141000_retroactive_plan_activation.sql` para não abortar em banco limpo (`npx supabase start`).
+- **Script de Homologação Real Local:** Criado `scripts/verify-local-supabase.mjs` pronto para execução imediata contra `http://127.0.0.1:54321` assim que o Docker Desktop estiver ativo.
+- **Testes Automatizados e Typecheck:** `npx vitest run src/security/homologacaoIntegradaRC1.test.ts` (14/14 passando) e `npx tsc --noEmit` (0 erros).

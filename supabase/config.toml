@@ -1,4 +1,4 @@
-project_id = "ihtltqxxlvbsxbiacbpr"
+project_id = "zuno-prospect-local"
 
 [functions.leads-sensitive]
 verify_jwt = true

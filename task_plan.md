@@ -227,3 +227,18 @@ Este plano estabelece a checklist operacional e memória de estabilização para
   - [x] `20261031140000_sdr_lead_guard.sql`: Trigger de bloqueio SDR com `grant execute` e instruções de rollback.
 - [x] **Suíte de Homologação Integrada Isolada (`homologacaoIntegradaRC1.test.ts`):** 61 arquivos de teste e 779 testes aprovados (100% em memória, zero consumo de créditos reais ou toque em produção).
 - [x] **Registro Transparente de Impedimento de Infraestrutura Staging:** Documentada a ausência de projeto Supabase/Stripe de staging separado e Docker daemon desligado localmente, sem usar produção como substituto.
+
+
+---
+
+## Fase de Homologação Local Isolada (31/10/2026 - Etapa Docker/Postgres Local)
+- [x] **1. Verificação do Docker Desktop no Windows:** `docker info` executado; CLI instalado (`v29.6.2`), porém daemon (`//./pipe/dockerDesktopLinuxEngine`) parado no Windows. Informado ao usuário para iniciar o Docker Desktop sem usar produção como substituto.
+- [x] **2. Auditoria e Desacoplamento Total do Supabase de Produção (`ihtltqxxlvbsxbiacbpr`):**
+  - Removidos vínculos em `supabase/.temp/` (`linked-project.json`, `pooler-url`, `project-ref`).
+  - Atualizado `supabase/config.toml` de `project_id = "ihtltqxxlvbsxbiacbpr"` para `project_id = "zuno-prospect-local"`.
+  - Removido URL hardcoded em `src/pages/AdminSystemHealth.tsx:190` (substituído por `import.meta.env.VITE_SUPABASE_URL`).
+  - Neutralizada chamada externa ao projeto de produção na migration histórica `supabase/migrations/20260629112200_enable_cron_net_job.sql`.
+- [x] **3. Saneamento de Compatibilidade Histórica de Migrations para Banco Limpo:**
+  - Corrigida `supabase/migrations/20260525141000_retroactive_plan_activation.sql`, que continha `RAISE EXCEPTION` quando o placeholder `email_do_cliente@exemplo.com` não era encontrado, o que quebraria `npx supabase start` em qualquer banco local recém-criado.
+- [x] **4. Script Executável de Verificação Real (`scripts/verify-local-supabase.mjs`):**
+  - Preparado script com trava de segurança anti-produção que cria 2 usuários reais no Auth local (`127.0.0.1:54321`), testa RLS cruzado em `seller_profiles` e `leads` e valida o trigger `trg_guard_sdr_internal_focus_on_leads` assim que o Docker Desktop for iniciado.

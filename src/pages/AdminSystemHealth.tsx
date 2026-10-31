@@ -187,7 +187,7 @@ export default function AdminSystemHealth() {
       const webhookStart = Date.now();
       try {
         const response = await withTimeout(
-          fetch("https://ihtltqxxlvbsxbiacbpr.supabase.co/functions/v1/stripe-webhook", {
+          fetch(`${(import.meta.env.VITE_SUPABASE_URL || "https://placeholder-project.supabase.co").replace(/\/$/, "")}/functions/v1/stripe-webhook`, {
             method: "GET",
             headers: { "Content-Type": "application/json" }
           }),

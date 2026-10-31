@@ -17,7 +17,8 @@ BEGIN
   SELECT id INTO v_user_id FROM auth.users WHERE email = v_email;
 
   IF v_user_id IS NULL THEN
-    RAISE EXCEPTION 'Usuário com o e-mail % não foi encontrado no sistema.', v_email;
+    RAISE NOTICE 'Usuário com o e-mail % não foi encontrado no sistema (ignorando em ambiente limpo/local).', v_email;
+    RETURN;
   END IF;
 
   -- 2. Definir os limites corretos

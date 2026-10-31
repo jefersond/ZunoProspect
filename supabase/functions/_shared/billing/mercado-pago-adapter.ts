@@ -292,12 +292,12 @@ export class MercadoPagoAdapter implements BillingProviderAdapter {
         preapprovalPlanId = synced[input.planId];
       }
 
-      // 2. Cria a assinatura individual vinculada ao plano
+      // 2. Cria a pré-aprovação de assinatura individual para checkout
       const subscription = await mpRequest(this.accessToken, "/preapproval", {
         method: "POST",
         body: JSON.stringify({
-          preapproval_plan_id: preapprovalPlanId,
           reason: `ZUNO PROSPECT - ${BILLING_CATALOG[input.planId].displayName}`,
+          auto_recurring: autoRecurring,
           payer_email: this.userEmail,
           external_reference: this.userId,
           back_url: this.backUrl,

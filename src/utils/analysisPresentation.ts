@@ -56,13 +56,16 @@ export function buildCompanyFacts(lead: Partial<LeadProspeccao>): CompanyFact[] 
   // Telefone
   const rawPhone = lead.whatsapp_number || lead.telefone;
   const phone = sanitizeBrazilianPhoneNumber(rawPhone);
+  const hasWhatsappVerified = Boolean(lead.sinais?.has_whatsapp_on_site || lead.whatsapp_link);
   if (hasText(rawPhone) && phone.isValid) {
     facts.push({
       key: "telefone",
       label: "Telefone cadastrado",
       value: phone.formattedDisplay,
       status: statusFromSource(sources, ["telefone", "phone", "whatsapp_number"]),
-      note: phone.isCellPhone ? "Celular. Se há WhatsApp só se confirma no primeiro contato." : "Telefone fixo.",
+      note: hasWhatsappVerified
+        ? (phone.isCellPhone ? "Celular com WhatsApp identificado no site público." : "Telefone com WhatsApp comercial identificado no site.")
+        : (phone.isCellPhone ? "Celular. Se há WhatsApp só se confirma no primeiro contato." : "Telefone fixo."),
     });
   } else if (hasText(rawPhone)) {
     facts.push({ key: "telefone", label: "Telefone cadastrado", value: String(rawPhone), status: "nao_verificado", note: "Fora do padrão brasileiro; confira antes de usar." });
@@ -100,7 +103,9 @@ export function buildCompanyFacts(lead: Partial<LeadProspeccao>): CompanyFact[] 
   }
 
   // Avaliações
-  const reviews = typeof lead.total_reviews === "number" && lead.total_reviews > 0 ? lead.total_reviews : null;
+  const reviews = typeof lead.total_reviews === "number" && lead.total_reviews > 0
+    ? lead.total_reviews
+    : (typeof (lead as any).reviews === "number" && (lead as any).reviews > 0 ? (lead as any).reviews : null);
   const rating = typeof lead.rating === "number" && lead.rating > 0 ? lead.rating : null;
   if (reviews) {
     facts.push({
@@ -154,10 +159,150 @@ export function splitAnalysisBullets(bullets: readonly string[] | null | undefin
   return out;
 }
 
-/** Primeiro dia ainda não concluído e que tem algo a enviar. Dado do próprio plano; nada é inventado. */
-export function getRecommendedPlanDay(plano: readonly PlanoProspeccaoDia[] | null | undefined): PlanoProspeccaoDia | null {
+/** Primeiro dia ainda não concluído e que tem algo a enviar. Dado do próprio plano; nada é inventado.
+ * Quando o lead está em estágio avançado no funil (qualificação, negociação, etc.), retorna null. */
+export function getRecommendedPlanDay(
+  plano: readonly PlanoProspeccaoDia[] | null | undefined,
+  leadStatus?: string | null,
+): PlanoProspeccaoDia | null {
+  if (isLeadInAdvancedStage(leadStatus)) {
+    return null;
+  }
   const days = [...(plano ?? [])].sort((a, b) => a.dia - b.dia);
   return days.find((d) => d.status_dia !== "concluido" && d.status_dia !== "bloqueado_optout" && hasText(d.mensagem)) ?? null;
+}
+
+// ───────────────────────── Estágios do funil e validação de canais ─────────────────────────
+
+/**
+ * Verifica se o lead já avançou além do estágio inicial de prospecção fria ('novo' e 'em_contato').
+ * Status como 'qualificacao', 'negociacao', 'convertido' e 'perdido' não devem receber
+ * recomendações automáticas de cadência fria.
+ */
+export function isLeadInAdvancedStage(status: string | null | undefined): boolean {
+  if (!status) return false;
+  const s = status.toLowerCase().trim();
+  return ["qualificacao", "negociacao", "convertido", "perdido"].includes(s);
+}
+
+export interface FunnelStageGuidance {
+  badgeLabel: string;
+  badgeClass: string;
+  title: string;
+  guidance: string;
+  actionText?: string;
+}
+
+export function getFunnelStageGuidance(status: string | null | undefined): FunnelStageGuidance | null {
+  if (!status) return null;
+  const s = status.toLowerCase().trim();
+  switch (s) {
+    case "qualificacao":
+      return {
+        badgeLabel: "Qualificação · Interesse",
+        badgeClass: "border-amber-500/40 bg-amber-500/10 text-amber-300",
+        title: "Lead em Qualificação (Interesse Demonstrado)",
+        guidance: "A cadência de prospecção fria foi pausada porque a empresa respondeu. Prossiga o atendimento no canal onde ela interagiu, aprofundando o diagnóstico da rotina e alinhando os próximos passos.",
+      };
+    case "negociacao":
+      return {
+        badgeLabel: "Negociação Comercial",
+        badgeClass: "border-orange-500/40 bg-orange-500/10 text-orange-300",
+        title: "Lead em Negociação Ativa",
+        guidance: "Cadência fria desativada. O lead está em fase de proposta ou negociação comercial. Concentre-se em tirar dúvidas sobre escopo, prazos e condições de fechamento.",
+      };
+    case "convertido":
+      return {
+        badgeLabel: "Convertido · Cliente Ganho",
+        badgeClass: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
+        title: "Lead Convertido com Sucesso",
+        guidance: "Parabéns! Este lead já foi convertido em cliente. A prospecção foi concluída com sucesso. Encaminhe o cliente para o onboarding ou entrega do serviço.",
+      };
+    case "perdido":
+      return {
+        badgeLabel: "Oportunidade Arquivada",
+        badgeClass: "border-zinc-700 bg-zinc-800/80 text-zinc-400",
+        title: "Oportunidade Encerrada (Perdido)",
+        guidance: "Cadência fria finalizada. O lead foi marcado como perdido no funil. O histórico do plano de 7 dias abaixo permanece disponível apenas para consulta.",
+      };
+    default:
+      return null;
+  }
+}
+
+export interface LeadChannelValidation {
+  isAvailable: boolean;
+  warningBadge?: string;
+  warningNote?: string;
+  suggestedAlternative?: string;
+}
+
+/**
+ * Valida a disponibilidade real do canal no cadastro do lead para a etapa da cadência.
+ * Impede falsas recomendações (ex: mandar e-mail quando não há e-mail cadastrado, ou afirmar
+ * WhatsApp em telefone fixo sem evidência).
+ */
+export function validateLeadChannelForDay(
+  lead: Partial<LeadProspeccao> | null | undefined,
+  canal: string | null | undefined,
+): LeadChannelValidation {
+  if (!lead || !canal || canal === "nenhum") {
+    return { isAvailable: true };
+  }
+
+  const normalizedChannel = canal.toLowerCase().trim();
+
+  if (normalizedChannel === "email") {
+    const email = lead.email ? lead.email.trim() : "";
+    const hasEmail = Boolean(email && email.includes("@"));
+    if (!hasEmail) {
+      return {
+        isAvailable: false,
+        warningBadge: "E-mail não cadastrado",
+        warningNote: "Não há endereço de e-mail registrado para esta empresa no cadastro público.",
+        suggestedAlternative: "Pesquise o e-mail da recepção no site/Google ou utilize o WhatsApp comercial como canal alternativo.",
+      };
+    }
+    return { isAvailable: true };
+  }
+
+  if (normalizedChannel === "whatsapp") {
+    const rawPhone = lead.telefone ? lead.telefone.trim() : "";
+    if (!rawPhone) {
+      return {
+        isAvailable: false,
+        warningBadge: "Telefone não cadastrado",
+        warningNote: "Nenhum telefone informado no cadastro para envio de WhatsApp.",
+        suggestedAlternative: "Localize o telefone público no Google Maps ou no site da empresa antes de abordar.",
+      };
+    }
+    const phoneInfo = sanitizeBrazilianPhoneNumber(rawPhone);
+    const hasWhatsappOnSite = Boolean(lead.sinais?.has_whatsapp_on_site || lead.whatsapp_link || lead.whatsapp_number);
+    if (!phoneInfo.isCellPhone && !hasWhatsappOnSite) {
+      return {
+        isAvailable: false,
+        warningBadge: "WhatsApp não confirmado",
+        warningNote: "O número cadastrado aparenta ser telefone fixo e o WhatsApp não foi confirmado no site público.",
+        suggestedAlternative: "Ligue na recepção para solicitar o contato direto de WhatsApp ou teste o número antes de enviar.",
+      };
+    }
+    return { isAvailable: true };
+  }
+
+  if (normalizedChannel === "instagram") {
+    const insta = lead.instagram ? lead.instagram.trim() : "";
+    if (!insta) {
+      return {
+        isAvailable: false,
+        warningBadge: "Instagram não cadastrado",
+        warningNote: "Perfil do Instagram não informado no cadastro.",
+        suggestedAlternative: "Pesquise o perfil oficial da empresa no Instagram antes de abordar por mensagem direta.",
+      };
+    }
+    return { isAvailable: true };
+  }
+
+  return { isAvailable: true };
 }
 
 // ───────────────────────── Pré-visualização do "Atualizar Cópias" ─────────────────────────

@@ -2,7 +2,16 @@ if (!process.env.VITE_SUPABASE_URL) process.env.VITE_SUPABASE_URL = "https://moc
 if (!process.env.VITE_SUPABASE_PUBLISHABLE_KEY) process.env.VITE_SUPABASE_PUBLISHABLE_KEY = "mock-anon-key";
 
 import { describe, expect, it } from "vitest";
-import { FACT_STATUS_LABEL, buildCompanyFacts, getRecommendedPlanDay, previewLocalCopyUpdate, splitAnalysisBullets } from "./analysisPresentation";
+import {
+  FACT_STATUS_LABEL,
+  buildCompanyFacts,
+  getFunnelStageGuidance,
+  getRecommendedPlanDay,
+  isLeadInAdvancedStage,
+  previewLocalCopyUpdate,
+  splitAnalysisBullets,
+  validateLeadChannelForDay,
+} from "./analysisPresentation";
 import { makeLegacyLead, makeNewLead } from "@/test/leadFixtures";
 import type { LeadProspeccao, PlanoProspeccaoDia } from "@/types/lead";
 
@@ -117,5 +126,67 @@ describe("previewLocalCopyUpdate (somente leitura)", () => {
   it("lead nulo ou erro interno não quebram", () => {
     expect(previewLocalCopyUpdate(null, [])).toMatchObject({ replaced: 0, example: null });
     expect(() => previewLocalCopyUpdate({ foco: null } as never, makeNewLead().plano_prospecao_7dias)).not.toThrow();
+  });
+});
+
+describe("isLeadInAdvancedStage e getFunnelStageGuidance", () => {
+  it("diferencia com precisão prospecção fria de funil avançado", () => {
+    expect(isLeadInAdvancedStage(null)).toBe(false);
+    expect(isLeadInAdvancedStage(undefined)).toBe(false);
+    expect(isLeadInAdvancedStage("novo")).toBe(false);
+    expect(isLeadInAdvancedStage("em_contato")).toBe(false);
+    expect(isLeadInAdvancedStage("qualificacao")).toBe(true);
+    expect(isLeadInAdvancedStage("negociacao")).toBe(true);
+    expect(isLeadInAdvancedStage("convertido")).toBe(true);
+    expect(isLeadInAdvancedStage("perdido")).toBe(true);
+  });
+
+  it("getRecommendedPlanDay retorna null quando lead está em funil avançado", () => {
+    const day = (dia: number) => ({ dia, canal: "whatsapp", mensagem: `m${dia}` }) as PlanoProspeccaoDia;
+    expect(getRecommendedPlanDay([day(1)], "novo")?.dia).toBe(1);
+    expect(getRecommendedPlanDay([day(1)], "qualificacao")).toBeNull();
+    expect(getRecommendedPlanDay([day(1)], "negociacao")).toBeNull();
+    expect(getRecommendedPlanDay([day(1)], "convertido")).toBeNull();
+    expect(getRecommendedPlanDay([day(1)], "perdido")).toBeNull();
+  });
+
+  it("retorna orientações contextuais específicas para cada estágio avançado do CRM", () => {
+    expect(getFunnelStageGuidance("qualificacao")?.badgeLabel).toContain("Qualificação");
+    expect(getFunnelStageGuidance("negociacao")?.badgeLabel).toContain("Negociação");
+    expect(getFunnelStageGuidance("convertido")?.badgeLabel).toContain("Convertido");
+    expect(getFunnelStageGuidance("perdido")?.badgeLabel).toContain("Arquivada");
+    expect(getFunnelStageGuidance("novo")).toBeNull();
+  });
+});
+
+describe("validateLeadChannelForDay", () => {
+  it("valida e-mail: ausente avisa e sugere WhatsApp/Google", () => {
+    const semEmail = validateLeadChannelForDay({ email: "" }, "email");
+    expect(semEmail.isAvailable).toBe(false);
+    expect(semEmail.warningBadge).toBe("E-mail não cadastrado");
+
+    const comEmail = validateLeadChannelForDay({ email: "contato@empresa.com.br" }, "email");
+    expect(comEmail.isAvailable).toBe(true);
+  });
+
+  it("valida whatsapp: fixo sem evidência avisa; celular com DDD é aceito", () => {
+    const fixoSemSite = validateLeadChannelForDay({ telefone: "1133334444" }, "whatsapp");
+    expect(fixoSemSite.isAvailable).toBe(false);
+    expect(fixoSemSite.warningBadge).toBe("WhatsApp não confirmado");
+
+    const fixoComSite = validateLeadChannelForDay({ telefone: "1133334444", sinais: { has_whatsapp_on_site: true } }, "whatsapp");
+    expect(fixoComSite.isAvailable).toBe(true);
+
+    const celular = validateLeadChannelForDay({ telefone: "41999887766" }, "whatsapp");
+    expect(celular.isAvailable).toBe(true);
+  });
+
+  it("valida instagram: ausente gera aviso com sugestão de busca", () => {
+    const semInsta = validateLeadChannelForDay({ instagram: "" }, "instagram");
+    expect(semInsta.isAvailable).toBe(false);
+    expect(semInsta.warningBadge).toBe("Instagram não cadastrado");
+
+    const comInsta = validateLeadChannelForDay({ instagram: "@empresa" }, "instagram");
+    expect(comInsta.isAvailable).toBe(true);
   });
 });

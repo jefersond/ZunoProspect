@@ -36,6 +36,9 @@ export const SERVICE_CATEGORY_LABELS: Record<(typeof SERVICE_CATEGORIES)[number]
   outro: "Outro",
 };
 
+export const COMMERCIAL_MATURITIES = ["equilibrado", "iniciante", "intermediario", "avancado"] as const;
+export type CommercialMaturity = (typeof COMMERCIAL_MATURITIES)[number];
+
 export interface SellerProfile {
   display_name: string;
   company_name: string;
@@ -43,6 +46,7 @@ export interface SellerProfile {
   service_offered: string;
   offer_description: string;
   target_audience: string;
+  commercial_maturity?: CommercialMaturity;
 }
 
 const PROFILE_LIMITS: Record<Exclude<keyof SellerProfile, "service_category">, number> = {
@@ -68,6 +72,11 @@ function cleanProfileText(value: unknown, max: number, multiline = false): strin
 
 export function sanitizeSellerProfile(raw: unknown): SellerProfile {
   const src = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const rawMaturity = String(src.commercial_maturity || "").toLowerCase().trim();
+  const commercial_maturity: CommercialMaturity = (COMMERCIAL_MATURITIES as readonly string[]).includes(rawMaturity)
+    ? (rawMaturity as CommercialMaturity)
+    : "equilibrado";
+
   return {
     display_name: cleanProfileText(src.display_name, PROFILE_LIMITS.display_name),
     company_name: cleanProfileText(src.company_name, PROFILE_LIMITS.company_name),
@@ -75,6 +84,7 @@ export function sanitizeSellerProfile(raw: unknown): SellerProfile {
     service_offered: cleanProfileText(src.service_offered, PROFILE_LIMITS.service_offered),
     offer_description: cleanProfileText(src.offer_description, PROFILE_LIMITS.offer_description, true),
     target_audience: cleanProfileText(src.target_audience, PROFILE_LIMITS.target_audience, true),
+    commercial_maturity,
   };
 }
 
@@ -311,6 +321,7 @@ export function buildAnalysisPrompt(facts: VerifiedFacts, profile: SellerProfile
     servico_oferecido: profile.service_offered,
     descricao_da_oferta: profile.offer_description,
     publico_alvo: profile.target_audience || null,
+    maturidade_comercial_do_assinante: profile.commercial_maturity || "equilibrado",
   };
 
   return `Você é um estrategista comercial brasileiro. Gere, em UMA resposta, o diagnóstico de um lead e o plano de abordagem de 7 dias para o assinante descrito abaixo.

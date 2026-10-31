@@ -1,18 +1,28 @@
 import { useSyncExternalStore } from "react";
 import {
+  COMMERCIAL_MATURITIES,
   MIN_OFFER_DESCRIPTION_CHARS,
   SERVICE_CATEGORIES,
   SERVICE_CATEGORY_LABELS,
   isSellerProfileComplete,
   missingSellerProfileFields,
   sanitizeSellerProfile,
+  type CommercialMaturity,
   type SellerProfile,
   type SellerProfileField,
 } from "../../supabase/functions/_shared/lead-analysis";
 
 // As regras de validação são as mesmas da Edge Function (fonte única em _shared/lead-analysis.ts).
-export { MIN_OFFER_DESCRIPTION_CHARS, SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS, isSellerProfileComplete, missingSellerProfileFields, sanitizeSellerProfile };
-export type { SellerProfile, SellerProfileField };
+export {
+  COMMERCIAL_MATURITIES,
+  MIN_OFFER_DESCRIPTION_CHARS,
+  SERVICE_CATEGORIES,
+  SERVICE_CATEGORY_LABELS,
+  isSellerProfileComplete,
+  missingSellerProfileFields,
+  sanitizeSellerProfile,
+};
+export type { CommercialMaturity, SellerProfile, SellerProfileField };
 
 export const EMPTY_SELLER_PROFILE: SellerProfile = {
   display_name: "",
@@ -21,6 +31,7 @@ export const EMPTY_SELLER_PROFILE: SellerProfile = {
   service_offered: "",
   offer_description: "",
   target_audience: "",
+  commercial_maturity: "equilibrado",
 };
 
 export const SELLER_PROFILE_FIELD_LABELS: Record<SellerProfileField, string> = {

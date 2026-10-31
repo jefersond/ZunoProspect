@@ -22,14 +22,18 @@ import { useUsage } from "@/hooks/useUsage";
 import { UpgradePlanDialog } from "@/components/profile/UpgradePlanDialog";
 import { canUsePaidFeatures } from "@/utils/subscriptionHelpers";
 import { Textarea } from "@/components/ui/textarea";
-import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe, StickyNote, Loader2, Lock, CheckCircle2 } from "lucide-react";
+import { Brain, FileText, ArrowRightLeft, Phone, MessageSquare, Mail, Globe, StickyNote, Loader2, Lock, CheckCircle2, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { COMMERCIAL_MATURITY_METAS, type CommercialMaturity } from "@/types/commercialMaturity";
 import type { LeadProspeccao } from "@/types/lead";
 import { trackEvent } from "@/lib/analytics";
 import { trackMetaCustomEvent } from "@/lib/metaPixel";
 import { normalizeLeadForAI, normalizePlanoProspeccao, normalizeDiagnosticoBullets } from "@/utils/normalizeLead";
 import { buildIntelligentPlan, hasExplicitOptOut } from "@/services/intelligentSevenDayPlan";
 import { refineWithAI } from "@/services/refineWithAI";
-import { ensureSellerProfileOrPrompt, openSellerProfileDialog } from "@/lib/sellerProfile";
+import { ensureSellerProfileOrPrompt, openSellerProfileDialog, useSellerProfileState, saveSellerProfile } from "@/lib/sellerProfile";
+import { isOfferSufficientlyDetailed, buildExploratoryOfferDescription } from "@/lib/offerClarification";
+import { OfferClarificationDialog } from "@/components/profile/OfferClarificationDialog";
 import { buildPersistenceUnconfirmedError, buildRefineOutcomeError, classifyRefineResponse, confirmPersistedRefine, describePreservedDays, readPreservedDays, shouldShowServerMessage, sanitizeFallbackReason } from "@/utils/refineOutcome";
 import { RefineClientError, createRefineRequestId, normalizeRefineError, type RefineErrorPayload } from "@/lib/refineObservability";
 
@@ -107,6 +111,13 @@ interface LeadPlanDialogProps {
   isDemoMode?: boolean;
   /** Callback opcional chamado na demonstração ao refinar com IA */
   onDemoReanalyze?: () => Promise<LeadProspeccao> | LeadProspeccao;
+  /** Data fictícia da simulação de tempo para recalcular a NBA */
+  simulatedNow?: Date;
+  onAdvanceTime?: (hours: number) => void;
+  onResetTime?: () => void;
+  /** Nível de maturidade comercial do assinante */
+  commercialMaturity?: CommercialMaturity;
+  onCommercialMaturityChange?: (maturity: CommercialMaturity) => void;
 }
 
 type PersistedRow = {
@@ -127,6 +138,11 @@ export const LeadPlanDialog = ({
   onStatusChange,
   isDemoMode = false,
   onDemoReanalyze,
+  simulatedNow,
+  onAdvanceTime,
+  onResetTime,
+  commercialMaturity = "equilibrado",
+  onCommercialMaturityChange,
 }: LeadPlanDialogProps) => {
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
@@ -224,6 +240,9 @@ export const LeadPlanDialog = ({
   };
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [confirmContactModalOpen, setConfirmContactModalOpen] = useState(false);
+  const sellerProfileState = useSellerProfileState();
+  const [clarificationOpen, setClarificationOpen] = useState(false);
+  const [isSavingClarification, setIsSavingClarification] = useState(false);
   const [notes, setNotes] = useState(lead?.notas || "");
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const { toast } = useToast();
@@ -261,7 +280,7 @@ export const LeadPlanDialog = ({
     }
   };
 
-  const isAdmin = subscriptionIsAdmin || usageIsAdmin;
+  const isAdmin = Boolean(isDemoMode || subscriptionIsAdmin || usageIsAdmin);
   const normalizedPlanName = String(subscription?.plan_name || usage.plan_name || "free").toLowerCase();
   
   // Planos que têm acesso às anotações
@@ -555,10 +574,86 @@ export const LeadPlanDialog = ({
     }
   };
 
-  const handleReanalyze = async () => {
+  const handleClarificationSave = async (clarifiedDescription: string) => {
+    setIsSavingClarification(true);
+    try {
+      const currentProfile = sellerProfileState.profile;
+      await saveSellerProfile({
+        ...currentProfile,
+        offer_description: clarifiedDescription,
+      });
+      setClarificationOpen(false);
+      toast({
+        title: "Oferta comercial atualizada!",
+        description: "Informações incorporadas para personalização do plano.",
+      });
+      await handleReanalyze(true);
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao atualizar oferta",
+        description: err.message || "Tente novamente.",
+      });
+    } finally {
+      setIsSavingClarification(false);
+    }
+  };
+
+  const handleClarificationSkip = async () => {
+    setIsSavingClarification(true);
+    try {
+      const currentProfile = sellerProfileState.profile;
+      const exploratoryDesc = buildExploratoryOfferDescription(
+        currentProfile.service_offered || currentProfile.service_category || "serviços profissionais"
+      );
+      await saveSellerProfile({
+        ...currentProfile,
+        offer_description: exploratoryDesc,
+      });
+      setClarificationOpen(false);
+      toast({
+        title: "Estratégia exploratória ativada",
+        description: "A Zuno gerará uma abordagem prudente sem inventar promessas prévias.",
+      });
+      await handleReanalyze(true);
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao continuar",
+        description: err.message || "Tente novamente.",
+      });
+    } finally {
+      setIsSavingClarification(false);
+    }
+  };
+
+  const handleReanalyze = async (skipClarificationCheck = false) => {
     if (!lead) return;
     const leadKey = getLeadKey(lead);
     const requestId = createRefineRequestId();
+
+    // Validação da oferta comercial ANTES de gerar qualquer estratégia com IA
+    const currentProfile = sellerProfileState.profile;
+    const hasBasicInfo = Boolean(
+      currentProfile &&
+      currentProfile.display_name?.trim() &&
+      (currentProfile.service_offered?.trim() || currentProfile.service_category?.trim())
+    );
+
+    if (!hasBasicInfo) {
+      if (!ensureSellerProfileOrPrompt()) {
+        toast({
+          title: "Complete seu perfil comercial",
+          description: "Para escrever mensagens em seu nome, o Zuno precisa saber quem você é e o que você vende. Nenhuma análise foi gerada e nenhum crédito foi usado.",
+        });
+        return;
+      }
+    }
+
+    if (!skipClarificationCheck && !isOfferSufficientlyDetailed(currentProfile)) {
+      setClarificationOpen(true);
+      return;
+    }
 
     if (isDemoMode) {
       setIsReanalyzing(true);
@@ -887,6 +982,80 @@ export const LeadPlanDialog = ({
           </DialogDescription>
         </DialogHeader>
 
+        {/* Barra de Simulação de Tempo (Modo Homologação Dev) */}
+        {isDemoMode && (
+          <div className="rounded-lg border border-emerald-500/30 bg-[#0c1210] p-2.5 text-xs flex flex-wrap items-center justify-between gap-2" data-testid="dialog-time-toolbar">
+            <div className="flex items-center gap-1.5 text-zinc-300">
+              <Clock className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span className="font-semibold text-white">Relógio Fictício:</span>
+              <span className="text-emerald-400 font-mono font-medium">
+                {simulatedNow ? simulatedNow.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "Agora"}
+              </span>
+              <span className="text-[10px] text-zinc-400">
+                ({simulatedNow && (simulatedNow.getDay() === 0 || simulatedNow.getDay() === 6) ? "Fim de Semana" : "Dia Útil"})
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 border-[#1f2d29] bg-[#111816] text-zinc-200 hover:bg-[#1f2d29]" onClick={() => onAdvanceTime?.(0)}>
+                Agora
+              </Button>
+              <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 border-emerald-500/30 bg-[#111816] text-emerald-400 hover:bg-emerald-500/10" onClick={() => onAdvanceTime?.(24)}>
+                +24h
+              </Button>
+              <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 border-emerald-500/30 bg-[#111816] text-emerald-400 hover:bg-emerald-500/10" onClick={() => onAdvanceTime?.(48)}>
+                +48h
+              </Button>
+              <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 border-emerald-500/30 bg-[#111816] text-emerald-400 hover:bg-emerald-500/10" onClick={() => onAdvanceTime?.(72)}>
+                +72h
+              </Button>
+              <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 border-emerald-500/30 bg-[#111816] text-emerald-400 hover:bg-emerald-500/10" onClick={() => onAdvanceTime?.(168)}>
+                +7 dias
+              </Button>
+              <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 border-destructive/40 text-destructive bg-[#111816] hover:bg-destructive/10" onClick={() => onResetTime?.()}>
+                Reiniciar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Simulação exclusiva da demonstração local: Maturidade Comercial do Assinante */}
+        {isDemoMode && onCommercialMaturityChange && (
+          <div
+            data-testid="dialog-maturity-toolbar"
+            className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-[#0c1210] rounded-lg border border-purple-500/20 text-xs"
+          >
+            <div className="flex items-center gap-1.5 text-zinc-300">
+              <span className="font-semibold text-purple-300">Maturidade do Assinante:</span>
+              <span className="text-zinc-400">
+                {COMMERCIAL_MATURITY_METAS[commercialMaturity].label}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(["iniciante", "intermediario", "avancado", "equilibrado"] as const).map((mat) => {
+                const meta = COMMERCIAL_MATURITY_METAS[mat];
+                const isActive = commercialMaturity === mat;
+                return (
+                  <Button
+                    key={mat}
+                    data-testid={`dialog-maturity-btn-${mat}`}
+                    size="sm"
+                    variant="outline"
+                    className={cn(
+                      "h-6 text-[11px] px-2 border-[#1f2d29] bg-[#111816]",
+                      isActive
+                        ? "border-purple-500/50 bg-purple-500/10 text-purple-300 font-semibold"
+                        : "text-zinc-400 hover:text-zinc-200 hover:bg-[#1a2320]"
+                    )}
+                    onClick={() => onCommercialMaturityChange(mat)}
+                  >
+                    {meta.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Contatos com opção de copiar */}
         <div className="flex flex-wrap gap-3 text-sm py-2 px-3 bg-[#0b0f0e] rounded-lg border border-[#1f2d29] text-zinc-300">
           {displayLead.telefone && (
@@ -1120,6 +1289,7 @@ export const LeadPlanDialog = ({
                   ].filter(Boolean) as any[]}
                   geradoEm={pendingAnalysis.created_at}
                   canAnalyzeAI={false}
+                  simulatedNow={simulatedNow}
                 />
               </div>
             ) : (
@@ -1136,6 +1306,8 @@ export const LeadPlanDialog = ({
                 canAnalyzeAI={canAnalyzeLead}
                 onUpdateCopiesLocally={handleUpdateCopiesLocally}
                 isUpdatingCopiesLocally={isUpdatingCopiesLocally}
+                simulatedNow={simulatedNow}
+                commercialMaturity={commercialMaturity}
               />
             )}
           </TabsContent>
@@ -1211,6 +1383,15 @@ export const LeadPlanDialog = ({
         onOpenChange={setShowUpgradeDialog}
         currentPlanName={subscription?.plan_name || usage?.plan_name}
         source="ai_limit_reached"
+      />
+      <OfferClarificationDialog
+        open={clarificationOpen}
+        onOpenChange={setClarificationOpen}
+        profile={sellerProfileState.profile}
+        leadNicho={displayLead?.nicho}
+        onSaveOffer={handleClarificationSave}
+        onContinueExploratory={handleClarificationSkip}
+        isSaving={isSavingClarification}
       />
     </Dialog>
   );

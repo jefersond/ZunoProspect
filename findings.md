@@ -95,3 +95,47 @@ Este arquivo centraliza o mapeamento de descobertas, limitações de plataforma,
 - **WhatsApp de Suporte:** O contato de suporte via WhatsApp foi unificado na constante `ZUNO_SUPPORT_WHATSAPP = "553298511685"` para direcionar o usuário à conversa com mensagem pré-formatada.
 - **Idempotência no Webhook:** Para evitar múltiplos disparos concorrentes de e-mails de cobrança/recuperação para a mesma fatura, a Edge Function `stripe-webhook` grava o envio na tabela `payment_recovery_email_logs` e realiza um double-check indexado antes de disparar o e-mail via Resend.
 - **Bypass de Admin:** O e-mail de admin principal (`jeferson.zanotell@gmail.com`) possui bypass imediato de limites e acesso ilimitado a todos os recursos.
+
+
+---
+
+### 16. Auditoria de Persistência e Maturidade Comercial (30/10/2026)
+- **Auditoria de Persistência:** O perfil comercial do usuário (`SellerProfile`) hoje reside em `localStorage` (`zuno_seller_profile_v1:${userId}`) quando `VITE_SELLER_PROFILE_REMOTE` não está ativo. O `localStorage` é estritamente local ao dispositivo e perfeito para a demonstração segura e homologação isolada, mas não deve ser considerado sincronização entre aparelhos. A sincronização definitiva entre múltiplos aparelhos requer a aplicação da tabela `public.seller_profiles` com RLS no Supabase.
+- **Fallback Neutro (Equilibrado):** Ao pular a seleção de maturidade comercial no primeiro acesso, o sistema adota `equilibrado` como orientação padrão e neutra. É expressamente proibido rotular compulsoriamente um usuário como `iniciante` caso ele não responda ou pule a pergunta.
+- **Zero Falsas Promessas e Fatos Não Comprovados:** Avaliações públicas no Google (ex: 48 avaliações nota 4.8) comprovam apenas avaliações públicas registradas. É proibido inferir faturamento, volume de atendimento, sobrecarga ou prometer horas economizadas ("poupa 2 horas") ou condições comerciais não declaradas nas abordagens e análises.
+- **Diferenciação de Dimensões:** Experiência comercial do usuário (`iniciante`, `intermediario`, `avancado`, `equilibrado`) dita a condução e orientação da Zuno; Complexidade da empresa (`Lead`) é deduzida unicamente de sinais públicos verificáveis (telefone fixo de recepção vs WhatsApp celular direto, filiais explícitas no endereço, domínio corporativo próprio).
+
+---
+
+### 17. Refinamento de Produto: Maturidade Comercial e Qualidade da Mensagem (30/10/2026)
+- **Princípio Central de Produto:** O nível de maturidade comercial (Iniciante, Intermediário, Avançado ou Equilibrado) altera a **profundidade das orientações ao vendedor e a Próxima Melhor Ação (NBA)**, e NÃO a qualidade ou sofisticação artificial da mensagem enviada ao prospect.
+- **Unificação da Mensagem Externa:** A mensagem enviada ao prospect nunca deve soar infantilizada para o iniciante nem inflada com jargões corporativos vazios para o avançado. Todos os níveis devem dispor de abordagens comerciais naturais, profissionais, educadas e contextualizadas com a oferta real do vendedor e os sinais verificáveis do lead.
+- **Eliminação de Placeholders e Jargões Artificiais:**
+  - Proibido o uso de [Seu Nome]: o nome do vendedor (Rodrigo Silva, ou o configurado no perfil) é injetado diretamente de forma natural.
+  - Banidas expressões artificiais como "sinergia com os processos", "troca técnica sobre rotinas" ou "alinhamento técnico de processos".
+- **Zero Presunções Não Comprovadas:**
+  - Proibido presumir porte empresarial ("médio e grande porte"), equipe interna ("sua equipe de atendimento") ou volume a partir de telefone, site ou avaliações do Google.
+  - Proibido presumir que o lead já utiliza automação ("como conduzem automação hoje"). A abordagem pergunta de forma aberta e respeitosa se o canal atende agendamentos e como organizam as confirmações de consulta.
+- **Confirmação de Isolamento em Memória (Modo Demo):**
+  - No modo isDemoMode, alterações no lead, status, registros de contato e perfil comercial são mantidas 100% no estado em memória do React (leadState, state em sellerProfile.ts).
+  - Nenhuma chamada de rede ao Supabase e nenhuma gravação no localStorage ocorre durante a navegação na demonstração.
+
+## 19. Descobertas da Auditoria de Prontidão para Produção (GO / NO-GO)
+
+### A. Fragmentação de Branches e Worktrees
+- A branch `main` (`9ce1996`) está desatualizada em relação às melhorias desenvolvidas.
+- A branch `feat/refinamento-completo-ia` contém todas as melhorias de inteligência comercial, NBA, maturidade e refinamento de oferta.
+- A branch `fix/fluxo-compra-sem-friccao` (commits `d04f552`, `e19677b`, `def243a`) contém correções vitais de checkout e prevenção de loop no Google OAuth que ainda não foram consolidadas com a branch atual.
+- A branch `feat/onboarding-primeira-busca` contém o guia de primeira busca em 3 etapas.
+
+### B. Dependência Bloqueante de Banco de Dados (`seller_profiles`)
+- A Edge Function `analisar-lead-ia` lê o perfil comercial diretamente da tabela `public.seller_profiles` no Supabase via `loadSellerProfileForUser`.
+- Se a migration `docs/proposals/seller-profiles.sql` não for aplicada antes da publicação, qualquer requisição de IA de assinantes reais devolverá HTTP 422 (`REFINE_PROFILE_REQUIRED`), quebrando o principal recurso pago da plataforma.
+
+### C. Alinhamento de Rotas no Cron de E-mails
+- A migration `20260629112200_enable_cron_net_job.sql` aponta para `/functions/v1/process-email-queue`, enquanto a função no repositório é `process-behavior-emails`. Disparos agendados resultariam em HTTP 404 até correção da rota.
+
+### D. Lacunas de Interface (Não Apresentar como Prontas)
+- Não existe interface visual de calendário para leads na área do usuário. O sistema opera com tarefas e NBA no diálogo do lead (`proximo_follow_up_em`).
+- Não existem notificações push ou SMS nativas.
+

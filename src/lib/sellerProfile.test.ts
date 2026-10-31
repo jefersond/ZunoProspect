@@ -22,6 +22,7 @@ const complete = {
   service_offered: "Criação de sites para negócios locais",
   offer_description: "Faço sites de uma página com serviços, horário, mapa e botão de WhatsApp para oficinas e lojas.",
   target_audience: "",
+  commercial_maturity: "equilibrado" as const,
 };
 
 const memoryStorage = () => {

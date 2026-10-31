@@ -139,3 +139,56 @@ Este plano estabelece a checklist operacional e memória de estabilização para
 - [x] **Teste de Validação de Focos:** Garantir que o mapa `FOCUS_BEHAVIOR_MAP` contemple as diretrizes e CTAs de todos os focos comerciais.
 - [x] **Teste de Persistência:** Confirmar que a Edge Function persiste o objeto estruturado JSONB individualmente por lead no banco de dados.
 - [x] **Teste de Normalização do Frontend:** Assegurar que o frontend consegue ler e exibir a cadência de 7 dias a partir do objeto JSONB de forma transparente.
+
+
+---
+
+### Fase 12: Personalizacao por Maturidade Comercial (Prototipo Local Isolado)
+
+#### Camada 1: Arquitetura e Contrato de Dados
+- [x] Definir tipo CommercialMaturity: equilibrado | iniciante | intermediario | avancado em src/types/commercialMaturity.ts e em _shared/lead-analysis.ts.
+- [x] Estender SellerProfile com commercial_maturity?: CommercialMaturity (fallback neutro: equilibrado).
+- [x] Garantir que o fallback neutro nao rotule o usuario compulsoriamente como iniciante.
+
+#### Camada 2: Navegacao e Componentes
+- [x] LeadPlanDialog.tsx: Adicionar prop commercialMaturity e seletor visual sutil.
+- [x] LeadAnalysis.tsx: Propagar commercialMaturity para calculo de NBA e exibir badge.
+
+#### Camada 3: Motor Deterministico e Demonstracao
+- [x] nextBestAction.ts: Adaptar reason e guidance para os 4 niveis (equilibrado, iniciante, intermediario, avancado).
+- [x] DemoPlanoIA.tsx: Adicionar painel interativo com 4 botoes.
+- [x] Testes Automatizados: Suite completa vitest.
+
+---
+
+### Fase 13: Refinamento de Oferta Comercial com Pergunta Única Contextual
+
+#### Camada 1: Arquitetura e Contrato de Dados
+- [x] Criar helper determinístico src/lib/offerClarification.ts para avaliar se o perfil comercial está suficientemente claro ou se necessita de pergunta única.
+- [x] Gerar pergunta curta, contextual e específica (ex: 'Qual problema sua automação resolve para o tipo de empresa que você quer atender?'), sem chamadas a LLM ou consumo de créditos.
+- [x] Tratar caso de 'Continuar sem responder' com postura exploratória prudente, sem inventar benefícios.
+
+#### Camada 2: Componente e Navegação
+- [x] Criar componente de intervenção leve OfferClarificationDialog.tsx e integrar no fluxo pré-refinamento de LeadPlanDialog.tsx.
+- [x] Permitir resposta curta com salvamento direto em offer_description no SellerProfile.
+- [x] Permitir botão 'Continuar sem responder' sem bloquear a geração.
+
+#### Camada 3: Demonstração e Comparativo no Demo Local
+- [x] Em DemoPlanoIA.tsx, adicionar toggle/seletor de cenário:
+  - Cenário A: Perfil suficientemente detalhado (segue direto para geração).
+  - Cenário B: Perfil incompleto (apresenta a pergunta contextual única).
+- [x] Criar testes unitários para a avaliação de clareza de oferta e geração da pergunta em src/lib/offerClarification.test.ts e OfferClarificationDialog.test.tsx.
+- [x] Executar suíte completa vitest (743/743 testes passando) e registrar evidências visuais via CDP.
+
+---
+
+### Fase 14: Auditoria Final de Prontidão para Produção (GO / NO-GO) & Congelamento de Código
+- [x] **Auditoria de Branches e Worktrees:** Mapeadas divergências entre `feat/refinamento-completo-ia`, `fix/fluxo-compra-sem-friccao`, `feat/onboarding-primeira-busca` e `main`.
+- [x] **Auditoria do Fluxo do Assinante:** Verificado cadastro, trial de 7 dias, checkout Stripe/Mercado Pago e ativação via webhooks.
+- [x] **Auditoria de IA, Busca e Créditos:** Identificado bloqueio crítico de dependência da tabela `seller_profiles` na Edge Function `analisar-lead-ia`.
+- [x] **Auditoria de Separação Demo vs Prod:** Validado isolamento estrito via `import.meta.env.DEV`, sem bypass em produção.
+- [x] **Auditoria de Segurança e RLS:** Validado RLS, restrição server-side de SDR e segredos protegidos.
+- [x] **Auditoria de Qualidade Comercial:** Validada cadência inteligente de 7 dias, NBA com 7 regras e opt-out.
+- [x] **Levantamento de Funcionalidades Incompletas:** Documentada a ausência de calendário visual e divergência de rota no pg_cron.
+- [x] **Validação Técnica de Build e Testes:** Executado `npm run build` (34s, 100% sucesso) e 743 testes Vitest aprovados.
+- [x] **Emissão do Relatório Executivo e Veredito:** Produzido artefato oficial `auditoria-go-no-go.md` com veredito NO-GO imediato ➔ GO em 4 passos.

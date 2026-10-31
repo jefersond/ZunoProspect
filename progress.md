@@ -265,3 +265,51 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
 | **3. Quebra do frontend com objeto JSONB** | O frontend esperava array de 7 dias e receberia objeto estruturado. | Adicionado normalizador `normalizePlanoProspeccao` no frontend mapeando transparente para array de 7 dias. | ✅ Concluído |
 | **4. Validação de termos proibidos** | Evitar promessas exageradas ou termos impróprios gerados pela IA. | Implementada validação no backend que aplica fallback do foco caso detecte termos proibidos ou promessas. | ✅ Concluído |
 | **5. Build do frontend** | Risco de quebra de tipagem em build após refatoração dos types de leads. | Executado `npm run build` confirmando sucesso na compilação do Vite. | ✅ Concluído |
+
+### Iteração 18: Personalização por Maturidade Comercial do Assinante (30/10/2026)
+- [x] **Constituição & Invariantes:** Atualizado `gemini.md` adicionando a Seção 12 com esquema de maturidade comercial (`equilibrado`, `iniciante`, `intermediario`, `avancado`), fallback neutro, regra de zero falsas promessas e diferenciação estrita de dimensões.
+- [x] **Auditoria de Persistência:** Confirmado que o `localStorage` é estritamente local e atende com segurança à demonstração isolada; a sincronização entre múltiplos dispositivos no futuro dependerá da aplicação da tabela remota `seller_profiles` com RLS.
+- [x] **Planejamento de Tarefas:** Adicionada a Fase 12 em `task_plan.md` e registradas as descobertas em `findings.md`.
+- [x] **Contrato de Dados e Tipos:** Criado src/types/commercialMaturity.ts e estendido SellerProfile em supabase/functions/_shared/lead-analysis.ts e src/lib/sellerProfile.ts com fallback "equilibrado".
+- [x] **Motor Determinístico (Next Best Action):** Calibrado src/services/nextBestAction.ts para os 4 níveis, mantendo a lógica das 7 regras comerciais e expurgando qualquer promessa falsa ou inferência não comprovada.
+- [x] **Componentes e Interface:**
+  - LeadAnalysis.tsx: Recebe prop commercialMaturity, repassa à NBA e exibe badge contextual.
+  - LeadPlanDialog.tsx: Exibe toolbar de seleção de maturidade na demo e propaga ao LeadAnalysis.
+  - DemoPlanoIA.tsx: Exibe card de comparativo dos 4 níveis para o MESMO lead com atualização em tempo real.
+- [x] **Testes Automatizados:** 727/727 testes passando em 57 arquivos vitest (100% de sucesso).
+- [x] **Evidências Visuais via CDP:** Capturadas 5 imagens em rain/ba744ad6-65ee-42f6-aa70-995cd8254354/:
+  - maturidade-1-painel-controles.png
+  - maturidade-2-modal-iniciante.png
+  - maturidade-3-modal-intermediario.png
+  - maturidade-4-modal-avancado.png
+  - maturidade-5-modal-equilibrado.png
+- [x] **Isolamento e Segurança:** Zero gravações em produção, zero chamadas pagas ao Gemini, zero push/merge. Servidor ativo em http://localhost:5173/demo-plano-ia.
+
+### Iteração 19: Refinamento de Oferta Comercial com Pergunta Única Contextual (31/10/2026)
+- [x] **Constituição & Invariantes:** Atualizado `gemini.md` com a Seção 13 detalhando as regras do refinamento da oferta comercial: máxima 1 pergunta única contextual, 0 créditos de IA consumidos para formular a pergunta, diferenciação entre clareza de oferta e maturidade, e estratégia exploratória prudente como fallback.
+- [x] **Motor Determinístico de Oferta:** Criado `src/lib/offerClarification.ts` com funções `isOfferSufficientlyDetailed`, `getOfferClarificationQuestion` e `buildExploratoryOfferDescription`.
+- [x] **Componente Leve de Diálogo:** Criado `src/components/profile/OfferClarificationDialog.tsx` com badge contextual de serviço, pergunta única e direta, textarea de resposta curta, e botões "Continuar sem responder" e "Salvar e Gerar Plano".
+- [x] **Integração no Fluxo de Geração:** Integrado no `LeadPlanDialog.tsx`, avaliando a clareza da oferta antes de acionar a geração com IA tanto no modo demo quanto em produção.
+- [x] **Demonstração Local e Comparativo:** Em `DemoPlanoIA.tsx`, criado o painel de comparação entre os dois cenários:
+  - *Cenário 1: Perfil Incompleto* (dispara a Pergunta Única Contextual antes de gerar).
+  - *Cenário 2: Perfil Suficientemente Detalhado* (gera o plano diretamente sem qualquer pergunta).
+- [x] **Testes Unitários e de Integração:**
+  - Criado `src/lib/offerClarification.test.ts` (13 testes passando).
+  - Criado `src/components/profile/OfferClarificationDialog.test.tsx` (3 testes passando).
+  - Suíte completa: **743/743 testes passando** em 59 arquivos.
+  - TypeScript check (`npx tsc --noEmit`): 0 erros.
+- [x] **Evidências Visuais via CDP:** Capturadas 5 capturas no diretório de artefatos:
+  - `oferta-1-painel-cenarios.png`: Card comparativo de cenários na rota `/demo-plano-ia`.
+  - `oferta-2-modal-pergunta-unica.png`: Modal de pergunta única com pergunta contextual e badge.
+  - `oferta-3-apos-geracao-personalizada.png`: Plano gerado após responder e salvar.
+  - `oferta-4-cenario-detalhado-direto.png`: Geração direta sem perguntas no Cenário 2.
+  - `oferta-5-continuar-sem-responder-exploratorio.png`: Estratégia exploratória prudente ativada ao pular.
+- [x] **Isolamento e Segurança:** Zero chamadas a APIs pagas, zero gravações no Supabase de produção, zero push, merge ou deploy.
+
+### Iteração 20: Auditoria Final de Prontidão para Produção (GO / NO-GO) & Congelamento de Código (31/10/2026)
+- [x] **Congelamento:** Novas adições de funcionalidades formalmente congeladas.
+- [x] **Auditoria de Branches:** Identificada fragmentação entre `feat/refinamento-completo-ia` (15 commits ahead), `fix/fluxo-compra-sem-friccao` (3 commits ahead), `feat/onboarding-primeira-busca` (5 commits ahead) e `main` (`9ce1996`).
+- [x] **Identificação de Bloqueio Crítico (NO-GO):** Constatado que a Edge Function `analisar-lead-ia` depende da tabela `seller_profiles`, cuja migration `docs/proposals/seller-profiles.sql` ainda não foi executada no Supabase de produção.
+- [x] **Auditoria de Separação Demo vs Produção:** Rota `/demo-plano-ia` restrita ao ambiente de desenvolvimento (`import.meta.env.DEV`), com código limpo de qualquer bypass em produção.
+- [x] **Validação Técnica de Build e Testes:** Executado `npm run build` com sucesso em 34.13s (3.641 módulos transformados) e todos os 743 testes Vitest aprovados em 59 suítes.
+- [x] **Artefato Executivo Criado:** Produzido o relatório completo `auditoria-go-no-go.md` no diretório de artefatos com o plano de convergência em 4 passos.

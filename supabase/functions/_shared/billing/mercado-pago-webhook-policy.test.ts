@@ -84,6 +84,23 @@ describe("Mercado Pago trial validation", () => {
     expect(validateInitialAuthorization({ ...direct, providerTrial: null }))
       .toEqual({ ok: true, trialStart: null, trialEnd: null });
   });
+
+  it("validates 7-day trial policy for Zuno Prospect canonical plans", () => {
+    const sevenDayPlan = {
+      conversionPath: "trial" as const,
+      expectedTrialDays: 7,
+      expectedAmount: 97,
+      providerPlanAmount: 97,
+      providerTrial: { frequency: 7, frequency_type: "days" },
+      dateCreated: created,
+      nextPaymentDate: plus(created, 7 * DAY),
+    };
+    const result = validateInitialAuthorization(sevenDayPlan);
+    expect(result).toEqual({ ok: true, trialStart: created, trialEnd: plus(created, 7 * DAY) });
+
+    expect(validateInitialAuthorization({ ...sevenDayPlan, providerTrial: { frequency: 4, frequency_type: "days" } }))
+      .toEqual({ ok: false, error: "mercado_pago_trial_policy_mismatch" });
+  });
 });
 
 describe("Mercado Pago intro offer payments", () => {

@@ -199,18 +199,28 @@ Deno.serve(async (req) => {
 
   const resolveSubscriptionContext = async (subscription: Record<string, any>) => {
     const subscriptionId = safeString(subscription.id, 160);
+    const externalReference = safeString(subscription.external_reference, 160);
     const providerPlanId = safeString(subscription.preapproval_plan_id, 160);
-    if (!subscriptionId || !providerPlanId) return null;
+    if (!subscriptionId) return null;
 
-    const { data: sessionRow } = await admin.from("mercado_pago_checkout_sessions")
+    // 1. Busca prioritariamente pelo ID da assinatura
+    let { data: sessionRow } = await admin.from("mercado_pago_checkout_sessions")
       .select("id,user_id,plan_id,billing_cycle,trial_duration_days,trial_policy_version,transaction_amount,currency_id,provider_plan_id,provider_subscription_id,status,conversion_path,intro_offer_applied,intro_offer_key,intro_amount_cents,regular_amount_cents")
-      .eq("provider_plan_id", providerPlanId)
+      .eq("provider_subscription_id", subscriptionId)
       .maybeSingle();
 
-    if (!sessionRow?.user_id || !validPlan(sessionRow.plan_id)) return null;
-    if (sessionRow.provider_subscription_id && sessionRow.provider_subscription_id !== subscriptionId) {
-      return null;
+    // 2. Se não encontrou por subscription_id, busca pelo external_reference (user_id do comprador)
+    if (!sessionRow && externalReference) {
+      const { data: byUser } = await admin.from("mercado_pago_checkout_sessions")
+        .select("id,user_id,plan_id,billing_cycle,trial_duration_days,trial_policy_version,transaction_amount,currency_id,provider_plan_id,provider_subscription_id,status,conversion_path,intro_offer_applied,intro_offer_key,intro_amount_cents,regular_amount_cents")
+        .eq("user_id", externalReference)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      sessionRow = byUser;
     }
+
+    if (!sessionRow?.user_id || !validPlan(sessionRow.plan_id)) return null;
     return { subscription, planRow: sessionRow };
   };
 
@@ -266,7 +276,8 @@ Deno.serve(async (req) => {
       let localBefore: { subscription_status?: string | null; status?: string | null; canceled_at?: string | null } | null = null;
 
       if (initialAuthorization) {
-        const providerPlan = await mpGet(accessToken, `/preapproval_plan/${encodeURIComponent(planRow.provider_plan_id)}`);
+        const planIdToFetch = planRow.provider_plan_id || safeString(subscription.preapproval_plan_id, 160);
+        const providerPlan = await mpGet(accessToken, `/preapproval_plan/${encodeURIComponent(planIdToFetch)}`);
         const initialPolicy = validateInitialAuthorization({
           conversionPath,
           expectedTrialDays: expectedDays,
@@ -351,10 +362,17 @@ Deno.serve(async (req) => {
         // treated as the initial authorization and validated again.
         const { error: checkoutBindError } = await admin.from("mercado_pago_checkout_sessions").update({
           provider_subscription_id: incomingSubscriptionId,
+          provider_plan_id: safeString(subscription.preapproval_plan_id, 160) || planRow.provider_plan_id,
           status: "authorized",
           updated_at: new Date().toISOString(),
         }).eq("id", planRow.id);
         if (checkoutBindError) throw checkoutBindError;
+
+        await admin.from("profiles").update({
+          plan_id: planRow.plan_id,
+          subscription_status: localStatus,
+          buscas_saldo: entitlements.leadsLimit,
+        }).eq("id", userId);
       }
 
       const common = {
@@ -544,6 +562,14 @@ Deno.serve(async (req) => {
         ...(directPurchase || trialConversion ? { subscription_status: "active", status: "active" } : {}),
         updated_at: new Date().toISOString(),
       }).eq("user_id", userId).eq("billing_provider", "mercado_pago");
+
+      if (directPurchase || trialConversion) {
+        await admin.from("profiles").update({
+          plan_id: context.planRow.plan_id,
+          subscription_status: "active",
+          buscas_saldo: BILLING_CATALOG[context.planRow.plan_id as BillingPlanId].leadsLimit,
+        }).eq("id", userId);
+      }
 
       await canonicalEvent(userId, "purchase_completed", common, paymentId || safeString(authorizedPayment.id, 160));
       if (trialConversion) {

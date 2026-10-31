@@ -1,4 +1,5 @@
 import { billingAmount, billingFrequencyMonths, BILLING_CATALOG } from "./catalog.ts";
+import { getOrSyncMercadoPagoPlans } from "./mercado-pago-plans.ts";
 import type {
   BillingCheckoutInput,
   BillingCheckoutResult,
@@ -46,6 +47,7 @@ export class MercadoPagoAdapter implements BillingProviderAdapter {
     private readonly supabaseAdmin: SupabaseLike,
     private readonly accessToken: string,
     private readonly userId: string,
+    private readonly userEmail: string,
     private readonly trialDurationDays: number,
     private readonly trialPolicyVersion: string,
     private readonly backUrl: string,
@@ -278,28 +280,41 @@ export class MercadoPagoAdapter implements BillingProviderAdapter {
         };
       }
 
-      const providerPlan = await mpRequest(this.accessToken, "/preapproval_plan", {
+      // 1. Obtém o ID do plano canônico já criado no Mercado Pago
+      let preapprovalPlanId = this.config.mercado_pago_plan_ids?.[input.planId];
+      if (!preapprovalPlanId) {
+        const synced = await getOrSyncMercadoPagoPlans(
+          this.supabaseAdmin,
+          this.accessToken,
+          this.backUrl,
+          this.trialDurationDays,
+        );
+        preapprovalPlanId = synced[input.planId];
+      }
+
+      // 2. Cria a assinatura individual vinculada ao plano
+      const subscription = await mpRequest(this.accessToken, "/preapproval", {
         method: "POST",
         body: JSON.stringify({
+          preapproval_plan_id: preapprovalPlanId,
           reason: `ZUNO PROSPECT - ${BILLING_CATALOG[input.planId].displayName}`,
+          payer_email: this.userEmail,
           external_reference: this.userId,
-          auto_recurring: autoRecurring,
-          payment_methods_allowed: {
-            payment_types: [{ id: "credit_card" }],
-          },
           back_url: this.backUrl,
+          status: "pending",
         }),
       });
 
-      if (!providerPlan?.id || !providerPlan?.init_point) {
-        throw new Error("mercado_pago_plan_missing_checkout_url");
+      if (!subscription?.id || !subscription?.init_point) {
+        throw new Error("mercado_pago_subscription_missing_checkout_url");
       }
 
       const { error: persistError } = await this.supabaseAdmin
         .from("mercado_pago_checkout_sessions")
         .update({
-          provider_plan_id: String(providerPlan.id),
-          checkout_url: String(providerPlan.init_point),
+          provider_plan_id: preapprovalPlanId,
+          provider_subscription_id: String(subscription.id),
+          checkout_url: String(subscription.init_point),
           status: "ready",
           last_error_code: null,
           updated_at: new Date().toISOString(),
@@ -312,7 +327,7 @@ export class MercadoPagoAdapter implements BillingProviderAdapter {
         const { error: claimPersistError } = await this.supabaseAdmin
           .from("billing_intro_offer_redemptions")
           .update({
-            provider_checkout_id: String(providerPlan.id),
+            provider_checkout_id: String(subscription.id),
             last_checkout_created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -324,7 +339,7 @@ export class MercadoPagoAdapter implements BillingProviderAdapter {
       await this.supabaseAdmin
         .from("user_subscriptions")
         .update({
-          mercado_pago_plan_id: String(providerPlan.id),
+          mercado_pago_plan_id: preapprovalPlanId,
           trial_duration_days: trialDays,
           trial_policy_version: this.trialPolicyVersion,
           updated_at: new Date().toISOString(),
@@ -334,8 +349,8 @@ export class MercadoPagoAdapter implements BillingProviderAdapter {
 
       return {
         provider: this.provider,
-        url: String(providerPlan.init_point),
-        checkoutId: String(providerPlan.id),
+        url: String(subscription.init_point),
+        checkoutId: String(subscription.id),
         trialDurationDays: trialDays,
         trialPolicyVersion: this.trialPolicyVersion,
         conversionPath,

@@ -92,6 +92,8 @@ Deno.serve(async (req) => {
     requestedProvider = "stripe";
   } else if (subscription?.mercado_pago_subscription_id || subscription?.billing_provider === "mercado_pago") {
     requestedProvider = "mercado_pago";
+  } else if (body.provider === "mercado_pago" || body.provider === "stripe") {
+    requestedProvider = body.provider;
   } else {
     requestedProvider = typedConfig.default_new_billing_provider;
   }
@@ -151,6 +153,7 @@ Deno.serve(async (req) => {
       admin,
       accessToken,
       user.id,
+      user.email,
       typedConfig.mercado_pago_trial_duration_days,
       typedConfig.mercado_pago_trial_policy_version,
       `${appUrl}/prospeccao?subscription=success&provider=mercado_pago`,

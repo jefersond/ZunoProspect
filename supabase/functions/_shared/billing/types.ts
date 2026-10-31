@@ -16,6 +16,7 @@ export type BillingProviderConfig = {
   mercado_pago_trial_duration_days: number;
   mercado_pago_trial_policy_version: string;
   mercado_pago_cutover_ready: boolean;
+  mercado_pago_plan_ids?: Partial<Record<BillingPlanId, string>> | null;
   intro_offer_enabled: boolean;
   intro_offer_key: string;
   intro_offer_duration: "first_billing_period";

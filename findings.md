@@ -139,3 +139,20 @@ Este arquivo centraliza o mapeamento de descobertas, limitações de plataforma,
 - Não existe interface visual de calendário para leads na área do usuário. O sistema opera com tarefas e NBA no diálogo do lead (`proximo_follow_up_em`).
 - Não existem notificações push ou SMS nativas.
 
+---
+
+### 20. Descobertas da Fase de Convergência para Lançamento (Release Candidate v1.0)
+- **Branch `release/v1.0` criada e unificada:** Consolida as correções de checkout sem fricção de `fix/fluxo-compra-sem-friccao` com o refinamento comercial e IA de `feat/refinamento-completo-ia`.
+- **Integridade da Tabela `seller_profiles`:**
+  - A proposta SQL original em `docs/proposals/seller-profiles.sql` não possuía a coluna `commercial_maturity`.
+  - Como o frontend envia `{ user_id, ...profile }` (contendo `commercial_maturity`), a ausência dessa coluna no schema do banco geraria erro de chave inexistente no Supabase Postgres.
+  - A coluna foi adicionada à migration `20261031120000_create_seller_profiles.sql` com valor padrão `'equilibrado'` e restrição CHECK validando os 4 níveis permitidos (`equilibrado`, `iniciante`, `intermediario`, `avancado`).
+- **Desativação Idempotente do Cron Legado:**
+  - Em vez de deixar uma chamada com chave hardcoded ou rota inexistente (`/functions/v1/process-email-queue`) rodando a cada hora, a migration `20261031130000_disable_legacy_cron_process_emails.sql` desagenda o job com segurança usando `cron.unschedule`.
+- **Proteção do Módulo SDR no Banco:**
+  - A verificação no frontend via `isAdmin` foi reforçada no backend pela trigger Postgres `trg_guard_sdr_lead_mutations` na migration `20261031140000_sdr_lead_guard.sql`, garantindo que requisições forjadas via SDK por clientes autenticados não consigam atribuir o status `abertura_iniciada` nem forjar tags `[SDR WhatsApp]`.
+- **Consistência Total do Código:**
+  - 100% de compilação sem erros no TypeScript (`npx tsc --noEmit`).
+  - 769 testes unitários e de integração aprovados em 60 arquivos de teste.
+  - Build de produção gerado com sucesso em 16.23s.
+

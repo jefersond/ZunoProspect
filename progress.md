@@ -313,3 +313,19 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
 - [x] **Auditoria de Separação Demo vs Produção:** Rota `/demo-plano-ia` restrita ao ambiente de desenvolvimento (`import.meta.env.DEV`), com código limpo de qualquer bypass em produção.
 - [x] **Validação Técnica de Build e Testes:** Executado `npm run build` com sucesso em 34.13s (3.641 módulos transformados) e todos os 743 testes Vitest aprovados em 59 suítes.
 - [x] **Artefato Executivo Criado:** Produzido o relatório completo `auditoria-go-no-go.md` no diretório de artefatos com o plano de convergência em 4 passos.
+
+### 2026-10-31: Convergência para Lançamento (Release Candidate Local v1.0)
+- **Branch release/v1.0 estabelecida:** Criada a partir de `feat/refinamento-completo-ia` com 16 commits à frente de `main`.
+- **Checkout sem fricção integrado:** Arquivos `ProtectedRoute.tsx`, `useOAuthCallback.ts`, `Auth.tsx`, `Checkout.tsx`, `PrecosSection.tsx` e `seamlessCheckoutFlow.test.ts` integrados e validados com 26 testes aprovados.
+- **Auditoria de `seller_profiles` e Migrations Preparadas:**
+  - `seller_profiles`: Adicionada coluna `commercial_maturity` para manter integridade total com o TypeScript e as regras de negócio.
+  - Criada migration `supabase/migrations/20261031120000_create_seller_profiles.sql`.
+  - Criada migration `supabase/migrations/20261031130000_disable_legacy_cron_process_emails.sql` para desativar de forma segura e idempotente o cron job `process-email-queue-cron` que apontava para endpoint inexistente.
+  - Criada migration `supabase/migrations/20261031140000_sdr_lead_guard.sql` para garantir trava no banco (trigger Postgres) restringindo o fluxo SDR apenas a administradores.
+  - Nenhuma migration foi aplicada ao banco remoto/produção.
+- **Testes e Build:**
+  - `npx tsc --noEmit`: 0 erros.
+  - Vitest: 60 arquivos e 769 testes executados com 100% de sucesso.
+  - `npm run build`: Build de produção Vite concluído em 16.23s com 0 erros.
+- **Elaboração da Homologação E2E:** Criada a especificação completa de homologação isolada com 10 etapas e matriz de validação.
+- **Auditoria de Landing Page:** Estruturada a proposta de reposicionamento baseada nos 5 pilares reais sem promessas infladas.

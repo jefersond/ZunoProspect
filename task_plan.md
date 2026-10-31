@@ -192,3 +192,26 @@ Este plano estabelece a checklist operacional e memória de estabilização para
 - [x] **Levantamento de Funcionalidades Incompletas:** Documentada a ausência de calendário visual e divergência de rota no pg_cron.
 - [x] **Validação Técnica de Build e Testes:** Executado `npm run build` (34s, 100% sucesso) e 743 testes Vitest aprovados.
 - [x] **Emissão do Relatório Executivo e Veredito:** Produzido artefato oficial `auditoria-go-no-go.md` com veredito NO-GO imediato ➔ GO em 4 passos.
+
+---
+
+### Fase 15: Convergência para Lançamento (Release Candidate v1.0)
+- [x] **Branch Release Candidate:** Criada branch `release/v1.0` consolidada e isolada.
+- [x] **Checkout Sem Fricção Integrado:**
+  - [x] Migração de `ProtectedRoute.tsx`, `useOAuthCallback.ts`, `Auth.tsx`, `Checkout.tsx`, `PrecosSection.tsx`.
+  - [x] Execução de 26 testes de checkout em `seamlessCheckoutFlow.test.ts` (100% aprovados).
+- [x] **Auditoria e Migrations de Banco:**
+  - [x] Auditoria de `seller_profiles`: compatibilização com coluna `commercial_maturity`.
+  - [x] Criação de `supabase/migrations/20261031120000_create_seller_profiles.sql`.
+  - [x] Criação de `supabase/migrations/20261031130000_disable_legacy_cron_process_emails.sql` (desativação idempotente de cron job legado).
+  - [x] Criação de `supabase/migrations/20261031140000_sdr_lead_guard.sql` (trigger de proteção do módulo SDR no banco).
+  - [x] Garantia: NENHUMA migration aplicada no Supabase remoto/produção.
+- [x] **Validação Técnica do Release Candidate:**
+  - [x] Typecheck `npx tsc --noEmit` aprovado (0 erros).
+  - [x] Suíte Vitest completa: 60 arquivos e 769 testes aprovados (100% de sucesso).
+  - [x] Build de produção `npm run build` aprovado.
+- [x] **Homologação E2E Isolada:**
+  - [x] Criação de runbook detalhado e matriz de testes end-to-end (10 cenários críticos).
+- [x] **Auditoria e Posicionamento da Landing Page:**
+  - [x] Alinhamento nos 5 pilares comerciais reais.
+  - [x] Eliminação de promessas de automações inexistentes.

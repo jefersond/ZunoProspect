@@ -242,3 +242,20 @@ Este plano estabelece a checklist operacional e memória de estabilização para
   - Corrigida `supabase/migrations/20260525141000_retroactive_plan_activation.sql`, que continha `RAISE EXCEPTION` quando o placeholder `email_do_cliente@exemplo.com` não era encontrado, o que quebraria `npx supabase start` em qualquer banco local recém-criado.
 - [x] **4. Script Executável de Verificação Real (`scripts/verify-local-supabase.mjs`):**
   - Preparado script com trava de segurança anti-produção que cria 2 usuários reais no Auth local (`127.0.0.1:54321`), testa RLS cruzado em `seller_profiles` e `leads` e valida o trigger `trg_guard_sdr_internal_focus_on_leads` assim que o Docker Desktop for iniciado.
+
+
+---
+
+## Execução Real do Supabase Local e Homologação Física no Postgres 17 (31/10/2026)
+- [x] **1. Confirmação do Docker Desktop:** `docker info` ativo (`Server Version: 29.6.2`, `Operating System: Docker Desktop`).
+- [x] **2. Isolamento de Portas e Configurações Locais:** Configurado `supabase/config.toml` nas portas dedicadas `55321`–`55324` (`zuno-prospect-local`) para não colidir com `zanotelli-os` nas portas `54321`–`54324`, e criado `.env.local` apontando exclusivamente para `http://127.0.0.1:55321`.
+- [x] **3. Preservação de Rastreabilidade de Migrations:** Mantidos os prefixos de versão exatos (`supabase_migrations.schema_migrations.version`), aplicando apenas guards idempotentes para instalações limpas (mesmo padrão oficial já adotado em `20260818162406_zanotelli_identity_resolution_v2_uuid_fix.sql`).
+- [x] **4. Correções Reais Descobertas pelo Boot Local (`npx supabase start`):**
+  - `supabase/functions/stripe-webhook/index.ts`: Removido import órfão `../_shared/trial-policy.ts` (arquivo excluído no commit `de7e49f`), que impedia o boot do Edge Runtime.
+  - `supabase/migrations/20260425000001_fix_free_user_search_limit.sql`: Adicionado guard `to_regclass('public.subscriptions') IS NOT NULL` antes do `UPDATE`.
+  - `supabase/migrations/20260501103000_fix_secure_leads_and_analysis_rpcs.sql`: Adicionado `DROP FUNCTION IF EXISTS` antes da recriação de `check_leads_rate_limit`, `log_leads_access` e `get_lead_decrypted_by_id`.
+  - `supabase/migrations/20260629112200_enable_cron_net_job.sql`: Ajustado `CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog`.
+  - `supabase/migrations/20260721153000_instagram_generated_assets.sql`: Protegido bloco de políticas em `storage.objects` contra `insufficient_privilege` no container local.
+  - `supabase/migrations/20261031140000_sdr_lead_guard.sql`: Expandido `guard_sdr_lead_mutations()` para também bloquear `NEW.foco = 'zuno_internal_prospecting'` além de `status = 'abertura_iniciada'` e `notas LIKE '%[SDR WhatsApp%'`.
+- [x] **5. Validação Física de Todas as 111 Migrations e Execução de `verify-local-supabase.mjs`:** 100% das migrations aplicadas com código 0; dois usuários reais criados no GoTrue local; RLS de leitura/escrita cruzada e bloqueio SDR comprovados no Postgres real.
+- [x] **6. Sincronização Real Frontend ↔ Edge Function no Container Local:** Testada no Vitest contra `http://127.0.0.1:55321` com `createRemoteSellerProfileStorage` e `loadSellerProfileOnEdge`.

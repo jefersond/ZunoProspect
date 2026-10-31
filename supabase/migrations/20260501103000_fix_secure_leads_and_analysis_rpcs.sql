@@ -21,6 +21,7 @@ FOR SELECT
 TO authenticated
 USING (public.is_admin(auth.uid()) OR auth.uid() = user_id);
 
+DROP FUNCTION IF EXISTS public.check_leads_rate_limit(uuid, integer, integer);
 CREATE OR REPLACE FUNCTION public.check_leads_rate_limit(
   p_user_id uuid,
   p_max_requests integer DEFAULT 30,
@@ -54,6 +55,7 @@ BEGIN
 END;
 $$;
 
+DROP FUNCTION IF EXISTS public.log_leads_access(uuid, text, uuid[], integer, text, text, jsonb);
 CREATE OR REPLACE FUNCTION public.log_leads_access(
   p_user_id uuid,
   p_action_type text,
@@ -90,6 +92,7 @@ BEGIN
 END;
 $$;
 
+DROP FUNCTION IF EXISTS public.get_lead_decrypted_by_id(uuid, uuid);
 CREATE OR REPLACE FUNCTION public.get_lead_decrypted_by_id(
   p_lead_id uuid,
   p_user_id uuid

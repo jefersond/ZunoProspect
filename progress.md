@@ -346,3 +346,12 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
 - **Correção de Migration Histórica:** Ajustada `20260525141000_retroactive_plan_activation.sql` para não abortar em banco limpo (`npx supabase start`).
 - **Script de Homologação Real Local:** Criado `scripts/verify-local-supabase.mjs` pronto para execução imediata contra `http://127.0.0.1:54321` assim que o Docker Desktop estiver ativo.
 - **Testes Automatizados e Typecheck:** `npx vitest run src/security/homologacaoIntegradaRC1.test.ts` (14/14 passando) e `npx tsc --noEmit` (0 erros).
+
+
+---
+
+## Execução Real do Supabase Local Concluída (31/10/2026)
+- `npx supabase start` executado com sucesso (`Command exited with code 0`), aplicando todas as 111 migrations até `20261031140000_sdr_lead_guard.sql` em `postgresql://postgres:postgres@127.0.0.1:55322/postgres`.
+- `npx supabase status` confirmou `linked_project: null` e URLs 100% locais (`http://127.0.0.1:55321`).
+- `node scripts/verify-local-supabase.mjs` executado contra `http://127.0.0.1:55321`: 2 usuários reais criados no GoTrue local, gravação de `seller_profiles` e `leads` confirmada, leitura/escrita cruzada bloqueada por RLS e 3 vetores SDR bloqueados pela trigger `trg_guard_sdr_lead_mutations`.
+- `npx vitest run src/security/homologacaoIntegradaRC1.test.ts src/services/trialFourDayPolicy.test.ts` (30/30 testes passando, incluindo integração real Frontend ↔ Edge Function contra o Postgres local) e `npx tsc --noEmit` (0 erros).

@@ -27,6 +27,11 @@ BEGIN
 
   -- 1. Regras para INSERT
   IF TG_OP = 'INSERT' THEN
+    IF NEW.foco = 'zuno_internal_prospecting' THEN
+      RAISE EXCEPTION 'Acesso restrito: o foco zuno_internal_prospecting é exclusivo do fluxo SDR (somente ADM).'
+        USING ERRCODE = '42501';
+    END IF;
+
     IF NEW.status = 'abertura_iniciada' THEN
       RAISE EXCEPTION 'Acesso restrito: o status abertura_iniciada é exclusivo do fluxo SDR (somente ADM).'
         USING ERRCODE = '42501';
@@ -42,6 +47,11 @@ BEGIN
 
   -- 2. Regras para UPDATE
   IF TG_OP = 'UPDATE' THEN
+    IF NEW.foco = 'zuno_internal_prospecting' AND (OLD.foco IS DISTINCT FROM 'zuno_internal_prospecting') THEN
+      RAISE EXCEPTION 'Acesso restrito: o foco zuno_internal_prospecting é exclusivo do fluxo SDR (somente ADM).'
+        USING ERRCODE = '42501';
+    END IF;
+
     -- Bloqueia se o novo status for 'abertura_iniciada' e o status anterior NÃO era 'abertura_iniciada'
     IF NEW.status = 'abertura_iniciada' AND (OLD.status IS DISTINCT FROM 'abertura_iniciada') THEN
       RAISE EXCEPTION 'Acesso restrito: a transição para o status abertura_iniciada é exclusiva do fluxo SDR (somente ADM).'

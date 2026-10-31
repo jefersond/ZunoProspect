@@ -10,14 +10,25 @@ ALTER TABLE public.profiles
 
 -- Corrige usuários que já existem sem saldo definido (ou com 0)
 -- Se não tiver assinatura ativa, define 10. Se tiver, mantém o que tem.
-UPDATE public.profiles p
-SET buscas_saldo = 10
-WHERE p.buscas_saldo = 0
-  AND NOT EXISTS (
-    SELECT 1 FROM public.subscriptions s
-    WHERE s.user_id = p.id
-      AND s.status = 'active'
-  );
+DO $$
+BEGIN
+  IF to_regclass('public.subscriptions') IS NOT NULL THEN
+    EXECUTE '
+      UPDATE public.profiles p
+      SET buscas_saldo = 10
+      WHERE p.buscas_saldo = 0
+        AND NOT EXISTS (
+          SELECT 1 FROM public.subscriptions s
+          WHERE s.user_id = p.id
+            AND s.status = ''active''
+        )
+    ';
+  ELSE
+    UPDATE public.profiles p
+    SET buscas_saldo = 10
+    WHERE p.buscas_saldo = 0;
+  END IF;
+END $$;
 
 -- Atualiza o trigger handle_new_user para iniciar com 10 buscas
 CREATE OR REPLACE FUNCTION public.handle_new_user()

@@ -2,6 +2,7 @@
 import React from "react";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { createClient } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
@@ -577,6 +578,93 @@ describe("Homologação Integrada RC-1 — Validação Isolada (Sem Produção)"
       expect(retroSql).toContain("RAISE NOTICE");
       expect(retroSql).toContain("RETURN;");
       expect(retroSql).not.toContain("RAISE EXCEPTION 'Usuário com o e-mail % não foi encontrado");
+    });
+
+    it("stripe-webhook não possui import órfão para ../_shared/trial-policy.ts", () => {
+      const webhook = readRepoFile("supabase/functions/stripe-webhook/index.ts");
+      expect(webhook).not.toContain("../_shared/trial-policy.ts");
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // ETAPA 10: Integração Real Frontend ↔ Edge Function no Postgres Local (127.0.0.1:55321)
+  // ──────────────────────────────────────────────────────────────────────────
+  describe("Execução Real contra Container Supabase Local (http://127.0.0.1:55321)", () => {
+    const LOCAL_URL = "http://127.0.0.1:55321";
+    const LOCAL_ANON_KEY =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
+
+    it("sincroniza SellerProfile entre Frontend (createRemoteSellerProfileStorage) e Edge Function (loadSellerProfileOnEdge) no Postgres real com RLS ativo", async () => {
+      const anon = createClient(LOCAL_URL, LOCAL_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+
+      const ts = Date.now();
+      const { data: authA, error: errA } = await anon.auth.signUp({
+        email: `rc1.fe.a.${ts}@local.test`,
+        password: "TestPassword!2026",
+      });
+      expect(errA).toBeNull();
+      expect(authA.user?.id).toBeTruthy();
+
+      const { data: authB, error: errB } = await anon.auth.signUp({
+        email: `rc1.fe.b.${ts}@local.test`,
+        password: "TestPassword!2026",
+      });
+      expect(errB).toBeNull();
+      expect(authB.user?.id).toBeTruthy();
+
+      const userAId = authA.user!.id;
+      const userBId = authB.user!.id;
+
+      const clientA = createClient(LOCAL_URL, LOCAL_ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${authA.session!.access_token}` } },
+        auth: { persistSession: false },
+      });
+      const clientB = createClient(LOCAL_URL, LOCAL_ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${authB.session!.access_token}` } },
+        auth: { persistSession: false },
+      });
+
+      // 1. Frontend carrega sessão do usuário A e grava no Postgres real usando createRemoteSellerProfileStorage
+      const remoteStorageA = createRemoteSellerProfileStorage(
+        clientA as unknown as RemoteSellerProfileClient,
+        () => userAId
+      );
+      configureSellerProfileStorage(remoteStorageA);
+      await loadSellerProfileForUser(userAId);
+
+      const saved = await saveSellerProfile({
+        display_name: "Carlos Operação",
+        company_name: "Scale B2B Local",
+        service_category: "crm",
+        service_offered: "Implementação de CRM e Funil Comercial",
+        offer_description: "Estruturação de pipeline comercial e playbooks de atendimento para equipes B2B.",
+        target_audience: "Empresas de serviços B2B e clínicas com equipe comercial",
+        commercial_maturity: "avancado",
+      });
+      expect(saved.commercial_maturity).toBe("avancado");
+
+      // 2. Edge Function lê o mesmo registro diretamente do Postgres real
+      const edgeProfile = await loadSellerProfileOnEdge(clientA as any, userAId);
+      expect(edgeProfile.display_name).toBe("Carlos Operação");
+      expect(edgeProfile.company_name).toBe("Scale B2B Local");
+      expect(edgeProfile.service_category).toBe("crm");
+      expect(edgeProfile.commercial_maturity).toBe("avancado");
+
+      // 3. Usuário B tenta ler o perfil do Usuário A via Edge Function store -> RLS retorna perfil vazio
+      const crossRead = await loadSellerProfileOnEdge(clientB as any, userAId);
+      expect(crossRead.company_name).toBe("");
+      expect(crossRead.service_offered).toBe("");
+
+      // 4. Usuário B tenta inserir lead com foco SDR interno -> Trigger Postgres bloqueia
+      const { error: sdrErr } = await clientB.from("leads").insert({
+        user_id: userBId,
+        nome: "Tentativa SDR Não-Admin",
+        foco: "zuno_internal_prospecting",
+      });
+      expect(sdrErr).not.toBeNull();
+      expect(sdrErr?.message).toContain("Acesso restrito");
     });
   });
 });

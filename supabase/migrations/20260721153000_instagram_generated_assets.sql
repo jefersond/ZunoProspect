@@ -13,39 +13,44 @@ ON CONFLICT (id) DO UPDATE SET
   file_size_limit = EXCLUDED.file_size_limit,
   allowed_mime_types = EXCLUDED.allowed_mime_types;
 
-DROP POLICY IF EXISTS "Public reads Instagram assets" ON storage.objects;
-CREATE POLICY "Public reads Instagram assets"
-ON storage.objects FOR SELECT
-TO public
-USING (bucket_id = 'instagram-assets');
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS "Public reads Instagram assets" ON storage.objects;
+  CREATE POLICY "Public reads Instagram assets"
+  ON storage.objects FOR SELECT
+  TO public
+  USING (bucket_id = 'instagram-assets');
 
-DROP POLICY IF EXISTS "Admins upload Instagram assets" ON storage.objects;
-CREATE POLICY "Admins upload Instagram assets"
-ON storage.objects FOR INSERT
-TO authenticated
-WITH CHECK (
-  bucket_id = 'instagram-assets'
-  AND public.is_admin(auth.uid())
-);
+  DROP POLICY IF EXISTS "Admins upload Instagram assets" ON storage.objects;
+  CREATE POLICY "Admins upload Instagram assets"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    bucket_id = 'instagram-assets'
+    AND public.is_admin(auth.uid())
+  );
 
-DROP POLICY IF EXISTS "Admins update Instagram assets" ON storage.objects;
-CREATE POLICY "Admins update Instagram assets"
-ON storage.objects FOR UPDATE
-TO authenticated
-USING (
-  bucket_id = 'instagram-assets'
-  AND public.is_admin(auth.uid())
-)
-WITH CHECK (
-  bucket_id = 'instagram-assets'
-  AND public.is_admin(auth.uid())
-);
+  DROP POLICY IF EXISTS "Admins update Instagram assets" ON storage.objects;
+  CREATE POLICY "Admins update Instagram assets"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (
+    bucket_id = 'instagram-assets'
+    AND public.is_admin(auth.uid())
+  )
+  WITH CHECK (
+    bucket_id = 'instagram-assets'
+    AND public.is_admin(auth.uid())
+  );
 
-DROP POLICY IF EXISTS "Admins delete Instagram assets" ON storage.objects;
-CREATE POLICY "Admins delete Instagram assets"
-ON storage.objects FOR DELETE
-TO authenticated
-USING (
-  bucket_id = 'instagram-assets'
-  AND public.is_admin(auth.uid())
-);
+  DROP POLICY IF EXISTS "Admins delete Instagram assets" ON storage.objects;
+  CREATE POLICY "Admins delete Instagram assets"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'instagram-assets'
+    AND public.is_admin(auth.uid())
+  );
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'Pulando políticas de storage.objects no boot inicial (owner supabase_storage_admin): %', SQLERRM;
+END $$;

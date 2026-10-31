@@ -35,3 +35,6 @@ dist-ssr
 
 # Never commit local audit/debug artifacts or credentials
 .tmp/
+
+supabase/.temp/
+supabase/.branches/

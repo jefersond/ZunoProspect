@@ -182,3 +182,18 @@ Este arquivo centraliza o mapeamento de descobertas, limitações de plataforma,
    - `supabase/migrations/20260629112200_enable_cron_net_job.sql` agendava um cron apontando para `https://ihtltqxxlvbsxbiacbpr.supabase.co/functions/v1/process-email-queue`. Neutralizado para não disparar requisições externas a partir de bancos locais/staging.
 3. **Bloqueio em Migration Histórica (`20260525141000_retroactive_plan_activation.sql`):**
    - Essa migration buscava `v_email := 'email_do_cliente@exemplo.com'` e disparava `RAISE EXCEPTION` quando `v_user_id IS NULL`. Em qualquer banco limpo (`npx supabase start`), isso abortaria a inicialização das migrations na metade do histórico. Ajustado para `RAISE NOTICE ... RETURN;`.
+
+
+---
+
+## Descobertas da Execução Real no Container Postgres 17 + Edge Runtime (31/10/2026)
+
+1. **Bug Crítico de Boot no `stripe-webhook` Descoberto pelo `npx supabase start`:**
+   - O arquivo `supabase/functions/stripe-webhook/index.ts` continha na linha 9 `import { TRIAL_POLICY_VERSION } from "../_shared/trial-policy.ts";`, mas `supabase/functions/_shared/trial-policy.ts` havia sido removido no commit `de7e49f`. O Edge Runtime falhava imediatamente ao iniciar (`open supabase/functions/_shared/trial-policy.ts: no such file or directory`). Corrigido definindo a constante diretamente em `stripe-webhook/index.ts`.
+2. **4 Incompatibilidades Históricas de Migrations em Instalações Limpas (Corrigidas sem Alterar Versões):**
+   - `20260425000001_fix_free_user_search_limit.sql`: referenciava `public.subscriptions` sem checar `to_regclass('public.subscriptions') IS NOT NULL`.
+   - `20260501103000_fix_secure_leads_and_analysis_rpcs.sql`: recriava `log_leads_access`, `check_leads_rate_limit` e `get_lead_decrypted_by_id` mudando tipo de retorno sem `DROP FUNCTION IF EXISTS`.
+   - `20260629112200_enable_cron_net_job.sql`: `create extension pg_cron with schema extensions` falhava no Postgres 17 (`SQLSTATE 2BP01`); corrigido para `WITH SCHEMA pg_catalog`.
+   - `20260721153000_instagram_generated_assets.sql`: criação de policies em `storage.objects` exigia tratamento `EXCEPTION WHEN insufficient_privilege` no container local onde `storage.objects` pertence a `supabase_storage_admin`.
+3. **Reforço na Migration SDR (`20261031140000_sdr_lead_guard.sql`):**
+   - Adicionada verificação explícita para bloquear `NEW.foco = 'zuno_internal_prospecting'` em `INSERT` e `UPDATE` para usuários não-admin, cobrindo os 3 vetores (`foco`, `status = 'abertura_iniciada'` e `notas LIKE '%[SDR WhatsApp%'`).

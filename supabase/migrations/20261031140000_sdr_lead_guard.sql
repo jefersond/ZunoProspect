@@ -1,8 +1,10 @@
--- Migration: Proteção no Banco de Dados para Módulo SDR Restrito a Administradores
--- IMPORTANTE: Preparada para lançamento (NÃO APLICADA em produção até autorização explícita)
+-- Migration 3/3: Proteção no Banco de Dados para Módulo SDR Restrito a Administradores
+-- Ordem de aplicação: 3ª (após a tabela public.leads e a função public.is_admin() já existirem)
+-- Impacto em dados existentes: Zero (não altera registros existentes; permite a assinantes comuns editarem leads que já possuam histórico antigo do SDR desde que preservem as linhas [SDR WhatsApp] intactas).
 --
--- Impede que chamadas diretas ao Supabase via SDK ou API (com JWT de assinante)
--- consigam forjar status ou logs exclusivos do SDR, mantendo o uso legítimo do CRM pelos assinantes.
+-- Rollback (Reversibilidade):
+--   DROP TRIGGER IF EXISTS trg_guard_sdr_lead_mutations ON public.leads;
+--   DROP FUNCTION IF EXISTS public.guard_sdr_lead_mutations();
 
 CREATE OR REPLACE FUNCTION public.guard_sdr_lead_mutations()
 RETURNS trigger
@@ -68,6 +70,9 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.guard_sdr_lead_mutations() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.guard_sdr_lead_mutations() TO authenticated, service_role;
 
 DROP TRIGGER IF EXISTS trg_guard_sdr_lead_mutations ON public.leads;
 CREATE TRIGGER trg_guard_sdr_lead_mutations

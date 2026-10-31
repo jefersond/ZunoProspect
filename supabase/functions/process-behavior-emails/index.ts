@@ -12,7 +12,7 @@ const SCAN_USER_LIMIT = 25;
 const PROCESS_BATCH_SIZE = 5;
 const RESEND_TIMEOUT_MS = 8000;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "Zuno Propect <contato@zunopropect.com.br>";
+const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "Zuno Prospect <contato@zunopropect.com.br>";
 const RESEND_REPLY_TO_EMAIL = Deno.env.get("RESEND_REPLY_TO_EMAIL") || "contato@zunopropect.com.br";
 const BEHAVIOR_EMAIL_TEST_MODE = Deno.env.get("BEHAVIOR_EMAIL_TEST_MODE") === "true";
 const BEHAVIOR_EMAIL_ALLOWED_TEST_RECIPIENTS = (Deno.env.get("BEHAVIOR_EMAIL_ALLOWED_TEST_RECIPIENTS") || "jeferson.zanotell@gmail.com")
@@ -54,7 +54,7 @@ function behaviorEmailLayout(payload: EmailTemplatePayload & { unsubscribeUrl: s
           <tr>
             <td style="padding: 0 0 24px 0; text-align: left;">
               <span style="font-size: 16px; font-weight: 700; letter-spacing: 0.5px; color: #10d98a;">
-                Zuno Propect
+                Zuno Prospect
               </span>
             </td>
           </tr>
@@ -94,7 +94,7 @@ function behaviorEmailLayout(payload: EmailTemplatePayload & { unsubscribeUrl: s
           <tr>
             <td style="padding: 32px 24px 0 24px; text-align: center;">
               <p style="margin: 0 0 12px 0; font-size: 12px; line-height: 1.6; color: #9ca3af;">
-                Você recebeu este e-mail porque criou uma conta no Zuno Propect.
+                Você recebeu este e-mail porque criou uma conta no Zuno Prospect.
               </p>
               <p style="margin: 0; font-size: 12px; line-height: 1.6;">
                 <a href="${unsubscribeUrl}" target="_blank" style="color: #9ca3af; text-decoration: underline;">
@@ -124,7 +124,7 @@ ${ctaUrl}
 ${microcopy}
 
 ---
-Você recebeu este e-mail porque criou uma conta no Zuno Propect.
+Você recebeu este e-mail porque criou uma conta no Zuno Prospect.
 Descadastrar:
 ${unsubscribeUrl}
 `;
@@ -137,7 +137,7 @@ const emailTemplates: Record<string, (metadata: any) => EmailTemplatePayload> = 
     const planPrice = metadata?.planPrice || "47";
     return {
       title: "Seu teste grátis da Zuno termina em 24 horas",
-      preheader: "Aviso de término do período de teste grátis da Zuno Propect.",
+      preheader: "Aviso de término do período de teste grátis da Zuno Prospect.",
       body: `Seu teste grátis da Zuno termina em 24 horas. Se continuar, sua assinatura será renovada automaticamente no plano ${planName} por R$ ${planPrice}/mês. Você pode cancelar antes da cobrança.`,
       ctaLabel: "Gerenciar minha assinatura",
       ctaUrl: "https://www.zunopropect.com.br/profile?utm_source=email&utm_medium=behavior&utm_campaign=trial_ending_24h",
@@ -148,7 +148,7 @@ const emailTemplates: Record<string, (metadata: any) => EmailTemplatePayload> = 
   signup_no_search_1h: () => ({
     title: "Faça sua primeira busca",
     preheader: "Comece encontrando empresas por cidade e nicho.",
-    body: `Você criou sua conta no Zuno Propect, mas ainda não fez sua primeira busca.
+    body: `Você criou sua conta no Zuno Prospect, mas ainda não fez sua primeira busca.
 
 Comece escolhendo uma cidade e um nicho. O Zuno encontra empresas e ajuda você a transformar isso em oportunidades de abordagem.`,
     ctaLabel: "Fazer minha primeira busca",
@@ -181,7 +181,7 @@ Agora escolha outro lead com potencial e gere uma nova mensagem antes de tomar a
   ai_limit_no_upgrade_1h: () => ({
     title: "Libere mais análises IA",
     preheader: "Continue gerando abordagens com mais análises IA.",
-    body: `Você usou suas análises IA do trial no Zuno Propect.
+    body: `Você usou suas análises IA do trial no Zuno Prospect.
 
 Com um plano pago, você pode continuar transformando leads em abordagens com mais contexto para WhatsApp, Instagram e e-mail.`,
     ctaLabel: "Ver planos",
@@ -192,7 +192,7 @@ Com um plano pago, você pode continuar transformando leads em abordagens com ma
   checkout_abandoned_1h: () => ({
     title: "Continue com o plano Starter",
     preheader: "Continue de onde parou no plano Starter.",
-    body: `Você iniciou o checkout do plano Starter no Zuno Propect, mas não finalizou a assinatura.
+    body: `Você iniciou o checkout do plano Starter no Zuno Prospect, mas não finalizou a assinatura.
  
 Com o Starter, você libera 30 análises IA por mês para continuar transformando leads em abordagens mais claras para WhatsApp, Instagram e e-mail.`,
     ctaLabel: "Continuar com o Starter",
@@ -1105,7 +1105,7 @@ serve(async (req: Request): Promise<Response> => {
               <table cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td width="36" height="36" align="center" valign="middle" style="background-color:#10d98a;color:#0b0f0e;font-size:20px;font-weight:900;border-radius:8px;font-family:sans-serif;">Z</td>
-                  <td style="padding-left:10px;font-size:22px;font-weight:800;color:#f4f4f5;letter-spacing:-0.5px;">Zuno Propect</td>
+                  <td style="padding-left:10px;font-size:22px;font-weight:800;color:#f4f4f5;letter-spacing:-0.5px;">Zuno Prospect</td>
                 </tr>
               </table>
             </td>
@@ -1150,7 +1150,7 @@ serve(async (req: Request): Promise<Response> => {
 </html>
 `;
 
-        const textContent = `Zuno Propect - Pagamento não concluído\n\nOlá, ${nomeDisplay},\n\nSeu teste da Zuno terminou, mas não conseguimos concluir o pagamento da sua assinatura do plano ${planoDisplay}.\n\nIsso pode acontecer por limite, cartão virtual expirado, bloqueio do banco ou dados do cartão.\n\nPara continuar utilizando a Zuno, atualize o pagamento pelo link abaixo:\n${payUrl}\n\nSe precisar de suporte, fale conosco no WhatsApp:\n${whatsappUrl}\n\nSeus leads já gerados e histórico continuam salvos e disponíveis para consulta.`;
+        const textContent = `Zuno Prospect - Pagamento não concluído\n\nOlá, ${nomeDisplay},\n\nSeu teste da Zuno terminou, mas não conseguimos concluir o pagamento da sua assinatura do plano ${planoDisplay}.\n\nIsso pode acontecer por limite, cartão virtual expirado, bloqueio do banco ou dados do cartão.\n\nPara continuar utilizando a Zuno, atualize o pagamento pelo link abaixo:\n${payUrl}\n\nSe precisar de suporte, fale conosco no WhatsApp:\n${whatsappUrl}\n\nSeus leads já gerados e histórico continuam salvos e disponíveis para consulta.`;
 
         // 6. Enviar o e-mail
         console.log(`[Recovery] Enviando e-mail de recuperacao para ${email}...`);

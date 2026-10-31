@@ -519,7 +519,7 @@ serve(async (req) => {
               interval: billingCycle === "annual" ? "year" : "month",
             },
             product_data: {
-              name: `Zuno Propect ${plan.displayName}`,
+              name: `Zuno Prospect ${plan.displayName}`,
               description: `${plan.leadsLimit} leads/mês + ${plan.aiLimit} roteiros IA/mês`,
             },
           },

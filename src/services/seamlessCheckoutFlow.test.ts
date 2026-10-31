@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 const readSource = (filePath: string) =>
   readFileSync(resolve(process.cwd(), filePath), "utf8");
 
-describe("Fluxo de Compra Sem Fricção — Zuno Propect", () => {
+describe("Fluxo de Compra Sem Fricção — Zuno Prospect", () => {
   const checkoutSource = readSource("src/pages/Checkout.tsx");
   const authSource = readSource("src/pages/Auth.tsx");
   const precosSectionSource = readSource("src/components/landing/PrecosSection.tsx");

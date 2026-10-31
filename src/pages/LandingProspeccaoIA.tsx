@@ -105,7 +105,7 @@ export default function LandingProspeccaoIA() {
       <LPHeader />
       {hasReferralInvite && (
         <div className="border-b border-[#12D98B]/20 bg-[#12D98B]/10 px-4 py-3 text-center text-sm text-[#12D98B]">
-          Você foi convidado para conhecer o Zuno Propect.
+          Você foi convidado para conhecer o Zuno Prospect.
         </div>
       )}
 

@@ -161,18 +161,18 @@ export default function Checkout() {
         ...funnelContext,
         ...usageMetadata,
         billing_cycle: isAnual ? "annual" : "monthly",
-        content_name: `Zuno Propect ${plano.nome}`,
+        content_name: `Zuno Prospect ${plano.nome}`,
       });
 
       trackEvent("InitiateCheckout", {
         ...funnelContext,
         ...usageMetadata,
         billing_cycle: isAnual ? "annual" : "monthly",
-        content_name: `Zuno Propect ${plano.nome}`,
+        content_name: `Zuno Prospect ${plano.nome}`,
       });
 
       trackInitiateCheckout({
-        content_name: `Zuno Propect ${plano.nome}`,
+        content_name: `Zuno Prospect ${plano.nome}`,
         content_category: "subscription",
         plan_id: trackingPlanId,
         plan_name: plano.nome,

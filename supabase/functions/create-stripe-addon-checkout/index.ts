@@ -185,7 +185,7 @@ serve(async (req) => {
               interval: "month",
             },
             product_data: {
-              name: `Zuno Propect - ${addon.name}`,
+              name: `Zuno Prospect - ${addon.name}`,
               description: addon.description,
             },
           },

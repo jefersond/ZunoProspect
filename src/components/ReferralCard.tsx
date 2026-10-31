@@ -76,7 +76,7 @@ export function ReferralCard() {
                   </span>
                 </div>
                 <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Convide parceiros para conhecer o Zuno Propect. Voce ganha bonus quando eles assinarem um plano.
+                  Convide parceiros para conhecer o Zuno Prospect. Voce ganha bonus quando eles assinarem um plano.
                 </p>
               </div>
             </div>
@@ -133,7 +133,7 @@ export function ReferralCard() {
               <div>
                 <p className="text-sm font-medium text-foreground">Link de indicacao</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Compartilhe este link com quem pode aproveitar o Zuno Propect. O bonus so e liberado apos assinatura paga.
+                  Compartilhe este link com quem pode aproveitar o Zuno Prospect. O bonus so e liberado apos assinatura paga.
                 </p>
               </div>
 

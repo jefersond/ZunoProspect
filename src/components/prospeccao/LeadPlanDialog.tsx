@@ -141,7 +141,7 @@ export const LeadPlanDialog = ({
   simulatedNow,
   onAdvanceTime,
   onResetTime,
-  commercialMaturity = "equilibrado",
+  commercialMaturity,
   onCommercialMaturityChange,
 }: LeadPlanDialogProps) => {
   const [isReanalyzing, setIsReanalyzing] = useState(false);
@@ -241,6 +241,8 @@ export const LeadPlanDialog = ({
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [confirmContactModalOpen, setConfirmContactModalOpen] = useState(false);
   const sellerProfileState = useSellerProfileState();
+  const effectiveCommercialMaturity: CommercialMaturity =
+    commercialMaturity || sellerProfileState?.profile?.commercial_maturity || "equilibrado";
   const [clarificationOpen, setClarificationOpen] = useState(false);
   const [isSavingClarification, setIsSavingClarification] = useState(false);
   const [notes, setNotes] = useState(lead?.notas || "");
@@ -1027,13 +1029,13 @@ export const LeadPlanDialog = ({
             <div className="flex items-center gap-1.5 text-zinc-300">
               <span className="font-semibold text-purple-300">Maturidade do Assinante:</span>
               <span className="text-zinc-400">
-                {COMMERCIAL_MATURITY_METAS[commercialMaturity].label}
+                {COMMERCIAL_MATURITY_METAS[effectiveCommercialMaturity].label}
               </span>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
               {(["iniciante", "intermediario", "avancado", "equilibrado"] as const).map((mat) => {
                 const meta = COMMERCIAL_MATURITY_METAS[mat];
-                const isActive = commercialMaturity === mat;
+                const isActive = effectiveCommercialMaturity === mat;
                 return (
                   <Button
                     key={mat}
@@ -1307,7 +1309,7 @@ export const LeadPlanDialog = ({
                 onUpdateCopiesLocally={handleUpdateCopiesLocally}
                 isUpdatingCopiesLocally={isUpdatingCopiesLocally}
                 simulatedNow={simulatedNow}
-                commercialMaturity={commercialMaturity}
+                commercialMaturity={effectiveCommercialMaturity}
               />
             )}
           </TabsContent>

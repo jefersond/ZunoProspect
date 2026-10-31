@@ -210,7 +210,7 @@ serve(async (req: Request): Promise<Response> => {
     const emailPayload: any = {
       from: RESEND_FROM_EMAIL,
       to: [toEmail],
-      subject: "Configuracao de e-mail concluida - Zuno Propect",
+      subject: "Configuracao de e-mail concluida - Zuno Prospect",
       html: testTemplate.html,
       text: testTemplate.text,
     };

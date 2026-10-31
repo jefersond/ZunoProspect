@@ -234,7 +234,7 @@ async function sendPaymentRecoveryEmail(
   }
 
   const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
-  const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "Zuno Propect <contato@zunopropect.com.br>";
+  const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "Zuno Prospect <contato@zunopropect.com.br>";
   const RESEND_REPLY_TO_EMAIL = Deno.env.get("RESEND_REPLY_TO_EMAIL") || "";
 
   if (!RESEND_API_KEY) {
@@ -271,7 +271,7 @@ async function sendPaymentRecoveryEmail(
               <table cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td width="36" height="36" align="center" valign="middle" style="background-color:#10d98a;color:#0b0f0e;font-size:20px;font-weight:900;border-radius:8px;font-family:sans-serif;">Z</td>
-                  <td style="padding-left:10px;font-size:22px;font-weight:800;color:#f4f4f5;letter-spacing:-0.5px;">Zuno Propect</td>
+                  <td style="padding-left:10px;font-size:22px;font-weight:800;color:#f4f4f5;letter-spacing:-0.5px;">Zuno Prospect</td>
                 </tr>
               </table>
             </td>

@@ -130,7 +130,7 @@ export default function AdminCommandCenter() {
         action: "create_campaign",
         name: `Central — ${summarizeCommand(command)}`,
         objective: command.trim(),
-        offer: "Teste grátis de 7 dias da Zuno Propect no plano escolhido, com cartão obrigatório e R$0 cobrados hoje.",
+        offer: "Teste grátis de 7 dias da Zuno Prospect no plano escolhido, com cartão obrigatório e R$0 cobrados hoje.",
         target_audience: "Freelancers, gestores de tráfego, social medias, designers e agências que vendem serviços para negócios locais.",
         paid_media_monthly_budget: 0,
         channels: ["instagram", "whatsapp"],
@@ -186,7 +186,7 @@ export default function AdminCommandCenter() {
       const result = await invokeMarketing({
         action: "director_command",
         instruction: command.trim(),
-        offer: "Teste gr\u00e1tis de 7 dias da Zuno Propect no plano escolhido, com cart\u00e3o obrigat\u00f3rio e R$0 cobrados hoje.",
+        offer: "Teste gr\u00e1tis de 7 dias da Zuno Prospect no plano escolhido, com cart\u00e3o obrigat\u00f3rio e R$0 cobrados hoje.",
         target_audience: "Prestadores de servi\u00e7os B2B, ag\u00eancias e profissionais comerciais que precisam prospectar com consist\u00eancia.",
       });
       setProgress(55);

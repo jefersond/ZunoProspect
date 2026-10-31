@@ -44,7 +44,7 @@ export function StickyCtaBar({ heroRef }: StickyCtaBarProps) {
         <div className="hidden items-center gap-2 sm:flex">
           <ShieldCheck className="h-4 w-4 text-[#12D98B]" />
           <p className="text-sm text-[#A9B8B1]">
-            <span className="font-semibold text-[#F3F7F5]">Zuno Propect</span>. {trialDurationDays ? `Teste grátis de ${trialDurationDays} dias. Hoje R$0.` : "Teste grátis. Hoje R$0."}
+            <span className="font-semibold text-[#F3F7F5]">Zuno Prospect</span>. {trialDurationDays ? `Teste grátis de ${trialDurationDays} dias. Hoje R$0.` : "Teste grátis. Hoje R$0."}
           </p>
         </div>
         <Button

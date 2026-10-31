@@ -124,10 +124,10 @@ const Prospeccao = () => {
                 billing_provider: data.provider,
                 trial_duration_days: data.trialDurationDays,
                 trial_policy_version: data.trialPolicyVersion,
-                content_name: `Zuno Propect ${plan.name}`,
+                content_name: `Zuno Prospect ${plan.name}`,
               });
               trackInitiateCheckout({
-                content_name: `Zuno Propect ${plan.name}`,
+                content_name: `Zuno Prospect ${plan.name}`,
                 content_category: "subscription",
                 plan_id: normalizedPlan,
                 plan_name: plan.name,

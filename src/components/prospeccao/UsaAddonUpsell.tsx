@@ -70,7 +70,7 @@ export function UsaAddonUpsell({
     "Análise detalhada em português",
     "Plano de prospecção e CTA adaptados para inglês",
     "Mensagens prontas para abordar leads americanos",
-    "Mesma análise com IA do Zuno Propect",
+    "Mesma análise com IA do Zuno Prospect",
   ];
 
   return (

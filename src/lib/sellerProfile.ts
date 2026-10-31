@@ -41,6 +41,7 @@ export const SELLER_PROFILE_FIELD_LABELS: Record<SellerProfileField, string> = {
   service_offered: "Serviço oferecido",
   offer_description: "Descrição concreta da oferta",
   target_audience: "Público-alvo",
+  commercial_maturity: "Maturidade comercial",
 };
 
 /**

@@ -147,6 +147,20 @@ export const SellerProfileDialog = () => {
             <Label htmlFor="seller-audience">{SELLER_PROFILE_FIELD_LABELS.target_audience} <span className="text-muted-foreground">(opcional)</span></Label>
             <Textarea id="seller-audience" value={draft.target_audience} onChange={update("target_audience")} rows={2} maxLength={300} placeholder="Ex.: oficinas e comércio local da Grande Vitória" />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="seller-maturity">{SELLER_PROFILE_FIELD_LABELS.commercial_maturity} <span className="text-muted-foreground">(opcional)</span></Label>
+            <select
+              id="seller-maturity"
+              value={draft.commercial_maturity || "equilibrado"}
+              onChange={update("commercial_maturity")}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="equilibrado">Equilibrado (Padrão)</option>
+              <option value="iniciante">Iniciante — Estou começando a prospectar</option>
+              <option value="intermediario">Intermediário — Já vendo e prospecto, quero melhorar rotina</option>
+              <option value="avancado">Avançado — Operação comercial estruturada</option>
+            </select>
+          </div>
         </div>
 
         <DialogFooter>

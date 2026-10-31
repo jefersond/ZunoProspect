@@ -144,7 +144,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName, source 
       });
 
       trackInitiateCheckout({
-        content_name: `Zuno Propect ${plan.name}`,
+        content_name: `Zuno Prospect ${plan.name}`,
         content_category: "subscription",
         plan_id: plan.id,
         plan_name: plan.name,

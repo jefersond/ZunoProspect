@@ -200,10 +200,10 @@ export function PrecosSection() {
         intro_offer: data.introOfferApplied ? data.introOfferKey : null,
         intro_price: data.introOfferApplied ? data.introPrice : null,
         regular_price: data.regularPrice ?? price,
-        content_name: `Zuno Propect ${plan.name}`,
+        content_name: `Zuno Prospect ${plan.name}`,
       });
       trackInitiateCheckout({
-        content_name: `Zuno Propect ${plan.name}`,
+        content_name: `Zuno Prospect ${plan.name}`,
         content_category: "subscription",
         plan_id: plan.id,
         plan_name: plan.name,

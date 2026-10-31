@@ -153,6 +153,17 @@ Este arquivo centraliza o mapeamento de descobertas, limitações de plataforma,
   - A verificação no frontend via `isAdmin` foi reforçada no backend pela trigger Postgres `trg_guard_sdr_lead_mutations` na migration `20261031140000_sdr_lead_guard.sql`, garantindo que requisições forjadas via SDK por clientes autenticados não consigam atribuir o status `abertura_iniciada` nem forjar tags `[SDR WhatsApp]`.
 - **Consistência Total do Código:**
   - 100% de compilação sem erros no TypeScript (`npx tsc --noEmit`).
-  - 769 testes unitários e de integração aprovados em 60 arquivos de teste.
+  - 779 testes unitários e de integração aprovados em 61 arquivos de teste.
   - Build de produção gerado com sucesso em 16.23s.
+
+---
+
+### 21. Descobertas da Homologação Integrada RC-1 (31/10/2026)
+- **Grafia Pública da Marca (`Zuno Prospect` vs `Zuno Propect`):**
+  - Foi identificada e corrigida a grafia `"Propect"` em `src/components/Logo.tsx`, `index.html` e componentes públicos da Landing Page/App.
+  - Os identificadores técnicos de domínio (`zunopropect.com.br`) e e-mail (`contato@zunopropect.com.br` / `zunopropect@gmail.com`) foram mantidos intactos para não quebrar resolução DNS, OAuth callbacks e verificação SPF/DKIM do Resend.
+- **Persistência e Propagação de `commercial_maturity`:**
+  - `LeadPlanDialog.tsx` possuía default `commercialMaturity = "equilibrado"` na assinatura da prop, o que sobrescrevia o valor salvo em `sellerProfileState.profile.commercial_maturity` quando chamado fora da rota de demo. Corrigido para ler `commercialMaturity || sellerProfileState?.profile?.commercial_maturity || "equilibrado"`, além de incluir o seletor no `SellerProfileDialog.tsx`.
+- **Impedimento de Infraestrutura para Staging Remoto/Docker:**
+  - O arquivo `supabase/config.toml` referencia o `project_id = "ihtltqxxlvbsxbiacbpr"` (produção), não há `.env.staging` com projeto Supabase/Stripe de homologação separado e o daemon do Docker Desktop (`//./pipe/dockerDesktopLinuxEngine`) está desligado na máquina local. Em cumprimento estrito à regra de segurança, o ambiente de produção jamais foi usado como substituto.
 

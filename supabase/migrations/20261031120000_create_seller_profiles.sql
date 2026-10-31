@@ -1,9 +1,11 @@
--- Migration: Criação da tabela seller_profiles para persistência do perfil comercial do assinante
--- IMPORTANTE: Preparada para lançamento (NÃO APLICADA em produção até autorização explícita)
+-- Migration 1/3: Criação da tabela seller_profiles para persistência do perfil comercial do assinante
+-- Ordem de aplicação: 1ª (antes da publicação de analisar-lead-ia e antes de VITE_SELLER_PROFILE_REMOTE=true)
+-- Impacto em dados existentes: Zero (cria tabela nova isolada; se já existir em ambiente de teste, adiciona commercial_maturity sem perda de dados).
 --
--- Perfil comercial do assinante (quem fala e o que vende), consumido de forma determinística
--- pela Edge Function analisar-lead-ia para contextualizar copies e análise do Gemini.
--- Uma linha por usuário, com isolamento estrito via RLS (cada usuário só acessa e edita a própria linha).
+-- Rollback (Reversibilidade):
+--   DROP TRIGGER IF EXISTS seller_profiles_touch_updated_at ON public.seller_profiles;
+--   DROP FUNCTION IF EXISTS public.touch_seller_profiles_updated_at();
+--   DROP TABLE IF EXISTS public.seller_profiles;
 
 create table if not exists public.seller_profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
@@ -22,25 +24,35 @@ create table if not exists public.seller_profiles (
   updated_at timestamptz not null default now()
 );
 
+-- Garantia idempotente caso uma versão preliminar da tabela sem commercial_maturity tenha sido aplicada em staging:
+alter table public.seller_profiles
+  add column if not exists commercial_maturity text not null default 'equilibrado' check (
+    commercial_maturity in ('equilibrado', 'iniciante', 'intermediario', 'avancado')
+  );
+
 comment on table public.seller_profiles is
   'Perfil comercial do assinante usado para personalizar análises de IA. Dado exclusivo do próprio usuário; sem dados de terceiros.';
 
 alter table public.seller_profiles enable row level security;
 
 revoke all on public.seller_profiles from anon, public;
-grant select, insert, update, delete on public.seller_profiles to authenticated;
+grant select, insert, update, delete on public.seller_profiles to authenticated, service_role;
 
+drop policy if exists seller_profiles_select_own on public.seller_profiles;
 create policy seller_profiles_select_own on public.seller_profiles
   for select to authenticated using (user_id = (select auth.uid()));
 
+drop policy if exists seller_profiles_insert_own on public.seller_profiles;
 create policy seller_profiles_insert_own on public.seller_profiles
   for insert to authenticated with check (user_id = (select auth.uid()));
 
+drop policy if exists seller_profiles_update_own on public.seller_profiles;
 create policy seller_profiles_update_own on public.seller_profiles
   for update to authenticated
   using (user_id = (select auth.uid()))
   with check (user_id = (select auth.uid()));
 
+drop policy if exists seller_profiles_delete_own on public.seller_profiles;
 create policy seller_profiles_delete_own on public.seller_profiles
   for delete to authenticated using (user_id = (select auth.uid()));
 
@@ -55,6 +67,7 @@ begin
 end;
 $$;
 
+drop trigger if exists seller_profiles_touch_updated_at on public.seller_profiles;
 create trigger seller_profiles_touch_updated_at
   before update on public.seller_profiles
   for each row execute function public.touch_seller_profiles_updated_at();

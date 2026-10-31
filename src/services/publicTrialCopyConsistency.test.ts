@@ -53,5 +53,13 @@ describe("public trial copy consistency", () => {
     expect(joined).not.toContain("São Paulo - SP");
     expect(joined).toContain("Goiânia, GO");
     expect(source("index.html")).not.toContain("Zuno Propect - Prospecção B2B com IA");
+    const brandFiles = [...publicCopyFiles, "src/components/Logo.tsx", "src/components/landing/Footer.tsx"];
+    for (const path of brandFiles) {
+      const text = source(path);
+      expect(text, path).not.toMatch(/Zuno\s+Propect\b/i);
+      expect(text, path).not.toMatch(/>\s*Propect\s*</i);
+    }
+    expect(source("src/components/Logo.tsx")).toContain("Prospect");
+    expect(source("index.html")).toContain("Zuno Prospect. Prospecção B2B com IA");
   });
 });

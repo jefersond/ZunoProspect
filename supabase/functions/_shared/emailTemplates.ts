@@ -1,7 +1,7 @@
 const SITE_URL = "https://zunopropect.com.br";
-const BRAND_NAME = "Zuno Propect";
+const BRAND_NAME = "Zuno Prospect";
 const BRAND_EMAIL = "contato@zunopropect.com.br";
-const FOUNDER_CAMPAIGN_SUBJECT = "Onde o Zuno Propect errou (e o seu acesso VIP)";
+const FOUNDER_CAMPAIGN_SUBJECT = "Onde o Zuno Prospect errou (e o seu acesso VIP)";
 const FOUNDER_CAMPAIGN_PREHEADER = "Separei uma condi\u00e7\u00e3o especial para quem testou o Zuno antes.";
 
 function escapeHtml(value: string | null | undefined) {
@@ -147,7 +147,7 @@ function createZunoEmailLayout(params: {
             <tr>
               <td align="center" style="padding:18px 20px 0 20px;color:#6b7280;font-size:12px;line-height:19px;">
                 <strong style="color:#111827;">${BRAND_NAME}</strong><br>
-                Este e um e-mail automatico de teste enviado pelo sistema Zuno Propect.<br>
+                Este e um e-mail automatico de teste enviado pelo sistema Zuno Prospect.<br>
                 <a href="mailto:${BRAND_EMAIL}" style="color:#059669;text-decoration:none;">${BRAND_EMAIL}</a>
                 &nbsp;|&nbsp;
                 <a href="${SITE_URL}" style="color:#059669;text-decoration:none;">zunopropect.com.br</a>
@@ -188,9 +188,9 @@ export function createTestEmailTemplate(params: {
     </table>
   `;
 
-  const text = `Configuracao de e-mail concluida - Zuno Propect
+  const text = `Configuracao de e-mail concluida - Zuno Prospect
 
-Seu ambiente de envio foi validado com sucesso. A partir de agora, o Zuno Propect ja pode utilizar esta configuracao para testes, campanhas e comunicacoes do sistema.
+Seu ambiente de envio foi validado com sucesso. A partir de agora, o Zuno Prospect ja pode utilizar esta configuracao para testes, campanhas e comunicacoes do sistema.
 
 Detalhes do teste:
 Remetente: ${params.from}
@@ -201,13 +201,13 @@ Data e hora: ${params.dateTime}
 Acessar o Zuno:
 ${SITE_URL}
 
-Este e um e-mail automatico de teste enviado pelo sistema Zuno Propect.`;
+Este e um e-mail automatico de teste enviado pelo sistema Zuno Prospect.`;
 
   const html = createZunoEmailLayout({
-    preheader: "Sua configuracao de e-mail no Zuno Propect foi validada com sucesso.",
+    preheader: "Sua configuracao de e-mail no Zuno Prospect foi validada com sucesso.",
     eyebrow: "Ambiente validado",
     title: "Configuracao de e-mail concluida",
-    body: "Seu ambiente de envio foi validado com sucesso. A partir de agora, o Zuno Propect ja pode utilizar esta configuracao para testes, campanhas e comunicacoes do sistema.",
+    body: "Seu ambiente de envio foi validado com sucesso. A partir de agora, o Zuno Prospect ja pode utilizar esta configuracao para testes, campanhas e comunicacoes do sistema.",
     content: details,
     ctaLabel: "Acessar o Zuno",
     ctaUrl: SITE_URL,
@@ -237,7 +237,7 @@ export function createFounderAccessCampaignTemplate(params: {
   const founderLink = params.founderLink || "{{FOUNDER_LINK}}";
   const unsubscribeUrl = params.unsubscribeUrl || "{{UNSUBSCRIBE_URL}}";
 
-  const text = `Fala, aqui e o Jeferson, criador do Zuno Propect.
+  const text = `Fala, aqui e o Jeferson, criador do Zuno Prospect.
 
 Alguns meses atras, voce criou uma conta e testou a primeira versao da plataforma.
 
@@ -262,7 +262,7 @@ Separei apenas 10 acessos nesse valor.
 Se quiser garantir o seu, clique no botao abaixo ou responda este e-mail com "Eu quero".
 
 Jeferson
-Criador do Zuno Propect`;
+Criador do Zuno Prospect`;
 
   const html = `<!doctype html>
 <html>
@@ -286,7 +286,7 @@ Criador do Zuno Propect`;
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                   <tr>
                     <td>
-                      <div style="font-size:22px;line-height:28px;color:#ffffff;font-weight:800;">Zuno Propect</div>
+                      <div style="font-size:22px;line-height:28px;color:#ffffff;font-weight:800;">Zuno Prospect</div>
                       <div style="font-size:13px;line-height:19px;color:#a7f3d0;margin-top:3px;">Prospec&ccedil;&atilde;o com IA para vender mais</div>
                     </td>
                     <td align="right" style="vertical-align:middle;">
@@ -314,7 +314,7 @@ Criador do Zuno Propect`;
             </tr>
             <tr>
               <td style="padding:30px 28px 8px 28px;">
-                <p style="margin:0 0 18px 0;color:#111827;font-size:16px;line-height:26px;font-weight:700;">Fala, aqui &eacute; o Jeferson, criador do Zuno Propect.</p>
+                <p style="margin:0 0 18px 0;color:#111827;font-size:16px;line-height:26px;font-weight:700;">Fala, aqui &eacute; o Jeferson, criador do Zuno Prospect.</p>
                 <p style="margin:0 0 16px 0;color:#374151;font-size:16px;line-height:26px;">Alguns meses atr&aacute;s, voc&ecirc; criou uma conta e testou a primeira vers&atilde;o da plataforma.</p>
                 <p style="margin:0 0 16px 0;color:#374151;font-size:16px;line-height:26px;">Sendo bem sincero: naquela fase, o Zuno ainda estava simples demais. Ele ajudava a encontrar contatos, mas n&atilde;o ajudava o suficiente na parte mais importante: saber quem abordar e o que falar.</p>
                 <p style="margin:0 0 16px 0;color:#374151;font-size:16px;line-height:26px;">Por isso eu pausei o projeto e reconstru&iacute; o Zuno com uma nova camada de IA.</p>
@@ -406,16 +406,16 @@ Criador do Zuno Propect`;
               <td style="padding:24px 28px 30px 28px;">
                 <p style="margin:0 0 16px 0;color:#374151;font-size:16px;line-height:26px;">Se fizer sentido para voc&ecirc;, responde este e-mail com <strong style="color:#111827;">"Eu quero"</strong> ou clica no bot&atilde;o acima.</p>
                 <p style="margin:0;color:#111827;font-size:16px;line-height:25px;font-weight:700;">Jeferson</p>
-                <p style="margin:2px 0 0 0;color:#6b7280;font-size:14px;line-height:22px;">Criador do Zuno Propect</p>
+                <p style="margin:2px 0 0 0;color:#6b7280;font-size:14px;line-height:22px;">Criador do Zuno Prospect</p>
               </td>
             </tr>
           </table>
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;">
             <tr>
               <td align="center" style="padding:18px 18px 0 18px;color:#6b7280;font-size:12px;line-height:19px;">
-                <strong style="color:#111827;">Zuno Propect</strong><br>
+                <strong style="color:#111827;">Zuno Prospect</strong><br>
                 ${BRAND_EMAIL}<br>
-                Campanha especial para usu&aacute;rios que testaram a primeira vers&atilde;o do Zuno Propect.<br>
+                Campanha especial para usu&aacute;rios que testaram a primeira vers&atilde;o do Zuno Prospect.<br>
                 <a href="${unsubscribeUrl}" style="color:#059669;text-decoration:underline;">Sair desta lista</a>
                 <div style="font-size:1px;line-height:1px;height:1px;overflow:hidden;">{{OPEN_PIXEL}}</div>
               </td>

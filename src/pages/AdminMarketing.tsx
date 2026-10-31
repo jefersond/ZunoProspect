@@ -83,9 +83,9 @@ type MarketingTask = {
 
 const defaultSettings: MarketingSettings = {
   singleton: true,
-  company_name: "Zuno Propect",
+  company_name: "Zuno Prospect",
   product_context: "Plataforma de prospecção B2B que encontra empresas por cidade e nicho, organiza leads e gera diagnósticos e abordagens contextualizadas com IA.",
-  primary_offer: "Teste grátis vigente da Zuno Propect no plano escolhido, com cartão obrigatório e R$0 cobrados hoje.",
+  primary_offer: "Teste grátis vigente da Zuno Prospect no plano escolhido, com cartão obrigatório e R$0 cobrados hoje.",
   default_audience: "Prestadores de serviços B2B, agências e profissionais comerciais que precisam prospectar com mais consistência.",
   brand_voice: "Direta, humana, prática, confiável e sem promessas de resultado garantido.",
   approval_mode: "approval",

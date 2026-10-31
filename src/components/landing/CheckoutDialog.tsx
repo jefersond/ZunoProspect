@@ -239,7 +239,7 @@ export function CheckoutDialog({ open, onOpenChange, plano, isAnual, selectedLea
       });
 
       trackInitiateCheckout({
-        content_name: `Zuno Propect ${plano.nome}`,
+        content_name: `Zuno Prospect ${plano.nome}`,
         content_category: "subscription",
         plan_id: plano.planKey,
         plan_name: plano.nome,

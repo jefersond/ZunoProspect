@@ -90,7 +90,7 @@ export function HeroSection() {
             </h1>
 
             <p className="mt-6 max-w-xl text-base leading-relaxed text-[#A9B8B1] sm:text-lg">
-              Pesquise negócios por cidade e segmento, encontre oportunidades comerciais e organize sua próxima abordagem com o Zuno Propect.
+              Pesquise negócios por cidade e segmento, encontre oportunidades comerciais e organize sua próxima abordagem com o Zuno Prospect.
             </p>
 
             <div className={LANDING_CTA_PAIR}>

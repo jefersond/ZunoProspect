@@ -215,3 +215,15 @@ Este plano estabelece a checklist operacional e memória de estabilização para
 - [x] **Auditoria e Posicionamento da Landing Page:**
   - [x] Alinhamento nos 5 pilares comerciais reais.
   - [x] Eliminação de promessas de automações inexistentes.
+
+---
+
+### Fase 16: Homologação Integrada RC-1 & Padronização da Marca Zuno Prospect
+- [x] **Padronização da Marca (`Zuno Prospect`):** Corrigida a grafia pública em `Logo.tsx`, `index.html`, Landing Page, Checkout, Prospeccao, ReferralCard, WhatsApp e templates de e-mail (preservando domínio técnico `zunopropect.com.br`).
+- [x] **Sincronização de `commercial_maturity` no Perfil Real:** Adicionado seletor opcional em `SellerProfileDialog.tsx` e propagação automática em `LeadPlanDialog.tsx`.
+- [x] **Revisão de Migrations (Permissões, Impacto, Reversibilidade e Ordem):**
+  - [x] `20261031120000_create_seller_profiles.sql`: Adicionado `grant ... to authenticated, service_role`, `add column if not exists commercial_maturity` e instruções de rollback.
+  - [x] `20261031130000_disable_legacy_cron_process_emails.sql`: Desativação idempotente com instruções de rollback.
+  - [x] `20261031140000_sdr_lead_guard.sql`: Trigger de bloqueio SDR com `grant execute` e instruções de rollback.
+- [x] **Suíte de Homologação Integrada Isolada (`homologacaoIntegradaRC1.test.ts`):** 61 arquivos de teste e 779 testes aprovados (100% em memória, zero consumo de créditos reais ou toque em produção).
+- [x] **Registro Transparente de Impedimento de Infraestrutura Staging:** Documentada a ausência de projeto Supabase/Stripe de staging separado e Docker daemon desligado localmente, sem usar produção como substituto.

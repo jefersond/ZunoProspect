@@ -100,7 +100,7 @@ export function sanitizeBrazilianPhoneNumber(rawPhone?: string | null): {
 }
 
 /**
- * Gera a mensagem contextual do SDR (Zuno Propect).
+ * Gera a mensagem contextual do SDR (Zuno Prospect).
  * REGRA CENTRAL: Se o lead já possui um plano de prospecção de 7 dias válido,
  * a mensagem do Dia X DEVE vir diretamente do plano, garantindo uma única fonte de verdade.
  */

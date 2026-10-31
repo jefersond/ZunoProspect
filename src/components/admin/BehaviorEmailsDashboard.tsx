@@ -28,7 +28,7 @@ const BEHAVIOR_TEMPLATES: Record<string, BehaviorTemplate> = {
     subject: "Sua primeira busca no Zuno está pronta para começar",
     preheader: "Comece encontrando empresas por cidade e nicho.",
     title: "Faça sua primeira busca",
-    body: "Você criou sua conta no Zuno Propect, mas ainda não fez sua primeira busca.\n\nComece escolhendo uma cidade e um nicho. O Zuno encontra empresas e ajuda você a transformar isso em oportunidades de abordagem.",
+    body: "Você criou sua conta no Zuno Prospect, mas ainda não fez sua primeira busca.\n\nComece escolhendo uma cidade e um nicho. O Zuno encontra empresas e ajuda você a transformar isso em oportunidades de abordagem.",
     ctaLabel: "Fazer minha primeira busca",
     ctaUrl: "https://www.zunopropect.com.br/prospeccao?utm_source=email&utm_medium=behavior&utm_campaign=signup_no_search_1h",
     microcopy: "Você começa com 7 dias de teste no plano escolhido e paga R$0 hoje."
@@ -58,7 +58,7 @@ const BEHAVIOR_TEMPLATES: Record<string, BehaviorTemplate> = {
     subject: "Suas análises IA grátis acabaram",
     preheader: "Continue gerando abordagens com mais análises IA.",
     title: "Libere mais análises IA",
-    body: "Você usou suas análises IA grátis no Zuno Propect.\n\nCom um plano pago, você pode continuar transformando leads em abordagens com mais contexto para WhatsApp, Instagram e e-mail.",
+    body: "Você usou suas análises IA grátis no Zuno Prospect.\n\nCom um plano pago, você pode continuar transformando leads em abordagens com mais contexto para WhatsApp, Instagram e e-mail.",
     ctaLabel: "Ver planos",
     ctaUrl: "https://www.zunopropect.com.br/profile?utm_source=email&utm_medium=behavior&utm_campaign=ai_limit_no_upgrade_1h",
     microcopy: "O Starter libera 30 análises IA por mês. O Pro libera 100 análises IA por mês."
@@ -68,7 +68,7 @@ const BEHAVIOR_TEMPLATES: Record<string, BehaviorTemplate> = {
     subject: "Você chegou perto de liberar mais análises no Zuno",
     preheader: "Continue de onde parou no plano Starter.",
     title: "Continue com o plano Starter",
-    body: "Você iniciou o checkout do plano Starter no Zuno Propect, mas não finalizou a assinatura.\n\nCom o Starter, você libera 30 análises IA por mês para continuar transformando leads em abordagens mais claras para WhatsApp, Instagram e e-mail.",
+    body: "Você iniciou o checkout do plano Starter no Zuno Prospect, mas não finalizou a assinatura.\n\nCom o Starter, você libera 30 análises IA por mês para continuar transformando leads em abordagens mais claras para WhatsApp, Instagram e e-mail.",
     ctaLabel: "Continuar com o Starter",
     ctaUrl: "https://www.zunopropect.com.br/profile?utm_source=email&utm_medium=behavior&utm_campaign=checkout_abandoned_1h&utm_content=starter",
     microcopy: "Se o checkout anterior expirou, criaremos uma nova sessão segura."
@@ -225,7 +225,7 @@ export const BehaviorEmailsDashboard = () => {
           <tr>
             <td style="padding: 0 0 24px 0; text-align: left;">
               <span style="font-size: 16px; font-weight: 700; letter-spacing: 0.5px; color: #10d98a;">
-                Zuno Propect
+                Zuno Prospect
               </span>
             </td>
           </tr>
@@ -265,7 +265,7 @@ export const BehaviorEmailsDashboard = () => {
           <tr>
             <td style="padding: 32px 24px 0 24px; text-align: center;">
               <p style="margin: 0 0 12px 0; font-size: 12px; line-height: 1.6; color: #9ca3af;">
-                Você recebeu este e-mail porque criou uma conta no Zuno Propect.
+                Você recebeu este e-mail porque criou uma conta no Zuno Prospect.
               </p>
               <p style="margin: 0; font-size: 12px; line-height: 1.6;">
                 <a href="${mockUnsubscribeUrl}" target="_blank" style="color: #9ca3af; text-decoration: underline;">
@@ -294,7 +294,7 @@ ${template.ctaUrl}
 ${template.microcopy}
 
 ---
-Você recebeu este e-mail porque criou uma conta no Zuno Propect.
+Você recebeu este e-mail porque criou uma conta no Zuno Prospect.
 Descadastrar:
 https://zunopropect.com.br/unsubscribe?email_hash=mock_hash_12345`;
   };

@@ -18,13 +18,13 @@ describe("Atendimento via WhatsApp — Configuração e Conformidade", () => {
 
   it("deve conter a mensagem pré-preenchida exata para visitantes da Landing Page com dúvidas", () => {
     expect(WHATSAPP_LANDING_HELP_MESSAGE).toBe(
-      "Olá! Vim pelo site do Zuno Propect e gostaria de tirar uma dúvida sobre a ferramenta."
+      "Olá! Vim pelo site do Zuno Prospect e gostaria de tirar uma dúvida sobre a ferramenta."
     );
   });
 
   it("deve conter a mensagem pré-preenchida exata para visitantes com dúvidas sobre assinatura", () => {
     expect(WHATSAPP_SUBSCRIPTION_HELP_MESSAGE).toBe(
-      "Olá! Estou no site do Zuno Propect e preciso de ajuda com o cadastro ou assinatura."
+      "Olá! Estou no site do Zuno Prospect e preciso de ajuda com o cadastro ou assinatura."
     );
   });
 
@@ -32,14 +32,14 @@ describe("Atendimento via WhatsApp — Configuração e Conformidade", () => {
     const urlLanding = buildWhatsAppUrl(WHATSAPP_LANDING_HELP_MESSAGE);
     expect(urlLanding).toBe(
       `https://wa.me/5527999697246?text=${encodeURIComponent(
-        "Olá! Vim pelo site do Zuno Propect e gostaria de tirar uma dúvida sobre a ferramenta."
+        "Olá! Vim pelo site do Zuno Prospect e gostaria de tirar uma dúvida sobre a ferramenta."
       )}`
     );
 
     const urlAssinatura = buildWhatsAppUrl(WHATSAPP_SUBSCRIPTION_HELP_MESSAGE);
     expect(urlAssinatura).toBe(
       `https://wa.me/5527999697246?text=${encodeURIComponent(
-        "Olá! Estou no site do Zuno Propect e preciso de ajuda com o cadastro ou assinatura."
+        "Olá! Estou no site do Zuno Prospect e preciso de ajuda com o cadastro ou assinatura."
       )}`
     );
   });

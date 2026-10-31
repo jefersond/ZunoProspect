@@ -329,3 +329,10 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
   - `npm run build`: Build de produção Vite concluído em 16.23s com 0 erros.
 - **Elaboração da Homologação E2E:** Criada a especificação completa de homologação isolada com 10 etapas e matriz de validação.
 - **Auditoria de Landing Page:** Estruturada a proposta de reposicionamento baseada nos 5 pilares reais sem promessas infladas.
+
+### 2026-10-31: Homologação Integrada RC-1 & Padronização Zuno Prospect
+- **Padronização de Marca (`Zuno Prospect`):** Corrigidas todas as ocorrências públicas de `"Zuno Propect"` e `>Propect<` em `src/components/Logo.tsx`, `index.html`, `HeroSection.tsx`, `Footer.tsx`, `StickyCtaBar.tsx`, `PrecosSection.tsx`, `CheckoutDialog.tsx`, `Checkout.tsx`, `Prospeccao.tsx`, `ReferralCard.tsx`, `whatsapp.ts` e funções de e-mail/checkout em `supabase/functions/`, preservando intocados os identificadores técnicos de domínio (`zunopropect.com.br`).
+- **Integração de `commercial_maturity`:** Adicionado seletor em `SellerProfileDialog.tsx` e leitura automática do perfil salvo em `LeadPlanDialog.tsx`.
+- **Revisão das 3 Migrations:** Reforçados grants para `service_role`, idempotência de políticas/colunas e documentação de rollback em `20261031120000_create_seller_profiles.sql`, `20261031130000_disable_legacy_cron_process_emails.sql` e `20261031140000_sdr_lead_guard.sql`.
+- **Suíte `homologacaoIntegradaRC1.test.ts`:** 61 suítes e 779 testes aprovados (`npx tsc --noEmit` com 0 erros).
+- **Impedimento de Ambiente Staging Remoto:** Verificado que não há credenciais de staging separadas (`.env.staging` ausente e `supabase/config.toml` aponta para `ihtltqxxlvbsxbiacbpr` de produção) nem daemon Docker ativo para Supabase local. Produção NÃO foi utilizada como substituto.

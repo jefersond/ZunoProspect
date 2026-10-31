@@ -1,4 +1,4 @@
--- PROPOSTA — NÃO APLICADA. Não está em supabase/migrations de propósito: exige aprovação do proprietário.
+-- PROPOSTA / DOCUMENTAÇÃO TÉCNICA
 --
 -- Perfil comercial do assinante (quem fala e o que vende), usado pela análise com Gemini.
 -- Uma linha por usuário, isolada por RLS (cada usuário só enxerga e altera a própria linha).
@@ -7,11 +7,10 @@
 -- que só responde depois de verificar is_admin de verdade.
 --
 -- Sequência segura de publicação (não inverter):
---   1) aplicar esta migration;
---   2) publicar a Edge Function analisar-lead-ia e admin-get-users (verify_jwt=false restaurado e conferido);
+--   1) aplicar a migration supabase/migrations/20261031120000_create_seller_profiles.sql;
+--   2) publicar a Edge Function analisar-lead-ia e admin-get-users;
 --   3) publicar o frontend com VITE_SELLER_PROFILE_REMOTE=true
 --      (perfis já salvos no navegador sobem sozinhos na primeira carga, sem sobrescrever o banco).
--- Publicar a função antes da migration faria toda análise devolver REFINE_PROFILE_REQUIRED.
 --   4) regenerar src/integrations/supabase/types.ts.
 
 create table if not exists public.seller_profiles (
@@ -24,6 +23,9 @@ create table if not exists public.seller_profiles (
   service_offered text not null default '' check (char_length(service_offered) <= 120),
   offer_description text not null default '' check (char_length(offer_description) <= 600),
   target_audience text not null default '' check (char_length(target_audience) <= 300),
+  commercial_maturity text not null default 'equilibrado' check (
+    commercial_maturity in ('equilibrado', 'iniciante', 'intermediario', 'avancado')
+  ),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

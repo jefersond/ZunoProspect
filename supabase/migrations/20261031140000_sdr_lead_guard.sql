@@ -5,7 +5,26 @@
 -- Rollback (Reversibilidade):
 --   DROP TRIGGER IF EXISTS trg_guard_sdr_lead_mutations ON public.leads;
 --   DROP FUNCTION IF EXISTS public.guard_sdr_lead_mutations();
+--   ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_status_check;
+--   ALTER TABLE public.leads ADD CONSTRAINT leads_status_check CHECK (status = ANY (ARRAY['novo'::text, 'em_contato'::text, 'qualificacao'::text, 'negociacao'::text, 'convertido'::text, 'perdido'::text, 'contatado'::text, 'qualificado'::text, 'descartado'::text]));
 
+-- 1. Alinha a check constraint da tabela leads para aceitar o status 'abertura_iniciada'
+ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_status_check;
+ALTER TABLE public.leads ADD CONSTRAINT leads_status_check 
+CHECK (status = ANY (ARRAY[
+  'novo'::text, 
+  'em_contato'::text, 
+  'qualificacao'::text, 
+  'negociacao'::text, 
+  'convertido'::text, 
+  'perdido'::text,
+  'contatado'::text, 
+  'qualificado'::text, 
+  'descartado'::text,
+  'abertura_iniciada'::text
+]));
+
+-- 2. Trigger de segurança que restringe abertura_iniciada, foco zuno_internal_prospecting e marcadores [SDR WhatsApp] exclusivamente a administradores
 CREATE OR REPLACE FUNCTION public.guard_sdr_lead_mutations()
 RETURNS trigger
 LANGUAGE plpgsql

@@ -661,10 +661,153 @@ describe("Homologação Integrada RC-1 — Validação Isolada (Sem Produção)"
       const { error: sdrErr } = await clientB.from("leads").insert({
         user_id: userBId,
         nome: "Tentativa SDR Não-Admin",
+        cidade: "Curitiba",
         foco: "zuno_internal_prospecting",
       });
       expect(sdrErr).not.toBeNull();
       expect(sdrErr?.message).toContain("Acesso restrito");
+    });
+
+    it("migra perfil do localStorage para o Postgres remoto sem perda e sem sobrescrever dados do banco", async () => {
+      const anon = createClient(LOCAL_URL, LOCAL_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+
+      const ts = Date.now();
+      const { data: authC } = await anon.auth.signUp({
+        email: `rc1.migration.${ts}@local.test`,
+        password: "TestPassword!2026",
+      });
+      const userCId = authC.user!.id;
+
+      const clientC = createClient(LOCAL_URL, LOCAL_ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${authC.session!.access_token}` } },
+        auth: { persistSession: false },
+      });
+
+      const localMap = new Map<string, any>();
+      const mockLocalStorage: SellerProfileStorage = {
+        load: async (id) => localMap.get(id) || null,
+        save: async (id, profile) => {
+          localMap.set(id, profile);
+          return profile;
+        },
+      };
+
+      // Usuário tinha dados salvos apenas no navegador antes da atualização
+      localMap.set(userCId, {
+        display_name: "Marina Freelancer",
+        company_name: "Marina Sites",
+        service_category: "sites",
+        service_offered: "Landing pages de alta conversão",
+        offer_description: "Criação de páginas para infoprodutos e negócios locais.",
+        target_audience: "Pequenos empresários",
+        commercial_maturity: "iniciante",
+      });
+
+      const remoteStorage = createRemoteSellerProfileStorage(
+        clientC as unknown as RemoteSellerProfileClient,
+        () => userCId
+      );
+      const migratingStorage = createMigratingSellerProfileStorage(remoteStorage, mockLocalStorage);
+
+      // 1. Ao carregar pela primeira vez, migra automaticamente do localStorage para o Supabase
+      const migrated = await migratingStorage.load(userCId);
+      expect(migrated).not.toBeNull();
+      expect(migrated?.company_name).toBe("Marina Sites");
+      expect(migrated?.commercial_maturity).toBe("iniciante");
+
+      // Confirma que agora está fisicamente salvo no Postgres
+      const { data: remoteDbRow } = await clientC
+        .from("seller_profiles")
+        .select("*")
+        .eq("user_id", userCId)
+        .single();
+      expect(remoteDbRow?.company_name).toBe("Marina Sites");
+
+      // 2. Se o perfil for atualizado no banco em outro dispositivo, o localStorage antigo NÃO sobrescreve
+      await clientC
+        .from("seller_profiles")
+        .update({ company_name: "Marina Sites PRO Oficial", commercial_maturity: "intermediario" })
+        .eq("user_id", userCId);
+
+      // O localStorage ainda possui o valor antigo ("Marina Sites")
+      expect(localMap.get(userCId).company_name).toBe("Marina Sites");
+
+      // Mas o migratingStorage respeita o banco de dados como fonte da verdade
+      const refreshed = await migratingStorage.load(userCId);
+      expect(refreshed?.company_name).toBe("Marina Sites PRO Oficial");
+      expect(refreshed?.commercial_maturity).toBe("intermediario");
+    });
+
+    const LOCAL_SERVICE_ROLE_KEY =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
+
+    it("garante idempotência estrita de webhooks de pagamento no Postgres local (payment_events)", async () => {
+      const anon = createClient(LOCAL_URL, LOCAL_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+
+      const ts = Date.now();
+      const { data: authD } = await anon.auth.signUp({
+        email: `rc1.stripe.idemp.${ts}@local.test`,
+        password: "TestPassword!2026",
+      });
+      const userDId = authD.user!.id;
+
+      const clientD = createClient(LOCAL_URL, LOCAL_ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${authD.session!.access_token}` } },
+        auth: { persistSession: false },
+      });
+
+      const stripeEventId = `evt_test_checkout_${ts}`;
+
+      // 0. Usuário comum tenta forjar pagamento diretamente pelo frontend -> RLS bloqueia
+      const { error: forgedErr } = await clientD.from("payment_events").insert({
+        user_id: userDId,
+        provider: "stripe",
+        provider_event_id: stripeEventId,
+        event_type: "purchase_completed",
+        plan_name: "pro",
+        status: "paid",
+        event_data: { amount_total: 9700, currency: "brl" },
+      });
+      expect(forgedErr).not.toBeNull();
+      expect(forgedErr?.code).toBe("42501"); // RLS permission denied
+
+      // 1. Webhook oficial Stripe (Edge Function operando com service_role):
+      // grava em payment_events e ativa assinatura
+      const serviceRoleClient = createClient(LOCAL_URL, LOCAL_SERVICE_ROLE_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+
+      const { data: firstInsert, error: firstErr } = await serviceRoleClient.from("payment_events").insert({
+        user_id: userDId,
+        provider: "stripe",
+        provider_event_id: stripeEventId,
+        event_type: "purchase_completed",
+        plan_name: "pro",
+        status: "paid",
+        event_data: { amount_total: 9700, currency: "brl" },
+      }).select("id, provider_event_id").single();
+
+      expect(firstErr).toBeNull();
+      expect(firstInsert?.provider_event_id).toBe(stripeEventId);
+
+      // 2. Repetição do MESMO evento Stripe (retry por timeout de rede do webhook):
+      // A constraint UNIQUE (provider, provider_event_id) do PostgreSQL rejeita a duplicação
+      const { error: duplicateErr } = await serviceRoleClient.from("payment_events").insert({
+        user_id: userDId,
+        provider: "stripe",
+        provider_event_id: stripeEventId,
+        event_type: "purchase_completed",
+        plan_name: "pro",
+        status: "paid",
+        event_data: { amount_total: 9700, currency: "brl" },
+      });
+
+      expect(duplicateErr).not.toBeNull();
+      expect(duplicateErr?.code).toBe("23505"); // Código SQLSTATE 23505 = unique_violation
     });
   });
 });

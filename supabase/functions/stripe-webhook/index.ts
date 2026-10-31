@@ -8,11 +8,22 @@ import {
 } from "../_shared/zanotelli-inbound-bridge.ts";
 const TRIAL_POLICY_VERSION = "4d_2026_09";
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
+let stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+let endpointSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
+
+// Em ambiente de teste/desenvolvimento local isolado (Docker Supabase), provê fallback de homologação
+const isLocalDockerSupabase =
+  (Deno.env.get("SUPABASE_URL") ?? "").includes("kong:8000") ||
+  (Deno.env.get("SUPABASE_URL") ?? "").includes("127.0.0.1");
+
+if (isLocalDockerSupabase) {
+  if (!endpointSecret) endpointSecret = "whsec_test_mock_rc1_secret_12345";
+  if (!stripeSecretKey) stripeSecretKey = "sk_test_mock_rc1_homologation_key";
+}
+
+const stripe = new Stripe(stripeSecretKey, {
   apiVersion: "2023-10-16",
 });
-
-const endpointSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -491,7 +502,6 @@ async function activateUserPlan(
       subscription_status: subscriptionStatus,
       stripe_customer_id: params.stripeCustomerId ?? null,
       stripe_subscription_id: params.stripeSubscriptionId ?? null,
-      stripe_price_id: params.stripePriceId ?? null,
       current_period_start: periodStart,
       current_period_end: periodEnd,
       billing_cycle: params.billingCycle || "monthly",

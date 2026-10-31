@@ -238,7 +238,11 @@ export function resolvePreapprovalLocalStatus(input: PreapprovalStatusInput): Pr
     }
   }
 
-  if (input.inTrial) return { status: "trialing", kept: false };
+  // Bloqueio estrito de segurança: O status 'trialing' SÓ PODE ser concedido se o provedor
+  // confirmar explicitamente que o método de pagamento foi validado e a assinatura está 'authorized'.
+  // Se o provedor retornar 'pending' (cartão ainda não inserido/aprovado), o status local DEVE ser 'pending'
+  // e NENHUM crédito ou período de trial pode ser liberado antecipadamente.
+  if (input.inTrial && input.providerStatus === "authorized") return { status: "trialing", kept: false };
   if (input.conversionPath === "direct_purchase" && input.providerStatus === "authorized") {
     // Direct purchase stays incomplete until the approved payment arrives;
     // a later event must not demote an already active subscription.

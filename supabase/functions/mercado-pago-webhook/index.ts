@@ -221,6 +221,17 @@ Deno.serve(async (req) => {
     }
 
     if (!sessionRow?.user_id || !validPlan(sessionRow.plan_id)) return null;
+
+    // Validação estrita de correlação para bloquear associações ambíguas
+    if (externalReference && sessionRow.user_id !== externalReference) {
+      console.error(`Bloqueio: external_reference (${externalReference}) divergente de session.user_id (${sessionRow.user_id})`);
+      return null;
+    }
+    if (providerPlanId && sessionRow.provider_plan_id && sessionRow.provider_plan_id !== providerPlanId) {
+      console.error(`Bloqueio: preapproval_plan_id (${providerPlanId}) divergente de session.provider_plan_id (${sessionRow.provider_plan_id})`);
+      return null;
+    }
+
     return { subscription, planRow: sessionRow };
   };
 
@@ -307,9 +318,10 @@ Deno.serve(async (req) => {
       const trialEndMs = trialEnd ? Date.parse(trialEnd) : NaN;
 
       const providerStatus = safeString(subscription.status, 50);
+      const isAuthorized = providerStatus === "authorized";
       const cancelled = isProviderCancelledStatus(providerStatus);
       const now = Date.now();
-      const inTrial = conversionPath === "trial" && !cancelled && trialEndMs > now;
+      const inTrial = conversionPath === "trial" && isAuthorized && !cancelled && trialEndMs > now;
       // A later preapproval event can downgrade but never revives a locally
       // cancelled or past_due/unpaid subscription by itself: only an approved
       // payment (payment / subscription_authorized_payment) can do that.
@@ -336,18 +348,18 @@ Deno.serve(async (req) => {
         plan_name: planRow.plan_id,
         billing_cycle: planRow.billing_cycle,
         is_annual: planRow.billing_cycle === "annual",
-        leads_limit: entitlements.leadsLimit,
-        ai_limit: entitlements.aiLimit,
+        leads_limit: isAuthorized ? entitlements.leadsLimit : 0,
+        ai_limit: isAuthorized ? entitlements.aiLimit : 0,
         subscription_status: localStatus,
         status: localStatus,
         // Trial window is written once, on the initial authorization only.
         ...(initialAuthorization ? {
-          trial_start: trialStart,
-          trial_end: trialEnd,
-          current_period_start: trialStart,
-          current_period_end: trialEnd,
-          billing_period_end: trialEnd,
-          trial_duration_days: expectedDays,
+          trial_start: isAuthorized ? trialStart : null,
+          trial_end: isAuthorized ? trialEnd : null,
+          current_period_start: isAuthorized ? trialStart : null,
+          current_period_end: isAuthorized ? trialEnd : null,
+          billing_period_end: isAuthorized ? trialEnd : null,
+          trial_duration_days: isAuthorized ? expectedDays : 0,
           trial_policy_version: planRow.trial_policy_version,
         } : {}),
         cancel_at_period_end: false,
@@ -356,7 +368,7 @@ Deno.serve(async (req) => {
       }).eq("user_id", userId).eq("billing_provider", "mercado_pago");
       if (updateError) throw updateError;
 
-      if (initialAuthorization) {
+      if (initialAuthorization && isAuthorized) {
         // Bind the checkout session last: only after the initial policy passed
         // AND the trial window was persisted. Until then, a retry is still
         // treated as the initial authorization and validated again.

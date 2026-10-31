@@ -268,6 +268,13 @@ describe("Mercado Pago preapproval status sync", () => {
     expect(resolvePreapprovalLocalStatus({ ...later, conversionPath: "direct_purchase", providerStatus: "authorized", currentLocalStatus: "active" }))
       .toEqual({ status: "active", kept: true });
   });
+
+  it("H. pending subscription NEVER starts trial or becomes trialing", () => {
+    expect(resolvePreapprovalLocalStatus({ initialAuthorization: true, conversionPath: "trial", inTrial: true, providerStatus: "pending", currentLocalStatus: null }))
+      .toEqual({ status: "pending", kept: false });
+    expect(resolvePreapprovalLocalStatus({ ...later, inTrial: true, providerStatus: "pending", currentLocalStatus: null }))
+      .toEqual({ status: "pending", kept: false });
+  });
 });
 
 describe("Mercado Pago past_due recovery path", () => {

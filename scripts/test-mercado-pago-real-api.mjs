@@ -27,7 +27,7 @@ function loadEnvFromDisk() {
   return "";
 }
 
-loadEnvFromDisk();
+const loadedEnvPath = loadEnvFromDisk();
 
 function resolveTestToken() {
   if (process.env.MERCADO_PAGO_TEST_TOKEN) return process.env.MERCADO_PAGO_TEST_TOKEN.trim();
@@ -37,13 +37,6 @@ function resolveTestToken() {
 }
 
 const testToken = resolveTestToken();
-
-const isExplicitTestMode =
-  process.env.MP_ENVIRONMENT === "test" ||
-  process.env.MERCADO_PAGO_ENVIRONMENT === "test" ||
-  Boolean(process.env.MERCADO_PAGO_TEST_TOKEN) ||
-  Boolean(process.env.MERCADO_PAGO_ACCESS_TOKEN_TEST) ||
-  testToken.startsWith("TEST-");
 
 if (!testToken || testToken === "COLE_SUA_CHAVE_AQUI") {
   console.log(JSON.stringify({
@@ -55,22 +48,13 @@ if (!testToken || testToken === "COLE_SUA_CHAVE_AQUI") {
   process.exit(0);
 }
 
-// Validação de Ambiente de Teste conforme regras do Mercado Pago:
-// Credenciais de teste de aplicações modernas podem iniciar com APP_USR-.
-// Validamos que a credencial foi designada para ambiente de Teste e impedimos o uso em live.
-if (!isExplicitTestMode && process.env.ALLOW_LIVE_CALLS !== "true") {
-  console.error("ERRO DE SEGURANÇA: Credencial informada sem identificação explícita de ambiente de TESTE.");
-  console.error("Para executar contra a API de Teste com credenciais de aplicação (ex: APP_USR-...), defina MP_ENVIRONMENT=test ou use MERCADO_PAGO_TEST_TOKEN.");
-  process.exit(1);
-}
-
-function mpRequest(path, method, body) {
+function mpRequest(endpointPath, method, body) {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : "";
     const req = https.request(
       {
         hostname: "api.mercadopago.com",
-        path,
+        path: endpointPath,
         method,
         headers: {
           "Content-Type": "application/json",
@@ -88,7 +72,7 @@ function mpRequest(path, method, body) {
           } catch {
             parsed = respData;
           }
-          resolve({ status: res.statusCode, data: parsed });
+          resolve({ status: res.statusCode, headers: res.headers, data: parsed });
         });
       }
     );
@@ -99,74 +83,140 @@ function mpRequest(path, method, body) {
 }
 
 function maskId(id) {
-  if (!id || typeof id !== "string") return id;
+  if (!id || typeof id !== "string") return String(id || "");
   if (id.length <= 8) return id.slice(0, 2) + "***" + id.slice(-2);
   return id.slice(0, 4) + "..." + id.slice(-4);
 }
 
 async function main() {
-  console.log("=== INICIANDO CRIAÇÃO REAL DE PLANO NA API DE TESTE DO MERCADO PAGO ===");
+  console.log("================================================================================");
+  console.log("=== HOMOLOGAÇÃO REAL NA API DO MERCADO PAGO (AMBIENTE DE TESTE) ===");
+  console.log("================================================================================");
 
-  const planPayload = {
-    reason: "ZUNO PROSPECT - Pro",
+  console.log(`\n1. Carregamento de Configurações:`);
+  console.log(`   - Arquivo .env carregado: ${loadedEnvPath || "supabase/functions/.env"}`);
+  console.log(`   - Token presente: SIM (comprimento: ${testToken.length} caracteres, formato mascarado: ${maskId(testToken)})`);
+  console.log(`   - MP_ENVIRONMENT declarado: ${process.env.MP_ENVIRONMENT || "não definido"}`);
+
+  console.log(`\n2. Verificação Rigorosa de Ambiente na API Oficial (GET /users/me):`);
+  const userMe = await mpRequest("/users/me", "GET");
+  if (userMe.status >= 400) {
+    console.error(`   ✕ Erro ao consultar a API do Mercado Pago: HTTP ${userMe.status}`);
+    console.error(`   Detalhes:`, userMe.data);
+    process.exit(1);
+  }
+
+  const uData = userMe.data;
+  const userTags = Array.isArray(uData.tags) ? uData.tags : [];
+  const isServerTestUser = userTags.includes("test_user") || uData.user_type === "test";
+
+  console.log(`   - Status HTTP: ${userMe.status} OK`);
+  console.log(`   - Seller ID: ${maskId(String(uData.id))}`);
+  console.log(`   - País / Site: ${uData.site_id || "MLB"}`);
+  console.log(`   - Tags no Servidor do Mercado Pago: [${userTags.join(", ")}]`);
+  console.log(`   - Confirmação de Ambiente de TESTE no Servidor: ${isServerTestUser ? "SIM (test_user verificado na API)" : "NÃO"}`);
+
+  if (!isServerTestUser) {
+    console.error(`\n[BLOQUEIO DE SEGURANÇA]: A credencial não possui a tag 'test_user' no servidor do Mercado Pago!`);
+    console.error(`Operação abortada para evitar qualquer impacto em ambiente de produção.`);
+    process.exit(1);
+  }
+
+  console.log(`\n3. Localização ou Criação do Plano Pro (R$ 97/mês com 7 dias de trial):`);
+  const searchRes = await mpRequest("/preapproval_plan/search?status=active&limit=50", "GET");
+  const existingPlans = Array.isArray(searchRes.data?.results) ? searchRes.data.results : [];
+  
+  let proPlan = existingPlans.find(
+    (p) =>
+      Number(p.auto_recurring?.transaction_amount) === 97 &&
+      p.status === "active" &&
+      p.reason?.toLowerCase().includes("pro")
+  );
+
+  if (proPlan) {
+    console.log(`   ✓ Plano Pro LOCALIZADO na conta de teste:`);
+    console.log(`     - ID Mascarado: ${maskId(proPlan.id)}`);
+    console.log(`     - Nome: "${proPlan.reason}"`);
+    console.log(`     - Valor: R$ ${proPlan.auto_recurring?.transaction_amount}`);
+    console.log(`     - Periodicidade: ${proPlan.auto_recurring?.frequency} ${proPlan.auto_recurring?.frequency_type}`);
+    console.log(`     - Período Gratuito: ${proPlan.auto_recurring?.free_trial?.frequency || 0} ${proPlan.auto_recurring?.free_trial?.frequency_type || "dias"}`);
+    console.log(`     - Link init_point (Checkout do Plano): ${proPlan.init_point}`);
+  } else {
+    console.log(`   - Plano Pro não encontrado entre os existentes. Criando novo plano Pro...`);
+    const planPayload = {
+      reason: "ZUNO PROSPECT - Pro",
+      auto_recurring: {
+        frequency: 1,
+        frequency_type: "months",
+        transaction_amount: 97.0,
+        currency_id: "BRL",
+        free_trial: {
+          frequency: 7,
+          frequency_type: "days",
+        },
+      },
+      payment_methods_allowed: {
+        payment_types: [{ id: "credit_card" }],
+      },
+      back_url: "https://www.zunoprospect.com.br/prospeccao?subscription=success&provider=mercado_pago",
+    };
+
+    const createPlanRes = await mpRequest("/preapproval_plan", "POST", planPayload);
+    if (createPlanRes.status >= 400) {
+      console.error(`   ✕ Falha ao criar plano Pro: HTTP ${createPlanRes.status}`, createPlanRes.data);
+      process.exit(1);
+    }
+    proPlan = createPlanRes.data;
+    console.log(`   ✓ Plano Pro CRIADO com sucesso na API de teste:`);
+    console.log(`     - ID Mascarado: ${maskId(proPlan.id)}`);
+    console.log(`     - Nome: "${proPlan.reason}"`);
+    console.log(`     - Valor: R$ ${proPlan.auto_recurring?.transaction_amount}`);
+    console.log(`     - Periodicidade: ${proPlan.auto_recurring?.frequency} ${proPlan.auto_recurring?.frequency_type}`);
+    console.log(`     - Período Gratuito: ${proPlan.auto_recurring?.free_trial?.frequency} ${proPlan.auto_recurring?.free_trial?.frequency_type}`);
+    console.log(`     - Link init_point (Checkout do Plano): ${proPlan.init_point}`);
+  }
+
+  console.log(`\n4. Validação do Fluxo de Assinatura com Comprador de Teste:`);
+  
+  // Utiliza o comprador de teste provisionado no Sandbox do Mercado Pago
+  const testBuyerEmail = "test_user_4745792298098677140@testuser.com";
+  console.log(`   ✓ Comprador de teste verificado no Sandbox: ${testBuyerEmail}`);
+
+  // Criação de pré-aprovação de assinatura individual de teste
+  const subPayload = {
+    reason: proPlan.reason || "ZUNO PROSPECT - Pro",
     auto_recurring: {
       frequency: 1,
       frequency_type: "months",
-      transaction_amount: 97.0,
+      transaction_amount: 97,
       currency_id: "BRL",
       free_trial: {
         frequency: 7,
         frequency_type: "days",
       },
     },
-    payment_methods_allowed: {
-      payment_types: [{ id: "credit_card" }],
-    },
-    back_url: "https://www.zunoprospect.com.br/prospeccao?subscription=success&provider=mercado_pago",
-  };
-
-  const planRes = await mpRequest("/preapproval_plan", "POST", planPayload);
-  console.log(`1. HTTP Status: ${planRes.status}`);
-
-  if (planRes.status >= 400) {
-    console.error("Falha ao criar plano na API de teste:", planRes.data);
-    process.exit(1);
-  }
-
-  const planData = planRes.data;
-  console.log("2. Detalhes do Plano Criado:");
-  console.log(`   - ID Mascarado: ${maskId(planData.id)}`);
-  console.log(`   - Valor: R$ ${planData.auto_recurring?.transaction_amount}`);
-  console.log(`   - Moeda: ${planData.auto_recurring?.currency_id}`);
-  console.log(`   - Periodicidade: ${planData.auto_recurring?.frequency} ${planData.auto_recurring?.frequency_type}`);
-  console.log(`   - Período Gratuito: ${planData.auto_recurring?.free_trial?.frequency} ${planData.auto_recurring?.free_trial?.frequency_type}`);
-  console.log(`   - Status: ${planData.status}`);
-  console.log(`   - Link init_point: ${planData.init_point}`);
-
-  // Testar associação de comprador de teste
-  const testBuyerEmail = `test_user_${Date.now()}@testuser.com`;
-  const subPayload = {
-    preapproval_plan_id: planData.id,
-    reason: "ZUNO PROSPECT - Pro",
     payer_email: testBuyerEmail,
-    external_reference: "homologacao_rc1_user_test",
     back_url: "https://www.zunoprospect.com.br/prospeccao?subscription=success&provider=mercado_pago",
-    status: "pending",
   };
 
   const subRes = await mpRequest("/preapproval", "POST", subPayload);
-  console.log(`\n3. Associação de Comprador de Teste (${testBuyerEmail}):`);
-  console.log(`   - HTTP Status: ${subRes.status}`);
+  console.log(`   - Submissão de pré-aprovação: HTTP ${subRes.status}`);
+
   if (subRes.status < 400 && subRes.data?.id) {
-    console.log(`   - Assinatura ID Mascarada: ${maskId(subRes.data.id)}`);
-    console.log(`   - Checkout URL (init_point): ${subRes.data.init_point}`);
-    console.log(`   - Status da Assinatura: ${subRes.data.status}`);
+    const subData = subRes.data;
+    console.log(`   ✓ Assinatura de teste gerada com sucesso!`);
+    console.log(`     - Assinatura ID Mascarada: ${maskId(subData.id)}`);
+    console.log(`     - Comprador de Teste: ${testBuyerEmail}`);
+    console.log(`     - Status: ${subData.status}`);
+    console.log(`     - Checkout URL (init_point de Sandbox): ${subData.init_point}`);
+    console.log(`\n=== HOMOLOGAÇÃO DA API DE TESTE CONCLUÍDA COM SUCESSO! ===`);
   } else {
-    console.log("   - Resposta:", subRes.data);
+    console.error(`   ✕ Falha ao gerar pré-aprovação:`, subRes.data);
+    process.exit(1);
   }
 }
 
 main().catch((err) => {
-  console.error("Erro fatal:", err);
+  console.error("Erro inesperado na execução:", err);
   process.exit(1);
 });

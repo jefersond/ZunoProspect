@@ -2,12 +2,7 @@ import fs from "node:fs";
 import https from "node:https";
 import path from "node:path";
 
-function resolveTestToken() {
-  if (process.env.MERCADO_PAGO_TEST_TOKEN) return process.env.MERCADO_PAGO_TEST_TOKEN.trim();
-  if (process.env.MERCADO_PAGO_ACCESS_TOKEN_TEST) return process.env.MERCADO_PAGO_ACCESS_TOKEN_TEST.trim();
-  if (process.env.MERCADO_PAGO_ACCESS_TOKEN) return process.env.MERCADO_PAGO_ACCESS_TOKEN.trim();
-
-  // Tenta ler silenciosamente do arquivo local protegido (sem expor em logs)
+function loadEnvFromDisk() {
   const candidatePaths = [
     path.resolve("supabase/functions/.env"),
     path.resolve("ZunoProspect-prompt-v6/supabase/functions/.env"),
@@ -18,14 +13,26 @@ function resolveTestToken() {
       if (fs.existsSync(envPath)) {
         const content = fs.readFileSync(envPath, "utf8");
         for (const line of content.split(/\r?\n/)) {
-          const match = line.match(/^(?:MERCADO_PAGO_TEST_TOKEN|MERCADO_PAGO_ACCESS_TOKEN_TEST|MERCADO_PAGO_ACCESS_TOKEN)\s*=\s*(.*)$/);
-          if (match) {
-            return match[1].trim().replace(/^["']|["']$/g, "");
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith("#")) continue;
+          const match = trimmed.match(/^([A-Za-z0-9_]+)\s*=\s*(.*)$/);
+          if (match && !process.env[match[1]]) {
+            process.env[match[1]] = match[2].trim().replace(/^["']|["']$/g, "");
           }
         }
+        return envPath;
       }
     } catch {}
   }
+  return "";
+}
+
+loadEnvFromDisk();
+
+function resolveTestToken() {
+  if (process.env.MERCADO_PAGO_TEST_TOKEN) return process.env.MERCADO_PAGO_TEST_TOKEN.trim();
+  if (process.env.MERCADO_PAGO_ACCESS_TOKEN_TEST) return process.env.MERCADO_PAGO_ACCESS_TOKEN_TEST.trim();
+  if (process.env.MERCADO_PAGO_ACCESS_TOKEN) return process.env.MERCADO_PAGO_ACCESS_TOKEN.trim();
   return "";
 }
 
@@ -38,7 +45,7 @@ const isExplicitTestMode =
   Boolean(process.env.MERCADO_PAGO_ACCESS_TOKEN_TEST) ||
   testToken.startsWith("TEST-");
 
-if (!testToken) {
+if (!testToken || testToken === "COLE_SUA_CHAVE_AQUI") {
   console.log(JSON.stringify({
     ok: false,
     error: "MERCADO_PAGO_TEST_TOKEN_MISSING",

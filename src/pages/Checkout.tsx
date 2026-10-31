@@ -1,48 +1,23 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CheckCircle2, Loader2, Eye, EyeOff, ArrowLeft, Check, Sparkles, Building2, ExternalLink, LogOut } from "lucide-react";
+import { CheckCircle2, Loader2, ArrowLeft, Sparkles, Building2, AlertCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
-import { getAttributionParams, trackCompleteRegistration, trackInitiateCheckout, trackAddPaymentInfo, trackMetaCustomEvent } from "@/lib/metaPixel";
-import { getAuthRedirectBaseUrl } from "@/lib/authRedirect";
+import { getAttributionParams, trackInitiateCheckout, trackAddPaymentInfo, trackMetaCustomEvent } from "@/lib/metaPixel";
 import { createBillingCheckout, billingRedirectAdapter } from "@/services/billingCheckout";
 import { getFunnelContext } from "@/lib/funnelContext";
 import { PLANS, normalizePlanId, resolveCheckoutPlan } from "@/config/plans";
 import { useAuth } from "@/hooks/useAuth";
-import { getCurrentReferralCode, saveReferralCode } from "@/lib/referral";
+import { appendReferralToPath, getCurrentReferralCode } from "@/lib/referral";
 import { trackEvent } from "@/lib/analytics";
 import { useUsage } from "@/hooks/useUsage";
 import { useBillingOfferConfig } from "@/hooks/useBillingOfferConfig";
 import { useSubscription } from "@/hooks/useSubscription";
 
-// Google Icon Component
-const GoogleIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
-    <path
-      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-      fill="#4285F4"
-    />
-    <path
-      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-      fill="#34A853"
-    />
-    <path
-      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-      fill="#FBBC05"
-    />
-    <path
-      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-      fill="#EA4335"
-    />
-  </svg>
-);
-
-// Dados dos planos
+// Dados canônicos dos planos
 const PLANOS = {
   starter: {
     nome: PLANS.starter.displayName,
@@ -50,15 +25,7 @@ const PLANOS = {
     precoAnual: PLANS.starter.annualPrice,
     leadsLimit: PLANS.starter.leadsLimit,
     aiLimit: PLANS.starter.aiLimit,
-    gratuito: false,
     icon: Sparkles,
-    popular: false,
-    features: [
-      "300 leads/mês",
-      "30 análises com IA/mês",
-      "CRM: salvar + status + anotações",
-      "Templates de mensagem",
-    ],
   },
   pro: {
     nome: PLANS.pro.displayName,
@@ -66,16 +33,7 @@ const PLANOS = {
     precoAnual: PLANS.pro.annualPrice,
     leadsLimit: PLANS.pro.leadsLimit,
     aiLimit: PLANS.pro.aiLimit,
-    gratuito: false,
     icon: Sparkles,
-    popular: true,
-    features: [
-      "800 leads/mês",
-      "100 análises com IA/mês",
-      "Plano de prospecção por lead",
-      "Detecção de sinais digitais",
-      "Exportar para Excel",
-    ],
   },
   agencia: {
     nome: PLANS.agency.displayName,
@@ -83,17 +41,7 @@ const PLANOS = {
     precoAnual: PLANS.agency.annualPrice,
     leadsLimit: PLANS.agency.leadsLimit,
     aiLimit: PLANS.agency.aiLimit,
-    gratuito: false,
     icon: Building2,
-    popular: false,
-    features: [
-      "2.000 leads/mês",
-      "300 análises com IA/mês",
-      "Tudo do Pro +",
-      "API de integração",
-      "Relatórios avançados",
-      "Suporte prioritário",
-    ],
   },
 };
 
@@ -102,45 +50,46 @@ type PlanoKey = "starter" | "pro" | "agencia";
 export default function Checkout() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { usage } = useUsage();
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const { trialDurationDays, defaultNewBillingProvider, introOffer } = useBillingOfferConfig();
-  
-  // Resolve plan from URL (supports both 'plano' and 'plan' without silent fallback to 'pro')
-  const resolvedPlan = resolveCheckoutPlan(searchParams);
-  const anualParam = searchParams.get("anual") || "false";
-  const leadsQtyParam = Number(searchParams.get("leadsQty") || "0");
-  const googleAuth = searchParams.get("google_auth");
-  const conversionPath = searchParams.get("conversion_path") === "direct_purchase" ? "direct_purchase" : "trial";
-  const referralCode = getCurrentReferralCode(searchParams);
-  
-  // State for selected plan
-  const [selectedPlano, setSelectedPlano] = useState<PlanoKey>(
-    resolvedPlan.status === "valid" ? resolvedPlan.planoKey : "starter"
-  );
 
-  // If no valid plan was provided or parameters are conflicting/invalid, redirect immediately to plans selection
+  // 1. Resolução estrita do plano selecionado (via URL query params com fallback seguro para intenção pendente)
+  const resolvedPlan = resolveCheckoutPlan(searchParams);
+  const pendingCheckoutRaw = typeof window !== "undefined" ? localStorage.getItem("checkout_pending") : null;
+  const pendingCheckout = pendingCheckoutRaw ? (() => {
+    try { return JSON.parse(pendingCheckoutRaw); } catch { return null; }
+  })() : null;
+
+  const validPlanKey: PlanoKey | null = resolvedPlan.status === "valid"
+    ? resolvedPlan.planoKey
+    : (pendingCheckout?.plano ? (normalizePlanId(pendingCheckout.plano) === "agency" ? "agencia" : normalizePlanId(pendingCheckout.plano) as PlanoKey) : null);
+
+  const anualParam = searchParams.get("anual") || searchParams.get("isAnual") || (pendingCheckout?.isAnual ? "true" : "false");
+  const isAnual = anualParam === "true";
+  const conversionPath = (searchParams.get("conversion_path") || pendingCheckout?.conversionPath) === "direct_purchase"
+    ? "direct_purchase"
+    : "trial";
+  const referralCode = getCurrentReferralCode(searchParams) || pendingCheckout?.referralCode;
+  const offerIdParam = searchParams.get("offerId") || searchParams.get("offer") || pendingCheckout?.offerId || null;
+
+  // Redireciona para /precos se nenhum plano for informado ou se for inválido
   useEffect(() => {
-    if (resolvedPlan.status !== "valid") {
+    if (!validPlanKey) {
       if (resolvedPlan.status === "invalid") {
         toast.error("Plano inválido ou conflitante. Escolha seu plano para continuar.");
       }
       navigate("/precos", { replace: true });
     }
-  }, [resolvedPlan.status, navigate]);
+  }, [validPlanKey, resolvedPlan.status, navigate]);
 
-  useEffect(() => {
-    if (resolvedPlan.status === "valid" && resolvedPlan.planoKey !== selectedPlano) {
-      setSelectedPlano(resolvedPlan.planoKey);
-    }
-  }, [resolvedPlan]);
-  
-  const plano = PLANOS[selectedPlano];
-  
-  const [isAnual] = useState(anualParam === "true");
-  const selectedLeadsQty = plano.leadsLimit;
+  const selectedPlano = validPlanKey || "starter";
+  const plano = PLANOS[selectedPlano] || PLANOS.starter;
   const selectedPlanId = selectedPlano === "agencia" ? "agency" : selectedPlano;
+  const preco = isAnual ? plano.precoAnual : plano.precoMensal;
+  const periodo = isAnual ? "/ano" : "/mês";
+
   const selectedIntroOffer = introOffer.plans[selectedPlanId];
   const introOfferSelected = Boolean(
     conversionPath === "direct_purchase"
@@ -150,198 +99,19 @@ export default function Checkout() {
       && selectedIntroOffer?.introPrice
       && selectedIntroOffer?.regularPrice,
   );
-  const [nome, setNome] = useState("");
-  const [email, setEmail] = useState("");
-  const [senha, setSenha] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isGoogleProcessing, setIsGoogleProcessing] = useState(false);
-  const [hasSession, setHasSession] = useState(false);
 
-  if (resolvedPlan.status !== "valid") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        <span className="ml-2 text-muted-foreground">Redirecionando para seleção de planos...</span>
-      </div>
-    );
-  }
+  const [isAutoProcessing, setIsAutoProcessing] = useState(true);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const checkoutInitiatedRef = useRef(false);
 
-  useEffect(() => {
-    if (subscriptionLoading || !subscription) return;
-    const status = String(subscription.subscription_status ?? subscription.status ?? "").toLowerCase();
-    const currentPlan = normalizePlanId(subscription.plan_name);
-    const selectedPlanId = selectedPlano === "agencia" ? "agency" : selectedPlano;
-    if (
-      currentPlan === selectedPlanId
-      && ["active", "trialing", "past_due", "unpaid", "incomplete", "paused"].includes(status)
-    ) {
-      navigate("/prospeccao", { replace: true });
-    }
-  }, [navigate, selectedPlano, subscription, subscriptionLoading]);
+  // 2. Execução segura e atômica da criação da sessão de checkout
+  const initiateCheckout = useCallback(async () => {
+    if (!user) return;
+    setIsAutoProcessing(true);
+    setCheckoutError(null);
 
-  // Monitor user changes from useAuth hook
-  useEffect(() => {
-    if (user) {
-      setHasSession(true);
-      setEmail(user.email || "");
-      setNome(user.user_metadata?.full_name || user.user_metadata?.name || "");
-    } else {
-      setHasSession(false);
-      setEmail("");
-      setNome("");
-      setSenha("");
-    }
-  }, [user]);
-
-  const handleSignOut = async () => {
-    setIsProcessing(true);
     try {
-      await signOut();
-      toast.success("Desconectado com sucesso.");
-    } catch (error) {
-      console.error("Erro ao sair:", error);
-      toast.error("Erro ao desconectar da conta.");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const preco = isAnual ? plano.precoAnual : plano.precoMensal;
-  const periodo = isAnual ? "/ano" : "/mês";
-  const economia = isAnual ? Math.round((plano.precoMensal * 12 - plano.precoAnual) / (plano.precoMensal * 12) * 100) : 0;
-
-  const passwordValidation = {
-    minLength: senha.length >= 8,
-    hasUppercase: /[A-Z]/.test(senha),
-    hasLowercase: /[a-z]/.test(senha),
-    hasNumber: /[0-9]/.test(senha),
-  };
-  const passwordStrength = Object.values(passwordValidation).filter(Boolean).length;
-  
-  const getPasswordStrengthLabel = () => {
-    if (passwordStrength === 0) return "";
-    if (passwordStrength <= 2) return "Fraca";
-    if (passwordStrength === 3) return "Média";
-    return "Forte";
-  };
-  
-  const getPasswordStrengthColor = () => {
-    if (passwordStrength <= 2) return "bg-red-500";
-    if (passwordStrength === 3) return "bg-yellow-500";
-    return "bg-emerald-500";
-  };
-
-  const handleGoogleSignIn = async () => {
-    setIsGoogleProcessing(true);
-    try {
-      // Store checkout info in localStorage for after OAuth redirect
-      localStorage.setItem('checkout_pending', JSON.stringify({
-        plano: selectedPlano,
-        isAnual,
-        leadsQty: selectedLeadsQty,
-        referralCode,
-        conversionPath,
-      }));
-      saveReferralCode(referralCode);
-
-      const redirectBase = getAuthRedirectBaseUrl();
-      
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${redirectBase}/auth`,
-        }
-      });
-
-      if (error) {
-        localStorage.removeItem('checkout_pending');
-        toast.error("Erro ao entrar com Google", { description: error.message });
-        setIsGoogleProcessing(false);
-      }
-    } catch (error) {
-      localStorage.removeItem('checkout_pending');
-      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      toast.error("Erro ao processar", { description: errorMessage });
-      setIsGoogleProcessing(false);
-    }
-  };
-
-  const validateAndCreateAccount = async (): Promise<boolean> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      return true;
-    }
-
-    if (!senha || senha.length < 8) {
-      toast.error("A senha deve ter pelo menos 8 caracteres");
-      return false;
-    }
-    if (passwordStrength < 3) {
-      toast.error("A senha deve conter letras maiúsculas, minúsculas e números");
-      return false;
-    }
-
-    const redirectBase = getAuthRedirectBaseUrl();
-    console.log("Auth action:", "checkout-signup");
-    console.log("referral code:", referralCode ? "presente" : "ausente");
-    const { data, error: authError } = await supabase.auth.signUp({
-      email,
-      password: senha,
-      options: {
-        emailRedirectTo: `${redirectBase}/auth`,
-        data: {
-          full_name: nome,
-          selected_plan: selectedPlano,
-          referred_by_code: referralCode || null,
-        }
-      }
-    });
-    console.log("signUp session exists:", !!data.session);
-
-    if (authError) {
-      if (authError.message.includes("already registered")) {
-        toast.error("Este email já está cadastrado", { description: "Faça login ou use outro email." });
-      } else {
-        toast.error("Erro ao criar conta", { description: authError.message });
-      }
-      return false;
-    }
-    if (!data.session) {
-      toast.info("Conta criada. Verifique seu e-mail para confirmar o acesso.", {
-        description: "Depois de confirmar, entre novamente para finalizar o pagamento."
-      });
-      setSenha("");
-      return false;
-    }
-
-    trackCompleteRegistration({
-      method: "email",
-      source: "checkout",
-    });
-    if (referralCode) {
-      trackMetaCustomEvent("Referral_Signup_Completed", {
-        has_ref: true,
-        ref_source: "url",
-      });
-    }
-    setHasSession(true);
-    return true;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nome.trim()) { toast.error("Informe seu nome completo"); return; }
-    if (!email.trim()) { toast.error("Informe seu email"); return; }
-    if (!hasSession && !senha.trim()) { toast.error("Informe uma senha para criar sua conta"); return; }
-    
-    setIsProcessing(true);
-    try {
-      const accountCreated = await validateAndCreateAccount();
-      if (!accountCreated) { setIsProcessing(false); return; }
-      
-      // Track payment info
-      const trackingPlanId = selectedPlano === "agencia" ? "agency" : selectedPlano;
+      const trackingPlanId = selectedPlanId;
       trackMetaCustomEvent("Plan_Selected", {
         plan_id: trackingPlanId,
         plan_name: plano.nome,
@@ -352,25 +122,22 @@ export default function Checkout() {
         intro_offer_price: introOfferSelected ? selectedIntroOffer?.introPrice : null,
         regular_price: introOfferSelected ? selectedIntroOffer?.regularPrice : plano.precoMensal,
       });
+
       trackAddPaymentInfo({
         content_category: defaultNewBillingProvider === "mercado_pago" ? "Mercado Pago" : "Stripe",
-        currency: 'BRL',
-        value: introOfferSelected ? selectedIntroOffer?.introPrice ?? preco : preco
+        currency: "BRL",
+        value: introOfferSelected ? selectedIntroOffer?.introPrice ?? preco : preco,
       });
 
-      toast.loading(hasSession ? "Gerando link de pagamento seguro..." : "Conta criada! Gerando link de pagamento seguro...");
-
-      // Chamar Edge Function do Stripe
       const data = await createBillingCheckout({
-        selectedPlan: { nome: plano.nome, planKey: selectedPlano },
+        selectedPlan: { planKey: selectedPlanId },
         billingCycle: isAnual ? "annual" : "monthly",
         conversionPath,
         source: "checkout_page",
-        offerId: introOfferSelected ? introOffer.key : null,
+        offerId: introOfferSelected ? introOffer.key : (offerIdParam || null),
       });
 
       const funnelContext = await getFunnelContext(null, "checkout_page");
-      
       const usageMetadata = {
         plan_id: trackingPlanId,
         plan_name: plano.nome,
@@ -388,14 +155,6 @@ export default function Checkout() {
         intro_offer_price: data.introOfferApplied ? data.introPrice : null,
         regular_price: data.regularPrice ?? preco,
         user_plan_before_checkout: usage?.plan_name || "free",
-        current_leads_available: usage?.leads_available_total ?? 0,
-        current_ai_available: usage?.ai_remaining ?? 0,
-        leads_used: usage?.leads_used ?? 0,
-        leads_limit: usage?.leads_limit ?? 20,
-        ai_used: usage?.ai_used ?? 0,
-        ai_limit: usage?.ai_limit ?? 3,
-        has_done_first_search: (usage?.leads_used ?? 0) > 0,
-        has_done_first_ai_analysis: (usage?.ai_used ?? 0) > 0,
       };
 
       trackEvent("checkout_started", {
@@ -420,6 +179,7 @@ export default function Checkout() {
         value: preco,
         currency: "BRL",
       });
+
       const attribution = getAttributionParams();
       if ((attribution.offer === "founder_pro" || attribution.utm_campaign === "founder") && trackingPlanId === "pro") {
         trackMetaCustomEvent("Founder_Offer_Checkout", {
@@ -430,119 +190,114 @@ export default function Checkout() {
         });
       }
 
-      toast.dismiss();
-      
       toast.success("Redirecionando para o pagamento seguro...");
       billingRedirectAdapter(data.provider).redirect(data);
-      
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      const status = typeof error === "object" && error !== null && "status" in error ? (error as { status?: number }).status : undefined;
-      toast.error(status === 401 ? "Sessão expirada. Faça login novamente." : "Não foi possível iniciar o pagamento", {
-        description: status === 401 ? errorMessage : "Tente novamente.",
-      });
+      const status = typeof error === "object" && error !== null && "status" in error
+        ? (error as { status?: number }).status
+        : undefined;
+
+      if (status === 409 || errorMessage.includes("subscription_already_active")) {
+        toast.info("Você já possui uma assinatura ativa.");
+        navigate("/prospeccao", { replace: true });
+        return;
+      }
+
+      if (status === 401) {
+        toast.error("Sessão expirada. Faça login novamente.", { description: errorMessage });
+        navigate(appendReferralToPath(
+          `/auth?tab=login&plan=${encodeURIComponent(selectedPlanId)}&anual=${isAnual}&conversion_path=${conversionPath}`,
+          referralCode
+        ));
+        return;
+      }
+
+      toast.error("Não foi possível iniciar o pagamento", { description: errorMessage || "Tente novamente." });
       trackMetaCustomEvent("Checkout_Failed", {
-        plan_id: selectedPlano === "agencia" ? "agency" : selectedPlano,
+        plan_id: selectedPlanId,
         error_message: errorMessage,
       });
       getFunnelContext(null, "checkout_page").then((funnelContext) => {
         trackEvent("checkout_failed", {
           ...funnelContext,
-          plan_id: selectedPlano === "agencia" ? "agency" : selectedPlano,
+          plan_id: selectedPlanId,
           source: "checkout_page",
           conversion_path: conversionPath,
           error_message_safe: errorMessage,
           error: errorMessage,
         });
       });
-    } finally {
-      setIsProcessing(false);
+
+      setCheckoutError(errorMessage);
+      setIsAutoProcessing(false);
     }
+  }, [
+    user,
+    selectedPlanId,
+    plano,
+    isAnual,
+    conversionPath,
+    introOfferSelected,
+    introOffer.key,
+    offerIdParam,
+    preco,
+    defaultNewBillingProvider,
+    usage?.plan_name,
+    referralCode,
+    navigate,
+  ]);
+
+  // 3. Efeito de auto-início: dispara automaticamente para usuário autenticado com guard de idempotência
+  useEffect(() => {
+    if (!validPlanKey) return;
+    if (!user) {
+      setIsAutoProcessing(false);
+      return;
+    }
+    if (subscriptionLoading) return;
+
+    // Verificar se usuário já possui o plano ativo
+    const status = String(subscription?.subscription_status ?? subscription?.status ?? "").toLowerCase();
+    const currentPlan = normalizePlanId(subscription?.plan_name);
+    if (
+      currentPlan === selectedPlanId
+      && ["active", "trialing", "past_due", "unpaid", "incomplete", "paused"].includes(status)
+    ) {
+      toast.info("Você já possui este plano ativo.");
+      navigate("/prospeccao", { replace: true });
+      return;
+    }
+
+    if (checkoutInitiatedRef.current) return;
+    checkoutInitiatedRef.current = true;
+    initiateCheckout();
+  }, [user, validPlanKey, subscription, subscriptionLoading, selectedPlanId, initiateCheckout, navigate]);
+
+  const handleRetry = () => {
+    checkoutInitiatedRef.current = false;
+    initiateCheckout();
   };
 
-  const isAnyProcessing = isProcessing || isGoogleProcessing;
-
-  // Plan selector component
-  const PlanSelector = () => (
-    <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-3">
-      {(Object.entries(PLANOS) as [PlanoKey, typeof PLANOS.pro][]).map(([key, plan]) => {
-        const isSelected = selectedPlano === key;
-        const Icon = plan.icon;
-        const planPreco = isAnual ? plan.precoAnual : plan.precoMensal;
-        const planPeriodo = isAnual ? "/ano" : "/mês";
-        
-        return (
-          <button
-            key={key}
-            type="button"
-            onClick={() => {
-              setSelectedPlano(key);
-              const nextParams = new URLSearchParams(searchParams);
-              nextParams.set("plano", key);
-              nextParams.delete("plan");
-              navigate(`/checkout?${nextParams.toString()}`, { replace: true });
-            }}
-            disabled={isAnyProcessing}
-            className={`relative flex flex-col items-center p-4 rounded-xl border-2 transition-all ${
-              isSelected 
-                ? "border-emerald-500 bg-emerald-500/10 shadow-lg shadow-emerald-500/20" 
-                : "border-border hover:border-muted-foreground/50 bg-card"
-            } ${isAnyProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
-          >
-            {plan.popular && (
-              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-semibold rounded-full whitespace-nowrap">
-                Mais popular
-              </span>
-            )}
-            
-            {isSelected && (
-              <div className="absolute top-2 right-2">
-                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-              </div>
-            )}
-            
-            <Icon className={`h-8 w-8 mb-2 ${isSelected ? "text-emerald-500" : "text-muted-foreground"}`} />
-            <span className="font-bold text-lg">{plan.nome}</span>
-            <span className={`text-xl font-bold mt-1 ${isSelected ? "text-emerald-500" : "text-foreground"}`}>
-              R$ {planPreco}
-              <span className="text-sm font-normal text-muted-foreground">{planPeriodo}</span>
-            </span>
-            
-            <ul className="mt-3 space-y-1 text-left w-full">
-              {plan.features.slice(0, 3).map((feature, i) => (
-                <li key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Check className={`h-3 w-3 flex-shrink-0 ${isSelected ? "text-emerald-500" : "text-muted-foreground"}`} />
-                  <span className="truncate">{feature}</span>
-                </li>
-              ))}
-            </ul>
-          </button>
-        );
-      })}
-    </div>
-  );
+  if (!validPlanKey) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <span className="ml-2 text-muted-foreground">Redirecionando para seleção de planos...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
+      {/* Header simples e transparente */}
       <header className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between px-4">
           <Link to="/">
             <Logo />
           </Link>
           <div className="flex items-center gap-4">
-            {hasSession && (
-              <button
-                type="button"
-                onClick={handleSignOut}
-                disabled={isAnyProcessing}
-                className="text-sm text-muted-foreground hover:text-destructive flex items-center gap-1.5 transition-colors duration-200"
-              >
-                <LogOut className="h-4 w-4" />
-                Sair da conta
-              </button>
-            )}
-            <Link to="/precos" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
+            <Link to="/precos" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
               <ArrowLeft className="h-4 w-4" />
               Voltar para planos
             </Link>
@@ -550,280 +305,134 @@ export default function Checkout() {
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Main Content: tela limpa, direta e sem seletores redundantes */}
       <main className="flex-1 flex items-center justify-center p-4 py-8">
-        <Card className="w-full max-w-lg">
-          <CardHeader className="text-center pb-4">
-            <CardTitle className="text-xl">Escolha seu plano e finalize</CardTitle>
-            <CardDescription>Compare os planos e selecione o ideal para você</CardDescription>
+        <Card className="w-full max-w-md border-border/80 shadow-xl bg-card">
+          <CardHeader className="text-center pb-3">
+            <div className="mx-auto mb-2 inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
+              <Sparkles className="h-3.5 w-3.5" />
+              Plano {plano.nome} {isAnual ? "Anual" : "Mensal"}
+            </div>
+            <CardTitle className="text-2xl font-bold tracking-tight text-foreground">
+              {checkoutError ? "Falha ao iniciar pagamento" : "Finalizando sua assinatura"}
+            </CardTitle>
+            <CardDescription className="text-sm text-muted-foreground">
+              {checkoutError
+                ? "Ocorreu um erro ao conectar com o provedor. Tente novamente."
+                : (conversionPath === "direct_purchase"
+                  ? "Assinatura imediata · Redirecionando para o pagamento seguro..."
+                  : trialDurationDays
+                    ? `Redirecionando para ativação do teste de ${trialDurationDays} dias no pagamento seguro...`
+                    : "Redirecionando para ativação do teste no pagamento seguro...")}
+            </CardDescription>
           </CardHeader>
 
-          <CardContent>
-            <div className="space-y-5">
-              {/* Plan Selector */}
-              <PlanSelector />
-              
-              <div className="flex items-center justify-center gap-3 p-3 bg-muted/50 rounded-lg">
-                <span className="text-sm font-semibold">{isAnual ? "Cobrança anual" : "Cobrança mensal"}</span>
+          <CardContent className="space-y-5">
+            {/* Estado de Processamento e Transição */}
+            {isAutoProcessing && (
+              <div className="flex flex-col items-center justify-center py-6 space-y-4">
+                <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
+                <p className="text-xs text-muted-foreground animate-pulse text-center">
+                  Conectando com segurança ao ambiente de pagamento...
+                </p>
               </div>
+            )}
 
-              {/* Resumo do plano */}
-              <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-lg space-y-3">
-                <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
-                  <span className="font-semibold text-foreground">Plano {plano.nome}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    {conversionPath === "direct_purchase"
-                      ? "Assinatura imediata"
-                      : trialDurationDays
-                        ? `${trialDurationDays} dias grátis`
-                        : "Duração do teste em confirmação"}
-                  </span>
+            {/* Estado de Erro com Ação de Retentativa */}
+            {checkoutError && (
+              <div className="space-y-4">
+                <div className="p-3.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-start gap-2.5">
+                  <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+                  <p className="leading-snug">{checkoutError}</p>
                 </div>
-                
-                {conversionPath === "direct_purchase" ? (
-                  introOfferSelected ? (
-                    <>
-                      <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
-                        <p className="text-xs font-semibold text-emerald-400">Economize no primeiro mês</p>
-                        <p className="mt-1 text-lg font-bold text-foreground">
-                          R$ {selectedIntroOffer?.introPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} hoje
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Depois R$ {selectedIntroOffer?.regularPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mês
-                        </p>
-                      </div>
-                      <div className="space-y-1.5 text-sm text-muted-foreground">
-                        <div className="flex justify-between">
-                          <span>Hoje:</span>
-                          <span className="font-bold text-emerald-400">
-                            R$ {selectedIntroOffer?.introPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Próxima cobrança:</span>
-                          <span className="text-right font-semibold text-foreground">
-                            R$ {selectedIntroOffer?.regularPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} na data confirmada pelo Stripe
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Depois:</span>
-                          <span className="font-semibold text-foreground">
-                            R$ {selectedIntroOffer?.regularPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mês
-                          </span>
-                        </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
-                        <p>✓ Cobrança inicial com desconto somente no primeiro período.</p>
-                        <p>✓ A assinatura começa após a confirmação real do pagamento.</p>
-                        <p>✓ Não há período de teste neste caminho.</p>
-                        <p>✓ Cancele quando quiser.</p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="space-y-1.5 text-sm text-muted-foreground">
-                        <div className="flex justify-between">
-                          <span>Hoje:</span>
-                          <span className="font-bold text-emerald-400">R$ {preco}{periodo}</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span>Cobrança:</span>
-                          <span className="text-foreground">imediata após confirmação no Stripe</span>
-                        </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
-                        <p>✓ Cobrança de R$ {preco} hoje.</p>
-                        <p>✓ A assinatura começa após a confirmação do pagamento.</p>
-                        <p>✓ Não há período de teste neste caminho.</p>
-                      </div>
-                    </>
-                  )
-                ) : (
-                  <>
-                    <div className="space-y-1.5 text-sm text-muted-foreground">
-                      <div className="flex justify-between">
-                        <span>Hoje:</span>
-                        <span className="font-bold text-emerald-400">R$ 0</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Após o teste:</span>
-                        <span className="font-semibold text-foreground">R$ {preco}{periodo}</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span>Primeira cobrança:</span>
-                        <span className="text-foreground">{trialDurationDays ? `após ${trialDurationDays} dias do início do trial` : "após o período de teste vigente"}</span>
-                      </div>
-                    </div>
-
-                    <div className="text-xs text-muted-foreground border-t border-emerald-500/10 pt-2 space-y-1">
-                      <p>✓ Você não será cobrado hoje.</p>
-                      <p>✓ {trialDurationDays ? `Seu teste grátis dura ${trialDurationDays} dias.` : "A duração vigente será confirmada antes do pagamento."}</p>
-                      <p>✓ Após o teste, sua assinatura será renovada automaticamente.</p>
-                      <p>✓ Você pode cancelar antes do fim do teste para não ser cobrado.</p>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Google Sign In Button */}
-              {!hasSession && <div className="space-y-3">
                 <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-12 gap-3 text-base font-medium border-2 hover:bg-muted/50"
-                  onClick={handleGoogleSignIn}
-                  disabled={isAnyProcessing}
+                  onClick={handleRetry}
+                  className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-2"
                 >
-                  {isGoogleProcessing ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      Conectando...
-                    </>
-                  ) : (
-                    <>
-                      <GoogleIcon />
-                      Entrar com Google e pagar
-                    </>
-                  )}
+                  <RefreshCw className="h-4 w-4" />
+                  Tentar novamente
                 </Button>
-              </div>}
+              </div>
+            )}
 
-              {/* Divider */}
-              {!hasSession && <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    ou cadastre com email
-                  </span>
-                </div>
-              </div>}
+            {/* Estado Sem Usuário Autenticado (Fallback Seguro) */}
+            {!user && !isAutoProcessing && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground text-center">
+                  Para continuar com sua assinatura no Plano {plano.nome}, entre ou crie sua conta.
+                </p>
+                <Button asChild className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
+                  <Link to={appendReferralToPath(
+                    `/auth?tab=signup&plan=${encodeURIComponent(selectedPlanId)}&anual=${isAnual}&conversion_path=${conversionPath}`,
+                    referralCode
+                  )}>
+                    Criar conta ou Entrar
+                  </Link>
+                </Button>
+              </div>
+            )}
 
-              {/* Form Fields */}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {referralCode && !hasSession && (
-                  <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3 text-sm leading-5 text-muted-foreground">
-                    <span className="font-medium text-foreground">Voce esta entrando por um convite.</span>{" "}
-                    A indicacao sera registrada, mas o bonus do indicador so sera liberado se voce assinar um plano.
-                  </div>
-                )}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="nome">Nome completo *</Label>
-                    <Input 
-                      id="nome" 
-                      placeholder="Seu nome completo" 
-                      value={nome} 
-                      onChange={e => setNome(e.target.value)} 
-                      required 
-                      disabled={isAnyProcessing || hasSession}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <Label htmlFor="email">E-mail *</Label>
-                      {hasSession && (
-                        <button
-                          type="button"
-                          onClick={handleSignOut}
-                          disabled={isAnyProcessing}
-                          className="text-xs text-emerald-500 hover:text-emerald-400 underline cursor-pointer transition-colors"
-                        >
-                          Usar outra conta
-                        </button>
-                      )}
+            {/* Resumo Transparente de Valores */}
+            <div className="p-4 bg-muted/40 border border-border/60 rounded-xl space-y-3 text-xs text-muted-foreground">
+              <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                <span className="font-semibold text-foreground">Plano {plano.nome}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-medium">
+                  {conversionPath === "direct_purchase"
+                    ? "Assinatura imediata"
+                    : trialDurationDays
+                      ? `${trialDurationDays} dias grátis`
+                      : "Teste confirmado no checkout"}
+                </span>
+              </div>
+
+              {conversionPath === "direct_purchase" ? (
+                introOfferSelected ? (
+                  <div className="space-y-1.5">
+                    <p className="font-semibold text-emerald-400">Economize no primeiro mês</p>
+                    <div className="flex justify-between">
+                      <span>Primeiro período:</span>
+                      <span className="font-bold text-foreground">
+                        R$ {selectedIntroOffer?.introPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} hoje
+                      </span>
                     </div>
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="seu@email.com" 
-                      value={email} 
-                      onChange={e => setEmail(e.target.value)} 
-                      required 
-                      disabled={isAnyProcessing || hasSession}
-                    />
-                  </div>
-                  {!hasSession && <div className="space-y-2">
-                    <Label htmlFor="senha">Senha *</Label>
-                    <div className="relative">
-                      <Input 
-                        id="senha" 
-                        type={showPassword ? "text" : "password"} 
-                        placeholder="Mínimo 8 caracteres" 
-                        value={senha} 
-                        onChange={e => setSenha(e.target.value)} 
-                        className="pr-10"
-                        required 
-                        disabled={isAnyProcessing}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        disabled={isAnyProcessing}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+                    <div className="flex justify-between">
+                      <span>Renovação regular:</span>
+                      <span>
+                        R$ {selectedIntroOffer?.regularPrice?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mês
+                      </span>
                     </div>
-                    {senha && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full transition-all ${getPasswordStrengthColor()}`} 
-                              style={{ width: `${(passwordStrength / 4) * 100}%` }} 
-                            />
-                          </div>
-                          <span className={`text-xs font-medium ${
-                            passwordStrength <= 2 ? "text-red-500" : 
-                            passwordStrength === 3 ? "text-yellow-500" : "text-emerald-500"
-                          }`}>
-                            {getPasswordStrengthLabel()}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
-                          <span className={passwordValidation.minLength ? "text-emerald-500" : ""}>• 8+ caracteres</span>
-                          <span className={passwordValidation.hasUppercase ? "text-emerald-500" : ""}>• Letra maiúscula</span>
-                          <span className={passwordValidation.hasLowercase ? "text-emerald-500" : ""}>• Letra minúscula</span>
-                          <span className={passwordValidation.hasNumber ? "text-emerald-500" : ""}>• Número</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>}
-                </div>
-
-                {/* Submit Button */}
-                <div className="space-y-3 pt-2">
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 h-12 text-base" 
-                    disabled={isAnyProcessing}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                        Processando...
-                      </>
-                    ) : (
-                      <>
-                        <ExternalLink className="h-5 w-5 mr-2" />
-                        {introOfferSelected
-                          ? "Assinar agora"
-                          : hasSession
-                            ? "Ir para pagamento"
-                            : "Criar conta e pagar"}
-                      </>
-                    )}
-                  </Button>
-                  
-                  <p className="text-xs text-center text-muted-foreground">
-                    Você será redirecionado para a página de pagamento segura.
-                    <br />
-                    Aceita PIX, cartão de crédito e boleto.
+                    <p className="text-[11px] text-muted-foreground pt-1">
+                      Não há período de teste neste caminho. A cobrança inicial é realizada imediatamente após a confirmação no provedor.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between">
+                      <span>Valor:</span>
+                      <span className="font-bold text-foreground">
+                        R$ {preco.toLocaleString("pt-BR")}{periodo}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Não há período de teste neste caminho. A cobrança inicial é realizada imediatamente após a confirmação no provedor.
+                    </p>
+                  </div>
+                )
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between">
+                    <span>Hoje:</span>
+                    <span className="font-bold text-emerald-400">R$ 0</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Depois do teste:</span>
+                    <span className="font-semibold text-foreground">R$ {preco.toLocaleString("pt-BR")}{periodo}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground pt-1">
+                    Cartão obrigatório para validação. Cancele antes do término do teste e não será cobrado.
                   </p>
                 </div>
-              </form>
+              )}
             </div>
           </CardContent>
         </Card>

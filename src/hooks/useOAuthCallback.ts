@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthRedirectBaseUrl, isOnCanonicalDomain } from '@/lib/authRedirect';
 import { appendReferralToPath, getCurrentReferralCode } from '@/lib/referral';
+import { normalizePlanId } from '@/config/plans';
 
 /**
  * Hook to handle OAuth callback tokens in URL hash.
@@ -115,7 +116,10 @@ export const useOAuthCallback = () => {
               const isAnual = pendingData.isAnual || false;
               const leadsQty = pendingData.leadsQty || pendingData.selectedLeads || "";
               if (pendingPlanId) {
-                navigate(appendReferralToPath(`/checkout?plano=${pendingPlanId}&anual=${isAnual}&google_auth=true${leadsQty ? `&leadsQty=${encodeURIComponent(String(leadsQty))}` : ""}`, pendingData.referralCode || getCurrentReferralCode()), { replace: true });
+                const conversionPath = pendingData.conversionPath === "direct_purchase" ? "direct_purchase" : "trial";
+              const offerIdParam = pendingData.offerId ? `&offerId=${encodeURIComponent(pendingData.offerId)}` : "";
+              const couponParam = pendingData.coupon ? `&coupon=${encodeURIComponent(pendingData.coupon)}` : "";
+              navigate(appendReferralToPath(`/checkout?plano=${pendingPlanId}&anual=${isAnual}&google_auth=true&conversion_path=${conversionPath}${offerIdParam}${couponParam}${leadsQty ? `&leadsQty=${encodeURIComponent(String(leadsQty))}` : ""}`, pendingData.referralCode || getCurrentReferralCode()), { replace: true });
               } else {
                 navigate("/precos", { replace: true });
               }

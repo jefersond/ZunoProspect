@@ -39,6 +39,7 @@ export function PrecosSection() {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [usaDialogOpen, setUsaDialogOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  const isExecutingCheckoutRef = useRef(false);
   const sectionRef = useRef<HTMLElement>(null);
   const hasTrackedView = useRef(false);
 
@@ -70,6 +71,8 @@ export function PrecosSection() {
 
 
   const handleSelectPlano = async (plan: PlanConfig, conversionPath: BillingConversionPath = "trial") => {
+    if (isExecutingCheckoutRef.current) return;
+    isExecutingCheckoutRef.current = true;
     const price = getPlanPrice(plan.id, billingCycle);
     const trackingPrice = plan.monthlyPrice;
     const planIntroOffer = introOffer.plans[plan.id];
@@ -161,7 +164,9 @@ export function PrecosSection() {
     } = await supabase.auth.getSession();
 
     if (!session) {
-      navigate(appendReferralToPath(`/auth?tab=signup&plan=${encodeURIComponent(plan.id)}&leadsQty=${encodeURIComponent(String(plan.leadsLimit))}&anual=${billingCycle === "annual"}&conversion_path=${conversionPath}`));
+      const offerParam = introOfferSelected ? `&offerId=${encodeURIComponent(introOffer.key)}` : "";
+      navigate(appendReferralToPath(`/auth?tab=signup&plan=${encodeURIComponent(plan.id)}&leadsQty=${encodeURIComponent(String(plan.leadsLimit))}&anual=${billingCycle === "annual"}&conversion_path=${conversionPath}${offerParam}`));
+      isExecutingCheckoutRef.current = false;
       return;
     }
 
@@ -233,6 +238,7 @@ export function PrecosSection() {
       trackEvent("checkout_failed", { ...funnelContext, plan_id: plan.id, billing_cycle: billingCycle, location: "pricing", source: "pricing_page", conversion_path: conversionPath, error_message_safe: error?.message || "checkout_error", error: error?.message || "checkout_error" });
       toast.error("Não foi possível iniciar o pagamento", { description: "Tente novamente." });
     } finally {
+      isExecutingCheckoutRef.current = false;
       setIsProcessing(null);
     }
   };

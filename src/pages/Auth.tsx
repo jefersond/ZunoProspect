@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -92,10 +92,13 @@ const Auth = () => {
   const selectedLeads = searchParams.get("leadsQty") || searchParams.get("leads") || (resolvedPlan.status === "valid" ? String(resolvedPlan.plan.leadsLimit) : "100");
   const isAnualParam = searchParams.get("anual") || searchParams.get("isAnual") || "false";
   const conversionPathParam = searchParams.get("conversion_path") === "direct_purchase" ? "direct_purchase" : "trial";
+  const offerIdParam = searchParams.get("offerId") || searchParams.get("offer") || null;
+  const couponParam = searchParams.get("coupon") || searchParams.get("cupom") || null;
   const referralCode = getCurrentReferralCode(searchParams);
+  const authRedirectHandledRef = useRef(false);
 
   const checkoutTarget = selectedPlan
-    ? appendReferralToPath(`/checkout?plano=${encodeURIComponent(selectedPlan)}&anual=${encodeURIComponent(isAnualParam)}&leadsQty=${encodeURIComponent(selectedLeads)}&conversion_path=${conversionPathParam}`, referralCode)
+    ? appendReferralToPath(`/checkout?plano=${encodeURIComponent(selectedPlan)}&anual=${encodeURIComponent(isAnualParam)}&leadsQty=${encodeURIComponent(selectedLeads)}&conversion_path=${conversionPathParam}${offerIdParam ? `&offerId=${encodeURIComponent(offerIdParam)}` : ""}${couponParam ? `&coupon=${encodeURIComponent(couponParam)}` : ""}`, referralCode)
     : null;
 
   const storePendingCheckout = () => {
@@ -106,27 +109,49 @@ const Auth = () => {
       leadsQty: Number(selectedLeads) || 100,
       referralCode,
       conversionPath: conversionPathParam,
+      offerId: offerIdParam,
+      coupon: couponParam,
     }));
   };
 
   const redirectAfterAuth = () => {
+    if (authRedirectHandledRef.current) return;
+    authRedirectHandledRef.current = true;
+
     const pendingCheckout = localStorage.getItem("checkout_pending");
+    let targetPlan = selectedPlan;
+    let targetAnual = isAnualParam === "true";
+    let targetLeads = selectedLeads;
+    let targetConversionPath = conversionPathParam;
+    let targetReferral = referralCode;
+    let targetOfferId = offerIdParam;
+    let targetCoupon = couponParam;
+
     if (pendingCheckout) {
       try {
         const pending = JSON.parse(pendingCheckout);
         localStorage.removeItem("checkout_pending");
         const pendingPlanId = normalizePlanId(pending.plano || pending.plan || pending.planKey);
         if (pendingPlanId) {
-          navigate(appendReferralToPath(`/checkout?plano=${encodeURIComponent(pendingPlanId)}&anual=${encodeURIComponent(String(!!pending.isAnual))}&leadsQty=${encodeURIComponent(String(pending.leadsQty || selectedLeads))}&conversion_path=${pending.conversionPath === "direct_purchase" ? "direct_purchase" : "trial"}`, pending.referralCode || referralCode), { replace: true });
-          return;
+          targetPlan = pendingPlanId;
+          targetAnual = !!pending.isAnual;
+          targetLeads = String(pending.leadsQty || targetLeads);
+          targetConversionPath = pending.conversionPath === "direct_purchase" ? "direct_purchase" : "trial";
+          targetReferral = pending.referralCode || targetReferral;
+          targetOfferId = pending.offerId || targetOfferId;
+          targetCoupon = pending.coupon || targetCoupon;
         }
       } catch {
         localStorage.removeItem("checkout_pending");
       }
     }
 
-    if (checkoutTarget) {
-      navigate(checkoutTarget, { replace: true });
+    if (targetPlan) {
+      const checkoutUrl = appendReferralToPath(
+        `/checkout?plano=${encodeURIComponent(targetPlan)}&anual=${encodeURIComponent(String(targetAnual))}&leadsQty=${encodeURIComponent(String(targetLeads))}&conversion_path=${targetConversionPath}${targetOfferId ? `&offerId=${encodeURIComponent(targetOfferId)}` : ""}${targetCoupon ? `&coupon=${encodeURIComponent(targetCoupon)}` : ""}`,
+        targetReferral
+      );
+      navigate(checkoutUrl, { replace: true });
       return;
     }
 

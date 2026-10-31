@@ -56,7 +56,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   // Se o perfil já terminou de carregar, mas não possui WhatsApp preenchido,
   // obriga o preenchimento exibindo um formulário centralizado premium
-  if (!profileLoading && profile && !profile.whatsapp) {
+  const isCheckoutRoute = location.pathname === "/checkout";
+  if (!isCheckoutRoute && !profileLoading && profile && !profile.whatsapp) {
     const handleSaveWhatsapp = async (e: React.FormEvent) => {
       e.preventDefault();
       
@@ -154,7 +155,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAllowedRoute = ["/checkout", "/profile"].includes(location.pathname);
 
   if (user && isFreeUser && !subIsAdmin && !isAllowedRoute) {
-    return <Navigate to="/checkout" replace />;
+    return <Navigate to="/precos" replace />;
   }
 
   return <>{children}</>;

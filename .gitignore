@@ -28,6 +28,7 @@ dist-ssr
 
 .vercel
 .env*
+!.env.production
 
 # Claude Code local tooling state (subagent worktrees, etc.) — never part of the repo
 .claude/*

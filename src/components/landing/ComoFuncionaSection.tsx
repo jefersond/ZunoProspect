@@ -26,43 +26,43 @@ export function ComoFuncionaSection() {
 
   const passos = [
     {
-      titulo: "1. Escolha cidade e nicho",
+      titulo: "1. Busca por cidade e segmento",
       subtitulo: "Defina onde e quem quer prospectar",
-      descricao: "Defina a região e o nicho de mercado. A Zuno organiza a busca para encontrar empresas dentro desse recorte.",
+      descricao: "Defina a região e o nicho de mercado. A Zuno organiza a busca para encontrar empresas dentro desse recorte a partir de registros públicos.",
       icone: MapPin,
     },
     {
-      titulo: "2. Encontre empresas",
+      titulo: "2. Avaliação de dados públicos",
       subtitulo: "Lista organizada com dados disponíveis",
-      descricao: "Veja canais de contato e presença digital quando estiverem disponíveis nas fontes públicas consultadas.",
+      descricao: "Analise canais abertos, telefone e avaliações no Google antes de entrar em contato, sem inventar informações sobre a empresa.",
       icone: Building2,
     },
     {
-      titulo: "3. Analise oportunidades com IA",
-      subtitulo: "Contexto para priorizar oportunidades",
-      descricao: "A Zuno organiza sinais de presença digital e contexto do lead para ajudar você a decidir quais oportunidades analisar primeiro.",
+      titulo: "3. Perfil comercial e IA adaptada",
+      subtitulo: "A IA entende o que você vende",
+      descricao: "Cadastre seu serviço e oferta no perfil comercial. A IA alinha as mensagens ao seu trabalho real, sem clichês ou promessas milagrosas.",
       icone: Bot,
     },
     {
-      titulo: "4. Gere abordagens qualificadas",
-      subtitulo: "Sugestões para WhatsApp, Instagram e e-mail",
-      descricao: "A IA sugere mensagens com base no contexto disponível para você revisar e adaptar ao seu serviço.",
+      titulo: "4. Cadência comercial orientada",
+      subtitulo: "Plano tático com mensagens e tarefas",
+      descricao: "Receba uma sequência organizada de contatos e tarefas internas. Você revisa cada mensagem e decide quando enviar.",
       icone: Sparkles,
     },
     {
-      titulo: "5. Copie e comece a conversa",
-      subtitulo: "Revise e comece a conversa",
-      descricao: "Revise a mensagem sugerida, copie o texto e use o canal público disponível para iniciar a conversa.",
+      titulo: "5. CRM e Próxima Melhor Ação",
+      subtitulo: "Acompanhe cada oportunidade",
+      descricao: "Mantenha o histórico organizado e saiba exatamente qual é o próximo passo para cada empresa em prospecção com envio 100% manual.",
       icone: Zap,
     },
   ];
 
   const etapasFluxo = [
     { label: "Cidade + Nicho", icone: MapPin, index: 0 },
-    { label: "Empresas Encontradas", icone: Building2, index: 1 },
-    { label: "Score / Oportunidade", icone: Bot, index: 2 },
-    { label: "Mensagem Gerada", icone: Sparkles, index: 3 },
-    { label: "Canal de Envio", icone: Zap, index: 4 }
+    { label: "Dados Públicos", icone: Building2, index: 1 },
+    { label: "Perfil Comercial", icone: Bot, index: 2 },
+    { label: "Cadência Orientada", icone: Sparkles, index: 3 },
+    { label: "CRM e Próxima Ação", icone: Zap, index: 4 }
   ];
 
   const scrollToSection = (id: string) => {
@@ -220,8 +220,7 @@ export function ComoFuncionaSection() {
                       <h4 className="text-sm font-bold text-[#F3F7F5]">Empresa demonstrativa A</h4>
                       <p className="text-[11px] text-[#A9B8B1]">Ribeirão Preto • (16) 99281-XXXX</p>
                       <div className="mt-1.5 flex gap-1.5">
-                        <span className="rounded bg-red-950/30 px-1.5 py-0.5 text-[9px] font-mono text-red-400 border border-red-900/30">Sem Pixel</span>
-                        <span className="rounded bg-[#20312A]/40 px-1.5 py-0.5 text-[9px] font-mono text-[#A9B8B1] border border-[#20312A]">Site Lento</span>
+                        <span className="rounded bg-emerald-950/30 px-1.5 py-0.5 text-[9px] font-mono text-emerald-400 border border-emerald-900/30">WhatsApp Celular</span><span className="rounded bg-[#20312A]/40 px-1.5 py-0.5 text-[9px] font-mono text-[#A9B8B1] border border-[#20312A]">Avaliações Google</span>
                       </div>
                     </div>
                     <div className="text-right">
@@ -248,20 +247,18 @@ export function ComoFuncionaSection() {
                       <span>Diagnóstico de Oportunidades:</span>
                     </div>
                     <ul className="space-y-1.5 text-[11px] list-disc list-inside">
-                      <li>Sem Tag de Anúncios (Pixel ausente no site oficial)</li>
-                      <li>Velocidade mobile insatisfatória (carregamento &gt; 4.2s)</li>
-                      <li>Perfil de Instagram ativo com alto engajamento orgânico</li>
+                      <li>Contato celular com WhatsApp disponível no cadastro público</li>
+                      <li>Perfil com boas avaliações no Google Maps na cidade</li>
+                      <li>Alinhamento com a oferta de Automação de Agendamentos do vendedor</li>
                     </ul>
                   </div>
 
                   <div className="rounded-lg border border-[#20312A] bg-[#07100D]/50 p-3 text-xs text-[#F3F7F5] border-l-2 border-l-[#12D98B] flex items-center justify-between">
                     <div>
-                      <p className="font-bold">Pontuação de Vendas (Score)</p>
-                      <p className="text-[10px] text-[#A9B8B1]">Potencial de conversão em serviços</p>
+                      <p className="font-bold">Perfil Comercial do Vendedor</p><p className="text-[10px] text-[#A9B8B1]">Carlos Operação · Automação de WhatsApp</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-extrabold text-[#12D98B] font-mono">92/100</p>
-                      <p className="text-[8px] uppercase tracking-wider text-[#12D98B] font-bold">Excelente</p>
+                      <p className="text-sm font-extrabold text-[#12D98B] font-mono">Nível Médio</p><p className="text-[8px] uppercase tracking-wider text-[#12D98B] font-bold">Maturidade B2B</p>
                     </div>
                   </div>
                 </div>
@@ -277,7 +274,7 @@ export function ComoFuncionaSection() {
                   </div>
                   
                   <div className="rounded-lg border border-[#20312A] bg-[#07100D]/80 p-3 text-xs text-[#F3F7F5] italic border-l-2 border-[#12D98B] leading-relaxed max-h-[140px] overflow-y-auto">
-                    "Olá, notei que sua clínica em Ribeirão Preto possui excelentes avaliações orgânicas, mas analisando o site oficial vi que o Pixel do Meta Ads está inativo. Isso significa que vocês estão perdendo potenciais clientes que entram no site e saem sem agendar. Tenho uma estratégia local rápida para capturar esse público..."
+                    "Olá Dr. Roberto! Vi a Clínica OdontoPrime em Curitiba no Google. Sou o Carlos, da Scale B2B, e ajudamos clínicas a organizar o agendamento e a triagem de pacientes no WhatsApp para não sobrecarregar a recepção. Faz sentido bater um papo rápido para entender como vocês lidam com esse fluxo hoje?"
                   </div>
                 </div>
               )}
@@ -306,7 +303,7 @@ export function ComoFuncionaSection() {
 
                   <div className="w-full h-11 rounded-lg bg-transparent border border-[#12D98B] text-[#12D98B] font-bold flex items-center justify-center gap-2 hover:bg-[#12D98B]/10 transition-colors">
                     <Zap className="h-4 w-4" />
-                    Iniciar Conversa no WhatsApp
+                    Abrir WhatsApp Manualmente (wa.me)
                   </div>
                 </div>
               )}

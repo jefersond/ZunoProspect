@@ -4,11 +4,11 @@ import { trackEvent } from "@/lib/analytics";
 import { LANDING_CTA_BASE, LANDING_CTA_ICON, LANDING_CTA_RESPONSIVE } from "./ctaStyles";
 
 const flow = [
-  { label: "Busca", detail: "Cidade ou região + nicho", icon: Search },
-  { label: "Empresas", detail: "Lista organizada", icon: Building2 },
-  { label: "Prioridade", detail: "Sinais de oportunidade", icon: Target },
-  { label: "Contexto", detail: "Dados públicos disponíveis", icon: Sparkles },
-  { label: "Abordagem", detail: "Mensagem sugerida", icon: MessageSquareText },
+  { label: "Busca Regional", detail: "Busca por cidade e segmento", icon: Search },
+  { label: "Dados Públicos", detail: "Avaliações e canais abertos", icon: Building2 },
+  { label: "Perfil do Vendedor", detail: "IA adaptada à sua oferta real", icon: Sparkles },
+  { label: "Cadência Orientada", detail: "Plano e abordagem sem clichês", icon: MessageSquareText },
+  { label: "CRM com Próxima Ação", detail: "Tarefas e próximos passos", icon: Target },
 ];
 
 export function ProductProofSection() {
@@ -82,11 +82,11 @@ export function ProductProofSection() {
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#12D98B]">Abordagem sugerida</p>
               <div className="mt-3 rounded-xl border border-[#20312A] bg-[#07100D] p-4">
                 <p className="text-sm leading-7 text-[#A9B8B1]">
-                  “Oi, tudo bem? Vi que vocês atendem em Ribeirão Preto e encontrei alguns pontos na presença digital que podem abrir espaço para melhorar a captação. Posso te mostrar o que observei?”
+                  “Olá! Sou o Carlos, da Scale B2B. Ajudamos clínicas em Curitiba a organizar o agendamento de consultas pelo WhatsApp para não sobrecarregar a recepção. Vi a atuação de vocês no Google e preparei este contato. Faz sentido conversar para entender como lidam com esse fluxo hoje?”
                 </p>
               </div>
               <p className="mt-3 text-xs leading-relaxed text-[#6F8179]">
-                A mensagem é uma sugestão. Você revisa, adapta e decide quando enviar.
+                A mensagem é uma sugestão gerada com base na sua oferta real e nos dados públicos da empresa. O envio é 100% manual por você (via WhatsApp, Direct ou e-mail); a Zuno não realiza disparos automáticos nem garante vendas.
               </p>
 
               <div className="mt-6 flex justify-center">

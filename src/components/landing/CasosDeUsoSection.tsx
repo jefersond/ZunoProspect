@@ -41,7 +41,7 @@ export function CasosDeUsoSection() {
       persona: "Agência",
       icone: Building2,
       titulo: "Busca Estratégica Regional",
-      descricao: "Mapeie segmentos inteiros em lote em qualquer região brasileira para alimentar o time de vendas (SDRs) com empresas validadas e contatos ativos.",
+      descricao: "Mapeie segmentos inteiros em lote em qualquer região brasileira para alimentar o time comercial com empresas validadas e contatos ativos.",
       exemplo: "Busca: 'Distribuidora' ou 'Construtora' em 'Ribeirão Preto, SP'",
       foco: "Diagnóstico integrado de canais digitais, estruturação de prospecção comercial recorrente e volume de abordagens."
     },

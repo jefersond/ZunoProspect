@@ -44,8 +44,40 @@ jobs:
           src/security/zanotelliInternalProspectingBridge.test.ts
           --max-warnings=0
 
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Verify Supabase readiness
+        run: |
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:55321/auth/v1/health || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "Supabase Auth is healthy and ready on port 55321 (status 200)!"
+              exit 0
+            fi
+            echo "Waiting for Supabase... ($i/30, status: $STATUS)"
+            sleep 2
+          done
+          echo "Supabase readiness check timed out."
+          exit 1
+
       - name: Tests
         run: npm test
+        env:
+          VITE_SUPABASE_PROJECT_ID: "zuno-prospect-local"
+          VITE_SUPABASE_URL: "http://127.0.0.1:55321"
+          VITE_SUPABASE_PUBLISHABLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
+          VITE_SELLER_PROFILE_REMOTE: "true"
+          VITE_PUBLIC_SITE_URL: "http://127.0.0.1:8080"
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup
 
       - name: Build
         run: npm run build

@@ -463,12 +463,26 @@ export const GENERIC_OBJECTION_PATTERNS: RegExp[] = [
 const normalizeText = (value: string) => value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const SERVICE_STOPWORDS = new Set(["gestao", "criacao", "servico", "servicos", "empresa", "empresas", "negocio", "negocios", "locais", "local", "clientes", "pequenas", "pequeno", "crio", "faco", "cuido", "monto", "configuro", "mensal", "relatorio"]);
 
+export const CATEGORY_SYNONYMS: Record<string, string[]> = {
+  trafego: ["anunc", "campa", "googl", "meta", "pago", "visib", "atrai", "conve", "leads"],
+  social: ["redes", "insta", "conte", "engaj", "post", "feed", "stori", "seguidores"],
+  design: ["ident", "visua", "marca", "logo", "layout", "artes", "mater"],
+  sites: ["site", "pagin", "land", "veloc", "domini", "porta", "web"],
+  automacao: ["autom", "proce", "integ", "fluxo", "zap", "notif"],
+  crm: ["crm", "funil", "gesta", "relac", "pipel", "atend"],
+  full_service: ["aquis", "canal", "posic", "estrat", "cresc", "vendas"],
+  servicos_profissionais: ["parce", "indic", "relac", "b2b", "conec"],
+};
+
 /** Radicais (5 letras) das palavras que identificam o serviço e a oferta do assinante. */
 export function serviceStems(profile: SellerProfile): string[] {
-  const text = normalizeText(`${profile.service_offered} ${profile.offer_description}`);
+  const text = normalizeText(`${profile.service_category || ""} ${profile.service_offered} ${profile.offer_description}`);
   const stems = new Set<string>();
   for (const w of text.split(/[^a-z0-9]+/)) {
     if (w.length >= 5 && !SERVICE_STOPWORDS.has(w)) stems.add(w.slice(0, 5));
+  }
+  if (profile.service_category && CATEGORY_SYNONYMS[profile.service_category]) {
+    for (const syn of CATEGORY_SYNONYMS[profile.service_category]) stems.add(syn.slice(0, 5));
   }
   return [...stems];
 }
@@ -479,13 +493,27 @@ export function mentionsSellerService(message: string, profile: SellerProfile): 
   return serviceStems(profile).some((stem) => normalized.includes(stem));
 }
 
+export const GREETING_QUESTION = /(?:tudo (?:bem|bom)|como (?:vai|est[aá]|est[aã]o))\s*\?/gi;
+
 /** Exatamente uma pergunta e ela está nas três últimas linhas (antes de uma eventual assinatura de até duas linhas). */
 export function hasSingleFinalQuestion(message: string): boolean {
-  const withoutGreeting = message.replace(/tudo bem\s*\?/gi, "");
+  const withoutGreeting = message.replace(GREETING_QUESTION, "");
   const questionMarks = (withoutGreeting.match(/\?/g) || []).length;
   if (questionMarks !== 1) return false;
   const lines = message.trim().split(/\n+/).map((l) => l.trim()).filter(Boolean);
-  return lines.slice(-3).some((l) => l.replace(/tudo bem\s*\?/gi, "").includes("?"));
+  return lines.slice(-3).some((l) => l.replace(GREETING_QUESTION, "").includes("?"));
+}
+
+export const INSTAGRAM_SPECIFIC_TERMS = /\b(direct|stories|story|feed|bio|reels|post|posts|dm|arraste|perfil no instagram|no seu instagram|no instagram|direct do instagram)\b/i;
+export const EMAIL_SPECIFIC_TERMS = /\b(anexo|anexos|anexado|pdf|em anexo|segue anexo|prezado|prezada|atenciosamente|cordialmente)\b/i;
+
+export function isAppropriateForWhatsApp(message: string, assunto = "", _originalChannel = ""): boolean {
+  const words = countWords(message);
+  if (words > HARD_WORD_LIMIT.whatsapp) return false;
+  const fullText = `${assunto}\n${message}`;
+  if (INSTAGRAM_SPECIFIC_TERMS.test(fullText)) return false;
+  if (EMAIL_SPECIFIC_TERMS.test(fullText)) return false;
+  return true;
 }
 
 const REPLIED_STAGES: HistoryStage[] = ["respondeu", "interessado", "reuniao_marcada"];
@@ -493,7 +521,7 @@ const REPLIED_STAGES: HistoryStage[] = ["respondeu", "interessado", "reuniao_mar
 const PLACEHOLDER = /\[[^\]]{1,80}\]|\{\{|\}\}|\{[^}]{1,80}\}|<[^>]{1,40}>/;
 
 const countWords = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
-const countRealQuestions = (text: string) => text.replace(/tudo bem\s*\?/gi, "").split("?").length - 1;
+const countRealQuestions = (text: string) => text.replace(GREETING_QUESTION, "").split("?").length - 1;
 
 const SOFT_WORD_LIMIT: Record<string, number> = { whatsapp: 70, instagram: 60, email: 140 };
 const HARD_WORD_LIMIT: Record<string, number> = { whatsapp: 110, instagram: 100, email: 220 };
@@ -503,6 +531,7 @@ const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 export function validateAnalysis(
   raw: unknown,
   ctx: { channels: DayChannel[]; profile: SellerProfile; stage: HistoryStage; facts?: VerifiedFacts },
+  options: { mode?: "generate" | "refine" } = {},
 ): ValidationResult {
   const issues: string[] = [];
   if (!raw || typeof raw !== "object") return { ok: false, issues: ["resposta não é um objeto"] };
@@ -595,13 +624,33 @@ export function validateAnalysis(
     // tipo "mensagem" | "acompanhamento"
     if (mensagem.length < 20) { demote("texto ausente ou curto demais"); plano.push(day); continue; }
     if (!SENDABLE_CHANNELS.includes(canal)) { demote("canal sem texto enviável"); plano.push(day); continue; }
-    if (!ctx.channels.includes(canal)) { demote(`canal ${canal} indisponível para este lead`); plano.push(day); continue; }
-    if (canal === "email" && !assunto) { demote("e-mail sem assunto"); plano.push(day); continue; }
+    if (!ctx.channels.includes(canal)) {
+      if (ctx.channels.includes("whatsapp") && isAppropriateForWhatsApp(mensagem, assunto, canal)) {
+        day.canal = "whatsapp";
+        day.assunto_email = "";
+        warnings.push(`dia ${dia}: canal ${canal} adaptado para whatsapp (disponível no lead)`);
+      } else {
+        demote(`canal ${canal} indisponível para este lead${ctx.channels.includes("whatsapp") ? " e texto inadequado para whatsapp: convertido em tarefa interna de revisão" : ""}`);
+        plano.push(day);
+        continue;
+      }
+    }
+    if (day.canal === "email" && !assunto) { demote("e-mail sem assunto"); plano.push(day); continue; }
     if (PLACEHOLDER.test(mensagem) || PLACEHOLDER.test(assunto)) { demote("campo a preencher no texto"); plano.push(day); continue; }
     const forbidden = FORBIDDEN_MESSAGE_PATTERNS.find((p) => p.pattern.test(`${assunto}\n${mensagem}`));
     if (forbidden) { demote(forbidden.label); plano.push(day); continue; }
     if (ctx.stage === "nao_contatado" && tipo === "acompanhamento" && !firstContactSeen) {
-      demote("acompanhamento antes de qualquer contato"); plano.push(day); continue;
+      warnings.push(`dia ${dia}: acompanhamento convertido em tarefa interna de planejamento (primeira abordagem pendente)`);
+      demoted.push(dia);
+      day.tipo = "tarefa";
+      day.canal = "nenhum";
+      day.mensagem = "";
+      day.assunto_email = "";
+      day.objecao_provavel = "";
+      day.resposta_sugerida = "";
+      day.acao = "Como a primeira abordagem precisa ser definida antes do envio, esta etapa foi convertida em tarefa interna de planejamento.";
+      plano.push(day);
+      continue;
     }
     // Quem já respondeu não recebe nova sequência fria: no máximo UMA mensagem (conduzir a conversa); o resto vira tarefa.
     if (REPLIED_STAGES.includes(ctx.stage) && plano.some((p) => p.tipo === "mensagem" || p.tipo === "acompanhamento")) {
@@ -649,7 +698,10 @@ export function validateAnalysis(
   const onlyPhone = !ctx.channels.some((c) => SENDABLE_CHANNELS.includes(c));
   const hasCallTask = plano.some((p) => p.tipo === "tarefa" && p.canal === "telefone");
   if (!sendable.length && !stageAllowsNoMessage && !(onlyPhone && hasCallTask)) {
-    return { ok: false, issues: ["nenhuma mensagem utilizável após a validação"] };
+    if (options.mode === "refine") {
+      return { ok: false, issues: ["nenhuma copy utilizável para envio direto gerada no refinamento"] };
+    }
+    warnings.push("nenhuma mensagem aprovada para envio direto: as etapas foram preservadas como tarefas internas");
   }
   if (sendable.length > 4) warnings.push(`${sendable.length} dias com texto (limite pedido: 4)`);
 
@@ -863,6 +915,7 @@ export function buildPersistedPayload(input: {
       finish_reason: input.telemetry.finish_reason,
       validation_warnings: input.warnings,
       usage: input.telemetry.usage,
+      attempts: input.telemetry.attempts,
     },
   };
 }
@@ -923,11 +976,28 @@ export function buildGeminiRequestBody(prompt: string, options: GeminiRequestOpt
 /** "billed": a API devolveu conteúdo. "unknown": pode ter havido geração/raciocínio cobrado. "not_billed": rejeitada antes de gerar. */
 export type BillingCertainty = "not_billed" | "unknown" | "billed";
 
+export function cleanErrorDetail(body: string, max = 160): string {
+  let message = body;
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: unknown; status?: unknown } };
+    const m = parsed?.error?.message;
+    const s = parsed?.error?.status;
+    message = [typeof s === "string" ? s : "", typeof m === "string" ? m : ""].filter(Boolean).join(": ") || body;
+  } catch {
+    // corpo não-JSON: usa o texto cru
+  }
+  return message
+    .replace(/AIza[0-9A-Za-z_-]{20,}/g, "[REDACTED_API_KEY]")
+    .replace(/\s+/g, " ")
+    .slice(0, max);
+}
+
 export interface AttemptLog {
   model: string;
   http_status: number | null;
   outcome: "ok" | "http_error" | "timeout" | "network_error" | "empty" | "invalid_json" | "truncated";
   billing: BillingCertainty;
+  error_detail?: string;
 }
 
 export interface GeminiTelemetry {
@@ -967,6 +1037,7 @@ type FetchLike = (url: string, init: { method: string; headers: Record<string, s
   ok: boolean;
   status: number;
   json: () => Promise<unknown>;
+  text?: () => Promise<string>;
 }>;
 
 const worstBilling = (attempts: AttemptLog[]): BillingCertainty =>
@@ -1019,8 +1090,15 @@ export async function runGeminiAnalysis(opts: {
       if (!response.ok) {
         clearTimeout(timer);
         const c = classifyHttpStatus(response.status);
-        attempts.push({ model, http_status: response.status, outcome: "http_error", billing: c.billing });
-        lastError = `${model}:${response.status}`;
+        let errorDetail: string | undefined;
+        try {
+          if (typeof response.text === "function") {
+            const rawBody = await response.text();
+            errorDetail = cleanErrorDetail(rawBody, 160);
+          }
+        } catch { /* ignore */ }
+        attempts.push({ model, http_status: response.status, outcome: "http_error", billing: c.billing, error_detail: errorDetail });
+        lastError = errorDetail ? `${model}:${response.status}:${errorDetail}` : `${model}:${response.status}`;
         lastKind = c.kind;
         if (!c.nextModel) return { ok: false, kind: c.kind, error: lastError, telemetry: telemetry() };
         continue;

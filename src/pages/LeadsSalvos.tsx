@@ -385,6 +385,7 @@ const LeadsSalvos = () => {
 
       const invokeBody = {
           leadId,
+          mode: "refine",
           lead: normalizedLead,
           search_context: searchContext
         };
@@ -410,7 +411,7 @@ const LeadsSalvos = () => {
       const persisted = confirmPersistedRefine(persistedRow, lead?.ai_analise_gerada_em, { alreadyCurrent: outcome.alreadyCurrent });
       if (!persisted.ok || !persistedRow) {
         console.warn("Refinamento não confirmado no banco:", "reason" in persisted ? persisted.reason : "empty_row");
-        throw buildPersistenceUnconfirmedError(requestId);
+        throw buildPersistenceUnconfirmedError(requestId, Boolean(lead?.ai_analise_gerada_em));
       }
 
       // Recarrega os leads para obter a análise atualizada do banco

@@ -127,8 +127,9 @@ export function confirmPersistedRefine(
 }
 
 /** A IA respondeu, mas o banco não confirmou a gravação: nada é anunciado como concluído e nada é substituído. */
-export function buildPersistenceUnconfirmedError(requestId: string): RefineClientError {
-  const safeMessage = "A IA respondeu, mas não foi possível confirmar que a análise foi salva. A análise anterior foi mantida. Atualize a página para conferir; se a nova análise tiver sido gravada, ela aparecerá com a data do último refinamento.";
+export function buildPersistenceUnconfirmedError(requestId: string, hasPreviousPlan = false): RefineClientError {
+  const suffix = hasPreviousPlan ? " A análise anterior foi mantida." : "";
+  const safeMessage = `A IA respondeu, mas não foi possível confirmar que a análise foi salva.${suffix} Atualize a página para conferir; se a nova análise tiver sido gravada, ela aparecerá com a data do último refinamento.`;
   return new RefineClientError({
     success: false,
     request_id: requestId,

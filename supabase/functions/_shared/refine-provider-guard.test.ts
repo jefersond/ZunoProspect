@@ -112,9 +112,9 @@ describe("persistência e cobrança", () => {
 
 describe("buildProviderFailure", () => {
   it("falha do provedor: 502, success false, sem fallback, sem gravação, sem crédito, repetível", () => {
-    const f = buildProviderFailure("req-1", "gemini-3.6-flash:400");
-    expect(f.status).toBe(502);
-    expect(f.body).toMatchObject({
+    const fWithoutPrev = buildProviderFailure("req-1", "gemini-3.6-flash:400", false);
+    expect(fWithoutPrev.status).toBe(502);
+    expect(fWithoutPrev.body).toMatchObject({
       success: false,
       error_code: "REFINE_PROVIDER_UNAVAILABLE",
       category: "provider_error",
@@ -123,8 +123,11 @@ describe("buildProviderFailure", () => {
       credit_consumed: false,
       saved: false,
     });
-    expect(f.body.safe_message).toMatch(/crédito não foi consumido/i);
-    expect(f.body.safe_message).toMatch(/anterior foi mantida/i);
+    expect(fWithoutPrev.body.safe_message).toMatch(/crédito não foi consumido\./i);
+    expect(fWithoutPrev.body.safe_message).not.toMatch(/anterior foi mantida/i);
+
+    const fWithPrev = buildProviderFailure("req-1", "gemini-3.6-flash:400", true);
+    expect(fWithPrev.body.safe_message).toMatch(/crédito não foi consumido e a análise anterior foi mantida\./i);
   });
 
   it("chave ausente: 503 de configuração, sem prometer nova tentativa", () => {
@@ -702,5 +705,106 @@ describe("reserva de 90 s: nunca duas gerações pagas do mesmo lead", () => {
     const result = await harness(db, clock, c)("retry", 1_000);
     expect(result.status).toBe("saved");
     expect(c).toEqual({ provider: 1, persist: 1, charge: 1 });
+  });
+});
+
+describe("Invariantes Comerciais: Gerar Análise vs Refinar Copy", () => {
+  const analysisWithCopies = () => {
+    const r = validateAnalysis(valid());
+    if (!r.ok) throw new Error("fixture inválida");
+    return r.value;
+  };
+
+  const validNoMessages = () => ({
+    diagnostico_bullets: ["Diagnóstico tático detalhado A", "Diagnóstico tático B", "Diagnóstico tático C"],
+    probabilidade_conversao: 55,
+    fit_level: "medio",
+    commercial_opportunity: "op",
+    probable_pain: "dor",
+    messages: { whatsapp_primary: "", instagram: "", email_body: "" },
+    plano_prospeccao_7dias: [1, 2, 3, 4, 5, 6, 7].map((d) => day(d, { mensagem: "", canal: "nenhum", tipo: "tarefa" })),
+  });
+
+  it("Test A: Refinamento que entrega copy válida -> salva e debita 1 crédito", async () => {
+    const calls: string[] = [];
+    const run = await runRefine({
+      requestId: "req-refine-ok",
+      isAdmin: false,
+      mode: "refine",
+      hasPreviousPlan: true,
+      callProvider: async () => { calls.push("provider"); return { ok: true as const, analysis: analysisWithCopies(), model: "gemini-3.6-flash" }; },
+      persist: async () => { calls.push("persist"); return true; },
+      charge: async () => { calls.push("charge"); return true; },
+    });
+
+    expect(run).toMatchObject({
+      status: "saved",
+      charged: true,
+      creditWarning: null,
+      model: "gemini-3.6-flash",
+    });
+    expect(calls).toEqual(["provider", "persist", "charge"]);
+  });
+
+  it("Test B: Refinamento sem copy enviável -> falha com status 422, REFINE_NO_SENDABLE_COPY e crédito NÃO é cobrado", async () => {
+    const calls: string[] = [];
+    const run = await runRefine({
+      requestId: "req-refine-no-copy",
+      isAdmin: false,
+      mode: "refine",
+      hasPreviousPlan: true,
+      callProvider: async () => { calls.push("provider"); return { ok: true as const, analysis: validNoMessages() as any, model: "gemini-3.6-flash" }; },
+      validate: (a, opts) => {
+        // Simula validador comercial sob mode: "refine"
+        const hasSendable = a.plano_prospeccao_7dias.some((d: any) => Boolean(d.mensagem && String(d.mensagem).trim()));
+        if (!hasSendable && opts?.mode === "refine") {
+          return { ok: false, reason: "nenhuma copy utilizável para envio direto gerada no refinamento" };
+        }
+        return { ok: true, value: a };
+      },
+      persist: async () => { calls.push("persist"); return true; },
+      charge: async () => { calls.push("charge"); return true; },
+    });
+
+    expect(run.status).toBe("provider_failed");
+    if (run.status === "provider_failed") {
+      expect(run.failure.status).toBe(422);
+      expect(run.failure.body.error_code).toBe("REFINE_NO_SENDABLE_COPY");
+      expect(run.failure.body.credit_consumed).toBe(false);
+      expect(run.failure.body.saved).toBe(false);
+      expect(run.failure.body.safe_message).toMatch(/A análise anterior foi mantida e nenhum crédito foi cobrado/);
+    }
+    // NUNCA deve chamar persist nem charge
+    expect(calls).toEqual(["provider"]);
+  });
+
+  it("Test D: Preservação do plano anterior -> falha de refinamento mantém dados intactos no store", async () => {
+    const existingPlan = [{ dia: 1, canal: "whatsapp", mensagem: "Copy original salva" }];
+    const db = makeDb({
+      plan: existingPlan as any,
+      generatedAt: "2026-10-31T20:00:00.000Z",
+      updatedAt: "2026-10-31T20:00:00.000Z",
+    });
+
+    const result = await runGuardedRefine({
+      requestId: "req-preserve-test",
+      isAdmin: false,
+      mode: "refine",
+      hasPreviousPlan: true,
+      store: db.store,
+      callProvider: async () => ({ ok: false as const, error: "gemini-3.6-flash:503" }),
+      validate: (a) => ({ ok: true, value: a }),
+      charge: async () => true,
+    });
+
+    expect(result.status).toBe("provider_failed");
+    if (result.status === "provider_failed") {
+      expect(result.failure.status).toBe(502);
+      expect(result.failure.body.safe_message).toMatch(/análise anterior foi mantida/);
+      expect(result.failure.body.credit_consumed).toBe(false);
+    }
+
+    // O plano no store deve permanecer o plano original intacto
+    expect(db.row.plan).toEqual(existingPlan);
   });
 });

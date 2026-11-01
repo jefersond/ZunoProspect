@@ -740,6 +740,20 @@ export const LeadAnalysis = ({
             </div>
           </div>
 
+          {!plano.some((d) => String(d.mensagem || "").trim()) && (
+            <div className="mb-4 rounded-xl border border-sky-500/40 bg-sky-950/20 p-3.5 sm:p-4 text-xs" data-testid="all-tasks-banner">
+              <div className="flex items-center gap-2 mb-1">
+                <Info className="h-4 w-4 text-sky-400 shrink-0" />
+                <h5 className="font-semibold text-white text-xs">
+                  Plano Tático Estruturado em Tarefas Internas
+                </h5>
+              </div>
+              <p className="text-zinc-300 leading-relaxed">
+                Nenhuma mensagem pronta para envio direto foi gerada para os canais cadastrados deste lead. O diagnóstico e as etapas abaixo foram estruturados como tarefas de pesquisa, planejamento e qualificação comercial.
+              </p>
+            </div>
+          )}
+
           <ol className="space-y-4">
             {plano.map((dia) => {
               const hasMessage = Boolean(String(dia.mensagem || "").trim());

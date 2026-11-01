@@ -158,7 +158,7 @@ describe("validador", () => {
 
   it("canal indisponível (Instagram não cadastrado) rebaixa o dia; e-mail sem assunto também", () => {
     const raw = goodRaw();
-    raw.plano[3] = day(4, { tipo: "mensagem", canal: "instagram", mensagem: "Oi! Aqui é a Marina, faço sites para oficinas. Vocês já têm um site?" });
+    raw.plano[3] = day(4, { tipo: "mensagem", canal: "instagram", mensagem: "Oi! Te mandei um direct no Instagram da oficina. Vocês já têm um site?" });
     raw.plano[5] = day(6, { tipo: "mensagem", canal: "email", mensagem: "Olá! Sou a Marina e faço sites simples para oficinas. Posso explicar em 5 minutos?" });
     const r = validateAnalysis(raw, { ...ctx, channels: ["whatsapp", "telefone", "email"] });
     expect(r.ok).toBe(true);
@@ -177,11 +177,73 @@ describe("validador", () => {
     expect(r.warnings.join(" ")).toMatch(/dia 4: \d+ palavras/);
   });
 
-  it("falha (sem cobrar) se nenhuma mensagem utilizável sobrar para um lead frio", () => {
+  it("Cenário 1: lead novo somente com WhatsApp/telefone: canal Instagram com texto apropriado é adaptado para WhatsApp", () => {
+    const raw = goodRaw();
+    raw.plano[3] = day(4, { tipo: "mensagem", canal: "instagram", mensagem: "Oi! Aqui é a Marina, faço sites para oficinas. Vocês já têm um site?" });
+    const r = validateAnalysis(raw, { ...ctx, channels: ["whatsapp", "telefone"] });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.analysis.plano[3].canal).toBe("whatsapp");
+    expect(r.demoted_days).not.toContain(4);
+    expect(r.warnings.some((w) => w.includes("canal instagram adaptado para whatsapp"))).toBe(true);
+  });
+
+  it("Cenário 2: Dia 1 inválido, Dia 3 acompanhamento: Dia 3 convertido em tarefa interna de planejamento sem fingir conversa anterior", () => {
+    const raw = goodRaw();
+    raw.plano[0] = day(1, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, tudo bem? Preparei um vídeo para a oficina, quer ver?" });
+    raw.plano[2] = day(3, { tipo: "acompanhamento", canal: "whatsapp", mensagem: "Oi, como conversamos antes, vocês viram minha mensagem anterior?" });
+    const r = validateAnalysis(raw, ctx);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.demoted_days).toContain(1);
+    expect(r.demoted_days).toContain(3);
+    const d3 = r.analysis.plano[2];
+    expect(d3.tipo).toBe("tarefa");
+    expect(d3.canal).toBe("nenhum");
+    expect(d3.mensagem).toBe("");
+    expect(d3.acao).toBe("Como a primeira abordagem precisa ser definida antes do envio, esta etapa foi convertida em tarefa interna de planejamento.");
+  });
+
+  it("Cenário 3: mensagem em canal não disponível com dependência de Instagram/E-mail: rejeita adaptação e converte em tarefa de revisão", () => {
+    const raw = goodRaw();
+    raw.plano[3] = day(4, { tipo: "mensagem", canal: "instagram", mensagem: "Oi! Te mandei um direct no seu Instagram e deixei o link na bio. Vocês viram?" });
+    raw.plano[5] = day(6, { tipo: "mensagem", canal: "email", mensagem: "Prezado, segue em anexo o PDF com a proposta completa. Atenciosamente." });
+    const r = validateAnalysis(raw, { ...ctx, channels: ["whatsapp", "telefone"] });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.demoted_days).toContain(4);
+    expect(r.demoted_days).toContain(6);
+    expect(r.analysis.plano[3].tipo).toBe("tarefa");
+    expect(r.analysis.plano[3].acao).toContain("tarefa interna de revisão");
+    expect(r.analysis.plano[5].tipo).toBe("tarefa");
+    expect(r.analysis.plano[5].acao).toContain("tarefa interna de revisão");
+  });
+
+  it("Cenário 4: diagnóstico útil com nenhuma mensagem segura para envio: ok: true, plano salvo como tarefas táticas, sem erro 502", () => {
     const raw = goodRaw();
     raw.plano[0] = day(1, { tipo: "mensagem", canal: "whatsapp", mensagem: "Preparei um vídeo para a oficina, quer ver?" });
     raw.plano[3] = day(4);
-    expect(validateAnalysis(raw, ctx).ok).toBe(false);
+    const r = validateAnalysis(raw, ctx);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.warnings).toContain("nenhuma mensagem aprovada para envio direto: as etapas foram preservadas como tarefas internas");
+    expect(r.analysis.diagnostico.observado.length).toBeGreaterThan(0);
+    expect(r.analysis.plano).toHaveLength(7);
+  });
+
+  it("Cenário 5: plano completamente inválido (sem 7 dias, diagnóstico vazio): ok: false, rejeitado com erro correto", () => {
+    const brokenPlan = goodRaw();
+    brokenPlan.plano = brokenPlan.plano.slice(0, 3);
+    const r1 = validateAnalysis(brokenPlan, ctx);
+    expect(r1.ok).toBe(false);
+    expect(r1.issues.some((i) => i.includes("plano deve ter 7 dias"))).toBe(true);
+
+    const emptyDiag = goodRaw();
+    emptyDiag.diagnostico.observado = [];
+    emptyDiag.diagnostico.permite_concluir = "";
+    const r2 = validateAnalysis(emptyDiag, ctx);
+    expect(r2.ok).toBe(false);
+    expect(r2.issues.some((i) => i.includes("diagnostico.observado vazio"))).toBe(true);
   });
 
   it("dia de tarefa/sem mensagem nunca carrega texto enviável", () => {
@@ -387,5 +449,96 @@ describe("custo: tentativas, tokens e cobrança (servidor falso que valida o con
     [404, "not_billed", true], [429, "not_billed", true], [500, "unknown", true], [503, "unknown", true], [504, "unknown", true],
   ])("classificação do HTTP %i: %s, próximo modelo=%s", (status, billing, next) => {
     expect(classifyHttpStatus(status)).toMatchObject({ billing, nextModel: next });
+  });
+});
+
+describe("Invariantes Comerciais e Validação de Tarefas vs Mensagens", () => {
+  it("Test C: Geração inicial útil sem copy pronta é aceita como tarefas internas com aviso explícito", () => {
+    const rawNoMsg = goodRaw();
+    // Limpa as mensagens de todos os dias transformando em tarefas de qualificação
+    rawNoMsg.plano.forEach((d) => {
+      d.tipo = "tarefa";
+      d.canal = "nenhum";
+      d.mensagem = "";
+    });
+
+    const result = validateAnalysis(
+      rawNoMsg,
+      { channels: ["telefone"] as DayChannel[], profile, stage: "nao_contatado" },
+      { mode: "generate" },
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.analysis.plano).toHaveLength(7);
+      expect(result.warnings.some((w) => w.includes("tarefas internas"))).toBe(true);
+      // Nenhuma mensagem direta foi inventada
+      expect(result.analysis.plano.every((d) => !d.mensagem || !d.mensagem.trim())).toBe(true);
+    }
+  });
+
+  it("Test E: Lead apenas com WhatsApp -> adaptação segura se copy concisa; conversão em tarefa se inadequada", () => {
+    // 1. Copy concisa e apropriada para WhatsApp
+    const rawClean = goodRaw();
+    rawClean.plano[0].mensagem = "Oi, tudo bem? Aqui é a Marina. Vi a oficina no Google com ótimas avaliações, mas não achei o site de vocês. Vocês já têm um site para os clientes verem os serviços?";
+    const resClean = validateAnalysis(
+      rawClean,
+      { channels: ["whatsapp"] as DayChannel[], profile, stage: "nao_contatado" },
+      { mode: "generate" },
+    );
+    expect(resClean.ok).toBe(true);
+    if (resClean.ok) {
+      expect(resClean.analysis.plano[0].canal).toBe("whatsapp");
+      expect(resClean.analysis.plano[0].mensagem).toBeTruthy();
+    }
+
+    // 2. Copy inadequada para WhatsApp (> 110 palavras e termos proibidos de e-mail/Instagram)
+    const rawInadequate = goodRaw();
+    rawInadequate.plano[0].canal = "whatsapp";
+    rawInadequate.plano[0].mensagem = "Prezados senhores, segue o relatório em anexo referente à proposta técnica comercial de assessoria corporativa. " +
+      "Solicitamos verificar o anexo em PDF e nos enviar um e-mail de retorno com cópia para o departamento jurídico. ".repeat(6) +
+      "Acesse o link da nossa bio no Instagram.";
+
+    const resInadequate = validateAnalysis(
+      rawInadequate,
+      { channels: ["whatsapp"] as DayChannel[], profile, stage: "nao_contatado" },
+      { mode: "generate" },
+    );
+
+    expect(resInadequate.ok).toBe(true);
+    if (resInadequate.ok) {
+      // A etapa 1 não deve manter a mensagem inadequada como mensagem pronta de WhatsApp
+      const day1 = resInadequate.analysis.plano[0];
+      expect(day1.canal === "nenhum" || !day1.mensagem || day1.tipo === "tarefa").toBe(true);
+    }
+  });
+
+  it("Test F: Lead não contatado sem primeira abordagem -> Dia 3 convertido em planejamento tático sem fingir contato prévio", () => {
+    const raw = goodRaw();
+    // Dia 1 como tarefa sem mensagem enviável
+    raw.plano[0].tipo = "tarefa";
+    raw.plano[0].canal = "nenhum";
+    raw.plano[0].mensagem = "";
+
+    // Dia 3 tenta fingir que já conversou
+    raw.plano[2].tipo = "acompanhamento";
+    raw.plano[2].canal = "whatsapp";
+    raw.plano[2].mensagem = "Oi, tudo bem? Conforme conversamos ontem no WhatsApp, estou enviando a proposta.";
+
+    const result = validateAnalysis(
+      raw,
+      { channels: ["whatsapp"] as DayChannel[], profile, stage: "nao_contatado" },
+      { mode: "generate" },
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const day3 = result.analysis.plano[2];
+      // Não pode manter mensagem simulando conversa prévia
+      expect(day3.tipo).toBe("tarefa");
+      expect(day3.canal).toBe("nenhum");
+      expect(day3.mensagem).toBe("");
+      expect(day3.acao).toMatch(/planejamento|qualificação|pesquisa|Revisar/i);
+    }
   });
 });

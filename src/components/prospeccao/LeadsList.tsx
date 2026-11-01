@@ -1121,6 +1121,7 @@ export const LeadsList = () => {
           leadId: lead.id,
           lead_id: leadKey,
           user_id: user.id,
+          mode: lead.ai_analise_gerada_em ? "refine" : "generate",
           lead: buildAILeadPayload(lead, normalizedLead),
           search_context: searchPayload,
           analysis_context: {
@@ -1155,7 +1156,7 @@ export const LeadsList = () => {
       const persisted = confirmPersistedRefine(persistedRow, lead.ai_analise_gerada_em, { alreadyCurrent: outcome.alreadyCurrent });
       if (!persisted.ok || !persistedRow) {
         console.warn("Refinamento não confirmado no banco:", "reason" in persisted ? persisted.reason : "empty_row");
-        throw buildPersistenceUnconfirmedError(requestId);
+        throw buildPersistenceUnconfirmedError(requestId, Boolean(lead.ai_analise_gerada_em));
       }
 
       // Atualiza apenas os campos da análise; os dados de contato continuam os já exibidos.

@@ -111,11 +111,14 @@ describe("primeiro contato, dias sem mensagem, canais e histórico", () => {
     raw.plano = raw.plano.map((d, i) => (i === 0 ? day(1, { tipo: "tarefa", canal: "telefone", acao: "Ligar para o studio e perguntar quem cuida da divulgação." }) : day(i + 1)));
     const ok = validateAnalysis(raw, { channels: facts.canais_disponiveis, profile: sellers.sites, stage: facts.etapa_do_historico, facts });
     expect(ok.ok).toBe(true);
-    // WhatsApp para telefone fixo é descartado
+    // WhatsApp para telefone fixo é descartado, preservando etapas como tarefas sem erro
     const bad = goodRaw();
     bad.plano[0].mensagem = "Oi, aqui é a Marina, da Costa Digital. Faço sites simples para negócios locais. Com quem falo sobre a divulgação do studio?";
     bad.plano[3] = day(4);
-    expect(validateAnalysis(bad, { channels: facts.canais_disponiveis, profile: sellers.sites, stage: facts.etapa_do_historico, facts }).ok).toBe(false);
+    const badRes = validateAnalysis(bad, { channels: facts.canais_disponiveis, profile: sellers.sites, stage: facts.etapa_do_historico, facts });
+    expect(badRes.ok).toBe(true);
+    expect(badRes.demoted_days).toContain(1);
+    expect(badRes.warnings).toContain("nenhuma mensagem aprovada para envio direto: as etapas foram preservadas como tarefas internas");
   });
 
   it("lead que respondeu: no máximo uma mensagem de condução; sequência fria é rebaixada a tarefas", () => {

@@ -115,7 +115,9 @@ async function callGeminiV6(apiKey: string, facts: VerifiedFacts, profile: Selle
 
   if (!run.ok) return { ok: false, error: summarizeProviderError(run.error, 160) };
 
-  const validation = validateAnalysis(run.raw, { channels: facts.canais_disponiveis, profile, stage: facts.etapa_do_historico, facts });
+  const isRefine = requestData?.mode === "refine" || (requestData?.mode !== "generate" && Boolean(requestData?.existingPlan || requestData?.hasPreviousPlan));
+  const mode: "generate" | "refine" = isRefine ? "refine" : "generate";
+  const validation = validateAnalysis(run.raw, { channels: facts.canais_disponiveis, profile, stage: facts.etapa_do_historico, facts }, { mode });
   if (!validation.ok) return { ok: false, error: `${run.model}:invalid_output:${validation.issues.join("|").slice(0, 200)}` };
 
   return {
@@ -261,12 +263,19 @@ serve(async (req) => {
       },
     };
 
+    const hasPreviousPlan = Boolean(rows[0]?.ai_analise_gerada_em || (rows[0]?.plano_prospeccao && extractPlanDays(rows[0].plano_prospeccao).length > 0));
+    const isExplicitRefine = requestData?.mode === "refine" || requestData?.operation === "refine";
+    const isExplicitGenerate = requestData?.mode === "generate" || requestData?.operation === "generate";
+    const mode: "generate" | "refine" = isExplicitRefine ? "refine" : isExplicitGenerate ? "generate" : hasPreviousPlan ? "refine" : "generate";
+
     const run = await runGuardedRefine<V6Result>({
       requestId,
       isAdmin,
       store,
+      hasPreviousPlan,
+      mode,
       callProvider: async (): Promise<V6Outcome> => GEMINI_KEY
-        ? await callGeminiV6(GEMINI_KEY, facts, profile, requestData, requestId)
+        ? await callGeminiV6(GEMINI_KEY, facts, profile, { ...requestData, mode, hasPreviousPlan }, requestId)
         : { ok: false, error: "gemini_key_missing" },
       validate: okAlready,
       persist: async (analysis, model, ctx) => {
@@ -353,7 +362,7 @@ serve(async (req) => {
 
     if (run.status === "save_failed") {
       await logEvent(admin, user.id, "ai_analysis_failed_handled", { request_id: requestId, stage: "persist_result", internal_code: "REFINE_SAVE_FAILED", deducted_credit: false });
-      return json(SAVE_FAILED_BODY(requestId), 503);
+      return json(SAVE_FAILED_BODY(requestId, Boolean(rows[0]?.ai_analise_gerada_em)), 503);
     }
 
     await logEvent(admin, user.id, "ai_analysis_completed", {

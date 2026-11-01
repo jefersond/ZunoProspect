@@ -34,8 +34,11 @@ describe("primeiro contato: apresenta o serviço e termina com uma pergunta simp
   ])("recusa o texto (%s) e transforma o dia em tarefa", (_n, mensagem) => {
     const raw = goodRaw();
     raw.plano[0].mensagem = mensagem;
-    // sem nenhuma outra abertura válida, sobra nenhuma mensagem utilizável para um lead frio
-    expect(validateAnalysis(raw, ctx).ok).toBe(false);
+    // sem nenhuma outra abertura válida, as etapas viram tarefas internas e o diagnóstico é preservado
+    const r1 = validateAnalysis(raw, ctx);
+    expect(r1.ok).toBe(true);
+    expect(r1.demoted_days).toContain(1);
+    expect(r1.warnings).toContain("nenhuma mensagem aprovada para envio direto: as etapas foram preservadas como tarefas internas");
     // com uma abertura válida mais adiante, só o dia 1 é descartado
     raw.plano[4] = day(5, { tipo: "mensagem", canal: "whatsapp", acao: "Enviar a abertura", mensagem: "Oi, aqui é a Marina, da Costa Digital. Faço sites simples para oficinas. Vocês já têm um?" });
     const r2 = validateAnalysis(raw, ctx);

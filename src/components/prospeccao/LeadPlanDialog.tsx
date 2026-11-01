@@ -815,6 +815,7 @@ export const LeadPlanDialog = ({
           leadId: lead.id,
           lead_key: leadKey,
           user_id: user?.id,
+          mode: "refine",
           lead: buildAILeadPayload(lead, normalizedLead),
           search_context: searchPayload,
           analysis_context: {

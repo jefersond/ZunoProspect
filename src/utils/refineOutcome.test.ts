@@ -153,13 +153,17 @@ describe("confirmPersistedRefine: só o registro lido do banco comprova a grava�
 });
 
 describe("buildPersistenceUnconfirmedError", () => {
-  it("diz que não foi possível confirmar, mantém a análise anterior e não promete nem nega crédito", () => {
-    const err = buildPersistenceUnconfirmedError("req-p");
-    expect(err.payload.safe_message).toMatch(/não foi possível confirmar/i);
-    expect(err.payload.safe_message).toMatch(/anterior foi mantida/i);
-    expect(err.payload.safe_message).not.toMatch(/conclu[ií]da|atualizada com sucesso/i);
-    expect(err.payload.category).toBe("database_error");
-    expect(err.payload.credit_consumed).toBeUndefined();
+  it("Cenário 8: diz que não foi possível confirmar, mantém a análise anterior apenas se hasPreviousPlan=true e não promete nem nega crédito", () => {
+    const errWithPrev = buildPersistenceUnconfirmedError("req-p", true);
+    expect(errWithPrev.payload.safe_message).toMatch(/não foi possível confirmar/i);
+    expect(errWithPrev.payload.safe_message).toMatch(/anterior foi mantida/i);
+    expect(errWithPrev.payload.safe_message).not.toMatch(/conclu[ií]da|atualizada com sucesso/i);
+    expect(errWithPrev.payload.category).toBe("database_error");
+    expect(errWithPrev.payload.credit_consumed).toBeUndefined();
+
+    const errWithoutPrev = buildPersistenceUnconfirmedError("req-p", false);
+    expect(errWithoutPrev.payload.safe_message).toMatch(/não foi possível confirmar/i);
+    expect(errWithoutPrev.payload.safe_message).not.toMatch(/anterior foi mantida/i);
   });
 });
 

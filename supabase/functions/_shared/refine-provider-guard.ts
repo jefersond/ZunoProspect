@@ -108,19 +108,58 @@ export interface ProviderFailure {
 }
 
 /** Resposta de erro quando não há análise válida: nada é gravado, nenhum crédito é cobrado. */
-export function buildProviderFailure(requestId: string, reason: string): ProviderFailure {
+export function buildProviderFailure(requestId: string, reason: string, hasPreviousPlan = false): ProviderFailure {
   const missingKey = reason === "gemini_key_missing";
-  const message = missingKey
-    ? "A análise com IA está temporariamente indisponível. Seu crédito não foi consumido e a análise anterior foi mantida."
-    : "Não foi possível gerar a análise com IA agora. Seu crédito não foi consumido e a análise anterior foi mantida. Tente novamente em alguns instantes.";
+  const noSendableCopy = reason.includes("nenhuma copy utilizável");
+  const suffix = hasPreviousPlan ? " A análise anterior foi mantida e nenhum crédito foi cobrado." : " Nenhum crédito foi cobrado.";
+
+  if (missingKey) {
+    const message = `A análise com IA está temporariamente indisponível. Seu crédito não foi consumido${hasPreviousPlan ? " e a análise anterior foi mantida." : "."}`;
+    return {
+      status: 503,
+      body: {
+        success: false,
+        request_id: requestId,
+        error_code: "REFINE_CONFIGURATION_MISSING",
+        category: "configuration_error",
+        retryable: false,
+        safe_message: message,
+        error_message: message,
+        used_fallback: false,
+        credit_consumed: false,
+        saved: false,
+      },
+    };
+  }
+
+  if (noSendableCopy) {
+    const message = `Não foi possível refinar uma copy segura para envio direto nos canais deste lead.${suffix} Tente novamente ou ajuste os canais de contato.`;
+    return {
+      status: 422,
+      body: {
+        success: false,
+        request_id: requestId,
+        error_code: "REFINE_NO_SENDABLE_COPY",
+        category: "validation_error",
+        retryable: true,
+        safe_message: message,
+        error_message: message,
+        used_fallback: false,
+        credit_consumed: false,
+        saved: false,
+      },
+    };
+  }
+
+  const message = `Não foi possível gerar a análise com IA agora. Seu crédito não foi consumido${hasPreviousPlan ? " e a análise anterior foi mantida." : "."} Tente novamente em alguns instantes.`;
   return {
-    status: missingKey ? 503 : 502,
+    status: 502,
     body: {
       success: false,
       request_id: requestId,
-      error_code: missingKey ? "REFINE_CONFIGURATION_MISSING" : "REFINE_PROVIDER_UNAVAILABLE",
-      category: missingKey ? "configuration_error" : "provider_error",
-      retryable: !missingKey,
+      error_code: "REFINE_PROVIDER_UNAVAILABLE",
+      category: "provider_error",
+      retryable: true,
       safe_message: message,
       error_message: message,
       used_fallback: false,
@@ -182,10 +221,12 @@ export type ProviderOutcomeOf<A> = { ok: true; analysis: A; model: string } | { 
 export interface RefineDeps<A extends AnalysisWithDays = ValidAnalysis> {
   requestId: string;
   isAdmin: boolean;
+  hasPreviousPlan?: boolean;
+  mode?: "generate" | "refine";
   /** Uma única rodada de chamadas ao provedor (cada modelo no máximo uma vez). */
   callProvider: () => Promise<ProviderOutcomeOf<A>>;
   /** Valida o que o provedor devolveu. Padrão: validador legado; o prompt v6 valida dentro de callProvider e passa `okAlready`. */
-  validate?: (analysis: A) => { ok: true; value: A } | { ok: false; reason: string };
+  validate?: (analysis: A, options?: { mode?: "generate" | "refine" }) => { ok: true; value: A } | { ok: false; reason: string };
   /** Grava a análise; deve devolver true somente quando o banco confirmou a linha gravada. */
   persist: (analysis: A, model: string) => Promise<boolean>;
   /** Desconta 1 crédito interno; true somente se o desconto foi registrado. */
@@ -200,31 +241,37 @@ export type RefineRun<A extends AnalysisWithDays = ValidAnalysis> =
 /** Para análises já validadas dentro de callProvider (prompt v6). */
 export const okAlready = <A>(analysis: A): { ok: true; value: A } => ({ ok: true, value: analysis });
 
-export const SAVE_FAILED_BODY = (requestId: string) => ({
-  success: false as const,
-  request_id: requestId,
-  error_code: "REFINE_SAVE_FAILED",
-  category: "database_error" as const,
-  retryable: true,
-  safe_message: "A análise foi gerada, mas não pôde ser salva. Seu crédito não foi consumido e a análise anterior foi mantida.",
-  error_message: "A análise foi gerada, mas não pôde ser salva. Seu crédito não foi consumido e a análise anterior foi mantida.",
-  credit_consumed: false as const,
-  saved: false as const,
-});
+export const SAVE_FAILED_BODY = (requestId: string, hasPreviousPlan = false) => {
+  const suffix = hasPreviousPlan ? " e a análise anterior foi mantida." : ".";
+  const message = `A análise foi gerada, mas não pôde ser salva. Seu crédito não foi consumido${suffix}`;
+  return {
+    success: false as const,
+    request_id: requestId,
+    error_code: "REFINE_SAVE_FAILED",
+    category: "database_error" as const,
+    retryable: true,
+    safe_message: message,
+    error_message: message,
+    credit_consumed: false as const,
+    saved: false as const,
+  };
+};
 
 /**
  * Ordem obrigatória: provedor → gravação confirmada → cobrança. Falha do provedor ou da gravação nunca cobra;
  * cobrança só existe para análise válida já persistida, e administradores não são cobrados.
  */
 export async function runRefine<A extends AnalysisWithDays = ValidAnalysis>(deps: RefineDeps<A>): Promise<RefineRun<A>> {
+  const hasPrevious = Boolean(deps.hasPreviousPlan);
+  const mode = deps.mode ?? (hasPrevious ? "refine" : "generate");
   const provider = await deps.callProvider();
   if (!provider.ok) {
-    return { status: "provider_failed", reason: provider.error, failure: buildProviderFailure(deps.requestId, provider.error) };
+    return { status: "provider_failed", reason: provider.error, failure: buildProviderFailure(deps.requestId, provider.error, hasPrevious) };
   }
-  const validate = deps.validate ?? ((a: A) => validateAnalysis(a) as unknown as { ok: true; value: A } | { ok: false; reason: string });
-  const validation = validate(provider.analysis);
+  const validate = deps.validate ?? ((a: A, opts?: { mode?: "generate" | "refine" }) => validateAnalysis(a as any, { mode: opts?.mode ?? mode } as any) as unknown as { ok: true; value: A } | { ok: false; reason: string });
+  const validation = validate(provider.analysis, { mode });
   if (!validation.ok) {
-    return { status: "provider_failed", reason: `invalid_output:${validation.reason}`, failure: buildProviderFailure(deps.requestId, `invalid_output:${validation.reason}`) };
+    return { status: "provider_failed", reason: `invalid_output:${validation.reason}`, failure: buildProviderFailure(deps.requestId, `invalid_output:${validation.reason}`, hasPrevious) };
   }
   const saved = await deps.persist(validation.value, provider.model);
   if (!saved) return { status: "save_failed" };
@@ -456,9 +503,13 @@ export async function runGuardedRefine<A extends AnalysisWithDays = ValidAnalysi
     let refused: { status: "expired" } | { status: "conflict"; reason: ConflictReason } | null = null;
     const refuse = (r: NonNullable<typeof refused>) => { refused = r; return false; };
 
+    const hasPreviousPlan = Boolean(lock.row.generatedAt || extractPlanDays(lock.row.plan).length > 0);
+    const mode = deps.mode ?? (hasPreviousPlan ? "refine" : "generate");
     const run = await runRefine<A>({
       requestId: deps.requestId,
       isAdmin: deps.isAdmin,
+      hasPreviousPlan: deps.hasPreviousPlan ?? hasPreviousPlan,
+      mode,
       callProvider: deps.callProvider,
       validate: deps.validate,
       charge: deps.charge,

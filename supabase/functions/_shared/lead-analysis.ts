@@ -313,7 +313,11 @@ export const analysisResponseSchema = {
   additionalProperties: false,
 } as const;
 
-export function buildAnalysisPrompt(facts: VerifiedFacts, profile: SellerProfile): string {
+export function buildAnalysisPrompt(
+  facts: VerifiedFacts,
+  profile: SellerProfile,
+  options?: { mode?: "generate" | "refine" },
+): string {
   const seller = {
     nome_de_apresentacao: profile.display_name,
     empresa: profile.company_name || null,
@@ -337,6 +341,12 @@ ${JSON.stringify(facts)}
 COMO PENSAR
 ${facts.foco_prospeccao ? `FOCO DA PROSPECÇÃO: O assinante selecionou o foco "${facts.foco_prospeccao}" para este lead. Se este foco for diferente da categoria de serviço do assinante, conecte como a oferta real do assinante viabiliza ou potencializa esse objetivo comercial (ex.: uma landing page rápida viabiliza o retorno de anúncios locais), sem inventar serviços que o assinante não realiza. Se não houver conexão viável, aponte a inconsistência no diagnóstico em vez de forçar uma oferta.\n` : ""}Uma mensagem só é boa se responder: quem está falando; qual serviço essa pessoa realmente oferece; por que procurou ESTA empresa; qual o assunto comercial concreto; qual o menor próximo passo razoável.
 Use o serviço e a descrição do assinante com as palavras dele. Adapte o assunto ao serviço de verdade (anúncios: buscas locais, divulgação de serviços ou produtos, agendamentos ou pedidos; redes sociais: apresentação dos produtos, conteúdo e comunicação; sites: apresentação dos serviços e facilidade de contato; automação/CRM: atendimento, organização de contatos, orçamentos e acompanhamento; outros serviços: interprete o que foi descrito). Não force o assunto para "captação de clientes".
+${options?.mode === "refine" ? `\nSOLICITAÇÃO DE REFINAMENTO DE COPY:
+O assinante já possui uma análise prévia e solicitou uma NOVA VERSÃO / REFINAMENTO das mensagens deste lead.
+- Gere uma copy de abertura (Dia 1) alternativa, curta (30 a 50 palavras), natural e conversacional para o canal prioritário disponível (${facts.canais_disponiveis.includes("whatsapp") ? "WhatsApp" : facts.canais_disponiveis[0] || "canal cadastrado"}).
+- Apresente o serviço do assinante com clareza, citando fatos reais do lead (nicho e cidade), sem supor canais inexistentes e terminando com uma única pergunta simples de resposta rápida.
+- NUNCA invente canais não cadastrados. Se o lead possui apenas WhatsApp, foque 100% no WhatsApp.
+- Mantenha estritamente o limite de no máximo 3 mensagens ativas na cadência (Dias 1, 3 e 5), com os Dias 2, 4, 6 e 7 como tarefas internas sem mensagem.\n` : ""}
 
 COERÊNCIA ESTRATÉGICA DO PACOTE COMPLETO (EXIGÊNCIA CENTRAL)
 - O plano inteiro (diagnóstico, primeira abordagem, acompanhamentos dos dias seguintes e respostas a objeções) DEVE compartilhar estritamente a MESMA estratégia comercial e o MESMO serviço oferecido pelo assinante.
@@ -366,7 +376,12 @@ Os sete dias NÃO são sete mensagens. Para cada dia escolha o "tipo":
 - "acompanhamento": retomada, só se o histórico real permitir e houver motivo novo e concreto; nunca repita o primeiro contato com outras palavras. "mensagem" preenchida e "condicao" explica quando enviar.
 - "tarefa": pesquisa ou preparo feito pelo assinante (ex.: conferir dados públicos, preparar proposta ou reunião, avaliar histórico). "mensagem" vazia; "acao" diz exatamente o que fazer.
 - "sem_mensagem": nada a fazer nesta etapa (ex.: aguardar resposta, encerrar a sequência). "mensagem" vazia.
-Use no máximo 4 dias com texto para enviar. Aceitar dias "sem_mensagem" e "tarefa" é esperado.
+REGRA ESTRITA DE CADÊNCIA COMERCIAL (MÁXIMO 3 CONTATOS ATIVOS):
+- Os sete dias NÃO são sete mensagens. O plano de 7 dias permite no MÁXIMO 3 dias com mensagens ativas para envio direto (estritamente nos Dias 1, 3 e 5), com intervalo mínimo de 48h a 72h entre eles.
+- NUNCA envie mensagens em dias consecutivos (ex.: Dia 1 e Dia 2 com mensagem é estritamente PROIBIDO).
+- Os dias intercalados e finais (Dias 2, 4, 6 e 7) DEVEM ser do tipo "tarefa" ou "sem_mensagem", com "mensagem": "", "assunto_email": "", "canal": "nenhum", e com "acao" descrevendo a tarefa interna de pesquisa, qualificação no CRM ou espera respeitosa.
+- Se a etapa do histórico for "nao_contatado": o Dia 1 é o ÚNICO primeiro contato; os Dias 3 e 5 são acompanhamentos que só podem ser enviados após confirmação de que o primeiro contato foi enviado e não houve resposta.
+- Se o lead não tiver Instagram cadastrado, NUNCA gere mensagem para Instagram. Se não tiver e-mail, NUNCA gere e-mail. Se só tiver celular/WhatsApp, use "whatsapp" apenas nos dias de contato ativo (Dias 1, 3 e 5).
 Etapa do histórico: ${facts.etapa_do_historico}. Se a empresa já respondeu, pare a sequência fria e planeje a condução da conversa (resposta, proposta, reunião). Não invente contatos anteriores: se a etapa é "nao_contatado", nenhum dia pode supor que algo já foi enviado.
 Canais: use apenas canais de "canais_disponiveis". "whatsapp" só existe para celular; "telefone" significa ligar (sem texto); "instagram" e "email" só se cadastrados. Não troque de canal sem motivo operacional, e registre o motivo em "justificativa".
 
@@ -579,6 +594,8 @@ export function validateAnalysis(
   const plano: AnalysisDay[] = [];
   const seenMessages: string[] = [];
   let firstContactSeen = false;
+  let lastSendableDay: number | null = null;
+  let sendableCount = 0;
 
   for (let dia = 1; dia <= 7; dia++) {
     const src = byDay.get(dia)!;
@@ -652,9 +669,38 @@ export function validateAnalysis(
       plano.push(day);
       continue;
     }
+    // Se o lead solicitou opt-out, recusa ou foi descartado: proibido envio de qualquer mensagem ativa
+    if (ctx.stage === "recusou_ou_optout" || ctx.stage === "descartado") {
+      demote("empresa solicitou opt-out, recusa ou foi descartada: proibido envio de mensagens ativas");
+      plano.push(day);
+      continue;
+    }
+
     // Quem já respondeu não recebe nova sequência fria: no máximo UMA mensagem (conduzir a conversa); o resto vira tarefa.
     if (REPLIED_STAGES.includes(ctx.stage) && plano.some((p) => p.tipo === "mensagem" || p.tipo === "acompanhamento")) {
       demote("a empresa já respondeu: sem nova sequência fria"); plano.push(day); continue;
+    }
+
+    // Cadência comercial determinística: dias 2, 4, 6 e 7 são estritamente tarefas internas (sem mensagem pronta)
+    const ALLOWED_ACTIVE_DAYS = [1, 3, 5];
+    if (!ALLOWED_ACTIVE_DAYS.includes(dia)) {
+      demote("dias 2, 4, 6 e 7 são reservados para tarefas internas, espera e CRM: mensagem despromovida determinísticamente");
+      plano.push(day);
+      continue;
+    }
+
+    // Cadência comercial: intervalo mínimo de 48h entre contatos ativos (proibido dias consecutivos)
+    if (lastSendableDay !== null && dia - lastSendableDay < 2) {
+      demote("intervalo mínimo de 48h entre contatos ativos: dia consecutivo convertido em tarefa interna de espera e CRM");
+      plano.push(day);
+      continue;
+    }
+
+    // Cadência comercial: teto estrito de no máximo 3 contatos ativos em 7 dias
+    if (sendableCount >= 3) {
+      demote("limite máximo de 3 contatos ativos em 7 dias: dia excedente convertido em tarefa interna de CRM");
+      plano.push(day);
+      continue;
     }
 
     const isFirstContact = tipo === "mensagem" && !firstContactSeen;
@@ -687,13 +733,15 @@ export function validateAnalysis(
     if (seenMessages.some((m) => m === norm)) warnings.push(`dia ${dia}: texto repetido`);
     seenMessages.push(norm);
     if (tipo === "mensagem") firstContactSeen = true;
+    lastSendableDay = dia;
+    sendableCount++;
     plano.push(day);
   }
 
   if (issues.length) return { ok: false, issues };
 
   const sendable = plano.filter((p) => p.tipo === "mensagem" || p.tipo === "acompanhamento");
-  const stageAllowsNoMessage = ctx.stage === "reuniao_marcada" || ctx.stage === "descartado";
+  const stageAllowsNoMessage = ctx.stage === "reuniao_marcada" || ctx.stage === "descartado" || ctx.stage === "recusou_ou_optout";
   // Lead só com telefone fixo (nenhum canal de texto): um plano legítimo é ligar. Aceita a tarefa de ligação como entrega.
   const onlyPhone = !ctx.channels.some((c) => SENDABLE_CHANNELS.includes(c));
   const hasCallTask = plano.some((p) => p.tipo === "tarefa" && p.canal === "telefone");
@@ -703,7 +751,7 @@ export function validateAnalysis(
     }
     warnings.push("nenhuma mensagem aprovada para envio direto: as etapas foram preservadas como tarefas internas");
   }
-  if (sendable.length > 4) warnings.push(`${sendable.length} dias com texto (limite pedido: 4)`);
+  if (sendable.length > 3) warnings.push(`${sendable.length} dias com texto (limite pedido: 3)`);
 
   return {
     ok: true,

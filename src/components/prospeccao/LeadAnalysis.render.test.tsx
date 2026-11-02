@@ -276,7 +276,7 @@ describe("LeadAnalysis · botões", () => {
     expect(screen.queryByText(/Atualizar C[óo]pias/)).toBeNull();
     unmount();
 
-    renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS, onUpdateCopiesLocally: onUpdate });
+    renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS, onUpdateCopiesLocally: onUpdate, isAdmin: true });
     const advanced = screen.getByTestId("advanced-copy-action");
     expect(screen.getByTestId("analysis-plan").contains(advanced)).toBe(true);
     const button = within(advanced).getByText(/Atualizar C[óo]pias/).closest("button") as HTMLButtonElement;
@@ -287,13 +287,22 @@ describe("LeadAnalysis · botões", () => {
 
     fireEvent.click(button);
     expect(screen.queryByText("Substituir mensagens pelo modelo padrão?")).toBeNull();
+  });
+
+  it("oculta a ferramenta avançada e o botão Atualizar Cópias para assinantes comuns (isAdmin = false)", () => {
+    const onUpdate = vi.fn();
+    const lead = makeNewLead();
+    renderAnalysis(lead, { diagnostico: TYPICAL_BULLETS, onUpdateCopiesLocally: onUpdate, isAdmin: false });
+
+    expect(screen.queryByTestId("advanced-copy-action")).toBeNull();
+    expect(screen.queryByText(/Ferramenta avançada/)).toBeNull();
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
   it("Atualizar Cópias: botão é inacessível na interface e protege copies geradas por IA contra sobrescrita", () => {
     const onUpdate = vi.fn();
     const lead = makeNewLead();
-    renderAnalysis(lead, { diagnostico: TYPICAL_BULLETS, onUpdateCopiesLocally: onUpdate });
+    renderAnalysis(lead, { diagnostico: TYPICAL_BULLETS, onUpdateCopiesLocally: onUpdate, isAdmin: true });
 
     const advanced = screen.getByTestId("advanced-copy-action");
     expect(within(advanced).getByText(/temporariamente desativada na interface para proteger as mensagens geradas por IA/)).toBeTruthy();
@@ -303,6 +312,15 @@ describe("LeadAnalysis · botões", () => {
     fireEvent.click(button);
     expect(onUpdate).not.toHaveBeenCalled();
     expect(screen.queryByText("Substituir mensagens pelo modelo padrão?")).toBeNull();
+  });
+
+  it("oculta a ferramenta avançada e o botão Atualizar Cópias para assinantes comuns (isAdmin = false)", () => {
+    const onUpdate = vi.fn();
+    const lead = makeNewLead();
+    renderAnalysis(lead, { diagnostico: TYPICAL_BULLETS, onUpdateCopiesLocally: onUpdate, isAdmin: false });
+
+    expect(screen.queryByTestId("advanced-copy-action")).toBeNull();
+    expect(screen.queryByText(/Ferramenta avançada/)).toBeNull();
   });
 });
 
@@ -354,7 +372,7 @@ describe("LeadAnalysis · responsividade (contrato de layout)", () => {
   });
 
   it("botões ocupam a largura no celular e encolhem no desktop; ações nunca ficam em posição absoluta", () => {
-    renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS, onReanalyze: vi.fn(), onUpdateCopiesLocally: vi.fn(), onExecuteInSdr: vi.fn() });
+    renderAnalysis(makeNewLead(), { diagnostico: TYPICAL_BULLETS, onReanalyze: vi.fn(), onUpdateCopiesLocally: vi.fn(), onExecuteInSdr: vi.fn(), isAdmin: true });
     const buttons = [
       screen.getByTestId("btn-refinar-abordagem-ia"),
       screen.getByText(/Atualizar C[óo]pias/).closest("button")!,

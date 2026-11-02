@@ -56,7 +56,8 @@ export function buildCompanyFacts(lead: Partial<LeadProspeccao>): CompanyFact[] 
   // Telefone
   const rawPhone = lead.whatsapp_number || lead.telefone;
   const phone = sanitizeBrazilianPhoneNumber(rawPhone);
-  const hasWhatsappVerified = Boolean(lead.sinais?.has_whatsapp_on_site || lead.whatsapp_link);
+  const hasWebsite = hasText(lead.website);
+  const hasWhatsappVerified = Boolean(hasWebsite && (lead.sinais?.has_whatsapp_on_site || lead.whatsapp_link));
   if (hasText(rawPhone) && phone.isValid) {
     facts.push({
       key: "telefone",
@@ -277,12 +278,15 @@ export function validateLeadChannelForDay(
       };
     }
     const phoneInfo = sanitizeBrazilianPhoneNumber(rawPhone);
+    const hasWebsite = hasText(lead.website);
     const hasWhatsappOnSite = Boolean(lead.sinais?.has_whatsapp_on_site || lead.whatsapp_link || lead.whatsapp_number);
     if (!phoneInfo.isCellPhone && !hasWhatsappOnSite) {
       return {
         isAvailable: false,
         warningBadge: "WhatsApp não confirmado",
-        warningNote: "O número cadastrado aparenta ser telefone fixo e o WhatsApp não foi confirmado no site público.",
+        warningNote: hasWebsite
+          ? "O número cadastrado aparenta ser telefone fixo e o WhatsApp não foi confirmado no site público."
+          : "O número cadastrado aparenta ser telefone fixo e o WhatsApp não foi confirmado no cadastro público.",
         suggestedAlternative: "Ligue na recepção para solicitar o contato direto de WhatsApp ou teste o número antes de enviar.",
       };
     }

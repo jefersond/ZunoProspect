@@ -79,6 +79,8 @@ interface LeadAnalysisProps {
   simulatedNow?: Date;
   /** Nível de maturidade comercial do assinante (equilibrado, iniciante, intermediario, avancado) */
   commercialMaturity?: CommercialMaturity;
+  /** Se o usuário atual é administrador. Para assinantes comuns, ferramentas de sobrescrita e testes são ocultadas. */
+  isAdmin?: boolean;
 }
 
 const PLAN_ANCHOR_ID = "plano-7-dias";
@@ -160,6 +162,7 @@ export const LeadAnalysis = ({
   showCompanyName = true,
   simulatedNow,
   commercialMaturity,
+  isAdmin = false,
 }: LeadAnalysisProps) => {
   const [copiedDia, setCopiedDia] = useState<number | null>(null);
   const [copiedContingency, setCopiedContingency] = useState<string | null>(null);
@@ -171,6 +174,19 @@ export const LeadAnalysis = ({
 
   const sections = useMemo(() => splitAnalysisBullets(diagnostico), [diagnostico]);
   const facts = useMemo(() => (lead ? buildCompanyFacts(lead) : []), [lead]);
+  const availableChannelsList = useMemo(() => {
+    const list: string[] = [];
+    if (lead?.whatsapp_number || lead?.telefone) list.push("WhatsApp");
+    if (lead?.instagram || (lead as any)?.instagram_url) list.push("Instagram");
+    if (lead?.email) list.push("E-mail");
+    return list;
+  }, [lead]);
+  const planChannelsDescription = useMemo(() => {
+    if (availableChannelsList.length > 0) {
+      return `${availableChannelsList.join(", ")} · cadência comercial de 7 dias e tarefas internas geradas por IA`;
+    }
+    return "Cadência comercial de 7 dias, tarefas internas e contingências geradas por IA";
+  }, [availableChannelsList]);
   // Recusa registrada (status ou anotações) bloqueia qualquer recomendação ou execução de contato, mesmo que o plano
   // salvo ainda tenha mensagens pendentes. É a mesma regra que o SDR usa.
   const contactBlocked = useMemo(() => (lead ? hasExplicitOptOut(lead) : false), [lead]);
@@ -688,7 +704,7 @@ export const LeadAnalysis = ({
             Plano de 7 dias
           </CardTitle>
           <CardDescription className="text-xs text-zinc-400">
-            WhatsApp, Instagram, e-mail, follow-up e resposta para objeção gerados na mesma chamada de IA
+            {planChannelsDescription}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -985,7 +1001,7 @@ export const LeadAnalysis = ({
           </ol>
 
           {/* Ação avançada: desativada temporariamente na interface para proteger as cópias de IA contra sobrescrita acidental. O PR #60 removerá definitivamente este recurso. */}
-          {onUpdateCopiesLocally && (
+          {Boolean(isAdmin && onUpdateCopiesLocally) && (
             <div
               className="mt-5 flex flex-col gap-3 rounded-lg border border-dashed border-border/70 bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between opacity-75"
               data-testid="advanced-copy-action"

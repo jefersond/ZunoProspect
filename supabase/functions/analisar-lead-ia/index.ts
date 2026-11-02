@@ -96,9 +96,13 @@ async function callGeminiV6(apiKey: string, facts: VerifiedFacts, profile: Selle
   const requested = Math.trunc(Number(requestData?.max_provider_attempts));
   const maxAttempts = Number.isFinite(requested) && requested >= 1 ? Math.min(requested, MAX_PROVIDER_ATTEMPTS) : MAX_PROVIDER_ATTEMPTS;
 
+
+  const isRefine = requestData?.mode === "refine" || (requestData?.mode !== "generate" && Boolean(requestData?.existingPlan || requestData?.hasPreviousPlan));
+  const mode: "generate" | "refine" = isRefine ? "refine" : "generate";
+
   const run = await runGeminiAnalysis({
     apiKey,
-    prompt: buildAnalysisPrompt(facts, profile),
+    prompt: buildAnalysisPrompt(facts, profile, { mode }),
     fetchFn: fetch as never,
     models: [...REFINE_MODELS],
     maxAttempts,
@@ -115,8 +119,6 @@ async function callGeminiV6(apiKey: string, facts: VerifiedFacts, profile: Selle
 
   if (!run.ok) return { ok: false, error: summarizeProviderError(run.error, 160) };
 
-  const isRefine = requestData?.mode === "refine" || (requestData?.mode !== "generate" && Boolean(requestData?.existingPlan || requestData?.hasPreviousPlan));
-  const mode: "generate" | "refine" = isRefine ? "refine" : "generate";
   const validation = validateAnalysis(run.raw, { channels: facts.canais_disponiveis, profile, stage: facts.etapa_do_historico, facts }, { mode });
   if (!validation.ok) return { ok: false, error: `${run.model}:invalid_output:${validation.issues.join("|").slice(0, 200)}` };
 

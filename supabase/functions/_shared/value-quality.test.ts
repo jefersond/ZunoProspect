@@ -101,9 +101,9 @@ describe("evidências: sem inventar necessidade, qualidade ou ausência", () => 
 
   it("mensagem que afirma ausência ou qualidade é descartada", () => {
     const raw = goodRaw();
-    raw.plano[3].mensagem = "Oi, aqui é a Marina de novo. Vocês não têm site e o atendimento é ruim. Posso explicar como os sites ajudam?";
+    raw.plano[2].mensagem = "Oi, aqui é a Marina de novo. Vocês não têm site e o atendimento é ruim. Posso explicar como os sites ajudam?";
     const r = validateAnalysis(raw, ctx);
-    expect(r.ok && r.demoted_days).toContain(4);
+    expect(r.ok && r.demoted_days).toContain(3);
   });
 });
 

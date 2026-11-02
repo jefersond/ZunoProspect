@@ -1277,7 +1277,8 @@ export const LeadPlanDialog = ({
                 <LeadAnalysis
                   lead={displayLead}
                   showCompanyName={false}
-                  onExecuteInSdr={isAdmin ? handleOpenSdrWithDay : undefined}
+                  isAdmin={isAdmin}
+                onExecuteInSdr={isAdmin ? handleOpenSdrWithDay : undefined}
                   diagnostico={[
                     pendingAnalysis.opportunity_summary,
                     pendingAnalysis.possible_pain,
@@ -1299,6 +1300,7 @@ export const LeadPlanDialog = ({
               <LeadAnalysis
                 lead={displayLead}
                 showCompanyName={false}
+                isAdmin={isAdmin}
                 onExecuteInSdr={isAdmin ? handleOpenSdrWithDay : undefined}
                 diagnostico={normalizeDiagnosticoBullets(displayLead.diagnostico_bullets, displayLead)}
                 probabilidade={displayLead.probabilidade_conversao ?? null}
@@ -1307,8 +1309,8 @@ export const LeadPlanDialog = ({
                 onReanalyze={refineError ? undefined : handleReanalyze}
                 isReanalyzing={isReanalyzing}
                 canAnalyzeAI={canAnalyzeLead}
-                onUpdateCopiesLocally={handleUpdateCopiesLocally}
-                isUpdatingCopiesLocally={isUpdatingCopiesLocally}
+                onUpdateCopiesLocally={isAdmin ? handleUpdateCopiesLocally : undefined}
+                isUpdatingCopiesLocally={isAdmin ? isUpdatingCopiesLocally : false}
                 simulatedNow={simulatedNow}
                 commercialMaturity={effectiveCommercialMaturity}
               />

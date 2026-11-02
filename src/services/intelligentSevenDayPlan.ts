@@ -782,7 +782,7 @@ export function buildIntelligentPlan({
       // PRESERVAÇÃO TOTAL: edições manuais do usuário são invioláveis
       finalMessage = existingDay!.mensagem;
       isCustomPreserved = true;
-    } else if (!forceUpdateOldCopies && existingMsg.length > 10) {
+    } else if (blueprint.defaultMessage && !forceUpdateOldCopies && existingMsg.length > 10) {
       // Se não for forçada a atualização e não houver clichês proibidos antigos, mantém
       const audit = auditMessageNaturalness(existingMsg);
       if (!audit.hasBannedPhrases) {

@@ -104,6 +104,20 @@ describe("fatos verificados e prompt", () => {
     expect(resolveHistoryStage({ status: "respondeu", notas: "" })).toBe("respondeu");
     expect(resolveHistoryStage({ status: "novo", notas: "pediu para não contatar" })).toBe("recusou_ou_optout");
   });
+
+  it("inclui instruções especiais de refinamento quando mode === 'refine' e omite em geração normal", () => {
+    const facts = buildVerifiedFacts(lead);
+    const refinePrompt = buildAnalysisPrompt(facts, profile, { mode: "refine" });
+    expect(refinePrompt).toContain("SOLICITAÇÃO DE REFINAMENTO DE COPY");
+    expect(refinePrompt).toContain("NOVA VERSÃO / REFINAMENTO");
+    expect(refinePrompt).toContain("Dias 1, 3 e 5");
+
+    const normalPrompt = buildAnalysisPrompt(facts, profile, { mode: "generate" });
+    expect(normalPrompt).not.toContain("SOLICITAÇÃO DE REFINAMENTO DE COPY");
+
+    const defaultPrompt = buildAnalysisPrompt(facts, profile);
+    expect(defaultPrompt).not.toContain("SOLICITAÇÃO DE REFINAMENTO DE COPY");
+  });
 });
 
 describe("validador", () => {
@@ -169,22 +183,22 @@ describe("validador", () => {
   it("mensagem longa demais é descartada; um pouco longa vira aviso", () => {
     const raw = goodRaw();
     raw.plano[0].mensagem = "Oi, aqui é a Marina. " + "palavra ".repeat(120) + "Vocês já têm site?";
-    raw.plano[3] = day(4, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, aqui é a Marina. " + "palavra ".repeat(66) + "Posso explicar como funcionam os sites?" });
+    raw.plano[2] = day(3, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, aqui é a Marina. " + "palavra ".repeat(66) + "Posso explicar como funcionam os sites?" });
     const r = validateAnalysis(raw, ctx);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.demoted_days).toEqual([1]);
-    expect(r.warnings.join(" ")).toMatch(/dia 4: \d+ palavras/);
+    expect(r.warnings.join(" ")).toMatch(/dia 3: \d+ palavras/);
   });
 
   it("Cenário 1: lead novo somente com WhatsApp/telefone: canal Instagram com texto apropriado é adaptado para WhatsApp", () => {
     const raw = goodRaw();
-    raw.plano[3] = day(4, { tipo: "mensagem", canal: "instagram", mensagem: "Oi! Aqui é a Marina, faço sites para oficinas. Vocês já têm um site?" });
+    raw.plano[2] = day(3, { tipo: "mensagem", canal: "instagram", mensagem: "Oi! Aqui é a Marina, faço sites para oficinas. Vocês já têm um site?" });
     const r = validateAnalysis(raw, { ...ctx, channels: ["whatsapp", "telefone"] });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.analysis.plano[3].canal).toBe("whatsapp");
-    expect(r.demoted_days).not.toContain(4);
+    expect(r.analysis.plano[2].canal).toBe("whatsapp");
+    expect(r.demoted_days).not.toContain(3);
     expect(r.warnings.some((w) => w.includes("canal instagram adaptado para whatsapp"))).toBe(true);
   });
 
@@ -257,10 +271,140 @@ describe("validador", () => {
   it("acompanhamento antes de qualquer contato é rebaixado", () => {
     const raw = goodRaw();
     raw.plano[0] = day(1, { tipo: "acompanhamento", canal: "whatsapp", condicao: "x", mensagem: "Oi, aqui é a Marina de novo, sobre os sites para oficinas. Vocês já têm um?" });
-    raw.plano[3] = day(4, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, aqui é a Marina, da Costa Digital. Faço sites para oficinas. Vocês já têm um?" });
+    raw.plano[2] = day(3, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, aqui é a Marina, da Costa Digital. Faço sites para oficinas. Vocês já têm um?" });
     const r = validateAnalysis(raw, ctx);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.demoted_days).toEqual([1]);
+  });
+
+  it("cadência comercial: rebaixa contatos em dias consecutivos para garantir intervalo mínimo de 48h", () => {
+    const raw = goodRaw();
+    raw.plano[0] = day(1, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, aqui é a Marina, da Costa Digital. Faço sites para oficinas. Vocês já têm um?" });
+    raw.plano[1] = day(2, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, aqui é a Marina de novo. Posso explicar como o site ajudaria a Irmãos Lima?" });
+    const r = validateAnalysis(raw, ctx);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.demoted_days).toContain(2);
+    const d2 = r.analysis.plano[1];
+    expect(d2.tipo).toBe("tarefa");
+    expect(d2.canal).toBe("nenhum");
+    expect(d2.mensagem).toBe("");
+    expect(d2.acao).toMatch(/dias 2, 4, 6 e 7|intervalo mínimo/);
+  });
+
+  it("cadência comercial: rebaixa contatos excedentes para garantir limite de no máximo 3 contatos ativos", () => {
+    const raw = goodRaw();
+    raw.plano[0] = day(1, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, tudo bem? Aqui é a Marina, da Costa Digital. Faço sites para oficinas. Vocês já têm um?" });
+    raw.plano[2] = day(3, { tipo: "acompanhamento", canal: "whatsapp", condicao: "se sem resposta", mensagem: "Oi, aqui é a Marina. Conseguiu ver a mensagem anterior sobre o site da oficina?" });
+    raw.plano[4] = day(5, { tipo: "acompanhamento", canal: "whatsapp", condicao: "se sem resposta", mensagem: "Oi, aqui é a Marina. Vocês estão avaliando frentes de divulgação neste mês?" });
+    raw.plano[6] = day(7, { tipo: "acompanhamento", canal: "whatsapp", condicao: "se sem resposta", mensagem: "Oi, aqui é a Marina. Vou encerrar os contatos para não atrapalhar a rotina." });
+    const r = validateAnalysis(raw, ctx);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.demoted_days).toContain(7);
+    const d7 = r.analysis.plano[6];
+    expect(d7.tipo).toBe("tarefa");
+    expect(d7.canal).toBe("nenhum");
+    expect(d7.mensagem).toBe("");
+    expect(d7.acao).toMatch(/dias 2, 4, 6 e 7|limite máximo/);
+    const sendable = r.analysis.plano.filter((d) => d.mensagem.length > 0);
+    expect(sendable.length).toBe(3);
+    expect(sendable.map((d) => d.dia)).toEqual([1, 3, 5]);
+  });
+
+  it("cadência comercial determinística: independentemente do que o modelo gerar nos dias 2, 4, 6 e 7, o validador rebaixa para tarefa e limita aos dias 1, 3 e 5", () => {
+    const raw = goodRaw();
+    // Força mensagens em TODOS os 7 dias
+    raw.plano[0] = day(1, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, tudo bem? Aqui é a Marina, da Costa Digital. Faço sites para oficinas. Vocês já têm um?" });
+    raw.plano[1] = day(2, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, aqui é a Marina. Vi que muitas oficinas de Campinas recebem pedidos no WhatsApp." });
+    raw.plano[2] = day(3, { tipo: "acompanhamento", canal: "whatsapp", condicao: "se sem resposta", mensagem: "Oi, aqui é a Marina. Conseguiu ver a mensagem anterior sobre o site da oficina?" });
+    raw.plano[3] = day(4, { tipo: "acompanhamento", canal: "whatsapp", condicao: "se sem resposta", mensagem: "Oi, aqui é a Marina. O maior gargalo hoje está em atrair clientes ou em atender?" });
+    raw.plano[4] = day(5, { tipo: "acompanhamento", canal: "whatsapp", condicao: "se sem resposta", mensagem: "Oi, aqui é a Marina. Vocês estão avaliando frentes de divulgação neste mês?" });
+    raw.plano[5] = day(6, { tipo: "acompanhamento", canal: "whatsapp", condicao: "se sem resposta", mensagem: "Oi, aqui é a Marina. Só uma pergunta sobre o momento da oficina para novas frentes." });
+    raw.plano[6] = day(7, { tipo: "acompanhamento", canal: "whatsapp", condicao: "se sem resposta", mensagem: "Oi, aqui é a Marina. Vou encerrar os contatos para não atrapalhar a rotina." });
+
+    const r = validateAnalysis(raw, ctx);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    // Dias 2, 4, 6 e 7 DEVEM ser despromovidos determinísticamente
+    expect(r.demoted_days).toEqual(expect.arrayContaining([2, 4, 6, 7]));
+    for (const d of [2, 4, 6, 7]) {
+      const dayObj = r.analysis.plano[d - 1];
+      expect(dayObj.tipo).toBe("tarefa");
+      expect(dayObj.canal).toBe("nenhum");
+      expect(dayObj.mensagem).toBe("");
+      expect(dayObj.acao).toContain("tarefas internas");
+    }
+
+    // Apenas os dias 1, 3 e 5 permanecem com mensagens enviáveis (máximo 3 contatos)
+    const sendable = r.analysis.plano.filter((d) => d.mensagem.length > 0);
+    expect(sendable.length).toBe(3);
+    expect(sendable.map((d) => d.dia)).toEqual([1, 3, 5]);
+  });
+
+  it("cadência comercial determinística: mensagens nos dias 2, 4 e 6 são 100% despromovidas para tarefas", () => {
+    const raw = goodRaw();
+    raw.plano[0] = day(1, { tipo: "tarefa", canal: "nenhum", mensagem: "" });
+    raw.plano[1] = day(2, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, tudo bem? Aqui é a Marina, da Costa Digital. Faço sites para oficinas. Vocês já têm um?" });
+    raw.plano[3] = day(4, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, aqui é a Marina. O maior gargalo hoje está em atrair clientes ou em atender?" });
+    raw.plano[5] = day(6, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, aqui é a Marina. Só uma pergunta sobre o momento da oficina para novas frentes." });
+
+    const r = validateAnalysis(raw, ctx);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    expect(r.demoted_days).toEqual(expect.arrayContaining([2, 4, 6]));
+    const sendable = r.analysis.plano.filter((d) => d.mensagem.length > 0);
+    expect(sendable.length).toBe(0);
+  });
+
+  it("reação do lead e opt-out: recusa_ou_optout bloqueia determinísticamente 100% das mensagens", () => {
+    const raw = goodRaw();
+    raw.plano[0] = day(1, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, tudo bem? Aqui é a Marina, da Costa Digital. Faço sites para oficinas. Vocês já têm um?" });
+    raw.plano[2] = day(3, { tipo: "acompanhamento", canal: "whatsapp", condicao: "se sem resposta", mensagem: "Oi, aqui é a Marina. Conseguiu ver a mensagem anterior sobre o site da oficina?" });
+    raw.plano[4] = day(5, { tipo: "acompanhamento", canal: "whatsapp", condicao: "se sem resposta", mensagem: "Oi, aqui é a Marina. Vocês estão avaliando frentes de divulgação neste mês?" });
+
+    const r = validateAnalysis(raw, { ...ctx, stage: "recusou_ou_optout" });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    // Nenhuma mensagem permitida sob opt-out
+    expect(r.demoted_days).toEqual(expect.arrayContaining([1, 3, 5]));
+    const sendable = r.analysis.plano.filter((d) => d.mensagem.length > 0);
+    expect(sendable.length).toBe(0);
+    expect(r.analysis.plano.every((d) => d.tipo === "tarefa" || d.tipo === "sem_mensagem")).toBe(true);
+  });
+
+  it("reação do lead e opt-out: lead descartado bloqueia determinísticamente 100% das mensagens", () => {
+    const raw = goodRaw();
+    raw.plano[0] = day(1, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, tudo bem? Aqui é a Marina, da Costa Digital. Faço sites para oficinas. Vocês já têm um?" });
+    raw.plano[2] = day(3, { tipo: "acompanhamento", canal: "whatsapp", condicao: "se sem resposta", mensagem: "Oi, aqui é a Marina. Conseguiu ver a mensagem anterior sobre o site da oficina?" });
+
+    const r = validateAnalysis(raw, { ...ctx, stage: "descartado" });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    const sendable = r.analysis.plano.filter((d) => d.mensagem.length > 0);
+    expect(sendable.length).toBe(0);
+  });
+
+  it("reação do lead: empresa que já respondeu permite no máximo 1 mensagem de condução e zero sequência fria", () => {
+    const raw = goodRaw();
+    raw.plano[0] = day(1, { tipo: "mensagem", canal: "whatsapp", mensagem: "Oi, tudo bem? Aqui é a Marina, da Costa Digital. Faço sites para oficinas. Vocês já têm um?" });
+    raw.plano[2] = day(3, { tipo: "acompanhamento", canal: "whatsapp", condicao: "se sem resposta", mensagem: "Oi, aqui é a Marina. Conseguiu ver a mensagem anterior sobre o site da oficina?" });
+    raw.plano[4] = day(5, { tipo: "acompanhamento", canal: "whatsapp", condicao: "se sem resposta", mensagem: "Oi, aqui é a Marina. Vocês estão avaliando frentes de divulgação neste mês?" });
+
+    const r = validateAnalysis(raw, { ...ctx, stage: "respondeu" });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    // Dia 1 conduz a conversa; Dias 3 e 5 viram tarefa sem envio frio
+    expect(r.demoted_days).toContain(3);
+    expect(r.demoted_days).toContain(5);
+    const sendable = r.analysis.plano.filter((d) => d.mensagem.length > 0);
+    expect(sendable.length).toBe(1);
+    expect(sendable[0].dia).toBe(1);
   });
 });
 
@@ -273,8 +417,8 @@ describe("saída salva", () => {
     expect(bullets.join(" ")).not.toMatch(/%/);
     const stored = r.analysis.plano.map(toStoredDay);
     expect(stored[0]).toMatchObject({ dia: 1, tipo_dia: "mensagem", canal: "whatsapp", copy_version: COPY_VERSION, fonte: "gemini", is_custom_edited: false });
-    expect(stored[2].mensagem).toBe("");
-    expect(stored[2].acao_sugerida).toBeTruthy();
+    expect(stored[3].mensagem).toBe("");
+    expect(stored[3].acao_sugerida).toBeTruthy();
   });
 
   it("payload registra tentativas, versão do prompt e não contém score", () => {

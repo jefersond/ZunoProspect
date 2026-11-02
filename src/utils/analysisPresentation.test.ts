@@ -89,6 +89,18 @@ describe("buildCompanyFacts", () => {
   it("lead antigo com campos nulos não lança exceção", () => {
     expect(() => buildCompanyFacts(makeLegacyLead())).not.toThrow();
   });
+
+  it("não afirma que WhatsApp foi identificado no site público quando o lead não possui website cadastrado", () => {
+    const leadSemSite = {
+      telefone: "27999887766",
+      website: null,
+      sinais: { has_whatsapp_on_site: true },
+    } as Partial<LeadProspeccao>;
+    const facts = buildCompanyFacts(leadSemSite);
+    const phoneFact = facts.find((f) => f.key === "telefone")!;
+    expect(phoneFact.note).not.toContain("site público");
+    expect(phoneFact.note).toContain("Celular. Se há WhatsApp só se confirma no primeiro contato.");
+  });
 });
 
 describe("getRecommendedPlanDay", () => {
@@ -188,5 +200,11 @@ describe("validateLeadChannelForDay", () => {
 
     const comInsta = validateLeadChannelForDay({ instagram: "@empresa" }, "instagram");
     expect(comInsta.isAvailable).toBe(true);
+  });
+
+  it("aviso de telefone fixo sem site não menciona site público", () => {
+    const fixoSemSite = validateLeadChannelForDay({ telefone: "2733221100", website: "" }, "whatsapp");
+    expect(fixoSemSite.warningNote).toContain("cadastro público");
+    expect(fixoSemSite.warningNote).not.toContain("site público");
   });
 });

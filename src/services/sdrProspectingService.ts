@@ -138,14 +138,14 @@ export function generateSdrFirstApproachMessage({
 
   if (existingPlan) {
     const sdrData = getSdrMessageFromPlan(lead, dayNumber, userServiceName);
-    if (sdrData && sdrData.message) {
+    if (sdrData) {
       body = sdrData.message;
       isFromPlan = true;
     }
   }
 
   // 2. Se o lead não possui plano prévio salvo, gera a abordagem usando a lógica humana e sem clichês
-  if (!body) {
+  if (!isFromPlan) {
     if (style === "direto") {
       let signalLine = "";
       if (hasWebsite) {

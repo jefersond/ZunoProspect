@@ -22,6 +22,7 @@ const ATTRIBUTION_KEYS = [
   "fbclid",
   "ref",
   "offer",
+  "test_event_code",
 ] as const;
 
 function safeStorage(storage: Storage | undefined, key: string, value?: string) {
@@ -79,7 +80,12 @@ export function trackMetaEvent(eventName: string, params?: MetaParams) {
     return;
   }
 
-  window.fbq!("track", eventName, payload);
+  const eventId = payload.event_id || payload.eventID;
+  if (eventId) {
+    window.fbq!("track", eventName, payload, { eventID: String(eventId) });
+  } else {
+    window.fbq!("track", eventName, payload);
+  }
 
   if (isDev) {
     console.log("[MetaPixel] Evento padrao:", eventName, payload);
@@ -126,6 +132,14 @@ export function trackLead(params: MetaParams = {}) {
 
 export function trackInitiateCheckout(params: MetaParams = {}) {
   trackMetaEvent("InitiateCheckout", params);
+}
+
+export function trackStartTrial(params: MetaParams = {}) {
+  trackMetaEvent("StartTrial", {
+    value: 0,
+    currency: "BRL",
+    ...params,
+  });
 }
 
 export function trackAddPaymentInfo(params: MetaParams = {}) {

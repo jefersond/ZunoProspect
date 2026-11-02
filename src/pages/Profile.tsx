@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
-import { Loader2, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink, Mail, Clock } from "lucide-react";
+import { useUsage } from "@/hooks/useUsage";
+import { Loader2, Crown, Zap, Calendar, Shield, CreditCard, ExternalLink, Mail, Clock, CheckCircle2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SUPPORTED_TIMEZONES, DEFAULT_TIMEZONE } from "@/utils/timezoneDateUtils";
 import { FloatingWhatsAppButton } from "@/components/FloatingWhatsAppButton";
@@ -33,6 +34,9 @@ const Profile = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { subscription, loading: subscriptionLoading, isAdmin, getPlanDisplayName, refetch } = useSubscription();
+  const { usage } = useUsage();
+  const leadsDisponiveis = usage?.leads_remaining ?? 20;
+  const aiDisponiveis = usage?.ai_remaining ?? 3;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
@@ -44,6 +48,7 @@ const Profile = () => {
   });
   const [cancelingSub, setCancelingSub] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [cancelSuccessOpen, setCancelSuccessOpen] = useState(false);
   const [managingSubLoading, setManagingSubLoading] = useState(false);
   const trialPrice = trialPriceSummary(subscription?.plan_name, subscription?.billing_cycle);
   const trialChargeDate = subscription?.trial_end
@@ -226,13 +231,14 @@ const Profile = () => {
         throw new Error(data?.error || error?.message || "Erro ao cancelar assinatura.");
       }
 
-      toast({
-        title: "Cancelamento concluído!",
-        description: "Seu período gratuito foi cancelado. Você não será cobrado. Seu acesso aos recursos pagos foi encerrado.",
-      });
-
       setCancelConfirmOpen(false);
+      setCancelSuccessOpen(true);
       refetch?.();
+
+      toast({
+        title: "Assinatura cancelada",
+        description: `Você continua com acesso ao plano Gratuito, com ${leadsDisponiveis} leads e ${aiDisponiveis} análises de IA disponíveis.`,
+      });
     } catch (err: any) {
       toast({
         variant: "destructive",
@@ -437,6 +443,18 @@ const Profile = () => {
               </div>
             </div>
 
+            {!isAdmin && subscription && subscription.plan_name === "free" && subscription.subscription_status === "cancelled" && (
+              <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/15 text-sm space-y-1 mt-4" data-testid="cancellation-status-banner">
+                <p className="text-foreground font-semibold flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  Assinatura cancelada
+                </p>
+                <p className="text-muted-foreground text-xs leading-5">
+                  Assinatura cancelada. Você continua com acesso ao plano Gratuito, com {leadsDisponiveis} {leadsDisponiveis === 1 ? 'lead' : 'leads'} e {aiDisponiveis} {aiDisponiveis === 1 ? 'análise' : 'análises'} de IA disponíveis. Seus leads salvos e histórico estão preservados. Os recursos avançados de planos pagos foram encerrados.
+                </p>
+              </div>
+            )}
+
             {/* Informações detalhadas do trial */}
             {!isAdmin && subscription && subscription.subscription_status === "trialing" && (
               <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-sm space-y-2">
@@ -514,6 +532,50 @@ const Profile = () => {
           </Card>
         )}
       </main>
+
+      {/* Dialog Pós-Cancelamento com Feedback Claro e Opções de Ação */}
+      <Dialog open={cancelSuccessOpen} onOpenChange={setCancelSuccessOpen}>
+        <DialogContent className="sm:max-w-md" data-testid="cancel-success-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground">
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              Assinatura cancelada
+            </DialogTitle>
+            <DialogDescription className="text-sm text-foreground/90 pt-2 leading-relaxed">
+              Assinatura cancelada. Você continua com acesso ao plano Gratuito, com {leadsDisponiveis} {leadsDisponiveis === 1 ? 'lead' : 'leads'} e {aiDisponiveis} {aiDisponiveis === 1 ? 'análise' : 'análises'} de IA disponíveis. Os recursos avançados de planos pagos foram encerrados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Seus leads salvos, histórico e análises anteriores foram preservados e continuam disponíveis na sua conta.
+            </p>
+            
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                variant="default"
+                className="w-full h-11 text-base font-semibold bg-emerald-600 hover:bg-emerald-500 text-white"
+                onClick={() => {
+                  setCancelSuccessOpen(false);
+                  navigate("/prospeccao");
+                }}
+              >
+                Continuar no plano Gratuito
+              </Button>
+              
+              <Button
+                variant="outline"
+                className="w-full h-11 text-base"
+                onClick={() => {
+                  setCancelSuccessOpen(false);
+                  setUpgradeDialogOpen(true);
+                }}
+              >
+                Ver planos
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog de Confirmação de Cancelamento do Trial */}
       <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>

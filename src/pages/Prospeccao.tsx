@@ -58,7 +58,7 @@ const Prospeccao = () => {
           const chargeDate = formatBillingDate(realTrialEnd || realPeriodEnd);
           toast.success(
             chargeDate
-              ? `Teste grátis iniciado. Hoje R$0. Primeira cobrança na data real do Stripe: ${chargeDate}.`
+              ? `Período gratuito iniciado. Hoje R$0. Primeira cobrança na data real do Stripe: ${chargeDate}.`
               : "Teste grátis iniciado. Hoje R$0. A data da primeira cobrança está registrada no Stripe.",
           );
         } else if (!syncError && realStatus === "active") {

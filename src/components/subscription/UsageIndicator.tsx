@@ -8,8 +8,12 @@ interface UsageIndicatorProps {
 }
 
 function formatAvailable(count: number, singular: string, plural: string) {
-  if (count <= 0) return `Nenhum ${singular} disponivel`;
-  return `${count} ${count === 1 ? singular : plural} disponiveis`;
+  if (count <= 0) {
+    return singular.includes("análise")
+      ? "Nenhuma análise de IA disponível"
+      : "Nenhum lead disponível";
+  }
+  return `${count} ${count === 1 ? singular : plural} disponíveis`;
 }
 
 export const UsageIndicator = ({ compact = false }: UsageIndicatorProps) => {
@@ -56,7 +60,7 @@ export const UsageIndicator = ({ compact = false }: UsageIndicatorProps) => {
 
         <Badge variant={aiRemaining <= 0 ? "destructive" : "secondary"} className="gap-1">
           <Brain className="h-3 w-3" />
-          {formatAvailable(aiRemaining, "analise IA", "analises IA")}
+          {formatAvailable(aiRemaining, "análise de IA", "análises de IA")}
         </Badge>
       </div>
     );
@@ -66,7 +70,7 @@ export const UsageIndicator = ({ compact = false }: UsageIndicatorProps) => {
     <div className="space-y-4">
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Leads usados este mes</span>
+          <span className="text-muted-foreground">Leads usados este mês</span>
           <span className="font-medium">
             {isUnlimited ? (
               <span className="flex items-center gap-1">
@@ -80,14 +84,14 @@ export const UsageIndicator = ({ compact = false }: UsageIndicatorProps) => {
 
         {!isUnlimited && (
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Leads disponiveis</span>
+            <span className="text-muted-foreground">Leads disponíveis</span>
             <span className="font-medium">{remainingLeads}</span>
           </div>
         )}
 
         {!isUnlimited && bonusSaldo > 0 && (
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Extras por indicacao convertida</span>
+            <span className="text-muted-foreground">Extras por indicação convertida</span>
             <span className="font-medium text-emerald-600 dark:text-emerald-400">{bonusSaldo}</span>
           </div>
         )}
@@ -103,14 +107,14 @@ export const UsageIndicator = ({ compact = false }: UsageIndicatorProps) => {
       {!isAdmin && (
         <div className="space-y-2 border-t pt-3">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Analises IA usadas este mes</span>
+            <span className="text-muted-foreground">Análises de IA usadas este mês</span>
             <span className="font-medium">
               {aiUsed} / {aiLimit}
             </span>
           </div>
 
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Analises IA disponiveis</span>
+            <span className="text-muted-foreground">Análises de IA disponíveis</span>
             <span className="font-medium">{aiRemaining}</span>
           </div>
 
@@ -121,12 +125,12 @@ export const UsageIndicator = ({ compact = false }: UsageIndicatorProps) => {
       {isAtLimit && !isUnlimited && (
         <div className="flex items-center gap-2 text-sm text-destructive">
           <AlertTriangle className="h-4 w-4" />
-          <span>Limite de leads atingido. Faca upgrade para continuar.</span>
+          <span>Limite de leads atingido. Faça upgrade para continuar.</span>
         </div>
       )}
 
       {isNearLimit && !isAtLimit && !isUnlimited && (
-        <p className="text-xs text-muted-foreground">Voce usou {percentage}% do seu limite mensal de leads.</p>
+        <p className="text-xs text-muted-foreground">Você usou {percentage}% do seu limite mensal de leads.</p>
       )}
 
       {isAdmin && (

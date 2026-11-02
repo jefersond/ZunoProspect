@@ -46,7 +46,7 @@ export function CasosDeUsoSection() {
       foco: "Diagnóstico integrado de canais digitais, estruturação de prospecção comercial recorrente e volume de abordagens."
     },
     {
-      persona: "Freelancer",
+      persona: "Freelancers e profissionais autônomos",
       icone: BriefcaseBusiness,
       titulo: "Clientes sem Depender de Indicação",
       descricao: "Prospecte ativamente em qualquer cidade para fechar novos clientes sem esperar indicação. Monte listas por nicho e aborde com mensagem personalizada para cada empresa.",

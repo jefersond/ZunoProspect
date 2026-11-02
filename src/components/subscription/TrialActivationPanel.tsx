@@ -139,7 +139,7 @@ export function TrialActivationPanel({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <Badge variant="outline" className="border-emerald-500/30 text-emerald-500">
-              Teste grátis ativo
+              Período gratuito ativo
             </Badge>
             <CardTitle className="mt-3 text-xl">
               {hasResults ? "Você já começou a gerar oportunidades reais" : "Chegue ao primeiro valor em uma busca"}
@@ -153,10 +153,10 @@ export function TrialActivationPanel({
         </div>
 
         <div className="rounded-lg border border-border/60 bg-background/70 p-3 text-sm leading-6 text-muted-foreground">
-          <strong className="text-foreground">Transparência do trial:</strong>{" "}
+          <strong className="text-foreground">Transparência do período gratuito:</strong>{" "}
           {trialStart && trialEnd ? (
             <>
-              seu trial atual tem <strong className="text-foreground">{actualTrialDuration ?? "—"} dias</strong> com cartão cadastrado. A primeira cobrança está prevista para{" "}
+              seu período gratuito atual tem <strong className="text-foreground">{actualTrialDuration ?? "—"} dias</strong> com cartão cadastrado. A primeira cobrança está prevista para{" "}
               <strong className="text-foreground">{chargeDate}</strong>
               {price ? (
                 <>
@@ -206,7 +206,7 @@ export function TrialActivationPanel({
           <div className="rounded-lg border border-border/60 p-3">
             <Building2 className="h-4 w-4 text-emerald-500" />
             <p className="mt-2 text-xl font-semibold">{progress.returnedResults}</p>
-            <p className="text-xs text-muted-foreground">resultados reais no trial</p>
+            <p className="text-xs text-muted-foreground">Resultados encontrados no teste gratuito</p>
           </div>
           <div className="rounded-lg border border-border/60 p-3">
             <BookmarkCheck className="h-4 w-4 text-emerald-500" />
@@ -224,7 +224,7 @@ export function TrialActivationPanel({
           <div className="flex items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
             <p className="text-sm leading-6 text-muted-foreground">
-              Esses números vêm das suas buscas reais desde o início do trial. Abra <strong className="text-foreground">Ver Plano</strong> em uma empresa para avaliar a oportunidade com seus próprios olhos — esse é o marco de primeiro valor do Zuno.
+              Esses números vêm das suas buscas reais desde o início do período gratuito. Abra <strong className="text-foreground">Ver Plano</strong> em uma empresa para avaliar a oportunidade com seus próprios olhos — esse é o marco de primeiro valor do Zuno.
             </p>
           </div>
         ) : (
@@ -242,7 +242,7 @@ export function TrialActivationPanel({
           <div className="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
             <CalendarDays className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
             <p className="text-sm leading-6 text-muted-foreground">
-              Seu teste está perto do fim. Até aqui o Zuno retornou <strong className="text-foreground">{progress.returnedResults}</strong> resultados em <strong className="text-foreground">{progress.completedSearches}</strong> buscas. A cobrança continua prevista para <strong className="text-foreground">{chargeDate}</strong>; o cancelamento segue disponível no perfil.
+              Seu período gratuito está perto do fim. Até aqui o Zuno retornou <strong className="text-foreground">{progress.returnedResults}</strong> resultados em <strong className="text-foreground">{progress.completedSearches}</strong> buscas. A cobrança continua prevista para <strong className="text-foreground">{chargeDate}</strong>; o cancelamento segue disponível no perfil.
             </p>
           </div>
         ) : null}

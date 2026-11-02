@@ -187,13 +187,13 @@ const Dashboard = () => {
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
-                    Teste grátis ativo — Plano {subscription.plan_name === "starter" ? "Starter" : subscription.plan_name === "pro" ? "Pro" : subscription.plan_name === "agency" ? "Agency" : subscription.plan_name}
+                    Período gratuito ativo — Plano {subscription.plan_name === "starter" ? "Starter" : subscription.plan_name === "pro" ? "Pro" : subscription.plan_name === "agency" ? "Agency" : subscription.plan_name}
                     <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
                       {trialRemaining ?? "—"} {Number(trialRemaining) === 1 ? 'dia restante' : 'dias restantes'}
                     </span>
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-400">
-                    Seu teste grátis termina em <strong className="text-slate-200">{trialRemaining ?? "—"} {Number(trialRemaining) === 1 ? 'dia' : 'dias'}</strong>. 
+                    Seu período gratuito termina em <strong className="text-slate-200">{trialRemaining ?? "—"} {Number(trialRemaining) === 1 ? 'dia' : 'dias'}</strong>. 
                     Primeira cobrança: <strong className="text-slate-200">{trialPrice ? `R$ ${trialPrice.price}${trialPrice.periodLabel}` : "—"}</strong> em <strong className="text-slate-200">{trialChargeDate}</strong>.
                   </p>
                 </div>

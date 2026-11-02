@@ -91,14 +91,14 @@ export function UsageStats({
 
           <p className="text-xs text-muted-foreground">
             {leadsUnlimited
-              ? "Voce tem buscas ilimitadas neste plano."
-              : `Voce ja buscou ${safeLeadsUsed} de ${safeLeadsLimit} leads. Disponiveis: ${leadsAvailable}.`}
+              ? "Você tem buscas ilimitadas neste plano."
+              : `Você já buscou ${safeLeadsUsed} de ${safeLeadsLimit} leads. Disponíveis: ${leadsAvailable}.`}
           </p>
 
           {!leadsUnlimited && safeBonus > 0 && (
             <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-              Bonus de indicacao convertida: <span className="font-medium text-foreground">{safeBonus}</span> leads.
-              Disponivel total: <span className="font-medium text-foreground">{leadsAvailable}</span> leads.
+              Bônus de indicação convertida: <span className="font-medium text-foreground">{safeBonus}</span> leads.
+              Disponível total: <span className="font-medium text-foreground">{leadsAvailable}</span> leads.
             </div>
           )}
         </div>
@@ -107,11 +107,11 @@ export function UsageStats({
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Brain className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">Analises com IA</span>
+              <span className="text-sm font-medium text-foreground">Análises com IA</span>
             </div>
 
             <span className="text-xs text-muted-foreground">
-              {aiUnlimited ? "Ilimitado" : `${safeAiUsed} de ${safeAiLimit} analises`}
+              {aiUnlimited ? "Ilimitado" : `${safeAiUsed} de ${safeAiLimit} análises`}
             </span>
           </div>
 
@@ -119,8 +119,8 @@ export function UsageStats({
 
           <p className="text-xs text-muted-foreground">
             {aiUnlimited
-              ? "Voce tem analises ilimitadas neste plano."
-              : `Voce ja usou ${safeAiUsed} de ${safeAiLimit} analises profundas. Disponiveis: ${aiAvailable}.`}
+              ? "Você tem análises ilimitadas neste plano."
+              : `Você já usou ${safeAiUsed} de ${safeAiLimit} análises profundas. Disponíveis: ${aiAvailable}.`}
           </p>
         </div>
       </CardContent>

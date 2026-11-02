@@ -23,7 +23,7 @@ export function ParaQuemSection() {
       descricao: "Mapeie empresas por região e use o contexto disponível para identificar onde seu serviço pode fazer sentido.",
     },
     {
-      titulo: "Freelancers",
+      titulo: "Freelancers e profissionais autônomos",
       icone: BriefcaseBusiness,
       descricao: "Crie uma rotina de prospecção por nicho e cidade sem depender apenas de indicação.",
     },

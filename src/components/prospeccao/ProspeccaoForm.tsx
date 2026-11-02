@@ -78,15 +78,36 @@ const safeTrackMetaCustomEvent = (eventName: string, eventData: Record<string, u
 };
 
 const formSchema = z.object({
-  pais: z.enum(["BR", "US"]).default("BR"),
-  cidade: z.string().min(1, "Cidade é obrigatória"),
-  estado: z.string().min(2, "Estado é obrigatório"),
-  nicho: z.string().min(1, "Nicho é obrigatório"),
-  quantidade: z.number().min(1).max(100),
-  foco: z.string().min(1, "Foco é obrigatório"),
-  proximidadeAtiva: z.boolean(),
-  raioKm: z.number().min(1).max(10),
-  canaisProspeccao: z.array(z.enum(["email", "whatsapp", "instagram"])).min(1, "Selecione pelo menos um canal"),
+  pais: z.enum(["BR", "US"], {
+    required_error: "Selecione um país",
+    invalid_type_error: "Selecione um país",
+  }).default("BR"),
+  cidade: z.string({
+    required_error: "Informe a cidade",
+    invalid_type_error: "Informe a cidade",
+  }).trim().min(1, "Informe a cidade"),
+  estado: z.string({
+    required_error: "Selecione um estado",
+    invalid_type_error: "Selecione um estado",
+  }).trim().min(2, "Selecione um estado"),
+  nicho: z.string({
+    required_error: "Informe o nicho",
+    invalid_type_error: "Informe o nicho",
+  }).trim().min(1, "Informe o nicho"),
+  quantidade: z.number({
+    required_error: "Informe a quantidade",
+    invalid_type_error: "Informe a quantidade",
+  }).min(1, "Mínimo de 1 lead").max(100, "Máximo de 100 leads"),
+  foco: z.string({
+    required_error: "Selecione o foco comercial",
+    invalid_type_error: "Selecione o foco comercial",
+  }).trim().min(1, "Selecione o foco comercial"),
+  proximidadeAtiva: z.boolean().default(false),
+  raioKm: z.number().min(1).max(10).default(5),
+  canaisProspeccao: z.array(z.enum(["email", "whatsapp", "instagram"]), {
+    required_error: "Selecione pelo menos um canal",
+    invalid_type_error: "Selecione pelo menos um canal",
+  }).min(1, "Selecione pelo menos um canal"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -1117,9 +1138,9 @@ export const ProspeccaoForm = () => {
               <Label htmlFor="pais" className="flex items-center gap-2 text-base font-semibold flex-wrap">
                 <Globe className="h-5 w-5 text-primary" />
                 País
-                {!canUseUsaProspecting() && (
+                {selectedCountry === "US" && !canUseUsaProspecting() && (
                   <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-500 font-normal">
-                    EUA: complemento
+                    EUA: complemento opcional
                   </Badge>
                 )}
               </Label>
@@ -1146,7 +1167,7 @@ export const ProspeccaoForm = () => {
                       value={country.value}
                     >
                       {country.label}
-                      {country.value === "US" && !canUseUsaProspecting() && " 🔒"}
+                      {country.value === "US" && !canUseUsaProspecting() && " (Complemento opcional) 🔒"}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1217,7 +1238,7 @@ export const ProspeccaoForm = () => {
               <Label htmlFor="estado">Estado</Label>
               <Select onValueChange={(value) => setValue("estado", value)} value={watch("estado")}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o estado" />
+                  <SelectValue placeholder="Selecione um estado" />
                 </SelectTrigger>
                 <SelectContent>
                   {getStatesByCountry(selectedCountry).map((state) => (
@@ -1273,10 +1294,10 @@ export const ProspeccaoForm = () => {
             </div>
 
             <div id="tour-foco" className="space-y-2">
-              <Label htmlFor="foco">Foco</Label>
+              <Label htmlFor="foco">Foco comercial</Label>
               <Select onValueChange={(value) => setValue("foco", value)} value={foco}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o foco" />
+                  <SelectValue placeholder="Selecione o foco comercial" />
                 </SelectTrigger>
                 <SelectContent>
                   {visibleFocusOptions.map((option) => (

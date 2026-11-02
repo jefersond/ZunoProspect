@@ -355,3 +355,42 @@ Este arquivo acompanha as iterações, erros analisados, correções efetuadas e
 - `npx supabase status` confirmou `linked_project: null` e URLs 100% locais (`http://127.0.0.1:55321`).
 - `node scripts/verify-local-supabase.mjs` executado contra `http://127.0.0.1:55321`: 2 usuários reais criados no GoTrue local, gravação de `seller_profiles` e `leads` confirmada, leitura/escrita cruzada bloqueada por RLS e 3 vetores SDR bloqueados pela trigger `trg_guard_sdr_lead_mutations`.
 - `npx vitest run src/security/homologacaoIntegradaRC1.test.ts src/services/trialFourDayPolicy.test.ts` (30/30 testes passando, incluindo integração real Frontend ↔ Edge Function contra o Postgres local) e `npx tsc --noEmit` (0 erros).
+
+
+---
+
+## Polimento Final de Português, Copy e Reposicionamento B2B (02/11/2026)
+- **1. Tela de Prospecção (`ProspeccaoForm.tsx`):**
+  - Substituição de erros genéricos "Required" do Zod por mensagens específicas em PT-BR:
+    - Estado: `"Selecione um estado"`.
+    - Foco comercial: `"Selecione o foco comercial"`.
+    - Cidade: `"Informe a cidade"`.
+    - Nicho: `"Informe o nicho"`.
+    - Quantidade: `"Informe a quantidade"`.
+    - Canais: `"Selecione pelo menos um canal"`.
+  - Correção dos rótulos e placeholders: `<Label htmlFor="foco">Foco comercial</Label>` e placeholders alinhados.
+  - Correção do selo `"EUA: complemento"`: agora exibido estritamente quando `selectedCountry === "US"` e o usuário não possui o complemento (`{selectedCountry === "US" && !canUseUsaProspecting() && ...}`). Quando o Brasil está selecionado, o selo não é renderizado, eliminando a confusão visual. No seletor, a opção EUA foi anotada como `(Complemento opcional) 🔒`.
+- **2. Contadores e Unidades de Cota:**
+  - `UsageIndicator.tsx`: Badge corrigido para `"30 análises de IA disponíveis"` (era `"30 analises IA disponiveis"`).
+  - Corrigida a acentuação e mensagens de limites em `UsageIndicator.tsx` e `UsageStats.tsx`.
+  - Verificação da cota de leads: confirmada a regra de negócio do backend (`buscar-leads` -> `increment_leads_usage` incrementa por `leadsDetails.length`). A unidade `"300 leads disponíveis"` é rigorosamente exata e refere-se a leads encontrados/consumidos.
+- **3. Padronização de "Período Gratuito" e Métricas Reais:**
+  - `TrialActivationPanel.tsx`:
+    - `"Teste grátis ativo"` -> `"Período gratuito ativo"`.
+    - `"resultados reais no trial"` -> `"Resultados encontrados no teste gratuito"`.
+    - `"Transparência do trial:"` -> `"Transparência do período gratuito:"`.
+  - `Profile.tsx`, `Dashboard.tsx`, `Checkout.tsx`, `Prospeccao.tsx`:
+    - `"Teste grátis ativo"` -> `"Período gratuito ativo"`.
+    - `"Cancelar teste grátis"` -> `"Cancelar período gratuito"`.
+    - `"Depois do teste"` -> `"Depois do período gratuito"`.
+- **4. Landing Page e Reposicionamento B2B:**
+  - Localizadas as menções a "freelance" e "freelancer". Em todos os pontos de identificação do público-alvo (`ParaQuemSection.tsx`, `CasosDeUsoSection.tsx`, `data.ts`), substituído por `"Freelancers e profissionais autônomos"`.
+  - `HeroSection.tsx`: Atualizado o badge superior para `"Plataforma de prospecção B2B · Para agências, consultores, prestadores de serviços e autônomos"`.
+  - Preservada a proposta central exata: `"Pare de procurar empresas no escuro. Comece a prospectar com direção."`.
+  - Zero promessas irreais mantidas: explicitação de busca em fontes públicas, envio 100% manual e sem promessas infladas.
+- **5. Qualidade e Testes:**
+  - Criada suíte dedicada `src/services/copyAndValidationPolishing.test.tsx` (5/5 testes passando).
+  - `src/services/trialActivationInstrumentation.test.ts` atualizado e passando (13/13).
+  - Suítes de Landing e CTA (`landingCtaConsistency`, `landingConversionCopy`, `publicTrialCopyConsistency`) 100% aprovadas.
+  - `npm run build`: Build de produção compilado em 15.17s com 0 erros.
+  - Commit estruturado: `51cc942: fix(copy): polimento de copy, mensagens de validacao em pt-br e reposicionamento b2b`.

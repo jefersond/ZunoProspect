@@ -957,7 +957,7 @@ export const LeadPlanDialog = ({
       toast({
         title: "Nao foi possivel refinar essa copy agora.",
         description: isBalanceError 
-          ? "Você não tem análises IA disponíveis." 
+          ? "Você não tem análises de IA disponíveis." 
           : isPayloadError
           ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
           : shouldShowServerMessage(errorPayload)

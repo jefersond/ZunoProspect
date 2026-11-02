@@ -1305,7 +1305,7 @@ export const LeadsList = () => {
         variant: "destructive",
         title: "Nao foi possivel refinar essa copy agora.",
         description: isBalanceError 
-          ? "Você não tem análises IA disponíveis." 
+          ? "Você não tem análises de IA disponíveis." 
           : isPayloadError
           ? "Não conseguimos analisar este lead porque ele veio sem nome da empresa ou contexto suficiente. Tente outro lead ou refaça a busca com cidade e nicho."
           : shouldShowServerMessage(errorPayload)
@@ -1510,7 +1510,7 @@ export const LeadsList = () => {
                     Resta apenas {aiRemaining} análise IA grátis!
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-3xl">
-                    Você está no fim do seu teste grátis. Continue testando em mais uma empresa ou mude para um plano profissional para gerar abordagens em massa!
+                    Você está no fim do seu período gratuito. Continue testando em mais uma empresa ou mude para um plano profissional para gerar abordagens em massa!
                   </p>
                 </div>
               </div>
@@ -1544,7 +1544,7 @@ export const LeadsList = () => {
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-lg font-bold text-emerald-400 flex items-center gap-2">
-                      ✨ Suas análises IA grátis acabaram!
+                      ✨ Suas análises de IA gratuitas acabaram!
                     </h3>
                     <p className="text-sm text-slate-300 mt-1 leading-relaxed max-w-2xl">
                       Você comprovou o valor do Zuno Prospect analisando empresas e gerando abordagens. Escolha o plano ideal para continuar convertendo leads in clientes de forma automatizada.
@@ -1556,7 +1556,7 @@ export const LeadsList = () => {
                     <div className="rounded-lg bg-slate-900/80 border border-slate-800 p-3 flex flex-col justify-between">
                       <div>
                         <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Free</div>
-                        <div className="text-sm font-bold mt-1 text-slate-200">3 análises IA/mês</div>
+                        <div className="text-sm font-bold mt-1 text-slate-200">3 análises de IA/mês</div>
                         <div className="text-[11px] text-slate-400">20 leads/mês</div>
                       </div>
                       <div className="text-xs font-semibold text-slate-400 mt-2">Grátis</div>
@@ -1564,7 +1564,7 @@ export const LeadsList = () => {
                     <div className="rounded-lg bg-slate-900/80 border border-slate-800 p-3 flex flex-col justify-between">
                       <div>
                         <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Starter</div>
-                        <div className="text-sm font-bold mt-1 text-slate-200">30 Análises IA/mês</div>
+                        <div className="text-sm font-bold mt-1 text-slate-200">30 análises de IA/mês</div>
                         <div className="text-[11px] text-slate-400">300 leads/mês</div>
                       </div>
                       <div className="text-xs font-bold text-emerald-400 mt-2">R$ 47<span className="text-[10px] text-slate-400">/mês</span></div>
@@ -1575,7 +1575,7 @@ export const LeadsList = () => {
                       </span>
                       <div>
                         <div className="text-xs text-emerald-400 font-bold uppercase tracking-wider">Pro</div>
-                        <div className="text-sm font-bold mt-1 text-slate-100">100 Análises IA/mês</div>
+                        <div className="text-sm font-bold mt-1 text-slate-100">100 análises de IA/mês</div>
                         <div className="text-[11px] text-slate-300">800 leads/mês</div>
                       </div>
                       <div className="text-xs font-bold text-emerald-400 mt-2">R$ 97<span className="text-[10px] text-slate-400">/mês</span></div>
@@ -1851,7 +1851,7 @@ export const LeadsList = () => {
                               </TooltipTrigger>
                               {!canAnalyzeAI && (
                                 <TooltipContent>
-                                  <p>Você usou todas as análises IA grátis. Escolha um plano para continuar gerando abordagens.</p>
+                                  <p>Você usou todas as análises de IA gratuitas. Escolha um plano para continuar gerando abordagens.</p>
                                 </TooltipContent>
                               )}
                             </Tooltip>

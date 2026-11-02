@@ -40,7 +40,7 @@ export const PERFIS_ALVO: PerfilAlvo[] = [
     bullets: ["Identifique empresas com marcas desatualizadas e que necessitam de nova identidade visual."],
   },
   {
-    titulo: "Freelancers",
+    titulo: "Freelancers e profissionais autônomos",
     icone: BriefcaseBusiness,
     bullets: ["Prospecte clientes ativamente por região para vender seus serviços sem depender apenas de indicações."],
   },

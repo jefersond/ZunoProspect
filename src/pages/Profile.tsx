@@ -228,7 +228,7 @@ const Profile = () => {
 
       toast({
         title: "Cancelamento concluído!",
-        description: "Seu teste grátis foi cancelado. Você não será cobrado. Seu acesso aos recursos pagos foi encerrado.",
+        description: "Seu período gratuito foi cancelado. Você não será cobrado. Seu acesso aos recursos pagos foi encerrado.",
       });
 
       setCancelConfirmOpen(false);
@@ -397,7 +397,7 @@ const Profile = () => {
                   )}
                   {subscription && subscription.subscription_status === "trialing" && (
                     <Badge className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold border-none">
-                      Teste grátis ativo
+                      Período gratuito ativo
                     </Badge>
                   )}
                 </div>
@@ -425,7 +425,7 @@ const Profile = () => {
                     className="gap-2"
                     disabled={managingSubLoading}
                   >
-                    Cancelar teste grátis
+                    Cancelar período gratuito
                   </Button>
                 )}
                 {!isAdmin && subscription && subscription.plan_name === "free" && (
@@ -441,11 +441,11 @@ const Profile = () => {
             {!isAdmin && subscription && subscription.subscription_status === "trialing" && (
               <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-sm space-y-2">
                 <p className="text-foreground">
-                  ✓ Você está no teste grátis do plano <span className="font-bold capitalize">{subscription.plan_name}</span>.
+                  ✓ Você está no período gratuito do plano <span className="font-bold capitalize">{subscription.plan_name}</span>.
                 </p>
                 {subscription.trial_days_remaining !== undefined && subscription.trial_days_remaining !== null && (
                   <p className="text-emerald-400 font-semibold">
-                    Restam {subscription.trial_days_remaining} {subscription.trial_days_remaining === 1 ? 'dia' : 'dias'} de teste.
+                    Restam {subscription.trial_days_remaining} {subscription.trial_days_remaining === 1 ? 'dia' : 'dias'} de período gratuito.
                   </p>
                 )}
                 <p className="text-muted-foreground text-xs leading-5">
@@ -458,7 +458,7 @@ const Profile = () => {
                     </>
                   ) : null}. A primeira cobrança está prevista para{" "}
                   <span className="font-semibold text-foreground">{trialChargeDate}</span>.
-                  Você pode cancelar antes do fim do teste para não ser cobrado.
+                  Você pode cancelar antes do fim do período gratuito para não ser cobrado.
                 </p>
               </div>
             )}
@@ -521,15 +521,15 @@ const Profile = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <Shield className="h-5 w-5" />
-              Cancelar Teste Grátis
+              Cancelar Período Gratuito
             </DialogTitle>
             <DialogDescription>
-              Confirme se deseja cancelar o seu teste grátis imediatamente
+              Confirme se deseja cancelar o seu período gratuito imediatamente
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground leading-6">
-              Se você cancelar agora, perderá o acesso aos recursos do teste grátis imediatamente. Você não será cobrado.
+              Se você cancelar agora, perderá o acesso aos recursos do período gratuito imediatamente. Você não será cobrado.
             </p>
             
             <div className="flex flex-col gap-2 pt-2">
@@ -542,10 +542,10 @@ const Profile = () => {
                 {cancelingSub ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Cancelando teste...
+                    Cancelando período gratuito...
                   </>
                 ) : (
-                  "Cancelar teste grátis agora"
+                  "Cancelar período gratuito agora"
                 )}
               </Button>
               
@@ -555,7 +555,7 @@ const Profile = () => {
                 onClick={() => setCancelConfirmOpen(false)}
                 disabled={cancelingSub}
               >
-                Manter meu teste grátis
+                Manter meu período gratuito
               </Button>
             </div>
           </div>

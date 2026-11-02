@@ -274,7 +274,7 @@ export const UpgradePlanDialog = ({ open, onOpenChange, currentPlanName, source 
                   </div>
                   <div className="rounded-lg border border-border/60 bg-background/30 p-3 text-center">
                     <p className="text-lg font-semibold">{plan.aiLimit.toLocaleString("pt-BR")}</p>
-                    <p className="text-xs text-muted-foreground">roteiros IA/mês</p>
+                    <p className="text-xs text-muted-foreground">análises de IA/mês</p>
                   </div>
                 </div>
 

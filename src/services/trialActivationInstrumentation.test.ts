@@ -112,11 +112,11 @@ describe("canonical trial activation instrumentation", () => {
   });
 
   it("shows transparent trial terms and only real accumulated metrics", () => {
-    expect(onboarding).toContain("seu trial atual tem");
+    expect(onboarding).toContain("seu período gratuito atual tem");
     expect(onboarding).toContain("trial_end");
     expect(onboarding).toContain('from("search_logs")');
     expect(onboarding).toContain('from("leads")');
-    expect(onboarding).toContain("resultados reais no trial");
+    expect(onboarding).toContain("Resultados encontrados no teste gratuito");
     expect(onboarding).not.toContain("demo");
   });
 });

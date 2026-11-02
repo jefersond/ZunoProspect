@@ -81,7 +81,7 @@ export function HeroSection() {
           <div className="relative z-10 max-w-2xl max-lg:min-w-0">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#0B8F60]/50 bg-[#12D98B]/10 px-3 py-1.5 text-xs font-bold text-[#8DF0BE] backdrop-blur-md max-lg:max-w-full">
               <Sparkles className="h-3.5 w-3.5 max-lg:shrink-0 text-[#12D98B]" />
-              <span className="max-lg:min-w-0">Plataforma de prospecção B2B · Para gestores de tráfego, agências e freelancers</span>
+              <span className="max-lg:min-w-0">Plataforma de prospecção B2B · Para agências, consultores, prestadores de serviços e autônomos</span>
             </div>
 
             <h1 className="mt-6 text-[2.5rem] font-extrabold leading-[1.04] tracking-[-0.05em] max-lg:break-words max-[319px]:text-[1.85rem] sm:text-5xl lg:text-[3.8rem]">

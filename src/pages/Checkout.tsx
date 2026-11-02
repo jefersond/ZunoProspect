@@ -380,7 +380,7 @@ export default function Checkout() {
                   {conversionPath === "direct_purchase"
                     ? "Assinatura imediata"
                     : trialDurationDays
-                      ? `${trialDurationDays} dias grátis`
+                      ? `${trialDurationDays} dias gratuitos`
                       : "Teste confirmado no checkout"}
                 </span>
               </div>
@@ -425,11 +425,11 @@ export default function Checkout() {
                     <span className="font-bold text-emerald-400">R$ 0</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Depois do teste:</span>
+                    <span>Depois do período gratuito:</span>
                     <span className="font-semibold text-foreground">R$ {preco.toLocaleString("pt-BR")}{periodo}</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground pt-1">
-                    Cartão obrigatório para validação. Cancele antes do término do teste e não será cobrado.
+                    Cartão obrigatório para validação. Cancele antes do término do período gratuito e não será cobrado.
                   </p>
                 </div>
               )}

@@ -6,7 +6,7 @@ export const GUIDE_STEPS = [
   { targets: ["tour-pais", "tour-estado", "tour-cidade"], anchor: "tour-estado", title: "Localização", description: "Primeiro, escolha onde deseja encontrar seus futuros clientes." },
   { targets: ["tour-nicho"], anchor: "tour-nicho", title: "Nicho", description: "Agora informe o tipo de empresa que deseja prospectar. Exemplo: clínicas de estética." },
   { targets: ["tour-quantidade"], anchor: "tour-quantidade", title: "Quantidade de leads", description: "Escolha quantas empresas deseja encontrar nesta busca, respeitando os limites do seu plano." },
-  { targets: ["tour-foco"], anchor: "tour-foco", title: "Foco", description: "Selecione o serviço que você deseja oferecer. A Zuno utilizará essa informação para orientar a busca e personalizar suas mensagens comerciais. Isso não altera seu perfil comercial." },
+  { targets: ["tour-foco"], anchor: "tour-foco", title: "Foco comercial", description: "Selecione o serviço que você deseja oferecer. A Zuno utilizará essa informação para orientar a busca e personalizar suas mensagens comerciais. Isso não altera seu perfil comercial." },
   { targets: ["tour-canais"], anchor: "tour-canais", title: "Canais e configurações", description: "Escolha os canais que deseja utilizar na sua estratégia de prospecção. Você também pode ajustar a busca por proximidade." },
   { targets: ["btn-buscar-leads"], anchor: "btn-buscar-leads", title: "Buscar Leads", description: "Tudo pronto! Agora você pode encontrar suas primeiras oportunidades de negócio. Clique no botão destacado para buscar." },
   { targets: ["leads-table-container"], anchor: "leads-table-container", title: "Resultados", description: "Aqui estão suas oportunidades! Explore os leads encontrados e prepare sua primeira abordagem." },

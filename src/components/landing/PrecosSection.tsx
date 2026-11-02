@@ -321,7 +321,7 @@ export function PrecosSection() {
                   </div>
                   <div className="rounded-lg border border-[#20312A] bg-[#07100D] p-2.5 text-center">
                     <p className="text-base font-bold text-[#F3F7F5]">{plan.aiLimit.toLocaleString("pt-BR")}</p>
-                    <p className="text-[10px] text-[#A9B8B1] uppercase tracking-wider font-mono">análises IA</p>
+                    <p className="text-[10px] text-[#A9B8B1] uppercase tracking-wider font-mono">análises de IA</p>
                   </div>
                 </div>
 

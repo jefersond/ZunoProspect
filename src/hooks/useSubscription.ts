@@ -255,25 +255,32 @@ export const useSubscription = (): UseSubscriptionReturn => {
         leadsUsed = directSub.leads_used_this_month ?? 0;
         aiUsed = directSub.ai_used_this_month ?? 0;
 
-        // Auto-healing: se a assinatura local está trialing e o trial_end expirou, disparamos a verificação em segundo plano
+        // Auto-healing: sincroniza com o Stripe quando o trial expira ou o período local de cobrança fica defasado (ex: renovação mensal)
         const resolvedBillingProvider = directSub.billing_provider
           || (directSub.stripe_customer_id || directSub.stripe_subscription_id ? "stripe" : null);
-        if (resolvedBillingProvider === "stripe" && subStatusNormalized === "trialing" && directSub.trial_end && !hasTriggeredSyncRef.current) {
-          const trialEndDate = new Date(directSub.trial_end);
-          if (trialEndDate < new Date()) {
-            console.log("[useSubscription] Trial expirado localmente detectado. Disparando check-subscription no Stripe...");
-            hasTriggeredSyncRef.current = true;
-            // Dispara sem travar o carregamento inicial (fire-and-forget de re-sync)
-            supabase.functions.invoke("check-subscription").then(({ data, error }) => {
-              if (!error && data?.synchronized) {
-                console.log("[useSubscription] Assinatura sincronizada com sucesso do Stripe:", data);
-                // Força o refetch dos dados atualizados do banco para o estado da aplicação
-                fetchSubscription();
-              } else if (error) {
-                console.error("[useSubscription] Falha ao sincronizar com Stripe:", error);
-              }
-            });
-          }
+        const nowDate = new Date();
+        const trialExpiredLocally =
+          subStatusNormalized === "trialing"
+          && Boolean(directSub.trial_end)
+          && new Date(directSub.trial_end).getTime() < nowDate.getTime();
+        const renewalPeriodStale =
+          (subStatusNormalized === "active" || subStatusNormalized === "past_due")
+          && Boolean(directSub.current_period_end)
+          && new Date(directSub.current_period_end).getTime() < nowDate.getTime();
+
+        if (resolvedBillingProvider === "stripe" && (trialExpiredLocally || renewalPeriodStale) && !hasTriggeredSyncRef.current) {
+          console.log("[useSubscription] Período Stripe local defasado detectado. Disparando check-subscription...");
+          hasTriggeredSyncRef.current = true;
+          // Dispara sem travar o carregamento inicial (fire-and-forget de re-sync)
+          supabase.functions.invoke("check-subscription").then(({ data, error }) => {
+            if (!error && data?.synchronized) {
+              console.log("[useSubscription] Assinatura sincronizada com sucesso do Stripe:", data);
+              // Força o refetch dos dados atualizados do banco para o estado da aplicação
+              fetchSubscription();
+            } else if (error) {
+              console.error("[useSubscription] Falha ao sincronizar com Stripe:", error);
+            }
+          });
         }
       }
 

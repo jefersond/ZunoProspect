@@ -46,8 +46,10 @@ jobs:
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          version: latest
+          version: 3.4.0
 
       - name: Start local Supabase
         run: supabase start
@@ -77,7 +79,10 @@ jobs:
 
       - name: Stop local Supabase
         if: always()
-        run: supabase stop --no-backup
+        run: |
+          if command -v supabase >/dev/null 2>&1; then
+            supabase stop --no-backup
+          fi
 
       - name: Build
         run: npm run build

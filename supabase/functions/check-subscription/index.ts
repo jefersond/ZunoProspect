@@ -1,6 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Stripe from "npm:stripe@^14.20.0";
+import {
+  computeUsageForPeriodTransition,
+  extractSubscriptionPeriod,
+  isPeriodRegression,
+  selectBestStripeSubscription,
+} from "../_shared/billing/stripe-renewal-sync.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -121,49 +127,98 @@ serve(async (req) => {
       apiVersion: "2023-10-16",
     });
 
-    // 1. Procurar cliente no Stripe pelo e-mail do usuário
-    const customers = await stripe.customers.list({
-      email: user.email,
-      limit: 1,
-    });
+    // 1. Ler vínculo local existente antes de consultar o Stripe
+    const { data: existingSub } = await supabaseAdmin
+      .from("user_subscriptions")
+      .select(
+        "stripe_customer_id, stripe_subscription_id, stripe_price_id, leads_used_this_month, ai_used_this_month, current_period_start, current_period_end, subscription_status, last_payment_succeeded_at, last_payment_failed_at, latest_invoice_id, hosted_invoice_url"
+      )
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-    if (customers.data.length === 0) {
-      logStep("Nenhum cliente Stripe encontrado para este e-mail");
-      return new Response(JSON.stringify({
-        synchronized: false,
-        message: "Nenhuma assinatura ativa encontrada no Stripe.",
-        plan_name: "free",
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const candidateSubs: Stripe.Subscription[] = [];
+    let resolvedCustomerId: string | null = existingSub?.stripe_customer_id || null;
+
+    // Prioridade 1: consultar diretamente a assinatura vinculada no banco
+    if (existingSub?.stripe_subscription_id) {
+      try {
+        const directSub = await stripe.subscriptions.retrieve(existingSub.stripe_subscription_id);
+        candidateSubs.push(directSub);
+        if (typeof directSub.customer === "string") {
+          resolvedCustomerId = directSub.customer;
+        } else if (directSub.customer && "id" in directSub.customer) {
+          resolvedCustomerId = directSub.customer.id;
+        }
+      } catch (subErr) {
+        logStep("Falha ao consultar stripe_subscription_id diretamente; seguindo para customer lookup", {
+          subscriptionId: existingSub.stripe_subscription_id,
+          error: subErr instanceof Error ? subErr.message : String(subErr),
+        });
+      }
     }
 
-    const customerId = customers.data[0].id;
-    logStep("Cliente Stripe encontrado", { customerId });
+    // Prioridade 2: consultar customer vinculado e/ou todos os customers do mesmo e-mail
+    const customerIdsToCheck = new Set<string>();
+    if (resolvedCustomerId) customerIdsToCheck.add(resolvedCustomerId);
 
-    // 2. Listar assinaturas ativas ou em trial para este cliente
-    const subscriptions = await stripe.subscriptions.list({
-      customer: customerId,
-      status: "all", // Buscamos todas para poder filtrar localmente
-      limit: 5,
-    });
+    const bestDirect = selectBestStripeSubscription(candidateSubs);
+    if (!bestDirect) {
+      const customers = await stripe.customers.list({
+        email: user.email,
+        limit: 10,
+      });
+      for (const cust of customers.data) {
+        customerIdsToCheck.add(cust.id);
+      }
 
-    // Filtrar assinaturas válidas (active ou trialing)
-    const validSubs = subscriptions.data.filter(sub => 
-      ["active", "trialing"].includes(sub.status)
-    );
+      if (customerIdsToCheck.size === 0 && candidateSubs.length === 0) {
+        logStep("Nenhum cliente Stripe encontrado para este e-mail");
+        return new Response(JSON.stringify({
+          synchronized: false,
+          message: "Nenhuma assinatura ativa encontrada no Stripe.",
+          plan_name: "free",
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-    if (validSubs.length === 0) {
-      logStep("Nenhuma assinatura ativa ou em trial encontrada no Stripe");
+      for (const cid of customerIdsToCheck) {
+        try {
+          const list = await stripe.subscriptions.list({
+            customer: cid,
+            status: "all",
+            limit: 10,
+          });
+          for (const s of list.data) {
+            if (!candidateSubs.some((existing) => existing.id === s.id)) {
+              candidateSubs.push(s);
+            }
+          }
+        } catch (listErr) {
+          logStep("Falha ao listar assinaturas para customer", {
+            customerId: cid,
+            error: listErr instanceof Error ? listErr.message : String(listErr),
+          });
+        }
+      }
+    }
+
+    // Seleciona a assinatura mais autoritativa (active > trialing > past_due; nunca rebaixa past_due para free)
+    const subscription = selectBestStripeSubscription(candidateSubs);
+
+    if (!subscription) {
+      logStep("Nenhuma assinatura ativa, em trial ou past_due encontrada no Stripe");
       
-      // Rebaixar localmente para Free se não tiver nada ativo no Stripe
+      // Rebaixar localmente para Free apenas quando não há assinatura gerenciável no Stripe
       await supabaseAdmin.from("user_subscriptions").upsert({
         user_id: user.id,
         plan_name: "free",
         leads_limit: 20,
         ai_limit: 3,
         subscription_status: "cancelled",
+        status: "cancelled",
+        payment_status: "canceled",
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id" });
 
@@ -171,6 +226,7 @@ serve(async (req) => {
         plan_id: "free",
         subscription_status: "cancelled",
         current_plan: "free",
+        payment_status: "canceled",
       }).eq("id", user.id);
 
       return new Response(JSON.stringify({
@@ -183,9 +239,11 @@ serve(async (req) => {
       });
     }
 
-    // Assinatura válida encontrada
-    const subscription = validSubs[0];
-    const priceId = subscription.items?.data?.[0]?.price?.id || null;
+    const customerId =
+      typeof subscription.customer === "string"
+        ? subscription.customer
+        : subscription.customer?.id || resolvedCustomerId;
+    const priceId = subscription.items?.data?.[0]?.price?.id || existingSub?.stripe_price_id || null;
     const subscriptionAmount = subscription.items?.data?.[0]?.price?.unit_amount || null;
     const metadata = subscription.metadata;
 
@@ -197,27 +255,41 @@ serve(async (req) => {
 
     const limits = PLAN_LIMITS[planName] || PLAN_LIMITS.free;
     const now = new Date();
-    const periodStart = subscription.current_period_start ? new Date(subscription.current_period_start * 1000).toISOString() : now.toISOString();
-    const periodEnd = subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const billingCycle = metadata?.billing_cycle || (subscription.items?.data?.[0]?.price?.recurring?.interval === "year" ? "yearly" : "monthly");
+    const period = extractSubscriptionPeriod(subscription as unknown as Record<string, unknown>, {
+      billingCycle,
+      now,
+    });
+    const periodStart = isPeriodRegression(existingSub, period.periodStartIso, subscription.id)
+      ? (existingSub?.current_period_start || period.periodStartIso)
+      : period.periodStartIso;
+    const periodEnd = isPeriodRegression(existingSub, period.periodStartIso, subscription.id)
+      ? (existingSub?.current_period_end || period.periodEndIso)
+      : period.periodEndIso;
     const trialStart = subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : null;
     const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null;
-    const billingCycle = metadata?.billing_cycle || (subscription.items?.data?.[0]?.price?.recurring?.interval === "year" ? "yearly" : "monthly");
 
-    logStep("Assinatura válida encontrada no Stripe", { 
+    logStep("Assinatura gerenciável encontrada no Stripe", { 
       subscriptionId: subscription.id, 
       planName, 
-      status: subscription.status 
+      status: subscription.status,
+      periodSource: period.source,
     });
 
-    // Obter limites consumidos atualmente
-    const { data: existingSub } = await supabaseAdmin
-      .from("user_subscriptions")
-      .select("leads_used_this_month, ai_used_this_month")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const { leadsUsed, aiUsed } = computeUsageForPeriodTransition(
+      existingSub,
+      periodStart,
+      subscription.status,
+      subscription.id,
+    );
 
-    const leadsUsed = existingSub?.leads_used_this_month ?? 0;
-    const aiUsed = existingSub?.ai_used_this_month ?? 0;
+    const isActivePaid = subscription.status === "active";
+    const isPastDue = subscription.status === "past_due";
+    const paymentStatus = isPastDue ? "failed" : isActivePaid ? "paid" : null;
+    const latestInvoiceId =
+      typeof subscription.latest_invoice === "string"
+        ? subscription.latest_invoice
+        : subscription.latest_invoice?.id || existingSub?.latest_invoice_id || null;
 
     // Calcular dias de trial restantes
     let trialDaysRemaining: number | null = null;
@@ -240,6 +312,9 @@ serve(async (req) => {
         billing_period_end: periodEnd,
         is_annual: billingCycle === "yearly" || billingCycle === "annual",
         subscription_status: subscription.status,
+        status: subscription.status,
+        payment_status: paymentStatus,
+        billing_provider: "stripe",
         stripe_customer_id: customerId,
         stripe_subscription_id: subscription.id,
         stripe_price_id: priceId,
@@ -250,6 +325,13 @@ serve(async (req) => {
         trial_end: trialEnd,
         cancel_at_period_end: subscription.cancel_at_period_end,
         canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
+        latest_invoice_id: latestInvoiceId,
+        hosted_invoice_url: isActivePaid ? null : (existingSub?.hosted_invoice_url ?? null),
+        last_payment_failed_at: isActivePaid ? null : (existingSub?.last_payment_failed_at ?? null),
+        last_payment_succeeded_at: isActivePaid ? (existingSub?.last_payment_succeeded_at ?? now.toISOString()) : (existingSub?.last_payment_succeeded_at ?? null),
+        amount_remaining: isActivePaid ? 0 : undefined,
+        amount_due: isActivePaid ? 0 : undefined,
+        invoice_attempt_count: isActivePaid ? 0 : undefined,
         updated_at: now.toISOString(),
       }, { onConflict: "user_id" });
 
@@ -269,6 +351,7 @@ serve(async (req) => {
         stripe_customer_id: customerId,
         stripe_subscription_id: subscription.id,
         current_plan: planName,
+        payment_status: paymentStatus,
       })
       .eq("id", user.id);
 

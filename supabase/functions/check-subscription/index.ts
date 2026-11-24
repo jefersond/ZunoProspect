@@ -4,6 +4,7 @@ import Stripe from "npm:stripe@^14.20.0";
 import {
   computeUsageForPeriodTransition,
   extractSubscriptionPeriod,
+  isPeriodRegression,
   selectBestStripeSubscription,
 } from "../_shared/billing/stripe-renewal-sync.ts";
 
@@ -259,8 +260,12 @@ serve(async (req) => {
       billingCycle,
       now,
     });
-    const periodStart = period.periodStartIso;
-    const periodEnd = period.periodEndIso;
+    const periodStart = isPeriodRegression(existingSub, period.periodStartIso, subscription.id)
+      ? (existingSub?.current_period_start || period.periodStartIso)
+      : period.periodStartIso;
+    const periodEnd = isPeriodRegression(existingSub, period.periodStartIso, subscription.id)
+      ? (existingSub?.current_period_end || period.periodEndIso)
+      : period.periodEndIso;
     const trialStart = subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : null;
     const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null;
 

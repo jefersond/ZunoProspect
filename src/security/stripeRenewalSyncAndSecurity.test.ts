@@ -3,11 +3,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import {
+  buildInvoicePaidIdempotencyKey,
   computeUsageForPeriodTransition,
   extractSubscriptionIdFromInvoice,
   extractSubscriptionPeriod,
+  isPeriodRegression,
+  releaseStripeIdempotencyClaim,
   selectBestStripeSubscription,
   shouldAutoHealStripeSubscription,
+  tryAcquireStripeIdempotencyClaim,
 } from "../../supabase/functions/_shared/billing/stripe-renewal-sync";
 
 const REPO_ROOT = path.resolve(__dirname, "../..");
@@ -216,6 +220,89 @@ describe("Stripe Renewal Sync — Compatibilidade API 2025+ e Renovação 25/11"
       ),
     ).toBe(false);
   });
+
+  it("garante idempotência concorrente entre invoice.paid e invoice.payment_succeeded para a mesma fatura e libera lock em falha", async () => {
+    const uniqueIndex = new Map<string, { status: string }>();
+    const mockAdmin = {
+      from: (_table: string) => ({
+        insert: async (row: Record<string, unknown>) => {
+          const key = `${row.provider}:${row.provider_event_id}`;
+          if (uniqueIndex.has(key)) {
+            return { error: { code: "23505", message: "duplicate key value violates unique constraint" } };
+          }
+          uniqueIndex.set(key, { status: String(row.status || "processing") });
+          return { error: null };
+        },
+        delete: () => ({
+          eq: (_c1: string, provider: string) => ({
+            eq: (_c2: string, providerEventId: string) => ({
+              eq: async (_c3: string, status: string) => {
+                const key = `${provider}:${providerEventId}`;
+                const cur = uniqueIndex.get(key);
+                if (cur && cur.status === status) uniqueIndex.delete(key);
+                return { error: null };
+              },
+            }),
+          }),
+        }),
+      }),
+    };
+
+    const invoiceKey = buildInvoicePaidIdempotencyKey("in_renewal_25_11_2026");
+    expect(invoiceKey).toBe("invoice_paid:in_renewal_25_11_2026");
+
+    // Simula entregas concorrentes de invoice.paid e invoice.payment_succeeded para a mesma fatura
+    const [claimA, claimB] = await Promise.all([
+      tryAcquireStripeIdempotencyClaim(mockAdmin, {
+        providerEventId: invoiceKey,
+        eventType: "invoice.paid.lock",
+        eventData: { source_event_type: "invoice.paid", source_event_id: "evt_paid_1" },
+      }),
+      tryAcquireStripeIdempotencyClaim(mockAdmin, {
+        providerEventId: invoiceKey,
+        eventType: "invoice.paid.lock",
+        eventData: { source_event_type: "invoice.payment_succeeded", source_event_id: "evt_succ_1" },
+      }),
+    ]);
+
+    const acquiredCount = [claimA, claimB].filter((c) => c.acquired).length;
+    const duplicateCount = [claimA, claimB].filter((c) => c.duplicate).length;
+    expect(acquiredCount).toBe(1);
+    expect(duplicateCount).toBe(1);
+
+    // Em falha antes de concluir, libera o lock processing para permitir retry legítimo do Stripe
+    await releaseStripeIdempotencyClaim(mockAdmin, invoiceKey);
+    const retryClaim = await tryAcquireStripeIdempotencyClaim(mockAdmin, {
+      providerEventId: invoiceKey,
+      eventType: "invoice.paid.lock",
+    });
+    expect(retryClaim.acquired).toBe(true);
+    expect(retryClaim.duplicate).toBe(false);
+  });
+
+  it("impede regressão de período e reset duplicado de cotas quando chega webhook atrasado fora de ordem", () => {
+    const alreadyRenewedCycle = {
+      leads_used_this_month: 55,
+      ai_used_this_month: 7,
+      current_period_start: "2026-11-25T09:20:07.000Z",
+      current_period_end: "2026-12-25T09:20:07.000Z",
+      subscription_status: "active",
+      stripe_subscription_id: "sub_pro_renewal_25_11",
+    };
+
+    expect(
+      isPeriodRegression(alreadyRenewedCycle, "2026-10-25T09:20:07.000Z", "sub_pro_renewal_25_11"),
+    ).toBe(true);
+
+    // Mesmo se um webhook antigo chegar atrasado, nunca zera o uso do ciclo atual
+    const outOfOrderUsage = computeUsageForPeriodTransition(
+      alreadyRenewedCycle,
+      "2026-10-25T09:20:07.000Z",
+      "active",
+      "sub_pro_renewal_25_11",
+    );
+    expect(outOfOrderUsage).toEqual({ leadsUsed: 55, aiUsed: 7, resetForNewCycle: false });
+  });
 });
 
 describe("Blindagem de Segurança Stripe — .tmp/, Workflow e Edge Functions", () => {
@@ -270,7 +357,10 @@ describe("Blindagem de Segurança Stripe — .tmp/, Workflow e Edge Functions", 
     expect(webhookSrc).toContain("extractSubscriptionIdFromInvoice");
     expect(webhookSrc).toContain("extractSubscriptionPeriod");
     expect(webhookSrc).toContain("computeUsageForPeriodTransition");
-    expect(webhookSrc).toContain('eq("provider_event_id", event.id)');
+    expect(webhookSrc).toContain("buildInvoicePaidIdempotencyKey");
+    expect(webhookSrc).toContain("tryAcquireStripeIdempotencyClaim");
+    expect(webhookSrc).toContain("releaseStripeIdempotencyClaim");
+    expect(webhookSrc).toContain("isPeriodRegression");
     expect(webhookSrc).toContain('billing_provider: "stripe"');
     expect(webhookSrc).toContain("stripe_price_id: resolvedStripePriceId");
 

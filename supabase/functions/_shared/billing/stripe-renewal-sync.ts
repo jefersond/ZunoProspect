@@ -24,6 +24,25 @@ export interface UsageTransitionResult {
   resetForNewCycle: boolean;
 }
 
+export interface IdempotencyClaimResult {
+  acquired: boolean;
+  duplicate: boolean;
+  errorMessage?: string;
+}
+
+export interface PaymentEventsInsertClient {
+  from: (table: string) => {
+    insert: (row: Record<string, unknown>) => PromiseLike<{ error: { code?: string; message?: string } | null }>;
+    delete: () => {
+      eq: (col: string, val: string) => {
+        eq: (col: string, val: string) => {
+          eq: (col: string, val: string) => PromiseLike<{ error: { message?: string } | null }>;
+        };
+      };
+    };
+  };
+}
+
 function asStripeId(value: unknown): string | null {
   if (!value) return null;
   if (typeof value === "string") {
@@ -42,6 +61,80 @@ export function unixSecondsToIso(value: unknown): string | null {
   const date = new Date(value * 1000);
   if (Number.isNaN(date.getTime())) return null;
   return date.toISOString();
+}
+
+/**
+ * Canonical lock key for a paid Stripe invoice so that `invoice.paid` and
+ * `invoice.payment_succeeded` (even arriving concurrently with distinct evt_ IDs)
+ * contend on the same UNIQUE (provider, provider_event_id) index in payment_events.
+ */
+export function buildInvoicePaidIdempotencyKey(invoiceId: string): string {
+  const normalized = String(invoiceId || "").trim();
+  if (!normalized) {
+    throw new Error("invoiceId is required to build idempotency key");
+  }
+  return `invoice_paid:${normalized}`;
+}
+
+/**
+ * Atomically acquires an idempotency claim in public.payment_events using
+ * the UNIQUE index on (provider, provider_event_id).
+ * Under concurrent delivery, PostgreSQL guarantees only one caller receives
+ * acquired=true while all others receive code 23505 -> acquired=false, duplicate=true.
+ */
+export async function tryAcquireStripeIdempotencyClaim(
+  supabaseAdmin: PaymentEventsInsertClient,
+  params: {
+    providerEventId: string;
+    eventType: string;
+    stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
+    amount?: number | null;
+    currency?: string | null;
+    eventData?: Record<string, unknown>;
+  },
+): Promise<IdempotencyClaimResult> {
+  const { error } = await supabaseAdmin.from("payment_events").insert({
+    provider: "stripe",
+    provider_event_id: params.providerEventId,
+    event_type: params.eventType,
+    status: "processing",
+    stripe_customer_id: params.stripeCustomerId ?? null,
+    stripe_subscription_id: params.stripeSubscriptionId ?? null,
+    amount: params.amount ?? null,
+    currency: params.currency ?? null,
+    event_data: params.eventData ?? {},
+  });
+
+  if (!error) {
+    return { acquired: true, duplicate: false };
+  }
+
+  if (error.code === "23505" || /duplicate key/i.test(error.message || "")) {
+    return { acquired: false, duplicate: true };
+  }
+
+  return { acquired: false, duplicate: false, errorMessage: error.message || "unknown_claim_error" };
+}
+
+/**
+ * Releases an in-flight `processing` claim if webhook execution throws before completion,
+ * allowing Stripe's automatic retry to process the event cleanly.
+ */
+export async function releaseStripeIdempotencyClaim(
+  supabaseAdmin: PaymentEventsInsertClient,
+  providerEventId: string,
+): Promise<void> {
+  try {
+    await supabaseAdmin
+      .from("payment_events")
+      .delete()
+      .eq("provider", "stripe")
+      .eq("provider_event_id", providerEventId)
+      .eq("status", "processing");
+  } catch {
+    // Best-effort cleanup; never mask the original webhook error
+  }
 }
 
 /**
@@ -132,12 +225,37 @@ export function extractSubscriptionPeriod(
 }
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const ONE_MINUTE_MS = 60 * 1000;
+
+/**
+ * Detects an out-of-order webhook carrying an older billing period start
+ * than the one already stored for the same subscription.
+ */
+export function isPeriodRegression(
+  existingSub: ExistingSubscriptionUsageState | null | undefined,
+  nextPeriodStartIso: string,
+  nextSubscriptionId?: string | null,
+): boolean {
+  if (!existingSub?.current_period_start) return false;
+  const sameSubscription =
+    !existingSub.stripe_subscription_id ||
+    !nextSubscriptionId ||
+    existingSub.stripe_subscription_id === nextSubscriptionId;
+  if (!sameSubscription) return false;
+
+  const prevStartMs = Date.parse(existingSub.current_period_start);
+  const nextStartMs = Date.parse(nextPeriodStartIso);
+  if (!Number.isFinite(prevStartMs) || !Number.isFinite(nextStartMs)) return false;
+
+  return nextStartMs + ONE_MINUTE_MS < prevStartMs;
+}
 
 /**
  * Determines monthly usage counters on subscription sync/renewal.
- * Resets usage to 0 only when an active paid subscription advances into a genuinely
- * newer billing period (> 24h after previous current_period_start), guaranteeing
- * idempotency on webhook replays and duplicate invoice/subscription events.
+ * Resets usage to 0 only once per paid cycle, when an active subscription
+ * advances into a genuinely newer billing period (> 24h after previous
+ * current_period_start), guaranteeing idempotency on replays, concurrent
+ * invoice/subscription deliveries, and out-of-order webhooks.
  */
 export function computeUsageForPeriodTransition(
   existingSub: ExistingSubscriptionUsageState | null | undefined,
@@ -150,6 +268,10 @@ export function computeUsageForPeriodTransition(
   const normalizedStatus = String(nextStatus || "").toLowerCase();
 
   if (normalizedStatus !== "active") {
+    return { leadsUsed: currentLeads, aiUsed: currentAi, resetForNewCycle: false };
+  }
+
+  if (isPeriodRegression(existingSub, nextPeriodStartIso, nextSubscriptionId)) {
     return { leadsUsed: currentLeads, aiUsed: currentAi, resetForNewCycle: false };
   }
 

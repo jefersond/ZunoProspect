@@ -7,9 +7,13 @@ import {
   type ZanotelliProductEventName,
 } from "../_shared/zanotelli-inbound-bridge.ts";
 import {
+  buildInvoicePaidIdempotencyKey,
   computeUsageForPeriodTransition,
   extractSubscriptionIdFromInvoice,
   extractSubscriptionPeriod,
+  isPeriodRegression,
+  releaseStripeIdempotencyClaim,
+  tryAcquireStripeIdempotencyClaim,
 } from "../_shared/billing/stripe-renewal-sync.ts";
 const TRIAL_POLICY_VERSION = "4d_2026_09";
 
@@ -478,7 +482,7 @@ async function activateUserPlan(
     .maybeSingle();
 
   const now = new Date();
-  const periodStart = params.currentPeriodStart || now.toISOString();
+  let periodStart = params.currentPeriodStart || now.toISOString();
   let periodEnd = params.currentPeriodEnd;
   if (!periodEnd) {
     const end = new Date(now);
@@ -488,6 +492,12 @@ async function activateUserPlan(
       end.setMonth(end.getMonth() + 1);
     }
     periodEnd = end.toISOString();
+  }
+
+  // Proteção contra webhooks fora de ordem: nunca regredir o período de cobrança mais recente
+  if (isPeriodRegression(existingSub, periodStart, params.stripeSubscriptionId)) {
+    periodStart = existingSub?.current_period_start || periodStart;
+    periodEnd = existingSub?.current_period_end || periodEnd;
   }
 
   const { leadsUsed, aiUsed } = computeUsageForPeriodTransition(
@@ -1123,6 +1133,9 @@ serve(async (req) => {
     { auth: { persistSession: false } }
   );
 
+  let acquiredEventClaim = false;
+  let acquiredInvoiceLockKey: string | null = null;
+
   try {
     let eventUserId: string | null = null;
     let eventPlanName: string | null = null;
@@ -1135,19 +1148,24 @@ serve(async (req) => {
 
     console.log(`[stripe-webhook] Recebido evento Stripe: ${event.type} (ID: ${event.id})`);
 
-    // Guarda de idempotência antecipada: evita reprocessamento de eventos Stripe já concluídos
-    const { data: existingEvent } = await supabaseAdmin
-      .from("payment_events")
-      .select("id")
-      .eq("provider", "stripe")
-      .eq("provider_event_id", event.id)
-      .maybeSingle();
+    // Guarda de idempotência atômica (INSERT com índice UNIQUE em provider, provider_event_id):
+    // impede processamento duplicado mesmo sob entregas concorrentes do mesmo evento Stripe.
+    const eventClaim = await tryAcquireStripeIdempotencyClaim(supabaseAdmin as any, {
+      providerEventId: event.id,
+      eventType: event.type,
+      eventData: event.data.object as Record<string, unknown>,
+    });
 
-    if (existingEvent) {
-      console.log(`[stripe-webhook] Evento Stripe duplicado ignorado com segurança: ${event.id}`);
+    if (eventClaim.duplicate) {
+      console.log(`[stripe-webhook] Evento Stripe duplicado/concorrente ignorado com segurança: ${event.id}`);
       return new Response(JSON.stringify({ received: true, duplicate: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+    if (eventClaim.acquired) {
+      acquiredEventClaim = true;
+    } else if (eventClaim.errorMessage) {
+      console.warn(`[stripe-webhook] Aviso ao adquirir claim de idempotência para ${event.id}:`, eventClaim.errorMessage);
     }
 
     // 1. checkout.session.completed
@@ -1673,6 +1691,52 @@ serve(async (req) => {
       amount = invoice.amount_paid || invoice.amount_due || null;
       currency = invoice.currency || null;
 
+      // Idempotência concorrente por fatura paga: garante que invoice.paid e invoice.payment_succeeded
+      // da mesma fatura (mesmo chegando em paralelo com evt_ diferentes) nunca processem efeitos financeiros em dobro.
+      if (!isFailed && invoice.id) {
+        const invoiceLockKey = buildInvoicePaidIdempotencyKey(invoice.id);
+        const invoiceClaim = await tryAcquireStripeIdempotencyClaim(supabaseAdmin as any, {
+          providerEventId: invoiceLockKey,
+          eventType: "invoice.paid.lock",
+          stripeCustomerId,
+          stripeSubscriptionId,
+          amount,
+          currency,
+          eventData: {
+            invoice_id: invoice.id,
+            source_event_id: event.id,
+            source_event_type: event.type,
+          },
+        });
+
+        if (invoiceClaim.duplicate) {
+          console.log(`[stripe-webhook] Fatura ${invoice.id} já processada ou em processamento por outro evento (${event.type} / ${event.id}). Ignorando duplicidade financeira.`);
+          await logPaymentEvent(supabaseAdmin, {
+            user_id: null,
+            event_type: event.type,
+            provider: "stripe",
+            provider_event_id: event.id,
+            stripe_customer_id: stripeCustomerId,
+            stripe_subscription_id: stripeSubscriptionId,
+            stripe_checkout_session_id: stripeCheckoutSessionId,
+            plan_name: null,
+            amount,
+            currency,
+            status: "duplicate_invoice_ignored",
+            event_data: event.data.object as Record<string, unknown>,
+          });
+          return new Response(JSON.stringify({ received: true, duplicate_invoice: true, invoice_id: invoice.id }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        if (invoiceClaim.acquired) {
+          acquiredInvoiceLockKey = invoiceLockKey;
+        } else if (invoiceClaim.errorMessage) {
+          console.warn(`[stripe-webhook] Aviso ao adquirir lock da fatura ${invoice.id}:`, invoiceClaim.errorMessage);
+        }
+      }
+
       if (subscriptionId) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const metadata = subscription.metadata;
@@ -1964,7 +2028,7 @@ serve(async (req) => {
       }
     }
 
-    // Registra todos os eventos de pagamento no banco com restrição UNIQUE de provider_event_id para idempotência
+    // Registra/finaliza o evento de pagamento no banco com restrição UNIQUE de provider_event_id para idempotência
     await logPaymentEvent(supabaseAdmin, {
       user_id: eventUserId,
       event_type: event.type,
@@ -1979,7 +2043,34 @@ serve(async (req) => {
       status: eventStatus,
       event_data: event.data.object as Record<string, unknown>,
     });
+
+    if (acquiredInvoiceLockKey) {
+      await logPaymentEvent(supabaseAdmin, {
+        user_id: eventUserId,
+        event_type: "invoice.paid.lock",
+        provider: "stripe",
+        provider_event_id: acquiredInvoiceLockKey,
+        stripe_customer_id: stripeCustomerId,
+        stripe_subscription_id: stripeSubscriptionId,
+        stripe_checkout_session_id: stripeCheckoutSessionId,
+        plan_name: eventPlanName,
+        amount,
+        currency,
+        status: "paid",
+        event_data: {
+          source_event_id: event.id,
+          source_event_type: event.type,
+        },
+      });
+    }
   } catch (error: any) {
+    if (acquiredInvoiceLockKey) {
+      await releaseStripeIdempotencyClaim(supabaseAdmin as any, acquiredInvoiceLockKey);
+    }
+    if (acquiredEventClaim) {
+      await releaseStripeIdempotencyClaim(supabaseAdmin as any, event.id);
+    }
+
     console.error("Erro ao processar webhook Stripe:", {
       eventType: event.type,
       message: error?.message,
